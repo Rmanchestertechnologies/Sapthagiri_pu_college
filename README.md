@@ -22,16 +22,10 @@ This platform is a dedicated, production-grade assessment engine engineered spec
 
 ---
 
-## 🔐 Production Credentials
-- **Admin Email**: `sapthagiripucollegedvg@gmail.com`
-- **Admin Password**: `Sapthagiri1`
-- **Role**: Institutional Administrator (`admin`)
+
 
 ---
 
-## 🗄️ Database Architecture (Supabase PostgreSQL)
-All institutional data is persisted in Supabase PostgreSQL:
-- **Connection URI**: `postgresql://postgres:Sapthagiri1@db.vukxgqkrersxcasdklda.supabase.co:5432/postgres`
 - **Tables**:
   - `public.users`: Faculty and administrator accounts with bcrypt encryption.
   - `public.papers`: Generated question papers, questions payload (JSONB), and layout settings.
@@ -49,18 +43,7 @@ npm run init:db
 
 ---
 
-## 🚀 Deployment to Vercel
-The repository is pre-configured with `vercel.json` for single-click deployment:
-1. Push repository to GitHub: `https://github.com/Rmanchestertechnologies/Sapthagiri_pu_college`
-2. Import project into Vercel.
-3. Configure Environment Variables in Vercel Project Settings:
-   - `DATABASE_URL`: `postgresql://postgres.vukxgqkrersxcasdklda:Sapthagiri1@aws-0-ap-south-1.pooler.supabase.com:5432/postgres`
-   - `DIRECT_DATABASE_URL`: `postgresql://postgres:Sapthagiri1@db.vukxgqkrersxcasdklda.supabase.co:5432/postgres`
-   - `SUPABASE_URL`: `https://vukxgqkrersxcasdklda.supabase.co`
-   - `JWT_SECRET`: `sapthagiri_jwt_secret_key_2026`
-   - `ADMIN_PASSWORD`: `Sapthagiri1`
-4. Deploy! The frontend builds from `client/dist` and API requests are handled via serverless functions.
-5. Connect your custom domain in Vercel **Settings → Domains**.
+
 
 ---
 
