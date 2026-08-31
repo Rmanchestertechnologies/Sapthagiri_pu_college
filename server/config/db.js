@@ -1,19 +1,25 @@
-const dns = require('dns');
-try {
-    dns.setServers(['8.8.8.8', '1.1.1.1']);
-} catch (err) {
-    console.warn('⚠️ Warning: Failed to set custom DNS servers for MongoDB connection:', err.message);
-}
 const mongoose = require('mongoose');
 
 const connectDB = async () => {
-    try {
-        await mongoose.connect(process.env.MONGO_URI);
-        console.log('MongoDB Connected...');
-    } catch (err) {
-        console.error(err.message);
-        process.exit(1);
+    if (!process.env.MONGO_URI) {
+        throw new Error('MONGO_URI is not configured');
     }
+
+    // Already connected
+    if (mongoose.connection.readyState === 1) {
+        return mongoose.connection;
+    }
+
+    console.log('⏳ Connecting to MongoDB Atlas...');
+
+    await mongoose.connect(process.env.MONGO_URI);
+
+    // Verify that the connection is actually usable
+    await mongoose.connection.db.admin().ping();
+
+    console.log('✅ MongoDB Atlas Connected');
+
+    return mongoose.connection;
 };
 
 module.exports = connectDB;

@@ -14,6 +14,9 @@ const path = require('path');
 const fs = require('fs');
 const cookieParser = require('cookie-parser');
 
+const connectDB = require('./config/db');
+
+
 // ── Security Middleware
 const helmet = require('helmet');
 const mongoSanitize = require('./middleware/mongoSanitize');
