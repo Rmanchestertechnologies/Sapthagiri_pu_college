@@ -1,0 +1,20 @@
+{
+  "version": 2,
+  "buildCommand": "npm --prefix client run build",
+  "installCommand": "npm --prefix client install",
+  "outputDirectory": "client/dist",
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "https://sapthagiri-pu-college-api.onrender.com/api/$1"
+    },
+    {
+      "source": "/uploads/(.*)",
+      "destination": "https://sapthagiri-pu-college-api.onrender.com/uploads/$1"
+    },
+    {
+      "source": "/((?!assets/|SapthagiriLogo.jpg|SapthagiriCampus.webp|ManchesterLogo.jpeg|favicon.*|.*\\.[a-zA-Z0-9]+$).*)",
+      "destination": "/index.html"
+    }
+  ]
+}

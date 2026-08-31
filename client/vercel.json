@@ -1,0 +1,8 @@
+{
+  "rewrites": [
+    {
+      "source": "/((?!assets/|SapthagiriLogo.jpg|SapthagiriCampus.webp|ManchesterLogo.jpeg|favicon.*|.*\\.[a-zA-Z0-9]+$).*)",
+      "destination": "/index.html"
+    }
+  ]
+}

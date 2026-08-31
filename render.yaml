@@ -1,0 +1,44 @@
+services:
+  - type: web
+    name: sapthagiri-pu-college-api
+    runtime: node
+    plan: free
+    region: singapore
+    rootDir: server
+    buildCommand: npm install
+    startCommand: node index.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: DATABASE_URL
+        value: postgresql://postgres.vukxgqkrersxcasdklda:Sapthagiri1@aws-0-ap-south-1.pooler.supabase.com:5432/postgres
+      - key: DIRECT_DATABASE_URL
+        value: postgresql://postgres:Sapthagiri1@db.vukxgqkrersxcasdklda.supabase.co:5432/postgres
+      - key: SUPABASE_URL
+        value: https://vukxgqkrersxcasdklda.supabase.co
+      - key: JWT_SECRET
+        value: sapthagiri_pu_college_secret_key_davanagere_2026
+      - key: JWT_EXPIRES_IN
+        value: 10h
+      - key: ADMIN_PASSWORD
+        value: Sapthagiri1
+      - key: ALLOWED_ORIGINS
+        value: "*"
+      - key: DB_MATH_11_URL
+        value: postgresql://postgres.lhnwhbhnexxifuuqnzho:SubClass11Maths@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres
+      - key: DB_MATH_12_URL
+        value: postgresql://postgres.lukbqotnuxoznnrsdqvz:SubClass12Maths@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres
+      - key: DB_CHEM_11_URL
+        value: postgresql://postgres.tloqcflffxrrlbxyphtb:SubClass11Chemistry@aws-0-ap-northeast-1.pooler.supabase.com:5432/postgres
+      - key: DB_CHEM_12_URL
+        value: postgresql://postgres.dptruxcqfapmcmbxyobx:SubClass12Chemistry@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres
+      - key: DB_BIO_11_URL
+        value: postgresql://postgres.tcoaxdpzvzssnkclpvkt:SubClass11Biology@aws-0-ap-southeast-2.pooler.supabase.com:5432/postgres
+      - key: DB_BIO_12_URL
+        value: postgresql://postgres.zxxvxddkncoluvidbtpf:SubClass12Biology@aws-0-ap-southeast-2.pooler.supabase.com:5432/postgres
+      - key: DB_PHY_11_URL
+        value: postgresql://postgres.pfnlbyjsjxttdachegne:SubClass11Physics@aws-0-ap-northeast-2.pooler.supabase.com:5432/postgres
+      - key: DB_PHY_12_URL
+        value: postgresql://postgres.fnbgbtvnqmccpvgpphua:SubClass12Physics@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres

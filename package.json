@@ -1,0 +1,15 @@
+{
+  "name": "sapthagiri-pu-college-qpg",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Sapthagiri PU College Davanagere - Institutional Question Paper Generator",
+  "scripts": {
+    "dev": "concurrently \"npm --prefix server run dev\" \"npm --prefix client run dev\"",
+    "build": "npm --prefix client run build",
+    "start": "node server/index.js",
+    "init:db": "node server/scripts/init_db.js"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.5"
+  }
+}
