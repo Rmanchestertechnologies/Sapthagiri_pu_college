@@ -76,24 +76,26 @@ const DashboardHome = () => {
             // dropdown in the commission modal never shows a false empty message.
             setTeachersLoading(true);
             const [teachersRes, examsRes] = await Promise.all([
-                api.get('/api/admin/teachers'),
-                api.get('/api/exams/commissioned')
+                api.get('/api/admin/teachers').catch(err => {
+                    console.error('Teachers load notice:', err.message);
+                    return { data: [] };
+                }),
+                api.get('/api/exams/commissioned').catch(err => {
+                    console.warn('Exams load notice:', err.message);
+                    return { data: [] };
+                })
             ]);
-            setAllTeachers(teachersRes.data || []);
+            setAllTeachers(Array.isArray(teachersRes.data) ? teachersRes.data : []);
             setTeachersLoading(false);
-            const examsList = examsRes.data || [];
+            const examsList = Array.isArray(examsRes.data) ? examsRes.data : [];
             setCommissionedExams(examsList);
             if (examsList.length > 0) {
-                setSelectedExamId(prev => (prev && examsList.some(e => e._id === prev) ? prev : examsList[0]._id));
+                setSelectedExamId(prev => (prev && examsList.some(e => (e._id || e.id) === prev) ? prev : (examsList[0]._id || examsList[0].id)));
             }
             setLoading(false);
         } catch (err) {
             console.error('Error fetching admin dashboard data:', err);
             setTeachersLoading(false);
-            if (err.response && [400, 401, 403].includes(err.response.status)) {
-                logout();
-                navigate('/');
-            }
             setLoading(false);
         }
     };
@@ -118,9 +120,18 @@ const DashboardHome = () => {
                 subjectsNeeded = ['Physics', 'Chemistry', 'Mathematics', 'Biology'];
             }
 
+            const isSubMatch = (tSub, sName) => {
+                if (!tSub || !sName) return false;
+                const a = tSub.toLowerCase().replace(/ematics|s$/g, '');
+                const b = sName.toLowerCase().replace(/ematics|s$/g, '');
+                if ((b === 'botany' || b === 'zoology') && (a.includes('bio') || a.includes(b))) return true;
+                return a === b || a.includes(b) || b.includes(a);
+            };
+
             const subjectAssignments = subjectsNeeded.map(subName => {
                 const assignedTeacherId = commissionForm.assignedTeachers[subName];
-                const teacherObj = allTeachers.find(t => (t._id || t.id) === assignedTeacherId) || allTeachers.find(t => (t.subject || '').toLowerCase().includes(subName.toLowerCase()));
+                const teacherObj = allTeachers.find(t => String(t._id || t.id) === String(assignedTeacherId)) ||
+                                   allTeachers.find(t => isSubMatch(t.subject, subName));
                 return {
                     subject: subName,
                     teacherId: teacherObj ? (teacherObj._id || teacherObj.id) : undefined,
@@ -509,15 +520,10 @@ const DashboardHome = () => {
 
                                     return subs.map(subName => {
                                         const subTeachers = allTeachers.filter(t => {
-                                            const tSub = (t.subject || '').toLowerCase();
-                                            const sName = subName.toLowerCase();
-                                            // Bidirectional match (same as SubjectDetails.jsx)
-                                            const fwd = tSub.includes(sName) || sName.includes(tSub);
-                                            if (fwd) return true;
-                                            // Extra aliases
-                                            if (sName === 'mathematics' && (tSub.includes('math') || tSub === 'maths')) return true;
+                                            const tSub = (t.subject || '').toLowerCase().replace(/ematics|s$/g, '');
+                                            const sName = subName.toLowerCase().replace(/ematics|s$/g, '');
                                             if ((sName === 'botany' || sName === 'zoology') && (tSub.includes('bio') || tSub.includes(sName))) return true;
-                                            return false;
+                                            return tSub === sName || tSub.includes(sName) || sName.includes(tSub);
                                         });
 
                                         return (

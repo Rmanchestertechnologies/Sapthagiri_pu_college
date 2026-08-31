@@ -1,21 +1,11 @@
 const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
+const mongoose = require('mongoose');
 const User = require('../models/User');
+const pool = require('../config/postgres');
 const auth = require('../middleware/auth');
 const checkRole = require('../middleware/role');
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Helper — lazy-load Postgres pool only when needed.
-// Keeps MongoDB path free of any Postgres import failures.
-// ─────────────────────────────────────────────────────────────────────────────
-const getPool = () => {
-    try {
-        return require('../config/postgres');
-    } catch (e) {
-        return null;
-    }
-};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // @route   GET /api/admin
@@ -28,7 +18,7 @@ router.get('/', [auth, checkRole(['admin'])], async (req, res) => {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // @route   POST /api/admin/teachers
-// @desc    Create a teacher — PRIMARY: MongoDB Atlas, FALLBACK SYNC: Postgres
+// @desc    Create a teacher (Saves to PostgreSQL + syncs MongoDB)
 // @access  Admin
 // ─────────────────────────────────────────────────────────────────────────────
 router.post('/teachers', [auth, checkRole(['admin'])], async (req, res) => {
@@ -39,197 +29,178 @@ router.post('/teachers', [auth, checkRole(['admin'])], async (req, res) => {
     }
 
     const cleanEmail = (email || '').trim().toLowerCase();
-    const cleanName  = (name  || '').trim();
-    const cleanSubject = (subject || '').trim();
+    const cleanName = (name || '').trim();
+    // Standardize Maths to Mathematics
+    let cleanSubject = (subject || '').trim();
+    if (cleanSubject.toLowerCase() === 'maths') {
+        cleanSubject = 'Mathematics';
+    }
 
     try {
-        // ── 1. PRIMARY: Save to MongoDB Atlas ────────────────────────────────
-        const existingMongo = await User.findOne({ email: cleanEmail });
-        if (existingMongo) {
+        // 1. Check if user already exists in PostgreSQL
+        const existingPg = await pool.query('SELECT id FROM public.users WHERE email = $1', [cleanEmail]);
+        if (existingPg.rows.length > 0) {
             return res.status(400).json({ msg: 'Teacher already exists with this email.' });
         }
 
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(password, salt);
 
-        const newUser = new User({
-            name:     cleanName,
-            email:    cleanEmail,
-            password: hashedPassword,
-            role:     'teacher',
-            subject:  cleanSubject,
-        });
-        await newUser.save();
+        // 2. Insert into PostgreSQL (Primary Source of Truth)
+        const insertRes = await pool.query(`
+            INSERT INTO public.users (name, email, password, role, subject)
+            VALUES ($1, $2, $3, 'teacher', $4)
+            RETURNING id, name, email, role, subject, created_at
+        `, [cleanName, cleanEmail, hashedPassword, cleanSubject]);
 
-        console.log(`[ADMIN] Teacher created in MongoDB: ${cleanName} <${cleanEmail}> — ${cleanSubject}`);
+        const row = insertRes.rows[0];
+        const teacherData = {
+            _id: row.id.toString(),
+            id: row.id,
+            name: row.name,
+            email: row.email,
+            role: row.role,
+            subject: row.subject,
+            createdAt: row.created_at,
+            created_at: row.created_at
+        };
 
-        // ── 2. SECONDARY SYNC: Attempt Postgres (non-blocking, ignore errors) ─
-        try {
-            const pool = getPool();
-            if (pool) {
-                const existing = await pool.query(
-                    'SELECT id FROM public.users WHERE email = $1', [cleanEmail]
-                );
-                if (!existing.rows || existing.rows.length === 0) {
-                    await pool.query(
-                        `INSERT INTO public.users (name, email, password, role, subject)
-                         VALUES ($1, $2, $3, 'teacher', $4)`,
-                        [cleanName, cleanEmail, hashedPassword, cleanSubject]
-                    );
+        // 3. Secondary sync to MongoDB Atlas if connected
+        if (mongoose.connection.readyState === 1 && User) {
+            try {
+                const existingMongo = await User.findOne({ email: cleanEmail });
+                if (!existingMongo) {
+                    const mUser = new User({
+                        name: cleanName,
+                        email: cleanEmail,
+                        password: hashedPassword,
+                        role: 'teacher',
+                        subject: cleanSubject
+                    });
+                    await mUser.save();
                 }
+            } catch (mErr) {
+                console.warn('[ADMIN] Mongo sync notice:', mErr.message);
             }
-        } catch (pgErr) {
-            // Postgres sync is non-critical — MongoDB is the source of truth
-            console.warn('[ADMIN] Postgres sync skipped (non-critical):', pgErr.message);
         }
 
-        // ── Return the created teacher (MongoDB shape) ────────────────────────
-        return res.json({
-            _id:       String(newUser._id),
-            id:        String(newUser._id),
-            name:      newUser.name,
-            email:     newUser.email,
-            role:      newUser.role,
-            subject:   newUser.subject,
-            createdAt: newUser.createdAt,
-        });
+        console.log(`[ADMIN] Teacher successfully created: ${cleanName} <${cleanEmail}> [${cleanSubject}]`);
+        return res.json(teacherData);
 
     } catch (err) {
-        // Classify errors precisely — don't mask everything as 500
-        console.error('[ADMIN] Create teacher failed:', {
-            name: err.name,
-            code: err.code,
-            message: err.message
-        });
-
-        // MongoDB not yet connected
-        if (err.name === 'MongoNotConnectedError' || err.name === 'MongoServerSelectionError') {
-            return res.status(503).json({ msg: 'Database not available. Please try again in a moment.' });
-        }
-        // E11000 duplicate key — email already exists
-        if (err.code === 11000) {
-            return res.status(409).json({ msg: 'A user with this email already exists.' });
-        }
-        // Mongoose schema validation failure
-        if (err.name === 'ValidationError') {
-            const messages = Object.values(err.errors).map(e => e.message).join('; ');
-            return res.status(400).json({ msg: `Validation failed: ${messages}` });
-        }
-
-        res.status(500).json({ msg: 'Server error creating teacher. Please try again.' });
+        console.error('[ADMIN] Create teacher error:', err.message);
+        return res.status(500).json({ msg: 'Server error creating teacher: ' + err.message });
     }
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
 // @route   GET /api/admin/teachers
-// @desc    Get all teachers — PRIMARY: MongoDB Atlas, FALLBACK: Postgres
+// @desc    Get all teachers (PostgreSQL + MongoDB unified)
 // @access  Admin
 // ─────────────────────────────────────────────────────────────────────────────
 router.get('/teachers', [auth, checkRole(['admin'])], async (req, res) => {
     try {
-        // ── 1. PRIMARY: Query MongoDB Atlas ──────────────────────────────────
-        const mongoTeachers = await User.find({ role: 'teacher' })
-            .select('-password')
-            .sort({ createdAt: -1 })
-            .lean();
+        const teachersMap = new Map(); // email -> teacher object
 
-        if (mongoTeachers && mongoTeachers.length > 0) {
-            console.log(`[ADMIN] Teachers from MongoDB: ${mongoTeachers.length} found`);
-
-            // Normalise shape so frontend works with both _id and id
-            const normalised = mongoTeachers.map(t => ({
-                _id:       String(t._id),
-                id:        String(t._id),
-                name:      t.name,
-                email:     t.email,
-                role:      t.role,
-                subject:   t.subject || '',
-                createdAt: t.createdAt,
-            }));
-
-            return res.json(normalised);
-        }
-
-        // ── 2. FALLBACK: Postgres (only if MongoDB returned nothing) ─────────
-        console.log('[ADMIN] MongoDB returned 0 teachers — trying Postgres fallback...');
+        // 1. Fetch from PostgreSQL
         try {
-            const pool = getPool();
-            if (pool) {
-                const pgRes = await pool.query(
-                    `SELECT id, name, email, role, subject, created_at
-                     FROM public.users
-                     WHERE role = 'teacher'
-                     ORDER BY created_at DESC`
-                );
-                if (pgRes.rows && pgRes.rows.length > 0) {
-                    console.log(`[ADMIN] Teachers from Postgres fallback: ${pgRes.rows.length} found`);
-                    return res.json(pgRes.rows.map(r => ({
-                        _id:       String(r.id),
-                        id:        String(r.id),
-                        name:      r.name,
-                        email:     r.email,
-                        role:      r.role,
-                        subject:   r.subject || '',
-                        createdAt: r.created_at,
-                    })));
-                }
+            const pgRes = await pool.query(`
+                SELECT id, name, email, role, subject, created_at
+                FROM public.users
+                WHERE role = 'teacher'
+                ORDER BY created_at DESC
+            `);
+
+            for (const r of pgRes.rows) {
+                teachersMap.set(r.email.toLowerCase(), {
+                    _id: r.id.toString(),
+                    id: r.id,
+                    name: r.name,
+                    email: r.email,
+                    role: r.role,
+                    subject: r.subject || '',
+                    createdAt: r.created_at,
+                    created_at: r.created_at
+                });
             }
         } catch (pgErr) {
-            console.warn('[ADMIN] Postgres fallback error (non-critical):', pgErr.message);
+            console.error('[ADMIN] PostgreSQL teachers fetch error:', pgErr.message);
         }
 
-        // ── 3. Genuinely empty — no teachers registered anywhere ─────────────
-        console.log('[ADMIN] No teachers found in MongoDB or Postgres.');
-        return res.json([]);
+        // 2. Fetch from MongoDB if connected
+        if (mongoose.connection.readyState === 1 && User) {
+            try {
+                const mongoTeachers = await User.find({ role: 'teacher' }).select('-password').lean();
+                for (const m of mongoTeachers) {
+                    const emailKey = (m.email || '').toLowerCase();
+                    if (!teachersMap.has(emailKey)) {
+                        teachersMap.set(emailKey, {
+                            _id: m._id.toString(),
+                            id: m._id.toString(),
+                            name: m.name,
+                            email: m.email,
+                            role: m.role,
+                            subject: m.subject || '',
+                            createdAt: m.createdAt,
+                            created_at: m.createdAt
+                        });
+                    }
+                }
+            } catch (mErr) {
+                console.warn('[ADMIN] Mongo teachers fetch notice:', mErr.message);
+            }
+        }
+
+        const teachersList = Array.from(teachersMap.values());
+        console.log(`[ADMIN] Total active faculty found: ${teachersList.length}`);
+        return res.json(teachersList);
 
     } catch (err) {
-        console.error('[ADMIN] Error fetching teachers:', err.message);
-        res.status(500).json({ msg: 'Server error fetching teachers.' });
+        console.error('[ADMIN] Error in GET /teachers:', err.message);
+        return res.status(500).json({ msg: 'Server error fetching teachers.' });
     }
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
 // @route   DELETE /api/admin/teachers/:id
-// @desc    Delete a teacher — PRIMARY: MongoDB Atlas, SECONDARY SYNC: Postgres
+// @desc    Delete a teacher
 // @access  Admin
 // ─────────────────────────────────────────────────────────────────────────────
 router.delete('/teachers/:id', [auth, checkRole(['admin'])], async (req, res) => {
     const teacherId = req.params.id;
 
     try {
-        // ── 1. PRIMARY: Delete from MongoDB Atlas ─────────────────────────────
-        let deleted = false;
-        try {
-            const result = await User.findByIdAndDelete(teacherId);
-            if (result) {
-                deleted = true;
-                console.log(`[ADMIN] Teacher deleted from MongoDB: ${teacherId}`);
-            }
-        } catch (mErr) {
-            console.warn('[ADMIN] MongoDB delete error:', mErr.message);
-        }
+        let deletedEmail = null;
 
-        // ── 2. SECONDARY SYNC: Delete from Postgres (non-blocking) ────────────
+        // 1. Delete from PostgreSQL
         try {
-            const pool = getPool();
-            if (pool) {
-                await pool.query('DELETE FROM public.users WHERE id = $1', [teacherId]);
+            const check = await pool.query('SELECT email FROM public.users WHERE id::text = $1', [teacherId.toString()]);
+            if (check.rows.length > 0) {
+                deletedEmail = check.rows[0].email;
             }
+            await pool.query('DELETE FROM public.users WHERE id::text = $1', [teacherId.toString()]);
         } catch (pgErr) {
-            // Postgres sync is non-critical
-            console.warn('[ADMIN] Postgres delete sync skipped (non-critical):', pgErr.message);
+            console.warn('[ADMIN] PostgreSQL delete warning:', pgErr.message);
         }
 
-        if (!deleted) {
-            // Teacher not found in MongoDB — still return success if Postgres had them
-            return res.json({ msg: 'Teacher removed successfully.' });
+        // 2. Delete from MongoDB
+        if (mongoose.connection.readyState === 1 && User) {
+            try {
+                if (mongoose.Types.ObjectId.isValid(teacherId)) {
+                    await User.findByIdAndDelete(teacherId);
+                } else if (deletedEmail) {
+                    await User.deleteOne({ email: deletedEmail });
+                }
+            } catch (mErr) {
+                console.warn('[ADMIN] MongoDB delete warning:', mErr.message);
+            }
         }
 
-        res.json({ msg: 'Teacher deleted successfully.' });
+        return res.json({ msg: 'Teacher deleted successfully.' });
 
     } catch (err) {
         console.error('[ADMIN] Error deleting teacher:', err.message);
-        res.status(500).json({ msg: 'Server error deleting teacher.' });
+        return res.status(500).json({ msg: 'Server error deleting teacher.' });
     }
 });
 

@@ -7,7 +7,7 @@ const CreateTeacher = () => {
     const [teachers, setTeachers] = useState([]);
     const [loadingTeachers, setLoadingTeachers] = useState(true);
     const navigate = useNavigate();
-    const subjects = ['Physics', 'Chemistry', 'Biology', 'Maths', 'Computer Science', 'Kannada', 'English', 'Hindi'];
+    const subjects = ['Physics', 'Chemistry', 'Biology', 'Mathematics', 'Computer Science', 'Kannada', 'English', 'Hindi'];
 
     const fetchTeachers = async () => {
         try {

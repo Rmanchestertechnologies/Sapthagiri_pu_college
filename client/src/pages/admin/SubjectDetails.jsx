@@ -43,9 +43,16 @@ const SubjectDetails = () => {
             const allT = Array.isArray(teachersRes.data) ? teachersRes.data : [];
             const allP = Array.isArray(papersRes.data) ? papersRes.data : [];
 
+            const isSubMatch = (tSub, targetSub) => {
+                if (!tSub || !targetSub) return false;
+                const a = tSub.toLowerCase().replace(/ematics|s$/g, '');
+                const b = targetSub.toLowerCase().replace(/ematics|s$/g, '');
+                return a === b || a.includes(b) || b.includes(a);
+            };
+
             setAllTeachers(allT);
-            setTeachers(allT.filter(t => (t.subject || '').toLowerCase().includes(subject.toLowerCase()) || subject.toLowerCase().includes((t.subject || '').toLowerCase())));
-            setPapers(allP.filter(p => (p.subject || '').toLowerCase().includes(subject.toLowerCase()) || subject.toLowerCase().includes((p.subject || '').toLowerCase())));
+            setTeachers(allT.filter(t => isSubMatch(t.subject, subject)));
+            setPapers(allP.filter(p => isSubMatch(p.subject, subject)));
         } catch (err) {
             console.error('Error fetching subject details:', err);
         } finally {
