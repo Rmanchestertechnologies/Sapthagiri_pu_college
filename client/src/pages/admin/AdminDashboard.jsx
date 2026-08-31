@@ -501,9 +501,13 @@ const DashboardHome = () => {
                                         const subTeachers = allTeachers.filter(t => {
                                             const tSub = (t.subject || '').toLowerCase();
                                             const sName = subName.toLowerCase();
-                                            if (sName === 'mathematics' && tSub.includes('math')) return true;
+                                            // Bidirectional match (same as SubjectDetails.jsx)
+                                            const fwd = tSub.includes(sName) || sName.includes(tSub);
+                                            if (fwd) return true;
+                                            // Extra aliases
+                                            if (sName === 'mathematics' && (tSub.includes('math') || tSub === 'maths')) return true;
                                             if ((sName === 'botany' || sName === 'zoology') && (tSub.includes('bio') || tSub.includes(sName))) return true;
-                                            return tSub.includes(sName);
+                                            return false;
                                         });
 
                                         return (
