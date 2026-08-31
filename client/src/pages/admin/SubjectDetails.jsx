@@ -88,10 +88,10 @@ const SubjectDetails = () => {
 
             const subjectAssignments = subjectsNeeded.map(subName => {
                 const assignedTeacherId = commissionForm.assignedTeachers[subName];
-                const teacherObj = allTeachers.find(t => t._id === assignedTeacherId) || allTeachers.find(t => (t.subject || '').toLowerCase().includes(subName.toLowerCase()));
+                const teacherObj = allTeachers.find(t => (t._id || t.id) === assignedTeacherId) || allTeachers.find(t => (t.subject || '').toLowerCase().includes(subName.toLowerCase()));
                 return {
                     subject: subName,
-                    teacherId: teacherObj ? teacherObj._id : undefined,
+                    teacherId: teacherObj ? (teacherObj._id || teacherObj.id) : undefined,
                     teacherName: teacherObj ? teacherObj.name : `Prof. ${subName} Faculty`,
                     teacherEmail: teacherObj ? teacherObj.email : `${subName.toLowerCase()}@sapthagiripucollege.edu.in`,
                     targetQuestions: commissionForm.targetPerSubject || defaultTarget,
