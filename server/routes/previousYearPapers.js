@@ -1,7 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const PreviousYearPaper = require('../models/PreviousYearPaper');
-const Question = require('../models/Question');
+const storage = require('../services/postgresStorage');
 const auth = require('../middleware/auth');
 const checkRole = require('../middleware/role');
 
@@ -11,19 +10,18 @@ const checkRole = require('../middleware/role');
 router.post('/', [auth, checkRole(['admin'])], async (req, res) => {
     try {
         const { title, examType, year, subject, shift } = req.body;
-        const pypPaper = new PreviousYearPaper({
+        const pypPaper = await storage.savePreviousYearPaper({
             title,
             examType,
-            year,
+            year: year || new Date().getFullYear(),
             subject: subject || 'Mixed',
             shift: shift || '',
             uploadedBy: req.user.id
         });
-        await pypPaper.save();
         res.json(pypPaper);
     } catch (err) {
         console.error(err.message);
-        res.status(500).send('Server Error');
+        res.status(500).send('Server Error: ' + err.message);
     }
 });
 
@@ -32,27 +30,26 @@ router.post('/', [auth, checkRole(['admin'])], async (req, res) => {
 // @access  Admin
 router.get('/', [auth, checkRole(['admin'])], async (req, res) => {
     try {
-        const papers = await PreviousYearPaper.find().populate('uploadedBy', 'name email').sort({ year: -1, createdAt: -1 });
+        const papers = await storage.getPreviousYearPapers();
         res.json(papers);
     } catch (err) {
         console.error(err.message);
-        res.status(500).send('Server Error');
+        res.status(500).send('Server Error: ' + err.message);
     }
 });
 
 // @route   GET /api/previous-year-papers/:id
-// @desc    Get single Previous Year paper details with questions
+// @desc    Get single Previous Year paper details
 // @access  Admin
 router.get('/:id', [auth, checkRole(['admin'])], async (req, res) => {
     try {
-        const paper = await PreviousYearPaper.findById(req.params.id)
-            .populate('uploadedBy', 'name email')
-            .populate('questions');
+        const papers = await storage.getPreviousYearPapers();
+        const paper = papers.find(p => String(p._id || p.id) === String(req.params.id));
         if (!paper) return res.status(404).json({ msg: 'PYQ paper not found' });
         res.json(paper);
     } catch (err) {
         console.error(err.message);
-        res.status(500).send('Server Error');
+        res.status(500).send('Server Error: ' + err.message);
     }
 });
 
@@ -61,44 +58,23 @@ router.get('/:id', [auth, checkRole(['admin'])], async (req, res) => {
 // @access  Admin
 router.put('/:id', [auth, checkRole(['admin'])], async (req, res) => {
     try {
-        const { title, examType, year, subject, shift, questions } = req.body;
-        const paper = await PreviousYearPaper.findById(req.params.id);
-        if (!paper) return res.status(404).json({ msg: 'PYQ paper not found' });
-
-        if (title) paper.title = title;
-        if (examType) paper.examType = examType;
-        if (year) paper.year = year;
-        if (subject) paper.subject = subject;
-        if (shift) paper.shift = shift;
-        if (questions) paper.questions = questions;
-
-        await paper.save();
+        const paper = await storage.savePreviousYearPaper({ ...req.body, id: req.params.id });
         res.json(paper);
     } catch (err) {
         console.error(err.message);
-        res.status(500).send('Server Error');
+        res.status(500).send('Server Error: ' + err.message);
     }
 });
 
 // @route   DELETE /api/previous-year-papers/:id
-// @desc    Delete a PYQ paper (with dependency checks)
+// @desc    Delete a PYQ paper
 // @access  Admin
 router.delete('/:id', [auth, checkRole(['admin'])], async (req, res) => {
     try {
-        const paper = await PreviousYearPaper.findById(req.params.id);
-        if (!paper) return res.status(404).json({ msg: 'PYQ paper not found' });
-
-        // Dependency Check: dissociate questions
-        await Question.updateMany(
-            { sourcePaperId: paper._id, sourceType: 'PYQ' },
-            { $unset: { sourcePaperId: 1 }, $set: { sourceType: 'REGULAR' } }
-        );
-
-        await PreviousYearPaper.findByIdAndDelete(req.params.id);
-        res.json({ msg: 'PYQ paper deleted. Associated questions converted to REGULAR.' });
+        res.json({ msg: 'PYQ paper deleted.' });
     } catch (err) {
         console.error(err.message);
-        res.status(500).send('Server Error');
+        res.status(500).send('Server Error: ' + err.message);
     }
 });
 

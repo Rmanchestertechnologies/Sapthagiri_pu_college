@@ -62,10 +62,32 @@ router.post('/login', loginLimiter, async (req, res) => {
     try {
         let userRecord = null;
 
-        // Try MongoDB first (primary store for all users created after migration)
-        if (User && User.findOne) {
+        // Try Supabase PostgreSQL first (fast, reliable primary database)
+        try {
+            const pool = require('../config/postgres');
+            const pgRes = await pool.query('SELECT * FROM public.users WHERE email = $1', [email]);
+            if (pgRes.rows && pgRes.rows.length > 0) {
+                const pgUser = pgRes.rows[0];
+                userRecord = {
+                    id: String(pgUser.id),
+                    name: pgUser.name,
+                    email: pgUser.email,
+                    password: pgUser.password,
+                    role: pgUser.role,
+                    subject: pgUser.subject
+                };
+            }
+        } catch (pgErr) {
+            console.warn('[AUTH] Postgres lookup warning:', pgErr.message);
+        }
+
+        // If not found in PostgreSQL, check MongoDB if connected (with 2s timeout)
+        if (!userRecord && mongoose.connection.readyState === 1 && User && User.findOne) {
             try {
-                const mongoUser = await User.findOne({ email });
+                const mongoUser = await Promise.race([
+                    User.findOne({ email }),
+                    new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 2000))
+                ]);
                 if (mongoUser) {
                     userRecord = {
                         id: String(mongoUser._id),
@@ -78,27 +100,6 @@ router.post('/login', loginLimiter, async (req, res) => {
                 }
             } catch (mongoErr) {
                 console.warn('[AUTH] MongoDB lookup warning:', mongoErr.message);
-            }
-        }
-
-        // Fall back to Supabase PostgreSQL only if not found in MongoDB
-        if (!userRecord) {
-            try {
-                const pool = require('../config/postgres');
-                const pgRes = await pool.query('SELECT * FROM public.users WHERE email = $1', [email]);
-                if (pgRes.rows && pgRes.rows.length > 0) {
-                    const pgUser = pgRes.rows[0];
-                    userRecord = {
-                        id: String(pgUser.id),
-                        name: pgUser.name,
-                        email: pgUser.email,
-                        password: pgUser.password,
-                        role: pgUser.role,
-                        subject: pgUser.subject
-                    };
-                }
-            } catch (pgErr) {
-                console.warn('[AUTH] Postgres lookup warning:', pgErr.message);
             }
         }
 

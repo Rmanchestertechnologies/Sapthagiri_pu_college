@@ -34,7 +34,7 @@ const previousYearPaperRoutes = require('./routes/previousYearPapers.js');
 const examBlueprintRoutes = require('./routes/examBlueprints.js');
 const notificationRoutes = require('./routes/notifications.js');
 const examRoutes = require('./routes/exams.js');
-// Note: Online CBT Testing Module & Student Lab Engine excluded per institution specification
+const labRoutes = require('./routes/lab.js');
 
 dotenv.config();
 
@@ -128,11 +128,7 @@ app.use('/api/previous-year-papers', previousYearPaperRoutes);
 app.use('/api/exam-blueprints', examBlueprintRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/exams', examRoutes);
-
-// Safe examination management fallbacks
-app.get('/api/exams/commissioned', (req, res) => res.json([]));
-app.get('/api/exams', (req, res) => res.json([]));
-app.post('/api/exams/commission', (req, res) => res.json({ msg: 'Commission registered', _id: 'exam_' + Date.now() }));
+app.use('/api/lab', labRoutes);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 404 handler
@@ -159,23 +155,26 @@ if (process.env.NODE_ENV !== 'test') {
             const pool = require('./config/postgres');
             await pool.query('SELECT 1');
             console.log('✅ Supabase PostgreSQL Connected for Sapthagiri PU College');
+            const storage = require('./services/postgresStorage');
+            await storage.seedDefaultBlueprints();
         } catch (pgErr) {
             console.warn('⚠️ Supabase PostgreSQL connection notice:', pgErr.message);
         }
 
-        // 2. Connect MongoDB Atlas — required for user/faculty operations
+        // 2. Connect MongoDB Atlas — background sync & secondary persistence
+        mongoose.set('bufferCommands', false);
         if (process.env.MONGO_URI) {
             try {
-                await mongoose.connect(process.env.MONGO_URI);
+                await mongoose.connect(process.env.MONGO_URI, {
+                    serverSelectionTimeoutMS: 5000
+                });
                 console.log('✅ MongoDB Atlas Connected (sapthagiri database)');
             } catch (mongoErr) {
-                // Log error but don't crash — Postgres routes still work
-                console.error('❌ MongoDB connection failed:', mongoErr.message);
-                console.error('   User/faculty features will be unavailable until resolved.');
+                // Log error but don't crash — Postgres routes are fully operational
+                console.warn('⚠️ MongoDB connection notice:', mongoErr.message);
             }
         } else {
-            console.warn('⚠️ MONGO_URI not set — user/faculty features unavailable.');
-            console.warn('   Add MONGO_URI to your environment variables (see render.yaml).');
+            console.warn('⚠️ MONGO_URI not set — operating with PostgreSQL primary engine.');
         }
 
         // 3. Start the HTTP server

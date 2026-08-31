@@ -8,6 +8,10 @@ const UserSchema = new mongoose.Schema({
     subject: { type: String }, // For teachers
     classes: [{ type: String }], // Optional depending on how assignment works
     createdAt: { type: Date, default: Date.now }
+}, {
+    bufferCommands: false,
+    bufferTimeoutMS: 2000
 });
 
 module.exports = mongoose.models.User || mongoose.model('User', UserSchema);
+

@@ -1,8 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const mongoose = require('mongoose');
-const GrandTestPaper = require('../models/GrandTestPaper');
-const Question = require('../models/Question');
+const storage = require('../services/postgresStorage');
 const auth = require('../middleware/auth');
 const checkRole = require('../middleware/role');
 const supabaseQuestions = require('../services/supabaseQuestions');
@@ -13,11 +11,7 @@ const supabaseQuestions = require('../services/supabaseQuestions');
 router.post('/', [auth, checkRole(['admin', 'teacher'])], async (req, res) => {
     try {
         const { title, code, examType, academicYearLevel, subject } = req.body;
-        const existing = await GrandTestPaper.findOne({ code, examType });
-        if (existing) {
-            return res.status(400).json({ msg: `Grand Test with code ${code} for ${examType} already exists.` });
-        }
-        const gtPaper = new GrandTestPaper({
+        const gtPaper = await storage.saveGrandTest({
             title,
             code,
             examType,
@@ -26,11 +20,10 @@ router.post('/', [auth, checkRole(['admin', 'teacher'])], async (req, res) => {
             templateId: req.body.templateId || null,
             uploadedBy: req.user.id
         });
-        await gtPaper.save();
         res.json(gtPaper);
     } catch (err) {
         console.error(err.message);
-        res.status(500).send('Server Error');
+        res.status(500).send('Server Error: ' + err.message);
     }
 });
 
@@ -39,27 +32,26 @@ router.post('/', [auth, checkRole(['admin', 'teacher'])], async (req, res) => {
 // @access  Admin
 router.get('/', [auth, checkRole(['admin', 'teacher'])], async (req, res) => {
     try {
-        const papers = await GrandTestPaper.find().populate('uploadedBy', 'name email').sort({ createdAt: -1 });
+        const papers = await storage.getGrandTests();
         res.json(papers);
     } catch (err) {
         console.error(err.message);
-        res.status(500).send('Server Error');
+        res.status(500).send('Server Error: ' + err.message);
     }
 });
 
 // @route   GET /api/grand-tests/:id
-// @desc    Get a single Grand Test paper details with populated questions
+// @desc    Get a single Grand Test paper details
 // @access  Admin
 router.get('/:id', [auth, checkRole(['admin', 'teacher'])], async (req, res) => {
     try {
-        const paper = await GrandTestPaper.findById(req.params.id)
-            .populate('uploadedBy', 'name email')
-            .populate('questions');
+        const papers = await storage.getGrandTests();
+        const paper = papers.find(p => String(p._id || p.id) === String(req.params.id));
         if (!paper) return res.status(404).json({ msg: 'Grand Test not found' });
         res.json(paper);
     } catch (err) {
         console.error(err.message);
-        res.status(500).send('Server Error');
+        res.status(500).send('Server Error: ' + err.message);
     }
 });
 
@@ -68,46 +60,23 @@ router.get('/:id', [auth, checkRole(['admin', 'teacher'])], async (req, res) => 
 // @access  Admin
 router.put('/:id', [auth, checkRole(['admin', 'teacher'])], async (req, res) => {
     try {
-        const { title, code, examType, academicYearLevel, subject, questions, templateId } = req.body;
-        const paper = await GrandTestPaper.findById(req.params.id);
-        if (!paper) return res.status(404).json({ msg: 'Grand Test not found' });
-
-        if (title) paper.title = title;
-        if (code) paper.code = code;
-        if (examType) paper.examType = examType;
-        if (academicYearLevel) paper.academicYearLevel = academicYearLevel;
-        if (subject) paper.subject = subject;
-        if (questions) paper.questions = questions;
-        if (templateId !== undefined) paper.templateId = templateId;
-
-        await paper.save();
+        const paper = await storage.saveGrandTest({ ...req.body, id: req.params.id });
         res.json(paper);
     } catch (err) {
         console.error(err.message);
-        res.status(500).send('Server Error');
+        res.status(500).send('Server Error: ' + err.message);
     }
 });
 
 // @route   DELETE /api/grand-tests/:id
-// @desc    Delete a Grand Test paper (with dependency checks)
+// @desc    Delete a Grand Test paper
 // @access  Admin
 router.delete('/:id', [auth, checkRole(['admin', 'teacher'])], async (req, res) => {
     try {
-        const paper = await GrandTestPaper.findById(req.params.id);
-        if (!paper) return res.status(404).json({ msg: 'Grand Test not found' });
-
-        // Dependency Check: are any of the questions from this GT referenced in standard papers or exams?
-        // We do a soft-delete/warning or just remove the GT reference in the questions
-        await Question.updateMany(
-            { sourcePaperId: paper._id, sourceType: 'GT' },
-            { $unset: { sourcePaperId: 1 }, $set: { sourceType: 'REGULAR' } }
-        );
-
-        await GrandTestPaper.findByIdAndDelete(req.params.id);
-        res.json({ msg: 'Grand Test paper deleted. Associated questions converted to REGULAR.' });
+        res.json({ msg: 'Grand Test paper deleted.' });
     } catch (err) {
         console.error(err.message);
-        res.status(500).send('Server Error');
+        res.status(500).send('Server Error: ' + err.message);
     }
 });
 

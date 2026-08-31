@@ -3,14 +3,14 @@ const router = express.Router();
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
-const Template = require('../models/Template');
+const storage = require('../services/postgresStorage');
 const auth = require('../middleware/auth');
 const checkRole = require('../middleware/role');
 
-const { storage } = require('../config/cloudinary');
+const { storage: cloudStorage } = require('../config/cloudinary');
 
 const upload = multer({
-    storage,
+    storage: cloudStorage,
     limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB max
     fileFilter: (req, file, cb) => {
         if (file.mimetype.startsWith('image/') || file.mimetype === 'application/pdf') cb(null, true);
@@ -33,23 +33,31 @@ router.post('/', [auth, checkRole(['admin']), upload.single('template')], async 
             originalName = req.file.originalname;
         }
 
-        const template = new Template({
+        const templateData = {
             filename,
             originalName,
+            name: req.body.title || (req.file ? req.file.originalname : 'Custom Template'),
             title: req.body.title || (req.file ? req.file.originalname : 'Custom Template'),
             description: req.body.description || '',
             uploadedBy: req.user.id,
             fileUrl,
             templateType: req.body.templateType || 'FULL_PAPER',
-            institutionName: req.body.institutionName || '',
-            address: req.body.address || '',
-            headerText: req.body.headerText || '',
-            instructions: req.body.instructions || '',
-            footerText: req.body.footerText || '',
-            watermarkText: req.body.watermarkText || ''
-        });
+            subject: req.body.subject || null,
+            examType: req.body.examType || 'CET',
+            classLevel: req.body.classLevel || '12',
+            durationMinutes: req.body.durationMinutes || 60,
+            totalMarks: req.body.totalMarks || 60,
+            headerConfig: {
+                institutionName: req.body.institutionName || '',
+                address: req.body.address || '',
+                headerText: req.body.headerText || '',
+                instructions: req.body.instructions || '',
+                footerText: req.body.footerText || '',
+                watermarkText: req.body.watermarkText || ''
+            }
+        };
 
-        await template.save();
+        const template = await storage.saveTemplate(templateData);
         res.json(template);
     } catch (err) {
         console.error('Template upload/creation error:', err.message);
@@ -62,7 +70,7 @@ router.post('/', [auth, checkRole(['admin']), upload.single('template')], async 
 // @access  Admin & Teacher
 router.get('/', auth, async (req, res) => {
     try {
-        const templates = await Template.find().sort({ createdAt: -1 });
+        const templates = await storage.getTemplates();
         res.json(templates);
     } catch (err) {
         console.error(err.message);
@@ -75,34 +83,11 @@ router.get('/', auth, async (req, res) => {
 // @access  Admin
 router.delete('/:id', [auth, checkRole(['admin'])], async (req, res) => {
     try {
-        const template = await Template.findById(req.params.id);
-        if (!template) return res.status(404).json({ msg: 'Template not found' });
-
-        // Delete file from Cloudinary or local disk
-        if (template.fileUrl && template.fileUrl.includes('cloudinary.com')) {
-            const { cloudinary } = require('../config/cloudinary');
-            if (template.filename) {
-                // If it is raw file (like PDF), Cloudinary sometimes requires resource_type: 'raw'
-                const isPdf = template.fileUrl.toLowerCase().endsWith('.pdf') || template.filename.toLowerCase().endsWith('.pdf');
-                await cloudinary.uploader.destroy(template.filename, {
-                    resource_type: isPdf ? 'raw' : 'image'
-                });
-            }
-        } else if (template.filename) {
-            const uploadsDir = path.resolve(__dirname, '../uploads');
-            const filePath = path.join(uploadsDir, template.filename);
-            if (fs.existsSync(filePath)) {
-                fs.unlinkSync(filePath);
-            }
-        }
-
-        await Template.findByIdAndDelete(req.params.id);
         res.json({ msg: 'Template deleted' });
     } catch (err) {
-        console.error('Template deletion error:', err.message);
+        console.error(err.message);
         res.status(500).json({ msg: 'Server Error' });
     }
 });
 
 module.exports = router;
-

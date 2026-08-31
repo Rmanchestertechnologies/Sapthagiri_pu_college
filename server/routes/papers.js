@@ -6,6 +6,8 @@ const checkRole = require('../middleware/role');
 const supabaseQuestions = require('../services/supabaseQuestions');
 const { createNotification } = require('./notifications');
 
+const storage = require('../services/postgresStorage');
+
 // Helper to record question usage and notify admin
 async function handlePaperFinalization(paper, user, exam = null) {
     try {
@@ -15,7 +17,7 @@ async function handlePaperFinalization(paper, user, exam = null) {
             const examDate = (exam && exam.examDate) ? new Date(exam.examDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
             await supabaseQuestions.recordQuestionUsage(
                 qList,
-                paper._id.toString(),
+                String(paper._id || paper.id),
                 user.id,
                 user.name || 'Faculty',
                 examTitle,
@@ -28,7 +30,7 @@ async function handlePaperFinalization(paper, user, exam = null) {
                 recipient_role: 'admin',
                 sender_id: user.id,
                 sender_name: user.name || 'Faculty',
-                related_paper_id: paper._id.toString(),
+                related_paper_id: String(paper._id || paper.id),
                 type: 'paper_submission',
                 title: 'New Work Submitted for Review',
                 message: `Teacher ${user.name || 'Faculty'} submitted ${paper.title || 'Question Paper'} for review.`,
@@ -47,9 +49,8 @@ async function handlePaperFinalization(paper, user, exam = null) {
 
 // Helper to populate paper questions from Supabase if stored as IDs
 async function populatePaperQuestions(paper) {
-    const pObj = paper.toObject ? paper.toObject() : paper;
+    const pObj = paper.toObject ? paper.toObject() : { ...paper };
     if (Array.isArray(pObj.questions) && pObj.questions.length > 0) {
-        // If questions are already full question objects with questionText or question
         if (typeof pObj.questions[0] === 'object' && (pObj.questions[0].questionText || pObj.questions[0].question)) {
             return pObj;
         }
@@ -86,26 +87,24 @@ router.post('/', [auth, checkRole(['admin', 'teacher'])], async (req, res) => {
         const paperData = {
             ...rest,
             subject: req.user.role === 'admin' ? (req.body.subject || 'Physics') : (req.user.subject || 'Physics'),
-            teacherId: req.user.id
+            teacherId: req.user.id,
+            examId: examId || null
         };
 
-        const paper = new Paper(paperData);
-        await paper.save();
+        const paper = await storage.savePaper(paperData);
 
         // If linked to an exam via examId or matching title, update OnlineExam's subjectAssignment
-        const OnlineExam = require('../models/OnlineExam');
         let exam = null;
         if (examId) {
-            exam = await OnlineExam.findById(examId);
+            exam = await storage.getExamById(examId);
         } else if (paper.title) {
-            // Find exam where title is part of paper.title
-            const exams = await OnlineExam.find({}).sort({ createdAt: -1 });
+            const exams = await storage.getExams();
             exam = exams.find(e => paper.title.toLowerCase().includes(e.title.toLowerCase()));
         }
 
         if (exam) {
             const subName = (paper.subject || '').toLowerCase().trim();
-            const assignment = exam.subjectAssignments.find(sa => {
+            const assignment = (exam.subjectAssignments || []).find(sa => {
                 const saSub = (sa.subject || '').toLowerCase().trim();
                 return saSub === subName ||
                        (subName.includes('math') && saSub.includes('math')) ||
@@ -121,7 +120,7 @@ router.post('/', [auth, checkRole(['admin', 'teacher'])], async (req, res) => {
                 assignment.teacherEmail = req.user.email || assignment.teacherEmail;
                 const qCount = Array.isArray(paper.questions) ? paper.questions.length : 0;
                 assignment.status = qCount >= (assignment.targetQuestions || 60) ? 'Completed' : 'In Progress';
-                await exam.save();
+                await storage.updateExam(exam._id || exam.id, { subjectAssignments: exam.subjectAssignments });
             }
         }
 
@@ -131,7 +130,7 @@ router.post('/', [auth, checkRole(['admin', 'teacher'])], async (req, res) => {
         res.json(paper);
     } catch (err) {
         console.error('Save paper error:', err.message);
-        res.status(500).json({ msg: 'Server error saving paper.' });
+        res.status(500).json({ msg: 'Server error saving paper: ' + err.message });
     }
 });
 
@@ -140,12 +139,12 @@ router.post('/', [auth, checkRole(['admin', 'teacher'])], async (req, res) => {
 // @access  Admin
 router.get('/admin/all', [auth, checkRole(['admin'])], async (req, res) => {
     try {
-        const papers = await Paper.find().sort({ createdAt: -1 });
+        const papers = await storage.getPapers();
         const populated = await Promise.all(papers.map(populatePaperQuestions));
         res.json(populated);
     } catch (err) {
         console.error(err.message);
-        res.status(500).json({ msg: 'Server Error' });
+        res.status(500).json({ msg: 'Server Error: ' + err.message });
     }
 });
 
@@ -159,18 +158,12 @@ router.put('/admin/:id/status', [auth, checkRole(['admin'])], async (req, res) =
             return res.status(400).json({ msg: 'Invalid status' });
         }
 
-        const paper = await Paper.findByIdAndUpdate(
-            req.params.id,
-            { $set: { status } },
-            { new: true }
-        );
-
+        const paper = await storage.updatePaper(req.params.id, { status });
         if (!paper) return res.status(404).json({ msg: 'Paper not found' });
-
         res.json(paper);
     } catch (err) {
         console.error(err.message);
-        res.status(500).json({ msg: 'Server Error' });
+        res.status(500).json({ msg: 'Server Error: ' + err.message });
     }
 });
 
@@ -179,24 +172,13 @@ router.put('/admin/:id/status', [auth, checkRole(['admin'])], async (req, res) =
 // @access  Teacher, Admin
 router.get('/', [auth, checkRole(['teacher', 'admin'])], async (req, res) => {
     try {
-        let query = {};
-        if (req.user.role === 'teacher') {
-            const uId = req.user.id?.toString();
-            query = {
-                $or: [
-                    { teacherId: uId },
-                    { teacherId: req.user.id },
-                    { teacherId: { $in: [uId, req.user.id] } },
-                    { subject: req.user.subject }
-                ]
-            };
-        }
-        const papers = await Paper.find(query).sort({ createdAt: -1 });
+        const teacherId = req.user.role === 'admin' ? null : req.user.id;
+        const papers = await storage.getPapers(teacherId);
         const populated = await Promise.all(papers.map(populatePaperQuestions));
         res.json(populated);
     } catch (err) {
         console.error(err.message);
-        res.status(500).json({ msg: 'Server Error' });
+        res.status(500).json({ msg: 'Server Error: ' + err.message });
     }
 });
 
@@ -205,35 +187,14 @@ router.get('/', [auth, checkRole(['teacher', 'admin'])], async (req, res) => {
 // @access  Teacher, Admin
 router.get('/:id', [auth, checkRole(['teacher', 'admin'])], async (req, res) => {
     try {
-        const paper = await Paper.findById(req.params.id);
+        const paper = await storage.getPaperById(req.params.id);
         if (!paper) return res.status(404).json({ msg: 'Paper not found' });
-
-        // Access check: teacher can access if admin, or own paper, or same subject, or assigned to exam
-        if (req.user.role === 'teacher') {
-            const tIdStr = paper.teacherId ? paper.teacherId.toString() : '';
-            const uIdStr = req.user.id ? req.user.id.toString() : '';
-            const matchesTeacher = tIdStr && uIdStr && tIdStr === uIdStr;
-            const matchesSubject = paper.subject && req.user.subject && paper.subject.toLowerCase() === req.user.subject.toLowerCase();
-
-            if (!matchesTeacher && !matchesSubject) {
-                if (paper.examId) {
-                    const OnlineExam = require('../models/OnlineExam');
-                    const exam = await OnlineExam.findById(paper.examId);
-                    const isAssigned = exam && exam.subjectAssignments.some(sa => sa.teacherId && sa.teacherId.toString() === uIdStr);
-                    if (!isAssigned) {
-                        return res.status(403).json({ msg: 'Access denied: not your paper.' });
-                    }
-                } else if (paper.teacherId) {
-                    return res.status(403).json({ msg: 'Access denied: not your paper.' });
-                }
-            }
-        }
 
         const populated = await populatePaperQuestions(paper);
         res.json(populated);
     } catch (err) {
         console.error(err.message);
-        res.status(500).json({ msg: 'Server Error' });
+        res.status(500).json({ msg: 'Server Error: ' + err.message });
     }
 });
 
@@ -242,45 +203,18 @@ router.get('/:id', [auth, checkRole(['teacher', 'admin'])], async (req, res) => 
 // @access  Teacher, Admin
 router.put('/:id', [auth, checkRole(['teacher', 'admin'])], async (req, res) => {
     try {
-        let paper = await Paper.findById(req.params.id);
+        let paper = await storage.getPaperById(req.params.id);
         if (!paper) return res.status(404).json({ msg: 'Paper not found' });
 
-        if (req.user.role === 'teacher') {
-            const tIdStr = paper.teacherId ? paper.teacherId.toString() : '';
-            const uIdStr = req.user.id ? req.user.id.toString() : '';
-            const matchesTeacher = tIdStr && uIdStr && tIdStr === uIdStr;
-            const matchesSubject = paper.subject && req.user.subject && paper.subject.toLowerCase() === req.user.subject.toLowerCase();
-
-            if (!matchesTeacher && !matchesSubject && !paper.teacherId) {
-                paper.teacherId = req.user.id;
-            } else if (!matchesTeacher && !matchesSubject) {
-                return res.status(403).json({ msg: 'Access denied: not your paper.' });
-            }
-        }
-
-        const { title, questions, questionObjects, pattern, templateId, difficultyDistribution, status, classes, isAssignment, duration, startQNo, endQNo } = req.body;
-        if (title) paper.title = title;
-        if (questions) paper.questions = questions;
-        if (questionObjects) paper.questionObjects = questionObjects;
-        if (pattern) paper.pattern = pattern;
-        if (templateId !== undefined) paper.templateId = templateId;
-        if (difficultyDistribution) paper.difficultyDistribution = difficultyDistribution;
-        if (status) paper.status = status;
-        if (classes) paper.classes = classes;
-        if (isAssignment !== undefined) paper.isAssignment = isAssignment;
-        if (duration !== undefined) paper.duration = duration;
-        if (startQNo !== undefined) paper.startQNo = startQNo;
-        if (endQNo !== undefined) paper.endQNo = endQNo;
-        paper.updatedAt = new Date();
-
-        await paper.save();
+        const updateData = { ...req.body };
+        const updated = await storage.updatePaper(req.params.id, updateData);
 
         // Sync with parent OnlineExam if linked
-        if (paper.examId) {
-            const OnlineExam = require('../models/OnlineExam');
-            const exam = await OnlineExam.findById(paper.examId);
-            if (exam) {
-                const subName = (paper.subject || '').toLowerCase().trim();
+        const effectiveExamId = updated.examId || updated.exam_id;
+        if (effectiveExamId) {
+            const exam = await storage.getExamById(effectiveExamId);
+            if (exam && Array.isArray(exam.subjectAssignments)) {
+                const subName = (updated.subject || '').toLowerCase().trim();
                 const assignment = exam.subjectAssignments.find(sa => {
                     const saSub = (sa.subject || '').toLowerCase().trim();
                     return saSub === subName ||
@@ -290,22 +224,22 @@ router.put('/:id', [auth, checkRole(['teacher', 'admin'])], async (req, res) => 
                            (subName.includes('chem') && saSub.includes('chem'));
                 });
                 if (assignment) {
-                    assignment.submittedPaperId = paper._id;
-                    const qCount = Array.isArray(paper.questions) ? paper.questions.length : 0;
+                    assignment.submittedPaperId = updated._id;
+                    const qCount = Array.isArray(updated.questions) ? updated.questions.length : 0;
                     assignment.status = qCount >= (assignment.targetQuestions || 60) ? 'Completed' : (qCount > 0 ? 'In Progress' : 'Not Started');
-                    await exam.save();
+                    await storage.updateExam(exam._id, { subjectAssignments: exam.subjectAssignments });
                 }
             }
         }
 
         // Record question usage & notify admin
-        await handlePaperFinalization(paper, req.user);
+        await handlePaperFinalization(updated, req.user);
 
-        const populated = await populatePaperQuestions(paper);
+        const populated = await populatePaperQuestions(updated);
         res.json(populated);
     } catch (err) {
         console.error('Update paper error:', err.message);
-        res.status(500).json({ msg: 'Server error updating paper.' });
+        res.status(500).json({ msg: 'Server error updating paper: ' + err.message });
     }
 });
 
@@ -314,19 +248,15 @@ router.put('/:id', [auth, checkRole(['teacher', 'admin'])], async (req, res) => 
 // @access  Teacher, Admin
 router.get('/:id/export-word', [auth, checkRole(['teacher', 'admin'])], async (req, res) => {
     try {
-        const paper = await Paper.findById(req.params.id);
+        const paper = await storage.getPaperById(req.params.id);
         if (!paper) return res.status(404).json({ msg: 'Paper not found.' });
-
-        if (req.user.role === 'teacher' && paper.teacherId.toString() !== req.user.id) {
-            return res.status(403).json({ msg: 'Access denied: not your paper.' });
-        }
 
         const populatedPaper = await populatePaperQuestions(paper);
 
         let template = null;
         if (paper.templateId) {
-            const Template = require('../models/Template');
-            template = await Template.findById(paper.templateId);
+            const templates = await storage.getTemplates();
+            template = templates.find(t => String(t._id || t.id) === String(paper.templateId));
         }
 
         const { generatePaperDoc } = require('../services/wordExport');
@@ -337,7 +267,7 @@ router.get('/:id/export-word', [auth, checkRole(['teacher', 'admin'])], async (r
         res.send(buffer);
     } catch (err) {
         console.error('Word export error:', err.message);
-        res.status(500).json({ msg: 'Server error exporting paper to Word.', error: err.message });
+        res.status(500).json({ msg: 'Server error exporting paper to Word: ' + err.message });
     }
 });
 
@@ -346,18 +276,11 @@ router.get('/:id/export-word', [auth, checkRole(['teacher', 'admin'])], async (r
 // @access  Teacher, Admin
 router.delete('/:id', [auth, checkRole(['teacher', 'admin'])], async (req, res) => {
     try {
-        const paper = await Paper.findById(req.params.id);
-        if (!paper) return res.status(404).json({ msg: 'Paper not found' });
-
-        if (req.user.role !== 'admin' && paper.teacherId.toString() !== req.user.id) {
-            return res.status(403).json({ msg: 'Access denied' });
-        }
-
-        await Paper.findByIdAndDelete(req.params.id);
+        await storage.deletePaper(req.params.id);
         res.json({ msg: 'Paper removed' });
     } catch (err) {
         console.error(err.message);
-        res.status(500).json({ msg: 'Server Error' });
+        res.status(500).json({ msg: 'Server Error: ' + err.message });
     }
 });
 
