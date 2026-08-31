@@ -1,4 +1,4 @@
-﻿{
+{
   "version": 2,
   "buildCommand": "npm --prefix client run build",
   "installCommand": "npm --prefix client install",

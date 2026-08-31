@@ -1,4 +1,4 @@
-﻿const { Pool } = require('pg');
+const { Pool } = require('pg');
 const bcrypt = require('bcryptjs');
 
 const poolerUrl = 'postgresql://postgres.vukxgqkrersxcasdklda:Sapthagiri1@aws-0-ap-south-1.pooler.supabase.com:5432/postgres';
@@ -151,6 +151,22 @@ async function init() {
         );
     `);
     console.log('✅ Created previous_year_papers table');
+
+    // 9. Question Usage Table
+    await pool.query(`
+        CREATE TABLE IF NOT EXISTS public.question_usage (
+            id SERIAL PRIMARY KEY,
+            question_id UUID NOT NULL,
+            paper_id VARCHAR(255),
+            teacher_id VARCHAR(255),
+            teacher_name VARCHAR(255),
+            exam_name VARCHAR(255),
+            exam_date DATE DEFAULT CURRENT_DATE,
+            used_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+        );
+        CREATE INDEX IF NOT EXISTS idx_question_usage_qid ON public.question_usage(question_id);
+    `);
+    console.log('✅ Created question_usage table');
 
     // Seed Admin Account
     const adminEmail = 'sapthagiripucollegedvg@gmail.com';

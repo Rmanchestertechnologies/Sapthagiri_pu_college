@@ -1,5 +1,13 @@
-const pool = require('../config/postgres');
-const supabase = require('../config/supabase');
+const primaryPool = require('../config/postgres');
+const {
+    DB_CONFIGS,
+    pools,
+    normalizeSubject,
+    normalizeClass,
+    getPoolForTarget,
+    getPoolsForQuery,
+    getAllPools
+} = require('../config/subjectDatabases');
 const { sanitizeHtml } = require('../utils/sanitize');
 
 const isTest = process.env.NODE_ENV === 'test';
@@ -9,12 +17,29 @@ const memoryTestQuestions = new Map();
 const metadataCache = new Map();
 const METADATA_TTL_MS = 5 * 60 * 1000;
 
+// UUID to database key routing cache (e.g. 'uuid-123' -> 'math_11')
+const MAX_UUID_CACHE_SIZE = 100000;
+const uuidToDbKey = new Map();
+
+function cacheQuestionDb(id, dbKey) {
+    if (!id || !dbKey) return;
+    if (uuidToDbKey.size >= MAX_UUID_CACHE_SIZE) {
+        // Drop first 10,000 oldest keys
+        const iter = uuidToDbKey.keys();
+        for (let i = 0; i < 10000; i++) {
+            const k = iter.next().value;
+            if (k) uuidToDbKey.delete(k);
+            else break;
+        }
+    }
+    uuidToDbKey.set(String(id), dbKey);
+}
+
 /**
  * Universal tag cleaner to strip all internal difficulty and QPV/QBP metadata tags.
  */
 function cleanDifficultyTags(text) {
     if (!text || typeof text !== 'string') return '';
-    // Matches [QPV_DIFFICULTY:Easy], [QBP_DIFFICULTY:Medium], [DIFFICULTY:Hard], [QPV_...:...]
     return text
         .replace(/\[(?:QPV_|QBP_)?DIFFICULTY:\s*[^\]]+\]/gi, '')
         .replace(/\[(?:QPV|QBP)_[A-Za-z0-9_]+:[^\]]*\]/gi, '')
@@ -33,13 +58,16 @@ function extractDifficulty(solutionText, questionText) {
     return 'medium';
 }
 
+function isUuid(str) {
+    return typeof str === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+}
+
 /**
  * Maps a Supabase/Postgres `questions` table record to the frontend/system Question DTO.
  */
 function mapSupabaseToQuestion(row, usageMap = null) {
     if (!row) return null;
 
-    // Map q_type format: 'mcq_single' / 'mcq' -> 'MCQ', 'numerical' -> 'NUMERICAL', etc.
     let type = 'MCQ';
     const qTypeLower = (row.q_type || '').toLowerCase();
     if (qTypeLower.includes('numerical')) {
@@ -54,7 +82,6 @@ function mapSupabaseToQuestion(row, usageMap = null) {
         type = 'TRUE_FALSE';
     }
 
-    // Build options array from all possible column variations
     const rawOptions = [];
     if (row.opt_a) rawOptions.push(row.opt_a);
     if (row.opt_b) rawOptions.push(row.opt_b);
@@ -86,19 +113,16 @@ function mapSupabaseToQuestion(row, usageMap = null) {
         } catch (e) {}
     }
 
-    // Sanitize option texts
     const options = rawOptions.map(cleanDifficultyTags).filter(Boolean);
 
-    // Map answer
     let answer = row.correct_option || row.num_answer || '';
     if (row.correct_option && options.length > 0) {
-        const idx = parseInt(row.correct_option) - 1;
+        const idx = parseInt(row.correct_option, 10) - 1;
         if (idx >= 0 && idx < options.length) {
             answer = options[idx];
         }
     }
 
-    // Map exams to classes array (e.g. ['JEE'], ['12'])
     const classesList = [];
     if (Array.isArray(row.exams) && row.exams.length > 0) {
         classesList.push(...row.exams);
@@ -108,12 +132,10 @@ function mapSupabaseToQuestion(row, usageMap = null) {
     }
     if (classesList.length === 0) classesList.push('JEE', 'NEET');
 
-    // Extract difficulty level and clean markers
     const level = extractDifficulty(row.solution_text, row.question);
     const cleanSolution = cleanDifficultyTags(row.solution_text || '');
     const cleanQuestion = cleanDifficultyTags(row.question || '');
 
-    // Resolve usage information if available
     const qIdStr = (row.id || '').toString();
     const usage = (usageMap && usageMap.get(qIdStr)) || null;
 
@@ -150,17 +172,13 @@ function mapSupabaseToQuestion(row, usageMap = null) {
         createdByName: row.created_by_name || 'Admin',
         createdAt: row.created_at || new Date().toISOString(),
         // Usage history attributes
-        usedCount: usage ? parseInt(usage.used_count) || 0 : 0,
+        usedCount: usage ? parseInt(usage.used_count, 10) || 0 : 0,
         lastUsedAt: usage ? usage.last_used_at : null,
         lastUsedTeacher: usage ? usage.last_teacher_name : '',
         lastUsedExam: usage ? usage.last_exam_name : '',
         lastUsedDate: usage ? usage.last_exam_date : null,
         usageHistory: usage && Array.isArray(usage.usage_history) ? usage.usage_history : []
     };
-}
-
-function isUuid(str) {
-    return typeof str === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
 }
 
 /**
@@ -199,7 +217,6 @@ function mapQuestionToSupabase(dto, userId = null, userName = 'Admin') {
 
     const validUserId = isUuid(userId) ? userId : null;
 
-    // Append difficulty tag to solution text for database storage preservation
     const levelTag = dto.level ? `[QBP_DIFFICULTY:${dto.level.charAt(0).toUpperCase() + dto.level.slice(1)}]` : '';
     const cleanSolution = cleanDifficultyTags(dto.solutionText || '');
     const solutionWithTag = levelTag ? `${cleanSolution}\n${levelTag}` : cleanSolution;
@@ -229,73 +246,59 @@ function mapQuestionToSupabase(dto, userId = null, userName = 'Admin') {
     };
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Queries & API Methods
-// ─────────────────────────────────────────────────────────────────────────────
-
 /**
- * Query questions with indexed filters, pagination, and batch usage lookup.
+ * Fetch usage map for a list of question UUIDs from primary database.
  */
-async function getQuestions(filters = {}, page = 1, limit = 50) {
-    if (isTest && memoryTestQuestions.size > 0) {
-        let list = Array.from(memoryTestQuestions.values());
-        if (filters.subject) list = list.filter(q => q.subject.toLowerCase() === filters.subject.toLowerCase());
-        return {
-            questions: list,
-            pagination: { page: Number(page), limit: Number(limit), total: list.length, pages: 1 }
-        };
+async function fetchUsageMap(questionIds) {
+    const validUuids = (questionIds || []).filter(isUuid);
+    const usageMap = new Map();
+    if (validUuids.length === 0) return usageMap;
+
+    try {
+        const res = await primaryPool.query(`
+            SELECT 
+                qu.question_id,
+                count(*)::bigint AS used_count,
+                max(qu.used_at) AS last_used_at,
+                (array_agg(qu.teacher_name ORDER BY qu.used_at DESC))[1] AS last_teacher_name,
+                (array_agg(qu.exam_name ORDER BY qu.used_at DESC))[1] AS last_exam_name,
+                (array_agg(qu.exam_date ORDER BY qu.used_at DESC))[1] AS last_exam_date,
+                jsonb_agg(
+                    jsonb_build_object(
+                        'id', qu.id,
+                        'paper_id', qu.paper_id,
+                        'teacher_id', qu.teacher_id,
+                        'teacher_name', qu.teacher_name,
+                        'exam_name', qu.exam_name,
+                        'exam_date', qu.exam_date,
+                        'used_at', qu.used_at
+                    ) ORDER BY qu.used_at DESC
+                ) AS usage_history
+            FROM public.question_usage qu
+            WHERE qu.question_id = ANY($1::uuid[])
+            GROUP BY qu.question_id;
+        `, [validUuids]);
+
+        for (const row of res.rows) {
+            usageMap.set(row.question_id.toString(), row);
+        }
+    } catch (e) {
+        // Graceful non-blocking fallback if usage table is idle
+        // console.warn('[USAGE] Lookup notice:', e.message);
     }
 
-    const requestedLimit = Math.max(1, Math.min(20000, Number(limit) || 50));
-    const requestedPage = Math.max(1, Number(page) || 1);
-    const offset = (requestedPage - 1) * requestedLimit;
+    return usageMap;
+}
 
+/**
+ * Build WHERE clauses and values for a question query.
+ */
+function buildQueryFilters(filters) {
     const whereClauses = [];
     const values = [];
     let paramIndex = 1;
 
-    // 1. Subject filter
-    if (filters.subject) {
-        const sub = (filters.subject || '').trim().toLowerCase();
-        if (sub.includes('math')) {
-            whereClauses.push(`q.subject IN ('Maths', 'Mathematics', 'Math', 'MATHEMATICS', 'MATHS')`);
-        } else if (sub.includes('physic')) {
-            whereClauses.push(`q.subject IN ('Physics', 'PHYSICS')`);
-        } else if (sub.includes('chem')) {
-            whereClauses.push(`q.subject IN ('Chemistry', 'CHEMISTRY')`);
-        } else if (sub.includes('bio')) {
-            whereClauses.push(`q.subject IN ('Biology', 'BIOLOGY')`);
-        } else {
-            whereClauses.push(`q.subject ILIKE $${paramIndex++}`);
-            values.push(`%${filters.subject}%`);
-        }
-    }
-
-    // 2. Class filter
-    if (filters.classes) {
-        const classesArr = Array.isArray(filters.classes) ? filters.classes : filters.classes.split(',');
-        const klassVals = [];
-        const examVals = [];
-        classesArr.forEach(c => {
-            const clean = c.replace(/Class\s*/i, '').trim();
-            if (['11', '12'].includes(clean)) {
-                klassVals.push(clean);
-            } else if (clean) {
-                examVals.push(clean);
-            }
-        });
-
-        if (klassVals.length > 0) {
-            whereClauses.push(`q.klass = ANY($${paramIndex++}::text[])`);
-            values.push(klassVals);
-        }
-        if (examVals.length > 0) {
-            whereClauses.push(`q.exams && $${paramIndex++}::text[]`);
-            values.push(examVals);
-        }
-    }
-
-    // 3. Chapter filter
+    // Chapter filter
     if (filters.chapter) {
         const chapters = Array.isArray(filters.chapter) ? filters.chapter : filters.chapter.split(',').map(c => c.trim()).filter(Boolean);
         if (chapters.length > 0) {
@@ -304,7 +307,7 @@ async function getQuestions(filters = {}, page = 1, limit = 50) {
         }
     }
 
-    // 4. Topic / Concept filter
+    // Topic / Concept filter
     if (filters.concept) {
         const concepts = Array.isArray(filters.concept) ? filters.concept : filters.concept.split(',').map(c => c.trim()).filter(Boolean);
         if (concepts.length > 0) {
@@ -313,7 +316,7 @@ async function getQuestions(filters = {}, page = 1, limit = 50) {
         }
     }
 
-    // 5. Question Type filter
+    // Question Type filter
     if (filters.type) {
         const typeArr = Array.isArray(filters.type) ? filters.type : filters.type.split(',').map(t => t.trim().toLowerCase());
         const qTypes = [];
@@ -329,7 +332,7 @@ async function getQuestions(filters = {}, page = 1, limit = 50) {
         }
     }
 
-    // 6. Level / Difficulty filter
+    // Level / Difficulty filter
     if (filters.level) {
         const levelArr = Array.isArray(filters.level) ? filters.level : filters.level.split(',').map(l => l.trim().toLowerCase()).filter(Boolean);
         if (levelArr.length > 0) {
@@ -342,146 +345,211 @@ async function getQuestions(filters = {}, page = 1, limit = 50) {
         }
     }
 
-    // 7. Search text filter (uses full text search index or ILIKE)
+    // Search text filter
     if (filters.search && filters.search.trim()) {
         const searchStr = filters.search.trim();
         whereClauses.push(`(q.question ILIKE $${paramIndex} OR q.chapter ILIKE $${paramIndex} OR q.topic ILIKE $${paramIndex++})`);
         values.push(`%${searchStr}%`);
     }
 
-    // 8. Usage filter (All, Never Used, Used Before)
-    if (filters.usage) {
-        const u = filters.usage.toString().toLowerCase().trim();
-        if (u === 'never_used' || u === 'never') {
-            whereClauses.push(`NOT EXISTS (SELECT 1 FROM public.question_usage qu WHERE qu.question_id = q.id)`);
-        } else if (u === 'used_before' || u === 'used') {
-            whereClauses.push(`EXISTS (SELECT 1 FROM public.question_usage qu WHERE qu.question_id = q.id)`);
-        }
+    return { whereClauses, values };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Queries & API Methods
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Query questions with multi-database routing, indexed filters, and usage history.
+ */
+async function getQuestions(filters = {}, page = 1, limit = 50) {
+    if (isTest && memoryTestQuestions.size > 0) {
+        let list = Array.from(memoryTestQuestions.values());
+        if (filters.subject) list = list.filter(q => q.subject.toLowerCase() === filters.subject.toLowerCase());
+        return {
+            questions: list,
+            pagination: { page: Number(page), limit: Number(limit), total: list.length, pages: 1 }
+        };
     }
 
+    const requestedLimit = Math.max(1, Math.min(20000, Number(limit) || 50));
+    const requestedPage = Math.max(1, Number(page) || 1);
+    const offset = (requestedPage - 1) * requestedLimit;
+
+    const targetPoolEntries = getPoolsForQuery(filters.subject, filters.classes);
+    const { whereClauses, values } = buildQueryFilters(filters);
     const whereSql = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
 
     try {
-        const queryValues = [...values, requestedLimit, offset];
-        const limitParam = `$${queryValues.length - 1}`;
-        const offsetParam = `$${queryValues.length}`;
+        // Query target pools in parallel
+        const poolResults = await Promise.all(
+            targetPoolEntries.map(async (entry) => {
+                try {
+                    // 1. Fetch total matching count
+                    const countRes = await entry.pool.query(
+                        `SELECT count(*)::bigint as total FROM public.questions q ${whereSql};`,
+                        values
+                    );
+                    const total = parseInt(countRes.rows[0]?.total || 0, 10);
 
-        const unifiedSql = `
-            WITH filtered AS (
-                SELECT 
-                    q.id, q.subject, q.klass, q.chapter, q.topic, q.exams,
-                    q.q_type, q.question, q.opt_a, q.opt_b, q.opt_c, q.opt_d,
-                    q.assertion, q.reason, q.correct_option, q.num_answer,
-                    q.solution_text, q.created_by, q.created_by_name, q.created_at,
-                    count(*) OVER() AS full_count
-                FROM public.questions q
-                ${whereSql}
-                ORDER BY q.created_at DESC
-                LIMIT ${limitParam} OFFSET ${offsetParam}
-            )
-            SELECT 
-                f.*,
-                qu_agg.used_count,
-                qu_agg.last_used_at,
-                qu_agg.last_teacher_name,
-                qu_agg.last_exam_name,
-                qu_agg.last_exam_date,
-                qu_agg.usage_history
-            FROM filtered f
-            LEFT JOIN LATERAL (
-                SELECT 
-                    count(*)::bigint AS used_count,
-                    max(qu.used_at) AS last_used_at,
-                    (array_agg(qu.teacher_name ORDER BY qu.used_at DESC))[1] AS last_teacher_name,
-                    (array_agg(qu.exam_name ORDER BY qu.used_at DESC))[1] AS last_exam_name,
-                    (array_agg(qu.exam_date ORDER BY qu.used_at DESC))[1] AS last_exam_date,
-                    jsonb_agg(
-                        jsonb_build_object(
-                            'id', qu.id,
-                            'paper_id', qu.paper_id,
-                            'teacher_id', qu.teacher_id,
-                            'teacher_name', qu.teacher_name,
-                            'exam_name', qu.exam_name,
-                            'exam_date', qu.exam_date,
-                            'used_at', qu.used_at
-                        ) ORDER BY qu.used_at DESC
-                    ) AS usage_history
-                FROM public.question_usage qu
-                WHERE qu.question_id = f.id
-            ) qu_agg ON true;
-        `;
+                    // 2. Fetch rows
+                    // For single target pool: limit/offset applied directly in SQL
+                    // For multi-pool union: fetch up to (offset + requestedLimit) to allow accurate global sorting
+                    const queryLimit = targetPoolEntries.length === 1 ? requestedLimit : (offset + requestedLimit);
+                    const queryOffset = targetPoolEntries.length === 1 ? offset : 0;
 
-        const res = await pool.query(unifiedSql, queryValues);
-        const rows = res.rows;
+                    const queryValues = [...values, queryLimit, queryOffset];
+                    const limitParam = `$${queryValues.length - 1}`;
+                    const offsetParam = `$${queryValues.length}`;
 
-        if (rows.length === 0) {
-            // Check if there are truly 0 or just beyond offset
-            const countCheck = await pool.query(`SELECT count(*)::bigint as total FROM public.questions q ${whereSql};`, values);
-            const total = parseInt(countCheck.rows[0]?.total || 0, 10);
-            return {
-                questions: [],
-                pagination: { page: requestedPage, limit: requestedLimit, total: total, pages: Math.ceil(total / requestedLimit) }
-            };
+                    const sql = `
+                        SELECT 
+                            q.id, q.subject, q.klass, q.chapter, q.topic, q.exams,
+                            q.q_type, q.question, q.opt_a, q.opt_b, q.opt_c, q.opt_d,
+                            q.assertion, q.reason, q.correct_option, q.num_answer,
+                            q.solution_text, q.created_by, q.created_by_name, q.created_at
+                        FROM public.questions q
+                        ${whereSql}
+                        ORDER BY q.created_at DESC
+                        LIMIT ${limitParam} OFFSET ${offsetParam};
+                    `;
+
+                    const rowsRes = await entry.pool.query(sql, queryValues);
+                    
+                    // Cache UUIDs to this pool key
+                    for (const r of rowsRes.rows) {
+                        cacheQuestionDb(r.id, entry.key);
+                    }
+
+                    return {
+                        total,
+                        rows: rowsRes.rows,
+                        dbKey: entry.key
+                    };
+                } catch (err) {
+                    console.error(`[POOL ERROR - ${entry.name}]:`, err.message);
+                    return { total: 0, rows: [], dbKey: entry.key };
+                }
+            })
+        );
+
+        // Aggregate counts & rows
+        const grandTotal = poolResults.reduce((acc, r) => acc + r.total, 0);
+
+        let mergedRows = [];
+        if (targetPoolEntries.length === 1) {
+            mergedRows = poolResults[0].rows;
+        } else {
+            // Merge all rows, sort descending by created_at, apply global pagination
+            for (const pr of poolResults) {
+                mergedRows.push(...pr.rows);
+            }
+            mergedRows.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+            mergedRows = mergedRows.slice(offset, offset + requestedLimit);
         }
 
-        const total = parseInt(rows[0].full_count, 10);
+        // Fetch usage data from primary database
+        const qIds = mergedRows.map(r => r.id);
+        const usageMap = await fetchUsageMap(qIds);
 
-        const mappedQuestions = rows.map(r => {
-            const usage = {
-                used_count: r.used_count || 0,
-                last_used_at: r.last_used_at,
-                last_teacher_name: r.last_teacher_name,
-                last_exam_name: r.last_exam_name,
-                last_exam_date: r.last_exam_date,
-                usage_history: r.usage_history || []
-            };
-            const uMap = new Map([[r.id.toString(), usage]]);
-            return mapSupabaseToQuestion(r, uMap);
-        });
+        // Filter by usage if specified ('never_used' or 'used_before')
+        if (filters.usage) {
+            const u = filters.usage.toString().toLowerCase().trim();
+            if (u === 'never_used' || u === 'never') {
+                mergedRows = mergedRows.filter(r => !usageMap.has(r.id.toString()));
+            } else if (u === 'used_before' || u === 'used') {
+                mergedRows = mergedRows.filter(r => usageMap.has(r.id.toString()));
+            }
+        }
+
+        const mappedQuestions = mergedRows.map(r => mapSupabaseToQuestion(r, usageMap));
 
         return {
             questions: mappedQuestions,
             pagination: {
                 page: requestedPage,
                 limit: requestedLimit,
-                total: total,
-                pages: Math.ceil(total / requestedLimit)
+                total: grandTotal,
+                pages: Math.ceil(grandTotal / requestedLimit)
             }
         };
     } catch (err) {
-        console.error('[POSTGRES] getQuestions error:', err.message);
-        return { questions: [], pagination: { page: requestedPage, limit: requestedLimit, total: 0, pages: 0 } };
+        console.error('[DATABASE] getQuestions error:', err.message);
+        return {
+            questions: [],
+            pagination: { page: requestedPage, limit: requestedLimit, total: 0, pages: 0 }
+        };
     }
 }
 
 /**
- * High-speed cached metadata query (zero-egress RPC).
+ * Fast cached metadata query across subject databases.
  */
-async function getSubjectMetadata(subject = '') {
-    const cacheKey = (subject || 'ALL').trim().toLowerCase();
+async function getSubjectMetadata(subject = '', klass = null) {
+    const normSub = normalizeSubject(subject) || 'ALL';
+    const normKlass = normalizeClass(klass) || 'ALL';
+    const cacheKey = `${normSub.toLowerCase()}_${normKlass.toLowerCase()}`;
+
     const cached = metadataCache.get(cacheKey);
     if (cached && (Date.now() - cached.timestamp < METADATA_TTL_MS)) {
         return cached.data;
     }
 
     try {
-        const subParam = subject ? subject.trim() : null;
-        const res = await pool.query(
-            `SELECT public.get_subject_meta($1) as meta;`,
-            [subParam]
+        const targetPools = getPoolsForQuery(subject, klass);
+
+        const results = await Promise.all(
+            targetPools.map(async (entry) => {
+                try {
+                    const [countRes, chaptersRes, conceptsRes] = await Promise.all([
+                        entry.pool.query('SELECT count(*)::bigint as total FROM public.questions;'),
+                        entry.pool.query('SELECT DISTINCT chapter FROM public.questions WHERE chapter IS NOT NULL ORDER BY chapter;'),
+                        entry.pool.query('SELECT DISTINCT chapter, topic as name FROM public.questions WHERE chapter IS NOT NULL AND topic IS NOT NULL ORDER BY chapter, topic;')
+                    ]);
+
+                    return {
+                        total: parseInt(countRes.rows[0]?.total || 0, 10),
+                        chapters: chaptersRes.rows.map(r => r.chapter).filter(Boolean),
+                        concepts: conceptsRes.rows.map(r => ({ chapter: r.chapter, name: r.name })).filter(c => c.name)
+                    };
+                } catch (e) {
+                    console.error(`[META ERROR - ${entry.name}]:`, e.message);
+                    return { total: 0, chapters: [], concepts: [] };
+                }
+            })
         );
 
-        const meta = res.rows[0]?.meta || { total: 0, chapters: [], concepts: [] };
+        let total = 0;
+        const chaptersSet = new Set();
+        const conceptsList = [];
+
+        for (const r of results) {
+            total += r.total;
+            r.chapters.forEach(ch => chaptersSet.add(ch));
+            conceptsList.push(...r.concepts);
+        }
+
+        // Deduplicate concepts by chapter + name
+        const conceptSeen = new Set();
+        const distinctConcepts = [];
+        for (const c of conceptsList) {
+            const key = `${c.chapter}:::${c.name}`;
+            if (!conceptSeen.has(key)) {
+                conceptSeen.add(key);
+                distinctConcepts.push(c);
+            }
+        }
+
         const result = {
-            total: parseInt(meta.total) || 0,
-            chapters: Array.isArray(meta.chapters) ? meta.chapters : [],
-            concepts: Array.isArray(meta.concepts) ? meta.concepts : []
+            total,
+            chapters: Array.from(chaptersSet).sort(),
+            concepts: distinctConcepts
         };
 
         metadataCache.set(cacheKey, { timestamp: Date.now(), data: result });
         return result;
     } catch (err) {
-        console.error('[POSTGRES] getSubjectMetadata error:', err.message);
+        console.error('[METADATA] getSubjectMetadata error:', err.message);
         return { total: 0, chapters: [], concepts: [] };
     }
 }
@@ -496,24 +564,45 @@ async function getQuestionById(id) {
     if (!isUuid(id)) return null;
 
     try {
-        const res = await pool.query(
-            `SELECT * FROM public.questions WHERE id = $1 LIMIT 1;`,
-            [id]
-        );
-        if (res.rows.length === 0) return null;
+        let targetDbKey = uuidToDbKey.get(String(id));
+        let foundRow = null;
 
-        const usageRes = await pool.query(
-            `SELECT * FROM public.get_questions_usage($1::uuid[]);`,
-            [[id]]
-        );
-        const usageMap = new Map();
-        if (usageRes.rows.length > 0) {
-            usageMap.set(id.toString(), usageRes.rows[0]);
+        if (targetDbKey && pools.has(targetDbKey)) {
+            const poolEntry = pools.get(targetDbKey);
+            const res = await poolEntry.pool.query('SELECT * FROM public.questions WHERE id = $1 LIMIT 1;', [id]);
+            if (res.rows.length > 0) {
+                foundRow = res.rows[0];
+            }
         }
 
-        return mapSupabaseToQuestion(res.rows[0], usageMap);
+        // If not found in cached pool, search all pools in parallel
+        if (!foundRow) {
+            const all = getAllPools();
+            const lookups = await Promise.all(
+                all.map(async (entry) => {
+                    try {
+                        const res = await entry.pool.query('SELECT * FROM public.questions WHERE id = $1 LIMIT 1;', [id]);
+                        if (res.rows.length > 0) {
+                            return { row: res.rows[0], key: entry.key };
+                        }
+                    } catch (e) {}
+                    return null;
+                })
+            );
+
+            const match = lookups.find(Boolean);
+            if (match) {
+                foundRow = match.row;
+                cacheQuestionDb(id, match.key);
+            }
+        }
+
+        if (!foundRow) return null;
+
+        const usageMap = await fetchUsageMap([id]);
+        return mapSupabaseToQuestion(foundRow, usageMap);
     } catch (err) {
-        console.error('[POSTGRES] getQuestionById error:', err.message);
+        console.error('[DATABASE] getQuestionById error:', err.message);
         return null;
     }
 }
@@ -532,27 +621,63 @@ async function getQuestionsByIds(ids) {
     if (validUuids.length === 0) return [];
 
     try {
-        const res = await pool.query(
-            `SELECT * FROM public.questions WHERE id = ANY($1::uuid[]);`,
-            [validUuids]
-        );
+        const foundRowsMap = new Map();
 
-        const usageRes = await pool.query(
-            `SELECT * FROM public.get_questions_usage($1::uuid[]);`,
-            [validUuids]
-        );
-        const usageMap = new Map();
-        usageRes.rows.forEach(u => usageMap.set(u.question_id.toString(), u));
+        // 1. Group cached UUIDs by known DB key
+        const byPool = new Map();
+        const uncached = [];
 
-        return res.rows.map(r => mapSupabaseToQuestion(r, usageMap));
+        for (const id of validUuids) {
+            const key = uuidToDbKey.get(String(id));
+            if (key && pools.has(key)) {
+                if (!byPool.has(key)) byPool.set(key, []);
+                byPool.get(key).push(id);
+            } else {
+                uncached.push(id);
+            }
+        }
+
+        // 2. Query known pools
+        const knownPromises = Array.from(byPool.entries()).map(async ([key, pIds]) => {
+            const entry = pools.get(key);
+            try {
+                const res = await entry.pool.query('SELECT * FROM public.questions WHERE id = ANY($1::uuid[]);', [pIds]);
+                res.rows.forEach(r => foundRowsMap.set(r.id.toString(), r));
+            } catch (e) {
+                console.error(`[BATCH ERROR - ${key}]:`, e.message);
+            }
+        });
+
+        // 3. For any uncached IDs, query all pools in parallel
+        const uncachedPromises = uncached.length > 0 ? getAllPools().map(async (entry) => {
+            try {
+                const res = await entry.pool.query('SELECT * FROM public.questions WHERE id = ANY($1::uuid[]);', [uncached]);
+                res.rows.forEach(r => {
+                    foundRowsMap.set(r.id.toString(), r);
+                    cacheQuestionDb(r.id, entry.key);
+                });
+            } catch (e) {}
+        }) : [];
+
+        await Promise.all([...knownPromises, ...uncachedPromises]);
+
+        // 4. Fetch usage
+        const foundUuids = Array.from(foundRowsMap.keys());
+        const usageMap = await fetchUsageMap(foundUuids);
+
+        // 5. Return ordered according to requested IDs
+        return validUuids
+            .map(id => foundRowsMap.get(id.toString()))
+            .filter(Boolean)
+            .map(r => mapSupabaseToQuestion(r, usageMap));
     } catch (err) {
-        console.error('[POSTGRES] getQuestionsByIds error:', err.message);
+        console.error('[DATABASE] getQuestionsByIds error:', err.message);
         return [];
     }
 }
 
 /**
- * Record usage of questions in a paper / exam.
+ * Record usage of questions in a paper / exam into primary database.
  */
 async function recordQuestionUsage(questionIds, paperId, teacherId, teacherName, examName, examDate) {
     if (!Array.isArray(questionIds) || questionIds.length === 0) return;
@@ -561,7 +686,7 @@ async function recordQuestionUsage(questionIds, paperId, teacherId, teacherName,
     if (validUuids.length === 0) return;
 
     try {
-        const client = await pool.connect();
+        const client = await primaryPool.connect();
         try {
             await client.query('BEGIN');
             const insertQuery = `
@@ -572,7 +697,7 @@ async function recordQuestionUsage(questionIds, paperId, teacherId, teacherName,
             for (const qId of validUuids) {
                 await client.query(insertQuery, [
                     qId,
-                    paperId.toString(),
+                    paperId ? paperId.toString() : null,
                     teacherId ? teacherId.toString() : null,
                     teacherName || 'Faculty',
                     examName || 'Assessment',
@@ -587,13 +712,15 @@ async function recordQuestionUsage(questionIds, paperId, teacherId, teacherName,
             client.release();
         }
     } catch (err) {
-        console.error('[POSTGRES] recordQuestionUsage error:', err.message);
+        console.error('[PRIMARY DB] recordQuestionUsage error:', err.message);
     }
 }
 
+/**
+ * Create a question in the appropriate subject/class database.
+ */
 async function createQuestion(dto, userId = null, userName = 'Admin') {
     const payload = mapQuestionToSupabase(dto, userId, userName);
-    payload.created_at = new Date().toISOString();
 
     if (isTest) {
         const fakeId = `q_test_${Date.now()}_${Math.random().toString(36).substring(7)}`;
@@ -619,22 +746,42 @@ async function createQuestion(dto, userId = null, userName = 'Admin') {
         return mapped;
     }
 
-    const { data, error } = await supabase
-        .from('questions')
-        .insert([payload])
-        .select()
-        .single();
+    const targetPoolEntry = getPoolForTarget(payload.subject, payload.klass);
 
-    if (error) {
-        console.error('[SUPABASE] createQuestion error:', error.message);
-        throw new Error(error.message);
-    }
+    const insertSql = `
+        INSERT INTO public.questions (
+            subject, klass, chapter, topic, exams, q_type,
+            question, opt_a, opt_b, opt_c, opt_d, assertion, reason,
+            num_answer, correct_option, solution_text,
+            created_by, created_by_name, updated_by, updated_by_name, updated_at
+        ) VALUES (
+            $1, $2, $3, $4, $5, $6,
+            $7, $8, $9, $10, $11, $12, $13,
+            $14, $15, $16,
+            $17, $18, $19, $20, $21
+        )
+        RETURNING *;
+    `;
 
-    // Invalidate cache
+    const values = [
+        payload.subject, payload.klass, payload.chapter, payload.topic, payload.exams, payload.q_type,
+        payload.question, payload.opt_a, payload.opt_b, payload.opt_c, payload.opt_d, payload.assertion, payload.reason,
+        payload.num_answer, payload.correct_option, payload.solution_text,
+        payload.created_by, payload.created_by_name, payload.updated_by, payload.updated_by_name, payload.updated_at
+    ];
+
+    const res = await targetPoolEntry.pool.query(insertSql, values);
+    const row = res.rows[0];
+
+    cacheQuestionDb(row.id, targetPoolEntry.key);
     metadataCache.clear();
-    return mapSupabaseToQuestion(data);
+
+    return mapSupabaseToQuestion(row);
 }
 
+/**
+ * Update an existing question in its database.
+ */
 async function updateQuestion(id, dto, userId = null, userName = 'Admin') {
     if (isTest && memoryTestQuestions.has(id)) {
         const existing = memoryTestQuestions.get(id);
@@ -643,38 +790,80 @@ async function updateQuestion(id, dto, userId = null, userName = 'Admin') {
         return updated;
     }
 
-    const payload = mapQuestionToSupabase(dto, userId, userName);
+    let targetDbKey = uuidToDbKey.get(String(id));
+    let targetPoolEntry = targetDbKey ? pools.get(targetDbKey) : null;
 
-    const { data, error } = await supabase
-        .from('questions')
-        .update(payload)
-        .eq('id', id)
-        .select()
-        .single();
-
-    if (error) {
-        console.error('[SUPABASE] updateQuestion error:', error.message);
-        throw new Error(error.message);
+    if (!targetPoolEntry) {
+        // Find which pool has it
+        for (const entry of getAllPools()) {
+            const check = await entry.pool.query('SELECT id FROM public.questions WHERE id = $1 LIMIT 1;', [id]);
+            if (check.rows.length > 0) {
+                targetPoolEntry = entry;
+                cacheQuestionDb(id, entry.key);
+                break;
+            }
+        }
     }
 
-    return mapSupabaseToQuestion(data);
+    if (!targetPoolEntry) {
+        throw new Error(`Question ${id} not found in any database.`);
+    }
+
+    const payload = mapQuestionToSupabase(dto, userId, userName);
+
+    const updateSql = `
+        UPDATE public.questions SET
+            subject = $1, klass = $2, chapter = $3, topic = $4, exams = $5, q_type = $6,
+            question = $7, opt_a = $8, opt_b = $9, opt_c = $10, opt_d = $11,
+            assertion = $12, reason = $13, num_answer = $14, correct_option = $15,
+            solution_text = $16, updated_by = $17, updated_by_name = $18, updated_at = $19
+        WHERE id = $20
+        RETURNING *;
+    `;
+
+    const values = [
+        payload.subject, payload.klass, payload.chapter, payload.topic, payload.exams, payload.q_type,
+        payload.question, payload.opt_a, payload.opt_b, payload.opt_c, payload.opt_d,
+        payload.assertion, payload.reason, payload.num_answer, payload.correct_option,
+        payload.solution_text, payload.updated_by, payload.updated_by_name, payload.updated_at,
+        id
+    ];
+
+    const res = await targetPoolEntry.pool.query(updateSql, values);
+    metadataCache.clear();
+
+    return mapSupabaseToQuestion(res.rows[0]);
 }
 
+/**
+ * Delete a question from its database.
+ */
 async function deleteQuestion(id) {
     if (isTest) {
         memoryTestQuestions.delete(id);
         return true;
     }
 
-    const { error } = await supabase
-        .from('questions')
-        .delete()
-        .eq('id', id);
+    let targetDbKey = uuidToDbKey.get(String(id));
+    let targetPoolEntry = targetDbKey ? pools.get(targetDbKey) : null;
 
-    if (error) {
-        console.error('[SUPABASE] deleteQuestion error:', error.message);
-        throw new Error(error.message);
+    if (!targetPoolEntry) {
+        for (const entry of getAllPools()) {
+            const check = await entry.pool.query('SELECT id FROM public.questions WHERE id = $1 LIMIT 1;', [id]);
+            if (check.rows.length > 0) {
+                targetPoolEntry = entry;
+                break;
+            }
+        }
     }
+
+    if (!targetPoolEntry) {
+        throw new Error(`Question ${id} not found.`);
+    }
+
+    await targetPoolEntry.pool.query('DELETE FROM public.questions WHERE id = $1;', [id]);
+    uuidToDbKey.delete(String(id));
+    metadataCache.clear();
 
     return true;
 }
