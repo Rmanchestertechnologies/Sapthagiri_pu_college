@@ -142,30 +142,38 @@ app.use(errorHandler);
 const PORT = process.env.PORT || 5000;
 
 if (process.env.NODE_ENV !== 'test') {
-    // 1. Initialize Supabase PostgreSQL pool
-    const pool = require('./config/postgres');
-    pool.query('SELECT 1')
-        .then(() => {
+    // ── Async startup: await MongoDB, then start listening ──────────────────
+    (async () => {
+        // 1. Warm up Supabase PostgreSQL pool (subject question databases)
+        try {
+            const pool = require('./config/postgres');
+            await pool.query('SELECT 1');
             console.log('✅ Supabase PostgreSQL Connected for Sapthagiri PU College');
-        })
-        .catch(err => {
-            console.warn('⚠️ Supabase PostgreSQL connection notice:', err.message);
+        } catch (pgErr) {
+            console.warn('⚠️ Supabase PostgreSQL connection notice:', pgErr.message);
+        }
+
+        // 2. Connect MongoDB Atlas — required for user/faculty operations
+        if (process.env.MONGO_URI) {
+            try {
+                await mongoose.connect(process.env.MONGO_URI);
+                console.log('✅ MongoDB Atlas Connected (sapthagiri database)');
+            } catch (mongoErr) {
+                // Log error but don't crash — Postgres routes still work
+                console.error('❌ MongoDB connection failed:', mongoErr.message);
+                console.error('   User/faculty features will be unavailable until resolved.');
+            }
+        } else {
+            console.warn('⚠️ MONGO_URI not set — user/faculty features unavailable.');
+            console.warn('   Add MONGO_URI to your environment variables (see render.yaml).');
+        }
+
+        // 3. Start the HTTP server
+        app.listen(PORT, '0.0.0.0', () => {
+            const dbStatus = mongoose.connection.readyState === 1 ? 'MongoDB ✅' : 'MongoDB ❌';
+            console.log(`✅ Sapthagiri PU College QPG Server running on port ${PORT} | ${dbStatus}`);
         });
-
-    // 2. Optional MongoDB connection (if MONGO_URI provided)
-    if (process.env.MONGO_URI) {
-        mongoose.connect(process.env.MONGO_URI)
-            .then(() => {
-                console.log('✅ MongoDB Connected (Hybrid Mode)');
-            })
-            .catch(err => {
-                console.warn('⚠️ MongoDB connection skipped:', err.message);
-            });
-    }
-
-    app.listen(PORT, '0.0.0.0', () => {
-        console.log(`✅ Sapthagiri PU College QPG Server running on port ${PORT}`);
-    });
+    })();
 }
 
 module.exports = app; // Exported for supertest

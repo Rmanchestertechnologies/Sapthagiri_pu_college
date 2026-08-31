@@ -12,6 +12,10 @@ services:
         value: production
       - key: PORT
         value: 10000
+      # ── MongoDB Atlas — primary database for users/faculty ──────────────────
+      - key: MONGO_URI
+        value: mongodb+srv://hrmanchestertechnologies_db_user:MfYSJqm2dYCWnFMn@cluster0.rljdhjc.mongodb.net/sapthagiri?retryWrites=true&w=majority&appName=Cluster0
+      # ── Supabase PostgreSQL — subject question databases ────────────────────
       - key: DATABASE_URL
         value: postgresql://postgres.vukxgqkrersxcasdklda:Sapthagiri1@aws-0-ap-south-1.pooler.supabase.com:5432/postgres
       - key: DIRECT_DATABASE_URL

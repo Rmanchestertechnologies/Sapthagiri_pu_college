@@ -95,8 +95,28 @@ router.post('/teachers', [auth, checkRole(['admin'])], async (req, res) => {
         });
 
     } catch (err) {
-        console.error('[ADMIN] Error creating teacher:', err.message);
-        res.status(500).json({ msg: 'Server error creating teacher.' });
+        // Classify errors precisely — don't mask everything as 500
+        console.error('[ADMIN] Create teacher failed:', {
+            name: err.name,
+            code: err.code,
+            message: err.message
+        });
+
+        // MongoDB not yet connected
+        if (err.name === 'MongoNotConnectedError' || err.name === 'MongoServerSelectionError') {
+            return res.status(503).json({ msg: 'Database not available. Please try again in a moment.' });
+        }
+        // E11000 duplicate key — email already exists
+        if (err.code === 11000) {
+            return res.status(409).json({ msg: 'A user with this email already exists.' });
+        }
+        // Mongoose schema validation failure
+        if (err.name === 'ValidationError') {
+            const messages = Object.values(err.errors).map(e => e.message).join('; ');
+            return res.status(400).json({ msg: `Validation failed: ${messages}` });
+        }
+
+        res.status(500).json({ msg: 'Server error creating teacher. Please try again.' });
     }
 });
 
