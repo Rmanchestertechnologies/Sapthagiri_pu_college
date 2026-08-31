@@ -128,18 +128,38 @@ const DashboardHome = () => {
                 return a === b || a.includes(b) || b.includes(a);
             };
 
+            for (const subName of subjectsNeeded) {
+                const assignedTeacherId = commissionForm.assignedTeachers[subName];
+                const teacherObj = allTeachers.find(t => String(t._id || t.id) === String(assignedTeacherId)) ||
+                                   allTeachers.find(t => isSubMatch(t.subject, subName));
+                if (!teacherObj || !(teacherObj._id || teacherObj.id)) {
+                    return alert(`Please assign a faculty member for ${subName}.`);
+                }
+            }
+
             const subjectAssignments = subjectsNeeded.map(subName => {
                 const assignedTeacherId = commissionForm.assignedTeachers[subName];
                 const teacherObj = allTeachers.find(t => String(t._id || t.id) === String(assignedTeacherId)) ||
                                    allTeachers.find(t => isSubMatch(t.subject, subName));
                 return {
                     subject: subName,
-                    teacherId: teacherObj ? (teacherObj._id || teacherObj.id) : undefined,
-                    teacherName: teacherObj ? teacherObj.name : `Prof. ${subName} Faculty`,
-                    teacherEmail: teacherObj ? teacherObj.email : `${subName.toLowerCase()}@sapthagiripucollege.edu.in`,
+                    teacherId: teacherObj._id || teacherObj.id,
+                    teacherName: teacherObj.name,
+                    teacherEmail: teacherObj.email,
                     targetQuestions: commissionForm.targetPerSubject || 60,
                     status: 'Pending'
                 };
+            });
+
+            console.log('Commissioning Exam Payload:', {
+                title: commissionForm.title,
+                examType: commissionForm.examType,
+                classes: commissionForm.classes,
+                subjectAssignments: subjectAssignments.map(a => ({
+                    subject: a.subject,
+                    teacherId: a.teacherId,
+                    teacherIdLength: String(a.teacherId || '').length
+                }))
             });
 
             const res = await api.post('/api/exams/commission', {

@@ -1,6 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const crypto = require('crypto');
+const mongoose = require('mongoose');
+const User = require('../models/User');
 const Paper = require('../models/Paper');
 const Question = require('../models/Question');
 const OnlineExam = require('../models/OnlineExam');
@@ -20,53 +22,134 @@ const { createNotification } = require('./notifications');
 router.post('/commission', [auth, checkRole(['admin'])], async (req, res) => {
     try {
         const { title, examType, classes, subjectAssignments, instructions, duration_minutes } = req.body;
-        if (!title) return res.status(400).json({ msg: 'Exam title is required.' });
 
-        const newExam = new OnlineExam({
-            title,
+        // 1. Title validation
+        if (!title || typeof title !== 'string' || !title.trim()) {
+            return res.status(400).json({ msg: 'Exam title is required.' });
+        }
+
+        // 2. Subject assignments array validation
+        if (!Array.isArray(subjectAssignments) || subjectAssignments.length === 0) {
+            return res.status(400).json({ msg: 'At least one subject faculty assignment is required.' });
+        }
+
+        // 3. Safe createdBy resolution (MongoDB ObjectId vs legacy fallback)
+        let createdBy = undefined;
+        if (req.user && req.user.id && mongoose.Types.ObjectId.isValid(req.user.id)) {
+            createdBy = req.user.id;
+        }
+
+        // 4. Resolve and validate each faculty teacherId server-side against MongoDB User model
+        const resolvedAssignments = [];
+        for (const sa of subjectAssignments) {
+            if (!sa || typeof sa !== 'object') continue;
+            const subject = (sa.subject || '').trim();
+            if (!subject) {
+                return res.status(400).json({ msg: 'Subject is required for all assignments.' });
+            }
+
+            if (!sa.teacherId) {
+                return res.status(400).json({ msg: `Please assign a faculty member for ${subject}.` });
+            }
+
+            const rawTeacherId = String(sa.teacherId).trim();
+            if (!mongoose.Types.ObjectId.isValid(rawTeacherId)) {
+                return res.status(400).json({ msg: `Invalid MongoDB faculty ID for ${subject}.` });
+            }
+
+            const teacher = await User.findOne({ _id: rawTeacherId, role: 'teacher' });
+            if (!teacher) {
+                return res.status(400).json({ msg: `Selected ${subject} faculty was not found.` });
+            }
+
+            resolvedAssignments.push({
+                subject,
+                teacherId: teacher._id,
+                teacherName: teacher.name,
+                teacherEmail: teacher.email,
+                targetQuestions: Number(sa.targetQuestions) || 60,
+                difficultyDistribution: sa.difficultyDistribution || { easy: 40, medium: 40, hard: 20 },
+                status: 'Pending',
+                assignedDate: new Date()
+            });
+        }
+
+        if (resolvedAssignments.length === 0) {
+            return res.status(400).json({ msg: 'No valid subject assignments provided.' });
+        }
+
+        // 5. Construct OnlineExam document
+        const examData = {
+            title: title.trim(),
             examType: ['JEE', 'NEET', 'CET'].includes(examType) ? examType : 'CET',
-            classes: Array.isArray(classes) ? classes : [classes || '12'],
-            subjectAssignments: subjectAssignments || [],
+            classes: Array.isArray(classes) && classes.length > 0 ? classes : [classes || '12'],
+            subjectAssignments: resolvedAssignments,
             instructions: instructions || '',
-            duration_minutes: duration_minutes || 180,
-            status: 'draft',
-            createdBy: req.user.id
-        });
+            duration_minutes: Number(duration_minutes) || 180,
+            status: 'draft'
+        };
+
+        if (createdBy) {
+            examData.createdBy = createdBy;
+        }
+
+        const newExam = new OnlineExam(examData);
+
+        // Pre-validate before save
+        const validationError = newExam.validateSync();
+        if (validationError) {
+            console.error('OnlineExam validation error:', validationError.message);
+            return res.status(400).json({ msg: `Exam validation failed: ${validationError.message}` });
+        }
 
         await newExam.save();
 
-        // Dispatch notifications to assigned teachers
-        if (Array.isArray(subjectAssignments)) {
-            for (const sa of subjectAssignments) {
-                if (sa.teacherId) {
-                    try {
-                        await createNotification({
-                            recipient_role: 'teacher',
-                            recipient_id: sa.teacherId.toString(),
-                            sender_id: req.user.id,
-                            sender_name: req.user.name || 'Admin Office',
-                            type: 'exam_assignment',
-                            title: `New Paper Assignment: ${title}`,
-                            message: `Admin assigned you to compile ${sa.targetQuestions || 60} ${sa.subject} questions for ${title} (${examType || 'CET'}).`,
-                            metadata: {
-                                examId: newExam._id.toString(),
-                                examTitle: title,
-                                subject: sa.subject,
-                                targetQuestions: sa.targetQuestions || 60,
-                                examType: examType || 'CET',
-                                classes: classes || ['12']
-                            }
-                        });
-                    } catch (notifErr) {
-                        console.error('Teacher notification error:', notifErr.message);
-                    }
+        // 6. Dispatch notifications safely
+        for (const sa of resolvedAssignments) {
+            if (sa.teacherId) {
+                try {
+                    await createNotification({
+                        recipient_role: 'teacher',
+                        recipient_id: sa.teacherId.toString(),
+                        sender_id: req.user?.id ? String(req.user.id) : null,
+                        sender_name: req.user?.name || 'Admin Office',
+                        type: 'exam_assignment',
+                        title: `New Paper Assignment: ${title.trim()}`,
+                        message: `Admin assigned you to compile ${sa.targetQuestions} ${sa.subject} questions for ${title.trim()} (${examData.examType}).`,
+                        metadata: {
+                            examId: newExam._id.toString(),
+                            examTitle: title.trim(),
+                            subject: sa.subject,
+                            targetQuestions: sa.targetQuestions,
+                            examType: examData.examType,
+                            classes: examData.classes
+                        }
+                    });
+                } catch (notifErr) {
+                    console.error('Teacher notification error (non-critical):', notifErr.message);
                 }
             }
         }
 
         res.json({ msg: 'Exam successfully commissioned and dispatched to teachers', exam: newExam });
     } catch (err) {
-        console.error('Commission Error:', err);
+        console.error('Commission Error:', {
+            name: err.name,
+            code: err.code,
+            message: err.message,
+            path: err.path,
+            value: err.value
+        });
+
+        if (err.name === 'ValidationError') {
+            const messages = Object.values(err.errors || {}).map(e => e.message).join('; ') || err.message;
+            return res.status(400).json({ msg: `Exam validation failed: ${messages}` });
+        }
+
+        if (err.name === 'CastError') {
+            return res.status(400).json({ msg: `Invalid MongoDB ID supplied for ${err.path}: ${err.value}` });
+        }
+
         res.status(500).json({ msg: 'Server error commissioning exam' });
     }
 });

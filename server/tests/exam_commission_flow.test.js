@@ -182,7 +182,10 @@ describe('Exam Commission & Faculty Assignment Integration Test Suite', () => {
             .set('Authorization', `Bearer ${adminToken}`)
             .send({
                 title: 'Response Structure Verification',
-                examType: 'CET'
+                examType: 'CET',
+                subjectAssignments: [
+                    { subject: 'Physics', teacherId: physicsTeacher._id, targetQuestions: 60 }
+                ]
             });
         expect(res.body).toHaveProperty('exam');
         expect(res.body.exam).toHaveProperty('_id');
@@ -308,4 +311,86 @@ describe('Exam Commission & Faculty Assignment Integration Test Suite', () => {
         expect(teacherLoginRes.body.user.role).toBe('teacher');
         expect(teacherLoginRes.body.user.subject).toBe('Physics');
     });
+
+    test('TEST 16: PostgreSQL UUID supplied as teacherId returns 400, not 500 CastError', async () => {
+        const res = await request(app)
+            .post('/api/exams/commission')
+            .set('Authorization', `Bearer ${adminToken}`)
+            .send({
+                title: 'UUID Teacher Test',
+                examType: 'CET',
+                subjectAssignments: [
+                    {
+                        subject: 'Physics',
+                        teacherId: '550e8400-e29b-41d4-a716-446655440000', // Postgres UUID
+                        targetQuestions: 60
+                    }
+                ]
+            });
+        expect(res.status).toBe(400);
+        expect(res.body.msg).toContain('Invalid MongoDB faculty ID');
+    });
+
+    test('TEST 17: Legacy PostgreSQL UUID admin ID in token does not cause CastError in createdBy', async () => {
+        const legacyAdminToken = generateToken({
+            id: 'c9bf9e57-1685-4c89-bafb-ff5af830be8a', // Postgres UUID
+            role: 'admin'
+        });
+
+        const res = await request(app)
+            .post('/api/exams/commission')
+            .set('Authorization', `Bearer ${legacyAdminToken}`)
+            .send({
+                title: 'Legacy Admin Commission Test',
+                examType: 'CET',
+                subjectAssignments: [
+                    {
+                        subject: 'Physics',
+                        teacherId: physicsTeacher._id,
+                        targetQuestions: 60
+                    }
+                ]
+            });
+        expect(res.status).toBe(200);
+        expect(res.body.exam).toBeDefined();
+        expect(res.body.exam.title).toBe('Legacy Admin Commission Test');
+        if (res.body.exam?._id) testExamsCreated.push(res.body.exam._id);
+    });
+
+    test('TEST 18: CET commissioning with 4 subjects resolves and creates all 4 assignments', async () => {
+        const res = await request(app)
+            .post('/api/exams/commission')
+            .set('Authorization', `Bearer ${adminToken}`)
+            .send({
+                title: 'Full CET 4-Subject Exam',
+                examType: 'CET',
+                classes: ['12'],
+                subjectAssignments: [
+                    { subject: 'Physics', teacherId: physicsTeacher._id, targetQuestions: 60 },
+                    { subject: 'Chemistry', teacherId: chemistryTeacher._id, targetQuestions: 60 },
+                    { subject: 'Mathematics', teacherId: physicsTeacher._id, targetQuestions: 60 },
+                    { subject: 'Biology', teacherId: chemistryTeacher._id, targetQuestions: 60 }
+                ]
+            });
+        expect(res.status).toBe(200);
+        expect(res.body.exam.subjectAssignments.length).toBe(4);
+        if (res.body.exam?._id) testExamsCreated.push(res.body.exam._id);
+    });
+
+    test('TEST 19: Nonexistent MongoDB teacher ObjectId returns controlled 400', async () => {
+        const fakeValidObjectId = new mongoose.Types.ObjectId();
+        const res = await request(app)
+            .post('/api/exams/commission')
+            .set('Authorization', `Bearer ${adminToken}`)
+            .send({
+                title: 'Nonexistent Teacher Test',
+                examType: 'JEE',
+                subjectAssignments: [
+                    { subject: 'Physics', teacherId: fakeValidObjectId, targetQuestions: 25 }
+                ]
+            });
+        expect(res.status).toBe(400);
+        expect(res.body.msg).toContain('Selected Physics faculty was not found.');
+    });
 });
+
