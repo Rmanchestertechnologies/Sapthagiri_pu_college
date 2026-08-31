@@ -18,7 +18,7 @@ router.get('/', [auth, checkRole(['admin'])], async (req, res) => {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // @route   POST /api/admin/teachers
-// @desc    Create a teacher (Saves to PostgreSQL + syncs MongoDB)
+// @desc    Create a teacher — PRIMARY: MongoDB Atlas, SECONDARY: PostgreSQL sync
 // @access  Admin
 // ─────────────────────────────────────────────────────────────────────────────
 router.post('/teachers', [auth, checkRole(['admin'])], async (req, res) => {
@@ -37,55 +37,53 @@ router.post('/teachers', [auth, checkRole(['admin'])], async (req, res) => {
     }
 
     try {
-        // 1. Check if user already exists in PostgreSQL
-        const existingPg = await pool.query('SELECT id FROM public.users WHERE email = $1', [cleanEmail]);
-        if (existingPg.rows.length > 0) {
-            return res.status(400).json({ msg: 'Teacher already exists with this email.' });
-        }
-
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(password, salt);
 
-        // 2. Insert into PostgreSQL (Primary Source of Truth)
-        const insertRes = await pool.query(`
-            INSERT INTO public.users (name, email, password, role, subject)
-            VALUES ($1, $2, $3, 'teacher', $4)
-            RETURNING id, name, email, role, subject, created_at
-        `, [cleanName, cleanEmail, hashedPassword, cleanSubject]);
-
-        const row = insertRes.rows[0];
-        const teacherData = {
-            _id: row.id.toString(),
-            id: row.id,
-            name: row.name,
-            email: row.email,
-            role: row.role,
-            subject: row.subject,
-            createdAt: row.created_at,
-            created_at: row.created_at
-        };
-
-        // 3. Secondary sync to MongoDB Atlas if connected
-        if (mongoose.connection.readyState === 1 && User) {
-            try {
-                const existingMongo = await User.findOne({ email: cleanEmail });
-                if (!existingMongo) {
-                    const mUser = new User({
-                        name: cleanName,
-                        email: cleanEmail,
-                        password: hashedPassword,
-                        role: 'teacher',
-                        subject: cleanSubject
-                    });
-                    await mUser.save();
-                }
-            } catch (mErr) {
-                console.warn('[ADMIN] Mongo sync notice:', mErr.message);
+        // 1. PRIMARY: Check & Save to MongoDB Atlas
+        let mongoUser = null;
+        if (User) {
+            const existingMongo = await User.findOne({ email: cleanEmail });
+            if (existingMongo) {
+                return res.status(400).json({ msg: 'Teacher already exists with this email.' });
             }
+
+            mongoUser = new User({
+                name: cleanName,
+                email: cleanEmail,
+                password: hashedPassword,
+                role: 'teacher',
+                subject: cleanSubject
+            });
+            await mongoUser.save();
         }
 
-        console.log(`[ADMIN] Teacher successfully created: ${cleanName} <${cleanEmail}> [${cleanSubject}]`);
-        return res.json(teacherData);
+        // 2. SECONDARY: Sync to PostgreSQL if pool exists (non-blocking)
+        try {
+            const existingPg = await pool.query('SELECT id FROM public.users WHERE email = $1', [cleanEmail]);
+            if (existingPg.rows.length === 0) {
+                await pool.query(`
+                    INSERT INTO public.users (name, email, password, role, subject)
+                    VALUES ($1, $2, $3, 'teacher', $4)
+                `, [cleanName, cleanEmail, hashedPassword, cleanSubject]);
+            }
+        } catch (pgErr) {
+            console.warn('[ADMIN] PostgreSQL sync notice:', pgErr.message);
+        }
+
+        const teacherIdStr = mongoUser ? String(mongoUser._id) : null;
+        console.log(`[ADMIN] Teacher successfully created: ${cleanName} <${cleanEmail}> [${cleanSubject}] - Mongo ID: ${teacherIdStr}`);
+
+        return res.json({
+            _id: teacherIdStr,
+            id: teacherIdStr,
+            name: mongoUser ? mongoUser.name : cleanName,
+            email: cleanEmail,
+            role: 'teacher',
+            subject: cleanSubject,
+            createdAt: mongoUser ? mongoUser.createdAt : new Date(),
+            created_at: mongoUser ? mongoUser.createdAt : new Date()
+        });
 
     } catch (err) {
         console.error('[ADMIN] Create teacher error:', err.message);
@@ -95,64 +93,81 @@ router.post('/teachers', [auth, checkRole(['admin'])], async (req, res) => {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // @route   GET /api/admin/teachers
-// @desc    Get all teachers (PostgreSQL + MongoDB unified)
+// @desc    Get all teachers — PRIMARY: MongoDB Atlas (guaranteed real Mongo _ids)
 // @access  Admin
 // ─────────────────────────────────────────────────────────────────────────────
 router.get('/teachers', [auth, checkRole(['admin'])], async (req, res) => {
     try {
         const teachersMap = new Map(); // email -> teacher object
 
-        // 1. Fetch from PostgreSQL
-        try {
-            const pgRes = await pool.query(`
-                SELECT id, name, email, role, subject, created_at
-                FROM public.users
-                WHERE role = 'teacher'
-                ORDER BY created_at DESC
-            `);
-
-            for (const r of pgRes.rows) {
-                teachersMap.set(r.email.toLowerCase(), {
-                    _id: r.id.toString(),
-                    id: r.id,
-                    name: r.name,
-                    email: r.email,
-                    role: r.role,
-                    subject: r.subject || '',
-                    createdAt: r.created_at,
-                    created_at: r.created_at
-                });
-            }
-        } catch (pgErr) {
-            console.error('[ADMIN] PostgreSQL teachers fetch error:', pgErr.message);
-        }
-
-        // 2. Fetch from MongoDB if connected
-        if (mongoose.connection.readyState === 1 && User) {
+        // 1. PRIMARY: Query MongoDB Atlas
+        if (User) {
             try {
                 const mongoTeachers = await User.find({ role: 'teacher' }).select('-password').lean();
                 for (const m of mongoTeachers) {
                     const emailKey = (m.email || '').toLowerCase();
-                    if (!teachersMap.has(emailKey)) {
-                        teachersMap.set(emailKey, {
-                            _id: m._id.toString(),
-                            id: m._id.toString(),
-                            name: m.name,
-                            email: m.email,
-                            role: m.role,
-                            subject: m.subject || '',
-                            createdAt: m.createdAt,
-                            created_at: m.createdAt
-                        });
-                    }
+                    teachersMap.set(emailKey, {
+                        _id: String(m._id),
+                        id: String(m._id),
+                        name: m.name,
+                        email: m.email,
+                        role: m.role,
+                        subject: m.subject || '',
+                        createdAt: m.createdAt,
+                        created_at: m.createdAt
+                    });
                 }
             } catch (mErr) {
                 console.warn('[ADMIN] Mongo teachers fetch notice:', mErr.message);
             }
         }
 
+        // 2. Check PostgreSQL for any legacy teachers not yet in MongoDB
+        try {
+            const pgRes = await pool.query(`
+                SELECT id, name, email, password, role, subject, created_at
+                FROM public.users
+                WHERE role = 'teacher'
+                ORDER BY created_at DESC
+            `);
+
+            for (const r of pgRes.rows) {
+                const emailKey = (r.email || '').toLowerCase();
+                // If this teacher is not in MongoDB, create a MongoDB document so they have a real Mongo _id
+                if (!teachersMap.has(emailKey) && User) {
+                    try {
+                        let existingMongo = await User.findOne({ email: emailKey });
+                        if (!existingMongo) {
+                            existingMongo = new User({
+                                name: r.name,
+                                email: emailKey,
+                                password: r.password || '$2a$10$defaultPlaceholderHashForLegacyAccount',
+                                role: 'teacher',
+                                subject: r.subject || ''
+                            });
+                            await existingMongo.save();
+                        }
+                        teachersMap.set(emailKey, {
+                            _id: String(existingMongo._id),
+                            id: String(existingMongo._id),
+                            name: existingMongo.name,
+                            email: existingMongo.email,
+                            role: existingMongo.role,
+                            subject: existingMongo.subject || '',
+                            createdAt: existingMongo.createdAt,
+                            created_at: existingMongo.createdAt
+                        });
+                    } catch (syncErr) {
+                        console.warn('[ADMIN] Auto-sync legacy teacher to Mongo notice:', syncErr.message);
+                    }
+                }
+            }
+        } catch (pgErr) {
+            console.warn('[ADMIN] PostgreSQL teachers fetch notice:', pgErr.message);
+        }
+
         const teachersList = Array.from(teachersMap.values());
-        console.log(`[ADMIN] Total active faculty found: ${teachersList.length}`);
+        console.log(`[ADMIN] Total active faculty found (all MongoDB backed): ${teachersList.length}`);
         return res.json(teachersList);
 
     } catch (err) {

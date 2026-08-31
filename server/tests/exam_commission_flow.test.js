@@ -392,5 +392,59 @@ describe('Exam Commission & Faculty Assignment Integration Test Suite', () => {
         expect(res.status).toBe(400);
         expect(res.body.msg).toContain('Selected Physics faculty was not found.');
     });
+
+    test('TEST 20: GET /api/admin/teachers returns genuine 24-character MongoDB ObjectIds for all faculty', async () => {
+        const res = await request(app)
+            .get('/api/admin/teachers')
+            .set('Authorization', `Bearer ${adminToken}`);
+        expect(res.status).toBe(200);
+        expect(res.body.length).toBeGreaterThan(0);
+        for (const t of res.body) {
+            expect(typeof t._id).toBe('string');
+            expect(t._id.length).toBe(24);
+            expect(mongoose.Types.ObjectId.isValid(t._id)).toBe(true);
+            expect(t._id).not.toContain('-'); // No UUID format
+        }
+    });
+
+    test('TEST 21: Full commission workflow with faculty from GET /teachers creates OnlineExam resolvable to User', async () => {
+        // 1. Fetch teachers from API
+        const teachersRes = await request(app)
+            .get('/api/admin/teachers')
+            .set('Authorization', `Bearer ${adminToken}`);
+        const physics = teachersRes.body.find(t => (t.subject || '').toLowerCase() === 'physics');
+        expect(physics).toBeDefined();
+        expect(mongoose.Types.ObjectId.isValid(physics._id)).toBe(true);
+
+        // 2. Commission using physics._id
+        const commRes = await request(app)
+            .post('/api/exams/commission')
+            .set('Authorization', `Bearer ${adminToken}`)
+            .send({
+                title: 'End-to-End Commission Verification Exam',
+                examType: 'CET',
+                classes: ['12'],
+                subjectAssignments: [
+                    {
+                        subject: 'Physics',
+                        teacherId: physics._id,
+                        targetQuestions: 60
+                    }
+                ]
+            });
+        expect(commRes.status).toBe(200);
+        const examId = commRes.body.exam._id;
+        testExamsCreated.push(examId);
+
+        // 3. Verify in MongoDB that OnlineExam teacherId resolves to real User document
+        const foundExam = await OnlineExam.findById(examId);
+        expect(foundExam).not.toBeNull();
+        const storedTeacherId = foundExam.subjectAssignments[0].teacherId;
+        expect(String(storedTeacherId)).toBe(String(physics._id));
+
+        const resolvedUser = await User.findById(storedTeacherId);
+        expect(resolvedUser).not.toBeNull();
+        expect(resolvedUser.email).toBe(physics.email);
+    });
 });
 
