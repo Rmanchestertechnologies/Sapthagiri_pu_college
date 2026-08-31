@@ -32,6 +32,10 @@ const DashboardHome = () => {
     const [commissionedExams, setCommissionedExams] = useState([]);
     const [allTeachers, setAllTeachers] = useState([]);
     const [loading, setLoading] = useState(true);
+    // Separate loading state for teachers so the faculty dropdown shows
+    // "Loading faculty..." while the API call is in-flight instead of
+    // incorrectly showing "No registered X faculty" before data arrives.
+    const [teachersLoading, setTeachersLoading] = useState(true);
 
     // Commission Exam Modal state
     const [showCommissionModal, setShowCommissionModal] = useState(false);
@@ -67,11 +71,16 @@ const DashboardHome = () => {
 
     const fetchData = async () => {
         try {
+            // Fetch teachers and exams in parallel.
+            // Teachers loading state is tracked independently so the faculty
+            // dropdown in the commission modal never shows a false empty message.
+            setTeachersLoading(true);
             const [teachersRes, examsRes] = await Promise.all([
                 api.get('/api/admin/teachers'),
                 api.get('/api/exams/commissioned')
             ]);
             setAllTeachers(teachersRes.data || []);
+            setTeachersLoading(false);
             const examsList = examsRes.data || [];
             setCommissionedExams(examsList);
             if (examsList.length > 0) {
@@ -80,6 +89,7 @@ const DashboardHome = () => {
             setLoading(false);
         } catch (err) {
             console.error('Error fetching admin dashboard data:', err);
+            setTeachersLoading(false);
             if (err.response && [400, 401, 403].includes(err.response.status)) {
                 logout();
                 navigate('/');
@@ -534,9 +544,12 @@ const DashboardHome = () => {
                                                                 {t.name} ({t.email})
                                                             </option>
                                                         ))}
-                                                        {subTeachers.length === 0 && (
-                                                            <option value="" disabled>No registered {subName} faculty (will use department lead)</option>
-                                                        )}
+                                                        {teachersLoading
+                                                            ? <option value="" disabled>Loading {subName} faculty...</option>
+                                                            : subTeachers.length === 0
+                                                                ? <option value="" disabled>No registered {subName} faculty available</option>
+                                                                : null
+                                                        }
                                                     </select>
                                                 </div>
 
