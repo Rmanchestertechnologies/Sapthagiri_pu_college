@@ -9,6 +9,8 @@ const checkRole = require('../middleware/role');
 // Seed default blueprints if database is empty
 async function seedDefaultBlueprints() {
     try {
+        const mongoose = require('mongoose');
+        if (mongoose.connection.readyState !== 1) return;
         const count = await ExamBlueprint.countDocuments();
         if (count === 0) {
             console.log('🌱 Seeding default blueprints...');
