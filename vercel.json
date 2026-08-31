@@ -6,11 +6,11 @@
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "/api/index.js"
+      "destination": "https://sapthagiri-pu-college-api.onrender.com/api/$1"
     },
     {
       "source": "/uploads/(.*)",
-      "destination": "/api/index.js"
+      "destination": "https://sapthagiri-pu-college-api.onrender.com/uploads/$1"
     },
     {
       "source": "/((?!assets/|SapthagiriLogo.jpg|SapthagiriCampus.webp|ManchesterLogo.jpeg|favicon.*|.*\\.[a-zA-Z0-9]+$).*)",

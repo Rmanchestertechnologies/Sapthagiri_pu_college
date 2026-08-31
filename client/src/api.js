@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 // ── Base URL Configuration ──────────────────────────────────────────────────
-const API_URL = import.meta.env.VITE_API_URL || '';
+const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? 'https://sapthagiri-pu-college-api.onrender.com' : '');
 
 const api = axios.create({
     baseURL: API_URL,
