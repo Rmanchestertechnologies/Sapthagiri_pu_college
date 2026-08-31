@@ -278,13 +278,13 @@ const SubjectDetails = () => {
                             </thead>
                             <tbody>
                                 {teachers.map((t, index) => (
-                                    <tr key={t._id} className="border-b border-gray-50 hover:bg-gray-50/60 transition">
+                                    <tr key={t._id || t.id} className="border-b border-gray-50 hover:bg-gray-50/60 transition">
                                         <td className="p-4 text-slate-400 font-black text-xs">{String(index + 1).padStart(2, '0')}</td>
                                         <td className="p-4 font-black text-navy text-sm">{t.name}</td>
                                         <td className="p-4 text-slate-600 font-medium text-xs">{t.email}</td>
                                         <td className="p-4 text-center">
                                             <button 
-                                                onClick={() => handleDeleteTeacher(t._id)} 
+                                                onClick={() => handleDeleteTeacher(t._id || t.id)} 
                                                 className="bg-red-50 text-red-600 font-black text-[10px] uppercase tracking-wider hover:bg-red-600 hover:text-white px-3 py-1.5 rounded-lg transition"
                                             >
                                                 Revoke
