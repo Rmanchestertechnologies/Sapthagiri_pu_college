@@ -51,6 +51,30 @@ export default function Disqualified() {
                 <div style={styles.notice}>
                     Your examination session has been immediately terminated and submitted with a score of 0. The college administration and exam controller have been notified with your IP and system logs.
                 </div>
+
+                <div style={{ marginTop: 24, textAlign: 'center' }}>
+                    <button
+                        onClick={() => {
+                            localStorage.removeItem('student_info');
+                            window.location.href = '/lab';
+                        }}
+                        style={{
+                            background: '#ef4444',
+                            color: '#fff',
+                            border: 'none',
+                            borderRadius: '12px',
+                            padding: '12px 28px',
+                            fontSize: '13px',
+                            fontWeight: 800,
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.1em',
+                            cursor: 'pointer',
+                            boxShadow: '0 4px 14px rgba(239, 68, 68, 0.4)'
+                        }}
+                    >
+                        ← Return to Lab Login
+                    </button>
+                </div>
             </div>
         </div>
     );

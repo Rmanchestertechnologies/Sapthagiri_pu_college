@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import api from '../../api';
 import { sanitize, optionLabel, stripQBPTags } from '../../utils/sanitize';
 import MathRenderer from '../../components/MathRenderer';
 
 const GrandTestList = () => {
+    const navigate = useNavigate();
+    const location = useLocation();
     const [grandTests, setGrandTests] = useState([]);
     const [templates, setTemplates] = useState([]);
     const [selectedGT, setSelectedGT] = useState(null);
@@ -272,17 +275,25 @@ const GrandTestList = () => {
 
     return (
         <div className="bg-surface p-10 rounded-[2.5rem] shadow-sm border border-gray-100 animate-fade-in-up space-y-8">
-            <div className="flex justify-between items-center pb-6 border-b border-gray-100">
+            <div className="flex justify-between items-center pb-6 border-b border-gray-100 flex-wrap gap-4">
                 <div>
                     <h2 className="text-3xl font-black text-navy uppercase tracking-tight mb-2">Grand Test Panels</h2>
                     <p className="text-[10px] font-black text-slate/40 uppercase tracking-[0.2em] ml-1">Institutional Grand Test & Paper Management</p>
                 </div>
-                <button 
-                    onClick={() => setShowCreateModal(true)} 
-                    className="bg-navy text-gold px-8 py-3 rounded-2xl font-black text-xs uppercase tracking-widest hover:scale-105 active:scale-95 transition-all shadow-lg"
-                >
-                    + Create Grand Test
-                </button>
+                <div className="flex items-center gap-3">
+                    <button 
+                        onClick={() => setShowCreateModal(true)} 
+                        className="bg-navy text-gold px-8 py-3 rounded-2xl font-black text-xs uppercase tracking-widest hover:scale-105 active:scale-95 transition-all shadow-lg cursor-pointer"
+                    >
+                        + Create Grand Test
+                    </button>
+                    <button 
+                        onClick={() => navigate(location.pathname.startsWith('/teacher') ? '/teacher/dashboard' : '/admin/dashboard')} 
+                        className="bg-white border-2 border-gray-100 text-slate/40 px-8 py-3 rounded-2xl font-black text-xs uppercase tracking-widest hover:border-navy hover:text-navy transition shadow-sm cursor-pointer"
+                    >
+                        ← Back
+                    </button>
+                </div>
             </div>
 
             {/* List & Details View Split */}
@@ -323,9 +334,17 @@ const GrandTestList = () => {
                     {selectedGT ? (
                         <div className="bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-md space-y-6">
                             <div className="border-b border-gray-100 pb-4 space-y-4">
-                                <div>
-                                    <h3 className="text-2xl font-black text-navy uppercase tracking-tight">{selectedGT.title}</h3>
-                                    <p className="text-[10px] font-bold text-slate/40 uppercase tracking-[0.2em] mt-1">{selectedGT.examType} • {selectedGT.academicYearLevel} • {selectedGT.subject}</p>
+                                <div className="flex justify-between items-start">
+                                    <div>
+                                        <h3 className="text-2xl font-black text-navy uppercase tracking-tight">{selectedGT.title}</h3>
+                                        <p className="text-[10px] font-bold text-slate/40 uppercase tracking-[0.2em] mt-1">{selectedGT.examType} • {selectedGT.academicYearLevel} • {selectedGT.subject}</p>
+                                    </div>
+                                    <button
+                                        onClick={() => setSelectedGT(null)}
+                                        className="text-xs font-black text-slate/40 hover:text-red-500 bg-gray-100 hover:bg-gray-200 px-4 py-2 rounded-xl transition cursor-pointer"
+                                    >
+                                        ✕ Close View
+                                    </button>
                                 </div>
                                 <div className="flex items-center gap-3 bg-gray-50 p-3 rounded-2xl border border-gray-100">
                                     <label className="text-[10px] font-black text-navy/60 uppercase tracking-widest">Template Layout:</label>

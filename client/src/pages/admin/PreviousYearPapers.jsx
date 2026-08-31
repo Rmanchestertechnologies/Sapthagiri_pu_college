@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import api from '../../api';
 
 const PreviousYearPapers = () => {
+    const navigate = useNavigate();
+    const location = useLocation();
     const [papers, setPapers] = useState([]);
     const [selectedPaper, setSelectedPaper] = useState(null);
     const [showCreateModal, setShowCreateModal] = useState(false);
@@ -108,17 +111,25 @@ const PreviousYearPapers = () => {
 
     return (
         <div className="bg-surface p-10 rounded-[2.5rem] shadow-sm border border-gray-100 animate-fade-in-up space-y-8">
-            <div className="flex justify-between items-center pb-6 border-b border-gray-100">
+            <div className="flex justify-between items-center pb-6 border-b border-gray-100 flex-wrap gap-4">
                 <div>
                     <h2 className="text-3xl font-black text-navy uppercase tracking-tight mb-2">Previous Year Papers</h2>
                     <p className="text-[10px] font-black text-slate/40 uppercase tracking-[0.2em] ml-1">Archive of PYQs & Shift Classification</p>
                 </div>
-                <button 
-                    onClick={() => setShowCreateModal(true)} 
-                    className="bg-navy text-gold px-8 py-3 rounded-2xl font-black text-xs uppercase tracking-widest hover:scale-105 active:scale-95 transition-all shadow-lg"
-                >
-                    + Upload PYQ Paper
-                </button>
+                <div className="flex items-center gap-3">
+                    <button 
+                        onClick={() => setShowCreateModal(true)} 
+                        className="bg-navy text-gold px-8 py-3 rounded-2xl font-black text-xs uppercase tracking-widest hover:scale-105 active:scale-95 transition-all shadow-lg cursor-pointer"
+                    >
+                        + Upload PYQ Paper
+                    </button>
+                    <button 
+                        onClick={() => navigate(location.pathname.startsWith('/teacher') ? '/teacher/dashboard' : '/admin/dashboard')} 
+                        className="bg-white border-2 border-gray-100 text-slate/40 px-8 py-3 rounded-2xl font-black text-xs uppercase tracking-widest hover:border-navy hover:text-navy transition shadow-sm cursor-pointer"
+                    >
+                        ← Back
+                    </button>
+                </div>
             </div>
 
             {/* List & Workspace Split */}
@@ -145,7 +156,7 @@ const PreviousYearPapers = () => {
                                 onClick={(e) => { e.stopPropagation(); handleDelete(p._id); }} 
                                 className="text-[10px] text-red-500 font-bold hover:text-red-700 mt-4 block"
                             >
-                                Delete Archive
+                                Delete Paper
                             </button>
                         </div>
                     ))}
@@ -158,9 +169,17 @@ const PreviousYearPapers = () => {
                 <div className="lg:col-span-2 space-y-8">
                     {selectedPaper ? (
                         <div className="bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-md space-y-6">
-                            <div className="border-b border-gray-100 pb-4">
-                                <h3 className="text-2xl font-black text-navy uppercase tracking-tight">{selectedPaper.title}</h3>
-                                <p className="text-[10px] font-bold text-slate/40 uppercase tracking-[0.2em] mt-1">{selectedPaper.examType} • {selectedPaper.year} • {selectedPaper.shift || 'Standard Session'} • {selectedPaper.subject}</p>
+                            <div className="border-b border-gray-100 pb-4 flex justify-between items-start">
+                                <div>
+                                    <h3 className="text-2xl font-black text-navy uppercase tracking-tight">{selectedPaper.title}</h3>
+                                    <p className="text-[10px] font-bold text-slate/40 uppercase tracking-[0.2em] mt-1">{selectedPaper.examType} • {selectedPaper.year} • {selectedPaper.shift || 'Standard Session'} • {selectedPaper.subject}</p>
+                                </div>
+                                <button
+                                    onClick={() => setSelectedPaper(null)}
+                                    className="text-xs font-black text-slate/40 hover:text-red-500 bg-gray-100 hover:bg-gray-200 px-4 py-2 rounded-xl transition cursor-pointer"
+                                >
+                                    ✕ Close View
+                                </button>
                             </div>
 
                             {/* Raw text importer */}

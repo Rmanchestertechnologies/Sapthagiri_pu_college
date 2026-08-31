@@ -172,6 +172,12 @@ const AdminPaperPreview = () => {
                         >
                             <span>📝</span> Export Word (.docx)
                         </button>
+                        <button
+                            onClick={() => navigate('/admin/dashboard')}
+                            className="bg-white border-2 border-gray-200 text-slate-600 hover:border-navy hover:text-navy px-4 py-2.5 rounded-xl font-black text-xs uppercase tracking-wider transition shadow-sm flex items-center gap-1.5 cursor-pointer"
+                        >
+                            ← Back
+                        </button>
                     </div>
                 </div>
 

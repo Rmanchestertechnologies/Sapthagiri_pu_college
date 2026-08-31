@@ -14,11 +14,9 @@ export default function LabLogin() {
     const navigate = useNavigate();
 
     /* Background slideshow */
-    const BG_IMAGES = ['/pacecollege1.jpg', '/pacecollege2.jpg'];
+    const BG_IMAGES = ['/SapthagiriCampus.webp'];
     useEffect(() => {
         setMounted(true);
-        const t = setInterval(() => setBgIndex(i => (i + 1) % BG_IMAGES.length), 7000);
-        return () => clearInterval(t);
     }, []);
 
     const handleLabLogin = async (e) => {
@@ -82,18 +80,18 @@ export default function LabLogin() {
                 <div style={s.leftPanel}>
                     <div style={s.leftInner}>
                         <div style={s.logoWrap}>
-                            <img src="/pacelogo.png" alt="PACE" style={s.logo} />
+                            <img src="/SapthagiriLogo.jpg" alt="Sapthagiri" style={{ ...s.logo, objectFit: 'contain', borderRadius: '16px' }} />
                         </div>
 
                         <div style={s.collegeNameWrap}>
-                            <div style={s.paceWord}>PACE</div>
+                            <div style={{ ...s.paceWord, fontSize: '32px', letterSpacing: '0.05em' }}>Sapthagiri</div>
                             <div style={s.collegeRest}>Pre University College</div>
                         </div>
 
                         <div style={s.goldRule} />
 
                         <p style={s.tagline}>
-                            Shaping futures through excellence in education since 1994
+                            The Land of Opportunity • Shaping futures through excellence in education
                         </p>
 
                         <div style={s.leftFooter}>
@@ -102,7 +100,7 @@ export default function LabLogin() {
                                     <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
                                     <circle cx="12" cy="10" r="3" />
                                 </svg>
-                                Shivamogga, Karnataka
+                                Davanagere, Karnataka
                             </div>
                         </div>
                     </div>
@@ -240,13 +238,16 @@ export default function LabLogin() {
                                     }}>
                                         ← Use Different Terminal
                                     </button>
+                                    <button type="button" style={{ ...s.backBtn, marginTop: 8 }} onClick={() => navigate('/')}>
+                                        ← Return to Faculty / Admin Portal
+                                    </button>
                                 </form>
                             </div>
                         )}
 
                         {/* Card footer */}
                         <div style={s.cardFooter}>
-                            © {new Date().getFullYear()} PACE Pre University College · Examinations
+                            © {new Date().getFullYear()} Sapthagiri Pre University College · Davanagere
                         </div>
                     </div>
                 </div>

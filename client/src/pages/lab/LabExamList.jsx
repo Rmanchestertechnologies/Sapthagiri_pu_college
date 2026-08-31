@@ -12,7 +12,7 @@ export default function LabExamList() {
 
     useEffect(() => {
         if (!studentInfo.studentName) {
-            navigate('/lab-login');
+            navigate('/lab');
             return;
         }
         api.get(`/api/lab/exams?rollNumber=${encodeURIComponent(studentInfo.rollNumber || '')}`)
@@ -43,11 +43,11 @@ export default function LabExamList() {
                 <div style={s.topbarInner}>
                     <div style={s.brand}>
                         <div style={{...s.brandShield, background: 'transparent', border: 'none'}}>
-                            <img src="/pacelogo.png" alt="PACE Logo" style={{width: 36, height: 36, objectFit: 'contain'}} />
+                            <img src="/SapthagiriLogo.jpg" alt="Sapthagiri Logo" style={{width: 36, height: 36, objectFit: 'contain', borderRadius: 8}} />
                         </div>
                         <div>
-                            <div style={s.brandName}>PACE Pre University College, Shivamogga</div>
-                            <div style={s.brandSub}>Examination Portal</div>
+                            <div style={s.brandName}>Sapthagiri Pre University College, Davanagere</div>
+                            <div style={s.brandSub}>CBT Examination Portal</div>
                         </div>
                     </div>
 
@@ -63,7 +63,7 @@ export default function LabExamList() {
                         </div>
                         <button style={s.logoutBtn} onClick={() => {
                             localStorage.removeItem('student_info');
-                            navigate('/lab-login');
+                            navigate('/lab');
                         }}>
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" style={{ width: 14, height: 14, strokeWidth: 2.5 }}>
                                 <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
@@ -115,7 +115,7 @@ export default function LabExamList() {
 
             {/* Footer strip */}
             <footer style={s.footer}>
-                © {new Date().getFullYear()} PACE Pre University College, Shivamogga · Examination System · All sessions are monitored
+                © {new Date().getFullYear()} Sapthagiri Pre University College, Davanagere · Examination System · All sessions are monitored
             </footer>
         </div>
     );

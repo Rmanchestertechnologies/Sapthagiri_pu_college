@@ -538,19 +538,38 @@ const SavedPapers = () => {
         <div style={S.page}>
 
             {/* Header */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px', flexWrap: 'wrap', gap: '12px' }}>
                 <div>
                     <h3 style={{ fontSize: '24px', fontWeight: 900, color: '#001f6d', letterSpacing: '-0.03em', margin: 0, textTransform: 'uppercase' }}>Department Archives</h3>
                     <p style={{ fontSize: '11px', fontWeight: 700, color: '#94a3b8', marginTop: '4px', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Managed Institutional Paper Repository</p>
                 </div>
-                <div style={{
-                    fontSize: '11px', color: '#c5a059',
-                    background: '#001f6d', border: 'none',
-                    borderRadius: '10px', padding: '8px 18px',
-                    fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em',
-                    boxShadow: '0 4px 12px rgba(0,31,109,0.2)',
-                }}>
-                    {papers.length} RECORD{papers.length !== 1 ? 'S' : ''}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{
+                        fontSize: '11px', color: '#c5a059',
+                        background: '#001f6d', border: 'none',
+                        borderRadius: '10px', padding: '8px 18px',
+                        fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em',
+                        boxShadow: '0 4px 12px rgba(0,31,109,0.2)',
+                    }}>
+                        {papers.length} RECORD{papers.length !== 1 ? 'S' : ''}
+                    </div>
+                    <button
+                        onClick={() => navigate('/teacher/dashboard')}
+                        style={{
+                            background: '#f1f5f9',
+                            color: '#334155',
+                            border: '2px solid #e2e8f0',
+                            borderRadius: '10px',
+                            padding: '8px 18px',
+                            fontSize: '11px',
+                            fontWeight: 800,
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.1em',
+                            cursor: 'pointer'
+                        }}
+                    >
+                        ← Back
+                    </button>
                 </div>
             </div>
 

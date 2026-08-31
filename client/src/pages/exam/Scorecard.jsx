@@ -69,8 +69,8 @@ export default function Scorecard() {
                     <button style={{ ...styles.homeBtn, backgroundColor: '#10b981', color: '#fff', border: 'none' }} onClick={downloadPDF}>Download PDF Result</button>
                     <button style={styles.homeBtn} onClick={() => {
                         localStorage.removeItem('student_info');
-                        navigate('/lab-login');
-                    }}>Back</button>
+                        navigate('/lab');
+                    }}>← Back to Portal</button>
                 </div>
             </div>
 

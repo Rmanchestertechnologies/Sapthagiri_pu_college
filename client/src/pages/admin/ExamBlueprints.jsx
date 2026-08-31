@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api from '../../api';
 
 const ExamBlueprints = () => {
+    const navigate = useNavigate();
     const [blueprints, setBlueprints] = useState([]);
     const [selectedBP, setSelectedBP] = useState(null);
     const [showCreateModal, setShowCreateModal] = useState(false);
@@ -74,17 +76,25 @@ const ExamBlueprints = () => {
 
     return (
         <div className="bg-surface p-10 rounded-[2.5rem] shadow-sm border border-gray-100 animate-fade-in-up space-y-8">
-            <div className="flex justify-between items-center pb-6 border-b border-gray-100">
+            <div className="flex justify-between items-center pb-6 border-b border-gray-100 flex-wrap gap-4">
                 <div>
                     <h2 className="text-3xl font-black text-navy uppercase tracking-tight mb-2">Exam Blueprints</h2>
                     <p className="text-[10px] font-black text-slate/40 uppercase tracking-[0.2em] ml-1">Centralized Blueprint Marking & Section Rules Engine</p>
                 </div>
-                <button 
-                    onClick={() => setShowCreateModal(true)} 
-                    className="bg-navy text-gold px-8 py-3 rounded-2xl font-black text-xs uppercase tracking-widest hover:scale-105 active:scale-95 transition-all shadow-lg"
-                >
-                    + Create Blueprint
-                </button>
+                <div className="flex items-center gap-3">
+                    <button 
+                        onClick={() => setShowCreateModal(true)} 
+                        className="bg-navy text-gold px-8 py-3 rounded-2xl font-black text-xs uppercase tracking-widest hover:scale-105 active:scale-95 transition-all shadow-lg cursor-pointer"
+                    >
+                        + Create Blueprint
+                    </button>
+                    <button 
+                        onClick={() => navigate('/admin/dashboard')} 
+                        className="bg-white border-2 border-gray-100 text-slate/40 px-8 py-3 rounded-2xl font-black text-xs uppercase tracking-widest hover:border-navy hover:text-navy transition shadow-sm cursor-pointer"
+                    >
+                        ← Back
+                    </button>
+                </div>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">

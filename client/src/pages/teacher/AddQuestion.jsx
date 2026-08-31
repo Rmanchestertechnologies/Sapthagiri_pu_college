@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api from '../../api';
 import { sanitize, optionLabel, stripQBPTags } from '../../utils/sanitize';
 import MathRenderer from '../../components/MathRenderer';
 import * as XLSX from 'xlsx';
 
 const AddQuestion = () => {
+    const navigate = useNavigate();
     const [questions, setQuestions] = useState([]);
     const [formData, setFormData] = useState({
         chapter: '',
@@ -272,7 +274,7 @@ const AddQuestion = () => {
                     <h2 className="text-3xl font-black text-navy tracking-tight mb-2 uppercase">Institutional Repository</h2>
                     <p className="text-[10px] font-black text-slate/40 uppercase tracking-[0.2em] ml-1">Academic Question Bank Management</p>
                 </div>
-                <div className="flex gap-3">
+                <div className="flex gap-3 items-center">
                     <button 
                         onClick={() => {
                             if (showForm) {
@@ -303,9 +305,15 @@ const AddQuestion = () => {
                                 setShowForm(true);
                             }
                         }} 
-                        className={`px-8 py-3 rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-lg ${showForm ? 'bg-gray-100 text-slate/60 hover:bg-gray-200' : 'bg-navy text-gold hover:scale-105 active:scale-95'}`}
+                        className={`px-8 py-3 rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-lg cursor-pointer ${showForm ? 'bg-gray-100 text-slate/60 hover:bg-gray-200' : 'bg-navy text-gold hover:scale-105 active:scale-95'}`}
                     >
                         {showForm ? '← View Repository' : '+ New Question'}
+                    </button>
+                    <button
+                        onClick={() => navigate('/teacher/dashboard')}
+                        className="bg-white border-2 border-gray-100 text-slate-600 px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-widest hover:border-navy hover:text-navy transition shadow-sm cursor-pointer"
+                    >
+                        ← Back
                     </button>
                 </div>
             </div>

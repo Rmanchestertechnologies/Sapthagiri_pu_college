@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api from '../../api';
 import { sanitize, optionLabel } from '../../utils/sanitize';
 import MathRenderer from '../../components/MathRenderer';
@@ -641,6 +642,7 @@ const calculateEndTime = (startTimeStr, durationMin) => {
 
 // ─── Main Exam Management Component ───
 export default function ExamManagement() {
+    const navigate = useNavigate();
     const [tab, setTab] = useState('online');
     const [exams, setExams] = useState([]);
     const [papers, setPapers] = useState([]);
@@ -863,9 +865,28 @@ export default function ExamManagement() {
         <div style={styles.container}>
             <div style={styles.header}>
                 <h2 style={styles.title}>📋 Exam Management</h2>
-                <button style={styles.primaryBtn} onClick={() => setShowMergeModal(true)}>
-                    ⊕ Generate Composite Exam
-                </button>
+                <div style={{ display: 'flex', gap: 12 }}>
+                    <button style={styles.primaryBtn} onClick={() => setShowMergeModal(true)}>
+                        ⊕ Generate Composite Exam
+                    </button>
+                    <button
+                        onClick={() => navigate('/admin/dashboard')}
+                        style={{
+                            padding: '10px 20px',
+                            background: '#f1f5f9',
+                            color: '#334155',
+                            border: '2px solid #e2e8f0',
+                            borderRadius: '12px',
+                            fontWeight: 900,
+                            fontSize: '12px',
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.1em',
+                            cursor: 'pointer'
+                        }}
+                    >
+                        ← Back
+                    </button>
+                </div>
             </div>
 
             {msg && <div style={styles.msgBar}>{msg} <button style={styles.closeMsg} onClick={() => setMsg('')}>✕</button></div>}

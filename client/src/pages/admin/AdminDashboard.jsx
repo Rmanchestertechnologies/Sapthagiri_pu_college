@@ -10,6 +10,7 @@ import AdminResults from './AdminResults';
 import GrandTestList from './GrandTestList';
 import PreviousYearPapers from './PreviousYearPapers';
 import ExamBlueprints from './ExamBlueprints';
+import AdminQuestionBank from './AdminQuestionBank';
 import AssignmentGenerator from '../teacher/AssignmentGenerator';
 import PaperAnalysisModal from '../../components/PaperAnalysisModal';
 import MathRenderer from '../../components/MathRenderer';
@@ -193,7 +194,8 @@ const DashboardHome = () => {
         }
     };
 
-    const handleDeleteExam = async (examId) => {
+    const handleDeleteExam = async (rawId) => {
+        const examId = rawId?._id || rawId?.id || rawId;
         if (window.confirm('Are you sure you want to delete this exam? This will remove all associated submissions.')) {
             try {
                 await api.delete(`/api/exams/${examId}`);
@@ -206,7 +208,7 @@ const DashboardHome = () => {
         }
     };
 
-    const activeExam = commissionedExams.find(e => e._id === selectedExamId) || commissionedExams[0];
+    const activeExam = commissionedExams.find(e => (e._id || e.id) === selectedExamId) || commissionedExams[0];
 
     return (
         <div className="animate-fade-in-up space-y-10">
@@ -274,7 +276,8 @@ const DashboardHome = () => {
                                 Select Exam:
                             </span>
                             {commissionedExams.map((exam) => {
-                                const isSelected = (activeExam?._id === exam._id);
+                                const examKey = exam._id || exam.id;
+                                const isSelected = ((activeExam?._id || activeExam?.id) === examKey);
                                 const subAssignments = exam.subjectAssignments || [];
                                 const totalTarget = subAssignments.reduce((sum, sa) => sum + (sa.targetQuestions || 60), 0);
                                 const totalAdded = exam.totalQuestionsAdded !== undefined
@@ -284,8 +287,8 @@ const DashboardHome = () => {
 
                                 return (
                                     <button
-                                        key={exam._id}
-                                        onClick={() => setSelectedExamId(exam._id)}
+                                        key={examKey}
+                                        onClick={() => setSelectedExamId(examKey)}
                                         className={`px-4 py-2.5 rounded-2xl font-black text-xs uppercase tracking-wider transition-all flex items-center gap-2.5 whitespace-nowrap cursor-pointer ${
                                             isSelected
                                                 ? 'bg-navy text-gold shadow-md scale-105 border-2 border-gold'
@@ -348,7 +351,7 @@ const DashboardHome = () => {
                                                 <span>📊</span> Paper Analysis
                                             </button>
                                             <button
-                                                onClick={() => handleDeleteExam(exam._id)}
+                                                onClick={() => handleDeleteExam(exam._id || exam.id)}
                                                 className="bg-rose-50 text-rose-600 hover:bg-rose-600 hover:text-white px-3.5 py-2.5 rounded-xl font-black text-xs transition shadow-sm cursor-pointer"
                                                 title="Delete this exam"
                                             >
@@ -762,7 +765,7 @@ const AdminNotificationBell = () => {
         if (notif.related_paper_id) {
             navigate(`/admin/dashboard/preview/${notif.related_paper_id}`);
         } else {
-            navigate('/admin/dashboard/exams');
+            navigate('/admin/dashboard/cbt-exams');
         }
     };
 
@@ -873,34 +876,52 @@ const AdminDashboard = () => {
                     </div>
                 </div>
                 
-                <div className="space-x-3 flex items-center mr-4">
+                <div className="space-x-2 flex items-center mr-4 flex-wrap gap-y-2">
+                    <Link 
+                        to="/admin/dashboard/cbt-exams" 
+                        className={`px-3.5 py-2 rounded-xl text-[11px] font-black uppercase tracking-wider transition ${location.pathname.includes('cbt-exams') ? 'bg-amber-500 text-[#081B3B] shadow-lg' : 'bg-white/5 text-amber-300 border border-amber-400/30 hover:bg-white/10'}`}
+                    >
+                        CBT Exams
+                    </Link>
+                    <Link 
+                        to="/admin/dashboard/results" 
+                        className={`px-3.5 py-2 rounded-xl text-[11px] font-black uppercase tracking-wider transition ${location.pathname.includes('results') ? 'bg-amber-500 text-[#081B3B] shadow-lg' : 'bg-white/5 text-amber-300 border border-amber-400/30 hover:bg-white/10'}`}
+                    >
+                        Results
+                    </Link>
+                    <Link 
+                        to="/admin/dashboard/questions" 
+                        className={`px-3.5 py-2 rounded-xl text-[11px] font-black uppercase tracking-wider transition ${location.pathname.includes('questions') ? 'bg-amber-500 text-[#081B3B] shadow-lg' : 'bg-white/5 text-amber-300 border border-amber-400/30 hover:bg-white/10'}`}
+                    >
+                        QB
+                    </Link>
                     <Link 
                         to="/admin/dashboard/grand-tests" 
-                        className={`px-4 py-2 rounded-xl text-[11px] font-black uppercase tracking-wider transition ${location.pathname.includes('grand-tests') ? 'bg-amber-500 text-[#081B3B] shadow-lg' : 'bg-white/5 text-amber-300 border border-amber-400/30 hover:bg-white/10'}`}
+                        className={`px-3.5 py-2 rounded-xl text-[11px] font-black uppercase tracking-wider transition ${location.pathname.includes('grand-tests') ? 'bg-amber-500 text-[#081B3B] shadow-lg' : 'bg-white/5 text-amber-300 border border-amber-400/30 hover:bg-white/10'}`}
                     >
                         GT Papers
                     </Link>
                     <Link 
                         to="/admin/dashboard/previous-year-papers" 
-                        className={`px-4 py-2 rounded-xl text-[11px] font-black uppercase tracking-wider transition ${location.pathname.includes('previous-year-papers') ? 'bg-amber-500 text-[#081B3B] shadow-lg' : 'bg-white/5 text-amber-300 border border-amber-400/30 hover:bg-white/10'}`}
+                        className={`px-3.5 py-2 rounded-xl text-[11px] font-black uppercase tracking-wider transition ${location.pathname.includes('previous-year-papers') ? 'bg-amber-500 text-[#081B3B] shadow-lg' : 'bg-white/5 text-amber-300 border border-amber-400/30 hover:bg-white/10'}`}
                     >
                         PYQs
                     </Link>
                     <Link 
                         to="/admin/dashboard/exam-blueprints" 
-                        className={`px-4 py-2 rounded-xl text-[11px] font-black uppercase tracking-wider transition ${location.pathname.includes('exam-blueprints') ? 'bg-amber-500 text-[#081B3B] shadow-lg' : 'bg-white/5 text-amber-300 border border-amber-400/30 hover:bg-white/10'}`}
+                        className={`px-3.5 py-2 rounded-xl text-[11px] font-black uppercase tracking-wider transition ${location.pathname.includes('exam-blueprints') ? 'bg-amber-500 text-[#081B3B] shadow-lg' : 'bg-white/5 text-amber-300 border border-amber-400/30 hover:bg-white/10'}`}
                     >
                         Blueprints
                     </Link>
                     <Link 
                         to="/admin/dashboard/upload-template" 
-                        className={`px-4 py-2 rounded-xl text-[11px] font-black uppercase tracking-wider transition flex items-center gap-2 ${location.pathname.includes('upload-template') ? 'bg-amber-500 text-[#081B3B] shadow-lg' : 'bg-white/5 text-amber-300 border border-amber-400/30 hover:bg-white/10'}`}
+                        className={`px-3.5 py-2 rounded-xl text-[11px] font-black uppercase tracking-wider transition flex items-center gap-1.5 ${location.pathname.includes('upload-template') ? 'bg-amber-500 text-[#081B3B] shadow-lg' : 'bg-white/5 text-amber-300 border border-amber-400/30 hover:bg-white/10'}`}
                     >
                         Templates
                     </Link>
                     <Link 
                         to="/admin/dashboard/create-teacher" 
-                        className={`px-4 py-2 rounded-xl text-[11px] font-black uppercase tracking-wider transition flex items-center gap-2 ${location.pathname.includes('create-teacher') ? 'bg-amber-500 text-[#081B3B] shadow-lg' : 'bg-white/5 text-amber-300 border border-amber-400/30 hover:bg-white/10'}`}
+                        className={`px-3.5 py-2 rounded-xl text-[11px] font-black uppercase tracking-wider transition flex items-center gap-1.5 ${location.pathname.includes('create-teacher') ? 'bg-amber-500 text-[#081B3B] shadow-lg' : 'bg-white/5 text-amber-300 border border-amber-400/30 hover:bg-white/10'}`}
                     >
                         + Faculty
                     </Link>
@@ -911,7 +932,7 @@ const AdminDashboard = () => {
                     <div className="w-px h-8 bg-amber-400/20 mx-2"></div>
                     <button 
                         onClick={() => { logout(); navigate('/'); }} 
-                        className="bg-red-500/10 border border-red-500/30 text-red-400 px-5 py-2 rounded-xl text-xs font-black uppercase tracking-wider hover:bg-red-600 hover:text-white transition-all shadow-sm cursor-pointer"
+                        className="bg-red-500/10 border border-red-500/30 text-red-400 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider hover:bg-red-600 hover:text-white transition-all shadow-sm cursor-pointer"
                     >
                         Logout
                     </button>
@@ -921,6 +942,9 @@ const AdminDashboard = () => {
             <div className="flex-1 p-10 max-w-7xl mx-auto w-full">
                 <Routes>
                     <Route path="/" element={<DashboardHome />} />
+                    <Route path="cbt-exams" element={<ExamManagement />} />
+                    <Route path="results" element={<AdminResults />} />
+                    <Route path="questions" element={<AdminQuestionBank />} />
                     <Route path="upload-template" element={<UploadTemplate />} />
                     <Route path="create-teacher" element={<CreateTeacher />} />
                     <Route path="subject/:subject" element={<SubjectDetails />} />

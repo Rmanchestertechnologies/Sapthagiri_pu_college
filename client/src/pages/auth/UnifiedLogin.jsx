@@ -1,6 +1,6 @@
 import React, { useState, useContext } from 'react';
 import { AuthContext } from '../../context/AuthContext';
-import { useNavigate, Navigate } from 'react-router-dom';
+import { useNavigate, Navigate, Link } from 'react-router-dom';
 
 const UnifiedLogin = () => {
     const [formData, setFormData] = useState({ email: '', password: '' });
@@ -152,8 +152,18 @@ const UnifiedLogin = () => {
                     </button>
                 </form>
 
+                {/* Student CBT Exam Portal link */}
+                <div className="mt-6 text-center">
+                    <Link
+                        to="/lab"
+                        className="inline-flex items-center gap-2 text-xs font-black text-navy bg-amber-500/10 border border-amber-400/30 px-4 py-2.5 rounded-xl hover:bg-amber-500/20 transition shadow-sm uppercase tracking-wider cursor-pointer"
+                    >
+                        <span>💻</span> Student CBT Exam Portal →
+                    </Link>
+                </div>
+
                 {/* Footer branding */}
-                <div className="mt-8 pt-5 border-t border-slate-100 text-center">
+                <div className="mt-6 pt-5 border-t border-slate-100 text-center">
                     <div className="flex items-center justify-center gap-2 text-[10px] font-black text-slate-400 uppercase tracking-widest">
                         <span>Sapthagiri PU College</span>
                         <span>•</span>

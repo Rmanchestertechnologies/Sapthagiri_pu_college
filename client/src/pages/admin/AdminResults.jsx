@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import api from '../../api';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
 export default function AdminResults() {
+    const navigate = useNavigate();
     const [searchParams] = useSearchParams();
     const examIdParam = searchParams.get('examId');
     const [exams, setExams] = useState([]);
@@ -244,14 +245,36 @@ export default function AdminResults() {
 
     return (
         <div style={styles.container}>
-            <h2 style={styles.title}>📊 Student Exam Results</h2>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
+                <h2 style={{ ...styles.title, margin: 0 }}>📊 Student Exam Results & Analytics</h2>
+                <button
+                    onClick={() => navigate('/admin/dashboard')}
+                    style={{
+                        padding: '10px 20px',
+                        background: '#f1f5f9',
+                        color: '#334155',
+                        border: '2px solid #e2e8f0',
+                        borderRadius: '12px',
+                        fontWeight: 900,
+                        fontSize: '12px',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.1em',
+                        cursor: 'pointer'
+                    }}
+                >
+                    ← Back to Dashboard
+                </button>
+            </div>
 
             {msg && <div style={styles.msg}>{msg} <button onClick={() => setMsg('')} style={styles.closeMsg}>✕</button></div>}
 
             <div style={styles.toolbar}>
                 <select style={styles.select} value={selectedExam} onChange={handleExamSelect}>
                     <option value="">— Select an Exam —</option>
-                    {exams.map(e => <option key={e._id} value={e._id}>{e.title} ({e.examType})</option>)}
+                    {exams.map(e => {
+                        const eId = e._id || e.id;
+                        return <option key={eId} value={eId}>{e.title} ({e.examType})</option>;
+                    })}
                 </select>
                 <div style={{ display: 'flex', gap: 8 }}>
                     <button style={styles.keyBtn} onClick={generateBridgeKey}>🔑 Generate Bridge Key</button>

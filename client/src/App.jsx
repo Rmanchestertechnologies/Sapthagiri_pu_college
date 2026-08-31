@@ -7,6 +7,13 @@ import UnifiedLogin from './pages/auth/UnifiedLogin';
 import AdminDashboard from './pages/admin/AdminDashboard';
 import TeacherDashboard from './pages/teacher/TeacherDashboard';
 import CreatePaper from './pages/teacher/CreatePaper';
+import ExamInstructions from './pages/exam/ExamInstructions';
+import ExamEngine from './pages/exam/ExamEngine';
+import Scorecard from './pages/exam/Scorecard';
+import Disqualified from './pages/exam/Disqualified';
+import LabLogin from './pages/lab/LabLogin';
+import LabExamList from './pages/lab/LabExamList';
+import BridgeApp from './pages/admin/BridgeApp';
 
 // ── App Loader Linker ────────────────────────────────────────────────────────
 const ApiLoaderLinker = ({ children }) => {
@@ -34,7 +41,7 @@ const AppLoadingSpinner = () => (
         <div className="w-9 h-9 border-4 border-slate-700 border-t-amber-400 rounded-full animate-spin mb-4"></div>
         <h3 className="text-base font-black text-white uppercase tracking-widest text-center">Sapthagiri PU College</h3>
         <p className="text-[11px] text-amber-400/90 font-bold uppercase tracking-wider mt-1">Davanagere • The Land of Opportunity</p>
-        <p className="text-[10px] text-slate-400 uppercase tracking-widest mt-2">Loading Question Paper Generator Portal...</p>
+        <p className="text-[10px] text-slate-400 uppercase tracking-widest mt-2">Loading Portal...</p>
     </div>
 );
 
@@ -62,6 +69,11 @@ function App() {
                                 <AdminDashboard />
                             </ProtectedRoute>
                         } />
+                        <Route path="/admin/bridge" element={
+                            <ProtectedRoute role="admin">
+                                <BridgeApp />
+                            </ProtectedRoute>
+                        } />
 
                         {/* Teacher Routes */}
                         <Route path="/teacher/dashboard/*" element={
@@ -74,6 +86,17 @@ function App() {
                                 <CreatePaper />
                             </ProtectedRoute>
                         } />
+
+                        {/* Student CBT Examination Routes */}
+                        <Route path="/exam/:examId/instructions" element={<ExamInstructions />} />
+                        <Route path="/exam/:examId/scorecard/:sessionId" element={<Scorecard />} />
+                        <Route path="/exam/:examId" element={<ExamEngine />} />
+                        <Route path="/exam/disqualified" element={<Disqualified />} />
+
+                        {/* Student Lab Engine Routes */}
+                        <Route path="/lab" element={<LabLogin />} />
+                        <Route path="/lab-login" element={<Navigate to="/lab" replace />} />
+                        <Route path="/lab/exams" element={<LabExamList />} />
 
                         {/* Fallback */}
                         <Route path="*" element={<Navigate to="/" />} />

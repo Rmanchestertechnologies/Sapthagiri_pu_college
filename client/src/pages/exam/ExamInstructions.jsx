@@ -69,8 +69,8 @@ export default function ExamInstructions() {
             {/* Top Bar */}
             <div style={styles.topBar}>
                 <div style={{ ...styles.systemName, display: 'flex', alignItems: 'center' }}>
-                    <img src="/pacelogo.png" alt="PACE Logo" style={{ height: 24, marginRight: 8, objectFit: 'contain' }} />
-                    PACE Pre University College, Shivamogga — Exam Portal
+                    <img src="/SapthagiriLogo.jpg" alt="Sapthagiri Logo" style={{ height: 26, width: 26, marginRight: 10, objectFit: 'contain', borderRadius: 4 }} />
+                    Sapthagiri Pre University College, Davanagere — CBT Examination Portal
                 </div>
                 <div style={styles.topRight}>
                     <div style={styles.studentInfoBox}>
@@ -83,6 +83,21 @@ export default function ExamInstructions() {
                         <div style={styles.avatarBox}>👤</div>
                     </div>
                     <span style={styles.examTypeTag}>{exam.examType}</span>
+                    <button
+                        onClick={() => navigate('/lab')}
+                        style={{
+                            background: 'rgba(255,255,255,0.15)',
+                            color: '#fff',
+                            border: '1px solid rgba(255,255,255,0.3)',
+                            borderRadius: '6px',
+                            padding: '6px 12px',
+                            fontSize: '12px',
+                            fontWeight: 'bold',
+                            cursor: 'pointer'
+                        }}
+                    >
+                        ← Exit
+                    </button>
                 </div>
             </div>
 
