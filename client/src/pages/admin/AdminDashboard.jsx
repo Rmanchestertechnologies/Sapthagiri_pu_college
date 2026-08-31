@@ -159,11 +159,17 @@ const DashboardHome = () => {
                 targetPerSubject: 60,
                 assignedTeachers: {}
             });
-            if (res.data?._id) setSelectedExamId(res.data._id);
+            if (res.data?.exam?._id) setSelectedExamId(res.data.exam._id);
+            else if (res.data?._id) setSelectedExamId(res.data._id);
             fetchData();
         } catch (err) {
-            console.error(err);
-            alert('Failed to commission exam. Please try again.');
+            console.error('Commission error:', err);
+            const msg =
+                err.response?.data?.msg ||
+                err.response?.data?.message ||
+                err.message ||
+                'Failed to commission exam. Please try again.';
+            alert(`Error: ${msg}`);
         }
     };
 

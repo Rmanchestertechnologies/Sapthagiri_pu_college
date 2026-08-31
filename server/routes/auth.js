@@ -58,36 +58,17 @@ router.post('/login', loginLimiter, async (req, res) => {
         });
     }
 
-    // ── Regular User (Supabase PostgreSQL + MongoDB Fallback) ────────────────
+    // ── Regular User: MongoDB PRIMARY, Supabase PostgreSQL FALLBACK ─────────
     try {
         let userRecord = null;
 
-        // Try Supabase PostgreSQL first
-        try {
-            const pool = require('../config/postgres');
-            const pgRes = await pool.query('SELECT * FROM public.users WHERE email = $1', [email]);
-            if (pgRes.rows && pgRes.rows.length > 0) {
-                const pgUser = pgRes.rows[0];
-                userRecord = {
-                    id: String(pgUser.id),
-                    name: pgUser.name,
-                    email: pgUser.email,
-                    password: pgUser.password,
-                    role: pgUser.role,
-                    subject: pgUser.subject
-                };
-            }
-        } catch (pgErr) {
-            console.warn('[AUTH] Postgres lookup warning:', pgErr.message);
-        }
-
-        // If not found in PostgreSQL, check MongoDB if connected
-        if (!userRecord && User && User.findOne) {
+        // Try MongoDB first (primary store for all users created after migration)
+        if (User && User.findOne) {
             try {
                 const mongoUser = await User.findOne({ email });
                 if (mongoUser) {
                     userRecord = {
-                        id: String(mongoUser.id),
+                        id: String(mongoUser._id),
                         name: mongoUser.name,
                         email: mongoUser.email,
                         password: mongoUser.password,
@@ -96,7 +77,28 @@ router.post('/login', loginLimiter, async (req, res) => {
                     };
                 }
             } catch (mongoErr) {
-                // MongoDB optional
+                console.warn('[AUTH] MongoDB lookup warning:', mongoErr.message);
+            }
+        }
+
+        // Fall back to Supabase PostgreSQL only if not found in MongoDB
+        if (!userRecord) {
+            try {
+                const pool = require('../config/postgres');
+                const pgRes = await pool.query('SELECT * FROM public.users WHERE email = $1', [email]);
+                if (pgRes.rows && pgRes.rows.length > 0) {
+                    const pgUser = pgRes.rows[0];
+                    userRecord = {
+                        id: String(pgUser.id),
+                        name: pgUser.name,
+                        email: pgUser.email,
+                        password: pgUser.password,
+                        role: pgUser.role,
+                        subject: pgUser.subject
+                    };
+                }
+            } catch (pgErr) {
+                console.warn('[AUTH] Postgres lookup warning:', pgErr.message);
             }
         }
 

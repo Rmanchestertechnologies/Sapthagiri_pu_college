@@ -470,10 +470,53 @@ router.get('/admin/:id', [auth, checkRole(['admin'])], async (req, res) => {
         res.status(500).json({ msg: 'Server Error' });
     }
 });
+// ─────────────────────────────────────────────────────────────────
+// TEACHER / ADMIN: Get single commissioned exam by ID
+// GET /api/exams/:id
+// Access: admin (full) or teacher assigned to this exam
+// ─────────────────────────────────────────────────────────────────
+router.get('/:id', auth, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const mongoose = require('mongoose');
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ msg: 'Invalid exam ID format.' });
+        }
+
+        const exam = await OnlineExam.findById(id)
+            .select('-questions.answer')
+            .populate('createdBy', 'name email');
+
+        if (!exam) {
+            return res.status(404).json({ msg: 'Exam not found.' });
+        }
+
+        const userId = String(req.user.id);
+        const userRole = req.user.role;
+
+        if (userRole === 'admin') {
+            return res.json(exam);
+        }
+
+        // Teacher: only if assigned to this exam
+        const isAssigned = (exam.subjectAssignments || []).some(
+            sa => sa.teacherId && String(sa.teacherId) === userId
+        );
+        if (!isAssigned) {
+            return res.status(403).json({ msg: 'Access denied: you are not assigned to this exam.' });
+        }
+
+        return res.json(exam);
+    } catch (err) {
+        console.error('GET /api/exams/:id error:', { name: err.name, code: err.code, message: err.message });
+        res.status(500).json({ msg: 'Server error fetching exam.' });
+    }
+});
 
 // ─────────────────────────────────────────────────────────────────
 // ADMIN: Update exam config (timing, instructions, status)
 // PUT /api/exams/:id/config
+
 // ─────────────────────────────────────────────────────────────────
 router.put('/:id/config', [auth, checkRole(['admin'])], async (req, res) => {
     try {

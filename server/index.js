@@ -30,6 +30,7 @@ const grandTestRoutes = require('./routes/grandTests.js');
 const previousYearPaperRoutes = require('./routes/previousYearPapers.js');
 const examBlueprintRoutes = require('./routes/examBlueprints.js');
 const notificationRoutes = require('./routes/notifications.js');
+const examRoutes = require('./routes/exams.js');
 // Note: Online CBT Testing Module & Student Lab Engine excluded per institution specification
 
 dotenv.config();
@@ -123,6 +124,7 @@ app.use('/api/grand-tests', grandTestRoutes);
 app.use('/api/previous-year-papers', previousYearPaperRoutes);
 app.use('/api/exam-blueprints', examBlueprintRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/exams', examRoutes);
 
 // Safe examination management fallbacks
 app.get('/api/exams/commissioned', (req, res) => res.json([]));
