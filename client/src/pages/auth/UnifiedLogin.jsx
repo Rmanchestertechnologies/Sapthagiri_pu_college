@@ -40,6 +40,13 @@ const UnifiedLogin = () => {
         });
     };
 
+    const handleFillTeacher = () => {
+        setFormData({
+            email: 'physics@gmail.com',
+            password: 'Sapthagiri1'
+        });
+    };
+
     return (
         <div className="min-h-screen relative flex items-center justify-center p-4 font-sans overflow-hidden bg-[#06101E]">
             {/* Campus Background Image with Deep Gradient Overlay */}
@@ -115,13 +122,23 @@ const UnifiedLogin = () => {
                             <label className="block text-[11px] font-black text-[#081B3B] uppercase tracking-wider">
                                 Secret Password
                             </label>
-                            <button
-                                type="button"
-                                onClick={handleFillAdmin}
-                                className="text-[10px] font-bold text-amber-600 hover:text-amber-700 hover:underline cursor-pointer"
-                            >
-                                Fill Admin
-                            </button>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    type="button"
+                                    onClick={handleFillAdmin}
+                                    className="text-[10px] font-bold text-amber-600 hover:text-amber-700 hover:underline cursor-pointer"
+                                >
+                                    Fill Admin
+                                </button>
+                                <span className="text-slate-300 text-xs">•</span>
+                                <button
+                                    type="button"
+                                    onClick={handleFillTeacher}
+                                    className="text-[10px] font-bold text-blue-600 hover:text-blue-700 hover:underline cursor-pointer"
+                                >
+                                    Fill Faculty
+                                </button>
+                            </div>
                         </div>
                         <div className="relative">
                             <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">🔒</span>
@@ -151,6 +168,13 @@ const UnifiedLogin = () => {
                         )}
                     </button>
                 </form>
+
+                {/* Quick Credentials Info Box */}
+                <div className="mt-4 p-3 rounded-2xl bg-amber-500/10 border border-amber-400/30 text-center">
+                    <p className="text-[11px] font-bold text-navy">
+                        Default Faculty: <span className="text-amber-700">physics@gmail.com</span> • Pass: <span className="text-amber-700 font-black">Sapthagiri1</span>
+                    </p>
+                </div>
 
                 {/* Student CBT Exam Portal link */}
                 <div className="mt-6 text-center">

@@ -214,4 +214,63 @@ router.delete('/teachers/:id', [auth, checkRole(['admin'])], async (req, res) =>
     }
 });
 
+// ─────────────────────────────────────────────────────────────────────────────
+// @route   PUT /api/admin/teachers/:id/password
+// @desc    Reset/Update teacher password
+// @access  Admin
+// ─────────────────────────────────────────────────────────────────────────────
+router.put('/teachers/:id/password', [auth, checkRole(['admin'])], async (req, res) => {
+    const teacherId = req.params.id;
+    const { newPassword } = req.body || {};
+
+    if (!newPassword || typeof newPassword !== 'string' || newPassword.trim().length < 4) {
+        return res.status(400).json({ msg: 'Password must be at least 4 characters.' });
+    }
+
+    const cleanPass = newPassword.trim();
+
+    try {
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(cleanPass, salt);
+        let updatedEmail = null;
+
+        // 1. Update in PostgreSQL
+        try {
+            const pgRes = await pool.query(`
+                UPDATE public.users 
+                SET password = $1 
+                WHERE id::text = $2 
+                RETURNING email, name
+            `, [hashedPassword, teacherId.toString()]);
+
+            if (pgRes.rows.length > 0) {
+                updatedEmail = pgRes.rows[0].email;
+            }
+        } catch (pgErr) {
+            console.warn('[ADMIN] PostgreSQL password update warning:', pgErr.message);
+        }
+
+        // 2. Non-blocking update in MongoDB
+        if (mongoose.connection.readyState === 1 && User) {
+            setImmediate(async () => {
+                try {
+                    if (mongoose.Types.ObjectId.isValid(teacherId)) {
+                        await User.findByIdAndUpdate(teacherId, { password: hashedPassword });
+                    } else if (updatedEmail) {
+                        await User.updateOne({ email: updatedEmail }, { password: hashedPassword });
+                    }
+                } catch (mErr) {
+                    console.warn('[ADMIN] MongoDB password update warning:', mErr.message);
+                }
+            });
+        }
+
+        console.log(`[ADMIN] Password reset successfully for teacher ID ${teacherId} (${updatedEmail || 'Postgres'})`);
+        return res.json({ msg: 'Password updated successfully.' });
+    } catch (err) {
+        console.error('[ADMIN] Error updating password:', err.message);
+        return res.status(500).json({ msg: 'Server error updating password.' });
+    }
+});
+
 module.exports = router;

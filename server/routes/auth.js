@@ -104,12 +104,21 @@ router.post('/login', loginLimiter, async (req, res) => {
         }
 
         if (!userRecord) {
-            return res.status(400).json({ msg: 'Invalid credentials.' });
+            console.warn(`[AUTH] Login failed: User not found <${email}>`);
+            return res.status(400).json({ msg: 'Invalid credentials. User not found.' });
         }
 
-        const isMatch = await bcrypt.compare(password, userRecord.password);
+        let isMatch = false;
+        if (userRecord.password && (userRecord.password.startsWith('$2a$') || userRecord.password.startsWith('$2b$') || userRecord.password.startsWith('$2y$'))) {
+            isMatch = await bcrypt.compare(password, userRecord.password);
+        } else if (userRecord.password) {
+            // Plain text password compatibility
+            isMatch = (userRecord.password === password);
+        }
+
         if (!isMatch) {
-            return res.status(400).json({ msg: 'Invalid credentials.' });
+            console.warn(`[AUTH] Login failed: Password mismatch for <${email}>`);
+            return res.status(400).json({ msg: 'Invalid credentials. Incorrect password.' });
         }
 
         const payload = {

@@ -49,6 +49,18 @@ const CreateTeacher = () => {
         }
     };
 
+    const handleResetPassword = async (teacher) => {
+        const newPass = window.prompt(`Enter new password for ${teacher.name} (${teacher.email}):`);
+        if (!newPass || !newPass.trim()) return;
+        const teacherId = teacher._id || teacher.id;
+        try {
+            await api.put(`/api/admin/teachers/${teacherId}/password`, { newPassword: newPass.trim() });
+            alert(`Password updated successfully for ${teacher.name}!\nNew password: ${newPass.trim()}`);
+        } catch (err) {
+            alert(err.response?.data?.msg || 'Error resetting password');
+        }
+    };
+
     return (
         <div className="animate-fade-in-up max-w-4xl mx-auto space-y-10 px-4 py-8">
             {/* Header */}
@@ -118,13 +130,20 @@ const CreateTeacher = () => {
                                         <p className="text-xs text-slate/50 font-bold">{teacher.email}</p>
                                     </div>
                                 </div>
-                                <div className="flex items-center gap-4">
+                                <div className="flex items-center gap-3">
                                     <span className="text-[10px] font-black uppercase tracking-widest bg-gold/20 text-navy px-3 py-1 rounded-xl">
                                         {teacher.subject || 'N/A'}
                                     </span>
                                     <button
+                                        onClick={() => handleResetPassword(teacher)}
+                                        className="bg-amber-50 border border-amber-300 text-amber-800 px-3.5 py-2 rounded-xl text-xs font-black uppercase tracking-wider hover:bg-amber-100 transition-all cursor-pointer"
+                                        title="Change this teacher's password"
+                                    >
+                                        🔑 Reset Pass
+                                    </button>
+                                    <button
                                         onClick={() => handleRevoke(teacher)}
-                                        className="bg-red-500/10 border border-red-400/30 text-red-500 px-5 py-2 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-red-600 hover:text-white transition-all"
+                                        className="bg-red-500/10 border border-red-400/30 text-red-500 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-red-600 hover:text-white transition-all cursor-pointer"
                                     >
                                         Revoke
                                     </button>
@@ -133,6 +152,22 @@ const CreateTeacher = () => {
                         ))}
                     </div>
                 )}
+
+                {/* Default Credentials Reference Box */}
+                <div className="mt-8 p-5 rounded-2xl bg-amber-500/10 border border-amber-400/30">
+                    <h4 className="text-xs font-black text-navy uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                        <span>ℹ️</span> Default Pre-Seeded Faculty Credentials:
+                    </h4>
+                    <p className="text-xs text-slate-700 font-medium">
+                        Default Faculty Password for all 5 core departments is: <code className="bg-white px-2 py-0.5 rounded font-black text-amber-800 border border-amber-200">Sapthagiri1</code>
+                    </p>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-3 text-[11px] font-bold text-slate-600">
+                        <div className="bg-white p-2 rounded-lg border border-slate-100">⚛️ <span className="text-navy">Physics:</span> physics@gmail.com</div>
+                        <div className="bg-white p-2 rounded-lg border border-slate-100">🧪 <span className="text-navy">Chemistry:</span> chemistry@gmail.com</div>
+                        <div className="bg-white p-2 rounded-lg border border-slate-100">🧬 <span className="text-navy">Biology:</span> biology@gmail.com</div>
+                        <div className="bg-white p-2 rounded-lg border border-slate-100">📐 <span className="text-navy">Maths:</span> maths@gmail.com</div>
+                    </div>
+                </div>
             </div>
         </div>
     );
