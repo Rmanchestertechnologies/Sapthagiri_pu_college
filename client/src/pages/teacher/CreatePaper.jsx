@@ -28,14 +28,14 @@ import A4SolutionKey from '../../components/A4SolutionKey';
 import { validatePaperQuestions } from '../../utils/questionValidator';
 import { optionLabel, getResolvedAnswerLabel, getQuestionOptionLabels } from '../../utils/sanitize';
 
-// Reference UI QuestionCardOptions matching Manchester Tech / Question Bank design
+// Reference UI QuestionCardOptions with crisp white contrast
 const QuestionCardOptions = ({ q, options = [], answer = '', showAnswer = true }) => {
     if (!options || options.length === 0) return null;
     const labels = getQuestionOptionLabels(q);
     const resolvedAnswer = getResolvedAnswerLabel(q);
 
     return (
-        <div className="space-y-1.5 mt-3 pt-3 border-t border-slate-700/50 font-normal text-xs">
+        <div className="space-y-1.5 mt-3 pt-3 border-t border-gray-100 font-normal text-xs">
             {options.map((opt, oIdx) => {
                 const optText = typeof opt === 'object' ? (opt.text || opt.optionText || '') : String(opt || '');
                 const label = labels[oIdx] || optionLabel(oIdx);
@@ -49,20 +49,20 @@ const QuestionCardOptions = ({ q, options = [], answer = '', showAnswer = true }
                 return (
                     <div
                         key={oIdx}
-                        className={`flex items-start gap-2 py-1 px-2.5 rounded-lg transition ${
+                        className={`flex items-start gap-2 py-1.5 px-3 rounded-xl transition ${
                             isCorrect
-                                ? 'text-emerald-400 font-semibold bg-emerald-950/30 border border-emerald-800/40'
-                                : 'text-slate-300 hover:text-white'
+                                ? 'text-emerald-900 font-semibold bg-emerald-50/90 border border-emerald-300 shadow-2xs'
+                                : 'text-slate-800 hover:bg-gray-50'
                         }`}
                     >
-                        <span className={`font-semibold min-w-[22px] ${isCorrect ? 'text-emerald-400' : 'text-slate-400'}`}>
+                        <span className={`font-bold min-w-[22px] ${isCorrect ? 'text-emerald-700' : 'text-slate-600'}`}>
                             {label}:
                         </span>
-                        <div className="flex-1 min-w-0 font-normal leading-relaxed">
+                        <div className="flex-1 min-w-0 font-normal leading-relaxed text-slate-800">
                             <MathRenderer inline text={optText} />
                         </div>
                         {isCorrect && (
-                            <span className="text-emerald-400 font-bold ml-1">✓</span>
+                            <span className="text-emerald-600 font-black ml-1 text-sm">✓</span>
                         )}
                     </div>
                 );
@@ -181,7 +181,12 @@ export default function CreatePaper() {
             if (!subject) return;
             setLoadingMeta(true);
             try {
-                const res = await api.get(`/api/questions/meta?subject=${encodeURIComponent(subject)}`);
+                const cleanClass = selectedClass === 'Both' ? '' : selectedClass;
+                let url = `/api/questions/meta?subject=${encodeURIComponent(subject)}`;
+                if (cleanClass) {
+                    url += `&class=${encodeURIComponent(cleanClass)}`;
+                }
+                const res = await api.get(url);
                 if (res.data) {
                     setMetaData({
                         total: res.data.total || 0,
@@ -209,7 +214,7 @@ export default function CreatePaper() {
 
         fetchMeta();
         fetchTemplates();
-    }, [subject]);
+    }, [subject, selectedClass]);
 
     // Load Admin Commissioned Exam metadata if examId is present
     useEffect(() => {
@@ -270,10 +275,11 @@ export default function CreatePaper() {
     }, [paperId]);
 
     // ── 2. HIGH-SPEED QUESTIONS POOL FETCH WITH IN-MEMORY CACHE ──
-    const fetchQuestionsPool = async (forceSubject = subject) => {
+    const fetchQuestionsPool = async (forceSubject = subject, forceClass = selectedClass) => {
         if (!forceSubject) return;
 
-        const cacheKey = forceSubject.trim().toLowerCase();
+        const cleanClass = forceClass === 'Both' ? '' : forceClass;
+        const cacheKey = `${forceSubject.trim().toLowerCase()}_${cleanClass || 'all'}`;
         if (questionsCache.current[cacheKey] && questionsCache.current[cacheKey].length > 0) {
             setAvailableQuestions(questionsCache.current[cacheKey]);
             return;
@@ -281,7 +287,10 @@ export default function CreatePaper() {
 
         setLoadingQuestions(true);
         try {
-            const url = `/api/questions?subject=${encodeURIComponent(forceSubject)}&limit=20000`;
+            let url = `/api/questions?subject=${encodeURIComponent(forceSubject)}&limit=20000`;
+            if (cleanClass) {
+                url += `&classes=${encodeURIComponent(cleanClass)}`;
+            }
             const res = await api.get(url);
             const qs = Array.isArray(res.data) ? res.data : (res.data?.questions || []);
             questionsCache.current[cacheKey] = qs;
@@ -293,21 +302,35 @@ export default function CreatePaper() {
         }
     };
 
-    // Fetch questions pool immediately when subject is known
+    // Fetch questions pool immediately when subject or selectedClass changes
     useEffect(() => {
         if (subject) {
-            fetchQuestionsPool(subject);
+            fetchQuestionsPool(subject, selectedClass);
         }
-    }, [subject]);
+    }, [subject, selectedClass]);
 
-    // Distinct chapters and concepts map
+    // Distinct chapters and concepts map (Scoped strictly to selected class)
     const { distinctChapters, chapterConceptsMap } = useMemo(() => {
-        const chaptersSet = new Set(metaData.chapters.filter(Boolean));
+        const chaptersSet = new Set((metaData.chapters || []).filter(Boolean));
         const map = {};
 
-        // Also add from available questions
+        // Also add from available questions matching this class
         availableQuestions.forEach(q => {
+            if (selectedClass && selectedClass !== 'Both' && q.classes && q.classes.length > 0) {
+                const cleanTarget = String(selectedClass).replace(/^(class|grade|puc)\s*/i, '').trim().toLowerCase();
+                const matches = q.classes.some(c => {
+                    const cleanC = String(c).replace(/^(class|grade|puc)\s*/i, '').trim().toLowerCase();
+                    return cleanC === cleanTarget || (cleanTarget === '12' && (cleanC === 'ii' || cleanC === '2')) || (cleanTarget === '11' && (cleanC === 'i' || cleanC === '1'));
+                });
+                if (!matches) return;
+            }
+
             const ch = q.chapter || 'General';
+            // Only include chapters in current class syllabus
+            if (metaData.chapters && metaData.chapters.length > 0 && !metaData.chapters.includes(ch) && ch !== 'General') {
+                return;
+            }
+
             chaptersSet.add(ch);
             if (!map[ch]) map[ch] = new Set();
             const cpt = q.concept || q.topic;
@@ -317,7 +340,7 @@ export default function CreatePaper() {
         });
 
         // Add meta concepts
-        metaData.concepts.forEach(c => {
+        (metaData.concepts || []).forEach(c => {
             if (c && typeof c === 'object' && c.chapter && c.name) {
                 chaptersSet.add(c.chapter);
                 if (!map[c.chapter]) map[c.chapter] = new Set();
@@ -332,7 +355,7 @@ export default function CreatePaper() {
         });
 
         return { distinctChapters: sorted, chapterConceptsMap: cleanMap };
-    }, [metaData, availableQuestions]);
+    }, [metaData, availableQuestions, selectedClass]);
 
     // Available concepts for checked chapters
     const availableConceptsForSelectedChapters = useMemo(() => {
@@ -851,7 +874,11 @@ export default function CreatePaper() {
                                 <label className="block text-xs font-black text-navy uppercase tracking-wider mb-2">Target Class</label>
                                 <select
                                     value={selectedClass}
-                                    onChange={e => setSelectedClass(e.target.value)}
+                                    onChange={e => {
+                                        setSelectedClass(e.target.value);
+                                        setSelectedChapters([]);
+                                        setSelectedConcepts([]);
+                                    }}
                                     className="w-full border-2 border-gray-200 focus:border-navy rounded-2xl px-4 py-3 text-sm font-bold text-navy outline-none bg-white cursor-pointer"
                                 >
                                     <option value="12">Class 12 (II PUC)</option>
@@ -1455,16 +1482,16 @@ export default function CreatePaper() {
                                                     key={q._id || idx}
                                                     className={`p-6 rounded-2xl border transition-all flex flex-col gap-3 ${
                                                         swappingQuestionIndex !== null
-                                                            ? 'border-amber-400 bg-[#161208] shadow-lg'
+                                                            ? 'border-amber-400 bg-amber-50/40 shadow-lg'
                                                             : isSelected
-                                                            ? 'border-blue-500/80 bg-[#0c1a35] shadow-md ring-1 ring-blue-400/40'
-                                                            : 'border-slate-800 bg-[#0a1122] hover:border-slate-700 shadow-sm'
+                                                            ? 'border-2 border-emerald-500 bg-emerald-50/20 shadow-md ring-1 ring-emerald-400/30'
+                                                            : 'border-gray-200 bg-white hover:border-gray-300 hover:shadow-md shadow-xs'
                                                     }`}
                                                 >
                                                     {/* ── Top Breadcrumbs & Selection Bar ── */}
-                                                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800/80 pb-3">
-                                                        <div className="flex items-center gap-1.5 text-xs text-slate-400 flex-wrap font-medium">
-                                                            <span className="text-amber-400 font-bold">{q.subject || subject}</span>
+                                                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-100 pb-3">
+                                                        <div className="flex items-center gap-1.5 text-xs text-slate-500 flex-wrap font-medium">
+                                                            <span className="text-navy font-bold uppercase tracking-wider">{q.subject || subject}</span>
                                                             <span>•</span>
                                                             <span>Class {q.classes?.[0] || selectedClass}</span>
                                                             <span>•</span>
@@ -1473,25 +1500,22 @@ export default function CreatePaper() {
                                                             <span>{q.type || 'MCQ'}</span>
                                                             <span>•</span>
                                                             <span className={
-                                                                (q.level || 'medium').toLowerCase() === 'easy' ? 'text-emerald-400 font-semibold' :
-                                                                (q.level || 'medium').toLowerCase() === 'hard' ? 'text-rose-400 font-semibold' :
-                                                                'text-amber-400 font-semibold'
+                                                                (q.level || 'medium').toLowerCase() === 'easy' ? 'text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded font-bold' :
+                                                                (q.level || 'medium').toLowerCase() === 'hard' ? 'text-rose-700 bg-rose-100 px-2 py-0.5 rounded font-bold' :
+                                                                'text-amber-800 bg-amber-100 px-2 py-0.5 rounded font-bold'
                                                             }>
                                                                 {q.level || 'Medium'}
                                                             </span>
                                                         </div>
 
                                                         <div className="flex items-center gap-3">
-                                                            <span className="text-[11px] font-semibold text-slate-400 flex items-center gap-1">
-                                                                ⏳ Pending Review
-                                                            </span>
                                                             <button
                                                                 type="button"
                                                                 onClick={() => handleQuestionClick(q)}
-                                                                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                                                                className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition cursor-pointer flex items-center gap-1.5 ${
                                                                     isSelected
                                                                         ? 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-xs'
-                                                                        : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700'
+                                                                        : 'bg-white hover:bg-navy hover:text-gold text-navy border-2 border-navy/20 hover:border-navy'
                                                                 }`}
                                                             >
                                                                 {isSelected ? '✓ Added' : '+ Add to Paper'}
@@ -1501,19 +1525,19 @@ export default function CreatePaper() {
 
                                                     {/* Concept line */}
                                                     {conceptName && conceptName !== 'General' && (
-                                                        <div className="text-xs text-slate-400 font-normal">
-                                                            Concept: <span className="text-slate-200 font-medium">{conceptName}</span>
+                                                        <div className="text-xs text-slate-500 font-normal">
+                                                            Concept: <span className="text-slate-800 font-bold">{conceptName}</span>
                                                         </div>
                                                     )}
 
                                                     {/* Question Stem (Normal weight, clean typography, zero unwanted bold) */}
-                                                    <div className="text-sm font-normal text-slate-100 leading-relaxed">
+                                                    <div className="text-sm font-normal text-slate-900 leading-relaxed">
                                                         <MathRenderer inline text={q.questionText || q.question} />
                                                     </div>
 
                                                     {/* Centered Diagram / Circuit / Graph */}
                                                     {diagramImg && (
-                                                        <div className="my-2 p-2 bg-white rounded-xl border border-slate-700 max-w-sm mx-auto shadow-sm">
+                                                        <div className="my-2 p-2 bg-white rounded-xl border border-gray-200 max-w-sm mx-auto shadow-xs">
                                                             <img
                                                                 src={diagramImg}
                                                                 alt="Question Diagram"
@@ -1526,22 +1550,22 @@ export default function CreatePaper() {
                                                     {/* Match the Following Two-Column Table */}
                                                     {q.matchPairs && q.matchPairs.length > 0 && (
                                                         <div className="my-2 overflow-x-auto">
-                                                            <table className="w-full text-xs border border-slate-700 rounded-xl overflow-hidden">
-                                                                <thead className="bg-slate-800 text-amber-400 text-left font-bold">
+                                                            <table className="w-full text-xs border border-gray-200 rounded-xl overflow-hidden">
+                                                                <thead className="bg-gray-50 text-navy text-left font-black">
                                                                     <tr>
-                                                                        <th className="p-2.5 border-b border-r border-slate-700">Column A</th>
-                                                                        <th className="p-2.5 border-b border-slate-700">Column B</th>
+                                                                        <th className="p-2.5 border-b border-r border-gray-200">Column A</th>
+                                                                        <th className="p-2.5 border-b border-gray-200">Column B</th>
                                                                     </tr>
                                                                 </thead>
-                                                                <tbody className="divide-y divide-slate-800 text-slate-200">
+                                                                <tbody className="divide-y divide-gray-100 text-slate-800">
                                                                     {q.matchPairs.map((pair, pIdx) => (
-                                                                        <tr key={pIdx} className="hover:bg-slate-800/40">
-                                                                            <td className="p-2.5 border-r border-slate-800">
-                                                                                <span className="text-slate-400 font-semibold mr-1.5">({String.fromCharCode(97 + pIdx)})</span>
+                                                                        <tr key={pIdx} className="hover:bg-gray-50/60">
+                                                                            <td className="p-2.5 border-r border-gray-200">
+                                                                                <span className="text-slate-500 font-bold mr-1.5">({String.fromCharCode(97 + pIdx)})</span>
                                                                                 <MathRenderer inline text={pair.left || ''} />
                                                                             </td>
                                                                             <td className="p-2.5">
-                                                                                <span className="text-slate-400 font-semibold mr-1.5">({['i', 'ii', 'iii', 'iv', 'v'][pIdx] || (pIdx + 1)})</span>
+                                                                                <span className="text-slate-500 font-bold mr-1.5">({['i', 'ii', 'iii', 'iv', 'v'][pIdx] || (pIdx + 1)})</span>
                                                                                 <MathRenderer inline text={pair.right || ''} />
                                                                             </td>
                                                                         </tr>
@@ -1562,13 +1586,13 @@ export default function CreatePaper() {
                                                     )}
 
                                                     {/* Badges & Actions Row */}
-                                                    <div className="mt-2 pt-2 border-t border-slate-800/80 flex items-center justify-between flex-wrap gap-2">
+                                                    <div className="mt-2 pt-2 border-t border-gray-100 flex items-center justify-between flex-wrap gap-2">
                                                         <div className="flex items-center gap-2">
-                                                            <span className="bg-slate-800 text-slate-400 text-[10px] font-semibold px-2.5 py-0.5 rounded">
+                                                            <span className="bg-gray-100 text-slate-600 border border-gray-200 text-[10px] font-bold px-2.5 py-0.5 rounded">
                                                                 NEET/JEE
                                                             </span>
                                                             {swappingQuestionIndex !== null && (
-                                                                <span className="text-[10px] font-bold text-amber-400 bg-amber-950/60 border border-amber-500/40 px-2 py-0.5 rounded animate-pulse">
+                                                                <span className="text-[10px] font-bold text-amber-800 bg-amber-100 border border-amber-300 px-2 py-0.5 rounded animate-pulse">
                                                                     Click to Swap with Q#{startQNo + swappingQuestionIndex}
                                                                 </span>
                                                             )}
@@ -1582,7 +1606,7 @@ export default function CreatePaper() {
                                                                         e.stopPropagation();
                                                                         toggleSolutionPreview(q._id || idx, e);
                                                                     }}
-                                                                    className="text-xs font-semibold text-cyan-400 hover:text-cyan-300 bg-cyan-950/40 border border-cyan-700/50 hover:border-cyan-500 px-3.5 py-1.5 rounded-xl transition cursor-pointer flex items-center gap-1.5"
+                                                                    className="text-xs font-black text-navy hover:text-gold bg-navy/5 hover:bg-navy border border-navy/20 px-3.5 py-1.5 rounded-xl transition cursor-pointer flex items-center gap-1.5"
                                                                 >
                                                                     <span>{isSolutionOpen ? '💡 Hide Solution' : '👁️ View Detailed Answer'}</span>
                                                                 </button>
@@ -1592,21 +1616,21 @@ export default function CreatePaper() {
 
                                                     {/* Expanded Solution Preview with KaTeX Math Rendering */}
                                                     {isSolutionOpen && (
-                                                        <div className="mt-2 p-4 rounded-xl bg-[#09152b] border border-cyan-800/50 text-xs text-slate-200 space-y-2 animate-fade-in">
+                                                        <div className="mt-2 p-4 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-800 space-y-2 animate-fade-in">
                                                             {q.solutionText || q.solution ? (
                                                                 <div className="leading-relaxed">
                                                                     <MathRenderer inline text={q.solutionText || q.solution} />
                                                                 </div>
                                                             ) : null}
-                                                            <div className="text-emerald-400 font-semibold pt-1.5 border-t border-slate-800">
+                                                            <div className="text-emerald-700 font-bold pt-1.5 border-t border-slate-200">
                                                                 Therefore, option {getResolvedAnswerLabel(q)} is correct.
                                                             </div>
                                                         </div>
                                                     )}
 
                                                     {/* Footer Attribution */}
-                                                    <div className="text-[10px] text-slate-500 font-normal pt-1">
-                                                        Added by {q.author || q.created_by || 'Ramya S'}
+                                                    <div className="text-[10px] text-slate-400 font-normal pt-1">
+                                                        Added by {q.author || q.created_by || 'Faculty'}
                                                     </div>
                                                 </div>
                                             );

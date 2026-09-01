@@ -104,7 +104,10 @@ router.get('/', [auth, checkRole(['admin', 'teacher'])], async (req, res) => {
             filters.subject = subject;
         }
 
-        if (classes) filters.classes = classes;
+        const classParam = req.query.class || classes;
+        if (classParam && classParam !== 'Both' && classParam !== 'all') {
+            filters.classes = classParam;
+        }
         if (chapter) filters.chapter = chapter;
         if (concept) filters.concept = concept;
         if (type) filters.type = type;
@@ -134,12 +137,13 @@ router.get('/', [auth, checkRole(['admin', 'teacher'])], async (req, res) => {
 });
 
 // @route   GET /api/questions/meta
-// @desc    Get metadata (total count, distinct chapters, distinct topics) for subject
+// @desc    Get metadata (total count, distinct chapters, distinct topics) for subject & class
 // @access  Teacher / Admin
 router.get('/meta', [auth, checkRole(['admin', 'teacher'])], async (req, res) => {
     try {
         const subject = req.user.role === 'teacher' ? req.user.subject : (req.query.subject || '');
-        const meta = await supabaseQuestions.getSubjectMetadata(subject);
+        const klass = req.query.class || req.query.classes || null;
+        const meta = await supabaseQuestions.getSubjectMetadata(subject, klass);
         res.json(meta);
     } catch (err) {
         console.error('[QUESTIONS META] error:', err.message);
