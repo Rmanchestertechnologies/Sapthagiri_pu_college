@@ -23,19 +23,24 @@ import api from '../../api';
 import MathRenderer from '../../components/MathRenderer';
 import PaperRenderer, { DEFAULT_SETTINGS } from '../../components/PaperRenderer';
 import PaperAnalysisModal from '../../components/PaperAnalysisModal';
+import A4AnswerKey from '../../components/A4AnswerKey';
+import A4SolutionKey from '../../components/A4SolutionKey';
 import { validatePaperQuestions } from '../../utils/questionValidator';
-import { optionLabel } from '../../utils/sanitize';
+import { optionLabel, getResolvedAnswerLabel, getQuestionOptionLabels } from '../../utils/sanitize';
 
-// Helper component to render complete options for a question
-const QuestionCardOptions = ({ options = [], answer = '', showAnswer = false }) => {
+// Reference UI QuestionCardOptions matching Manchester Tech / Question Bank design
+const QuestionCardOptions = ({ q, options = [], answer = '', showAnswer = true }) => {
     if (!options || options.length === 0) return null;
+    const labels = getQuestionOptionLabels(q);
+    const resolvedAnswer = getResolvedAnswerLabel(q);
 
     return (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 mt-3 pt-3 border-t border-gray-200/80">
+        <div className="space-y-1.5 mt-3 pt-3 border-t border-slate-700/50 font-normal text-xs">
             {options.map((opt, oIdx) => {
                 const optText = typeof opt === 'object' ? (opt.text || opt.optionText || '') : String(opt || '');
-                const label = typeof opt === 'object' && opt.label ? opt.label : optionLabel(oIdx);
-                const isCorrect = showAnswer && (
+                const label = labels[oIdx] || optionLabel(oIdx);
+                const isCorrect = (
+                    resolvedAnswer === label || 
                     answer === optText || 
                     answer === label || 
                     answer === String(oIdx + 1)
@@ -44,20 +49,21 @@ const QuestionCardOptions = ({ options = [], answer = '', showAnswer = false }) 
                 return (
                     <div
                         key={oIdx}
-                        className={`flex items-start gap-2.5 text-xs rounded-xl p-2.5 border transition ${
+                        className={`flex items-start gap-2 py-1 px-2.5 rounded-lg transition ${
                             isCorrect
-                                ? 'bg-emerald-50 border-emerald-400 text-emerald-950 font-bold shadow-xs'
-                                : 'bg-white border-gray-200 text-slate-800'
+                                ? 'text-emerald-400 font-semibold bg-emerald-950/30 border border-emerald-800/40'
+                                : 'text-slate-300 hover:text-white'
                         }`}
                     >
-                        <span className={`rounded-md px-2 py-0.5 text-[11px] font-black flex-shrink-0 ${
-                            isCorrect ? 'bg-emerald-600 text-white' : 'bg-navy text-gold'
-                        }`}>
-                            {label}
+                        <span className={`font-semibold min-w-[22px] ${isCorrect ? 'text-emerald-400' : 'text-slate-400'}`}>
+                            {label}:
                         </span>
-                        <div className="flex-1 min-w-0 font-medium leading-snug pt-0.5">
+                        <div className="flex-1 min-w-0 font-normal leading-relaxed">
                             <MathRenderer inline text={optText} />
                         </div>
+                        {isCorrect && (
+                            <span className="text-emerald-400 font-bold ml-1">✓</span>
+                        )}
                     </div>
                 );
             })}
@@ -1447,110 +1453,160 @@ export default function CreatePaper() {
                                             return (
                                                 <div
                                                     key={q._id || idx}
-                                                    onClick={() => handleQuestionClick(q)}
-                                                    className={`p-5 rounded-3xl border-2 transition-all cursor-pointer flex items-start gap-4 ${
+                                                    className={`p-6 rounded-2xl border transition-all flex flex-col gap-3 ${
                                                         swappingQuestionIndex !== null
-                                                            ? 'border-amber-400 bg-amber-50/70 hover:bg-amber-100 hover:border-amber-500 shadow-md'
+                                                            ? 'border-amber-400 bg-[#161208] shadow-lg'
                                                             : isSelected
-                                                            ? 'border-navy bg-blue-50/50 shadow-md ring-2 ring-navy/15'
-                                                            : 'border-gray-200 bg-white hover:border-gray-300 hover:shadow-sm'
+                                                            ? 'border-blue-500/80 bg-[#0c1a35] shadow-md ring-1 ring-blue-400/40'
+                                                            : 'border-slate-800 bg-[#0a1122] hover:border-slate-700 shadow-sm'
                                                     }`}
                                                 >
-                                                    <div className="pt-1 flex flex-col items-center gap-1.5 flex-shrink-0">
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={isSelected}
-                                                            onChange={() => {}}
-                                                            className="w-5 h-5 text-navy rounded border-gray-300 cursor-pointer"
-                                                        />
-                                                        <span className="text-[10px] font-black text-gray-400">#{idx + 1}</span>
-                                                    </div>
-
-                                                    <div className="flex-1 min-w-0">
-                                                        <div className="flex items-center gap-2 mb-2 flex-wrap">
-                                                            <span className="text-[10px] font-black bg-navy text-gold px-2.5 py-0.5 rounded-md">
-                                                                {q.type || 'MCQ'}
-                                                            </span>
-                                                            <span className="text-[10px] font-bold text-navy bg-blue-50 px-2.5 py-0.5 rounded-md border border-blue-100">
-                                                                📖 {q.chapter || 'General'}
-                                                            </span>
-                                                            {conceptName && conceptName !== 'General' && (
-                                                                <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 px-2.5 py-0.5 rounded-md border border-emerald-200">
-                                                                    💡 {conceptName}
-                                                                </span>
-                                                            )}
-                                                            <span className={`text-[10px] font-black px-2.5 py-0.5 rounded-md ${
-                                                                (q.level || 'medium').toLowerCase() === 'easy' ? 'bg-emerald-100 text-emerald-800' :
-                                                                (q.level || 'medium').toLowerCase() === 'hard' ? 'bg-rose-100 text-rose-800' :
-                                                                'bg-amber-100 text-amber-800'
-                                                            }`}>
+                                                    {/* ── Top Breadcrumbs & Selection Bar ── */}
+                                                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800/80 pb-3">
+                                                        <div className="flex items-center gap-1.5 text-xs text-slate-400 flex-wrap font-medium">
+                                                            <span className="text-amber-400 font-bold">{q.subject || subject}</span>
+                                                            <span>•</span>
+                                                            <span>Class {q.classes?.[0] || selectedClass}</span>
+                                                            <span>•</span>
+                                                            <span>{q.chapter || 'General'}</span>
+                                                            <span>•</span>
+                                                            <span>{q.type || 'MCQ'}</span>
+                                                            <span>•</span>
+                                                            <span className={
+                                                                (q.level || 'medium').toLowerCase() === 'easy' ? 'text-emerald-400 font-semibold' :
+                                                                (q.level || 'medium').toLowerCase() === 'hard' ? 'text-rose-400 font-semibold' :
+                                                                'text-amber-400 font-semibold'
+                                                            }>
                                                                 {q.level || 'Medium'}
                                                             </span>
+                                                        </div>
+
+                                                        <div className="flex items-center gap-3">
+                                                            <span className="text-[11px] font-semibold text-slate-400 flex items-center gap-1">
+                                                                ⏳ Pending Review
+                                                            </span>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleQuestionClick(q)}
+                                                                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                                                                    isSelected
+                                                                        ? 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-xs'
+                                                                        : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700'
+                                                                }`}
+                                                            >
+                                                                {isSelected ? '✓ Added' : '+ Add to Paper'}
+                                                            </button>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Concept line */}
+                                                    {conceptName && conceptName !== 'General' && (
+                                                        <div className="text-xs text-slate-400 font-normal">
+                                                            Concept: <span className="text-slate-200 font-medium">{conceptName}</span>
+                                                        </div>
+                                                    )}
+
+                                                    {/* Question Stem (Normal weight, clean typography, zero unwanted bold) */}
+                                                    <div className="text-sm font-normal text-slate-100 leading-relaxed">
+                                                        <MathRenderer inline text={q.questionText || q.question} />
+                                                    </div>
+
+                                                    {/* Centered Diagram / Circuit / Graph */}
+                                                    {diagramImg && (
+                                                        <div className="my-2 p-2 bg-white rounded-xl border border-slate-700 max-w-sm mx-auto shadow-sm">
+                                                            <img
+                                                                src={diagramImg}
+                                                                alt="Question Diagram"
+                                                                className="max-h-48 object-contain mx-auto"
+                                                                onError={e => { e.currentTarget.parentElement.style.display = 'none'; }}
+                                                            />
+                                                        </div>
+                                                    )}
+
+                                                    {/* Match the Following Two-Column Table */}
+                                                    {q.matchPairs && q.matchPairs.length > 0 && (
+                                                        <div className="my-2 overflow-x-auto">
+                                                            <table className="w-full text-xs border border-slate-700 rounded-xl overflow-hidden">
+                                                                <thead className="bg-slate-800 text-amber-400 text-left font-bold">
+                                                                    <tr>
+                                                                        <th className="p-2.5 border-b border-r border-slate-700">Column A</th>
+                                                                        <th className="p-2.5 border-b border-slate-700">Column B</th>
+                                                                    </tr>
+                                                                </thead>
+                                                                <tbody className="divide-y divide-slate-800 text-slate-200">
+                                                                    {q.matchPairs.map((pair, pIdx) => (
+                                                                        <tr key={pIdx} className="hover:bg-slate-800/40">
+                                                                            <td className="p-2.5 border-r border-slate-800">
+                                                                                <span className="text-slate-400 font-semibold mr-1.5">({String.fromCharCode(97 + pIdx)})</span>
+                                                                                <MathRenderer inline text={pair.left || ''} />
+                                                                            </td>
+                                                                            <td className="p-2.5">
+                                                                                <span className="text-slate-400 font-semibold mr-1.5">({['i', 'ii', 'iii', 'iv', 'v'][pIdx] || (pIdx + 1)})</span>
+                                                                                <MathRenderer inline text={pair.right || ''} />
+                                                                            </td>
+                                                                        </tr>
+                                                                    ))}
+                                                                </tbody>
+                                                            </table>
+                                                        </div>
+                                                    )}
+
+                                                    {/* Options with Green checkmark on correct answer */}
+                                                    {q.options && q.options.length > 0 && (
+                                                        <QuestionCardOptions
+                                                            q={q}
+                                                            options={q.options}
+                                                            answer={q.answer || q.correct_option}
+                                                            showAnswer={true}
+                                                        />
+                                                    )}
+
+                                                    {/* Badges & Actions Row */}
+                                                    <div className="mt-2 pt-2 border-t border-slate-800/80 flex items-center justify-between flex-wrap gap-2">
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="bg-slate-800 text-slate-400 text-[10px] font-semibold px-2.5 py-0.5 rounded">
+                                                                NEET/JEE
+                                                            </span>
                                                             {swappingQuestionIndex !== null && (
-                                                                <span className="text-[10px] font-black text-amber-800 bg-amber-200 px-2.5 py-0.5 rounded-md animate-pulse">
+                                                                <span className="text-[10px] font-bold text-amber-400 bg-amber-950/60 border border-amber-500/40 px-2 py-0.5 rounded animate-pulse">
                                                                     Click to Swap with Q#{startQNo + swappingQuestionIndex}
                                                                 </span>
                                                             )}
                                                         </div>
 
-                                                        {/* Full Question Text (Bold, Clean Typography, Zero Clamping) */}
-                                                        <div className="text-sm font-bold text-navy leading-relaxed mb-1">
-                                                            <MathRenderer inline text={q.questionText || q.question} />
-                                                        </div>
-
-                                                        {/* Diagram / Graph */}
-                                                        {diagramImg && (
-                                                            <div className="my-3 max-w-sm border border-gray-200 rounded-2xl overflow-hidden bg-white p-2 shadow-xs">
-                                                                <img
-                                                                    src={diagramImg}
-                                                                    alt="Question Diagram"
-                                                                    className="max-h-40 object-contain mx-auto"
-                                                                    onError={e => { e.currentTarget.parentElement.style.display = 'none'; }}
-                                                                />
-                                                            </div>
-                                                        )}
-
-                                                        {/* Options (A, B, C, D) Layout */}
-                                                        {q.options && q.options.length > 0 && (
-                                                            <QuestionCardOptions
-                                                                options={q.options}
-                                                                answer={q.answer || q.correct_option}
-                                                                showAnswer={isSolutionOpen}
-                                                            />
-                                                        )}
-
-                                                        {/* Solution & Answer Toggle Button */}
-                                                        <div className="mt-3 flex items-center justify-between">
-                                                            {(q.answer || q.solutionText) && (
+                                                        <div className="flex items-center gap-2">
+                                                            {(q.answer || q.solutionText || q.solution) && (
                                                                 <button
                                                                     type="button"
-                                                                    onClick={(e) => toggleSolutionPreview(q._id || idx, e)}
-                                                                    className="text-[11px] font-bold text-gray-500 hover:text-navy underline flex items-center gap-1 cursor-pointer"
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        toggleSolutionPreview(q._id || idx, e);
+                                                                    }}
+                                                                    className="text-xs font-semibold text-cyan-400 hover:text-cyan-300 bg-cyan-950/40 border border-cyan-700/50 hover:border-cyan-500 px-3.5 py-1.5 rounded-xl transition cursor-pointer flex items-center gap-1.5"
                                                                 >
-                                                                    <span>{isSolutionOpen ? '🙈 Hide Answer & Solution' : '💡 View Answer & Solution'}</span>
+                                                                    <span>{isSolutionOpen ? '💡 Hide Solution' : '👁️ View Detailed Answer'}</span>
                                                                 </button>
                                                             )}
-
-                                                            {isSelected && (
-                                                                <span className="text-[11px] font-black text-emerald-600 bg-emerald-50 px-2.5 py-0.5 rounded-full">
-                                                                    ✓ Added to Paper
-                                                                </span>
-                                                            )}
                                                         </div>
+                                                    </div>
 
-                                                        {/* Expanded Solution Preview */}
-                                                        {isSolutionOpen && (
-                                                            <div className="mt-2.5 p-3 rounded-2xl bg-amber-50/60 border border-amber-200 text-xs text-navy space-y-1 animate-fade-in">
-                                                                <div className="font-black text-emerald-800">
-                                                                    Correct Key: {q.answer || q.correct_option || 'N/A'}
+                                                    {/* Expanded Solution Preview with KaTeX Math Rendering */}
+                                                    {isSolutionOpen && (
+                                                        <div className="mt-2 p-4 rounded-xl bg-[#09152b] border border-cyan-800/50 text-xs text-slate-200 space-y-2 animate-fade-in">
+                                                            {q.solutionText || q.solution ? (
+                                                                <div className="leading-relaxed">
+                                                                    <MathRenderer inline text={q.solutionText || q.solution} />
                                                                 </div>
-                                                                {q.solutionText && (
-                                                                    <div className="font-medium text-gray-700 text-[11px] pt-1 border-t border-amber-200/60">
-                                                                        <strong>Explanation:</strong> <MathRenderer inline text={q.solutionText} />
-                                                                    </div>
-                                                                )}
+                                                            ) : null}
+                                                            <div className="text-emerald-400 font-semibold pt-1.5 border-t border-slate-800">
+                                                                Therefore, option {getResolvedAnswerLabel(q)} is correct.
                                                             </div>
-                                                        )}
+                                                        </div>
+                                                    )}
+
+                                                    {/* Footer Attribution */}
+                                                    <div className="text-[10px] text-slate-500 font-normal pt-1">
+                                                        Added by {q.author || q.created_by || 'Ramya S'}
                                                     </div>
                                                 </div>
                                             );
@@ -1888,112 +1944,24 @@ export default function CreatePaper() {
                     </div>
                 )}
 
-                {/* ── MODAL: ANSWER KEY ── */}
+                {/* ── MODAL: ANSWER KEY (TRUE A4 VIEW, DYNAMIC LABELS, INDEPENDENT PRINT & DOWNLOAD) ── */}
                 {showAnswerKeyModal && (
-                    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 backdrop-blur-sm p-4 overflow-y-auto">
-                        <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col border-b-8 border-gold animate-fade-in-up overflow-hidden my-auto">
-                            <div className="flex justify-between items-center p-6 border-b border-gray-200 bg-gray-50/80">
-                                <div>
-                                    <span className="text-[10px] font-black text-gold uppercase tracking-[0.2em] bg-navy px-3 py-1 rounded-full">
-                                        Official Answer Key
-                                    </span>
-                                    <h3 className="text-xl font-black text-navy mt-1 uppercase tracking-tight">
-                                        {title || `${subject} Assessment`} Answer Key
-                                    </h3>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    <button
-                                        onClick={() => window.print()}
-                                        className="bg-gold text-navy hover:bg-navy hover:text-gold px-4 py-2 rounded-xl font-bold text-xs uppercase tracking-wider transition shadow cursor-pointer"
-                                    >
-                                        Print Key
-                                    </button>
-                                    <button
-                                        onClick={() => setShowAnswerKeyModal(false)}
-                                        className="text-slate/30 hover:text-red-500 bg-white rounded-full w-8 h-8 flex items-center justify-center text-lg font-bold border shadow transition"
-                                    >
-                                        ✕
-                                    </button>
-                                </div>
-                            </div>
-
-                            <div className="p-6 overflow-y-auto">
-                                <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 gap-3">
-                                    {selectedQuestions.map((q, idx) => (
-                                        <div
-                                            key={idx}
-                                            className="bg-gray-50 border border-gray-200 rounded-xl p-3 flex justify-between items-center text-xs font-bold hover:border-navy transition"
-                                        >
-                                            <span className="text-gray-500">Q.{startQNo + idx}</span>
-                                            <span className="bg-navy text-gold px-2.5 py-0.5 rounded-md font-black text-sm">
-                                                {q.answer || 'N/A'}
-                                            </span>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-
-                            <div className="p-4 border-t border-gray-200 bg-gray-50 text-right">
-                                <button
-                                    onClick={() => setShowAnswerKeyModal(false)}
-                                    className="bg-navy text-gold px-6 py-2 rounded-xl font-bold text-xs uppercase tracking-wider cursor-pointer"
-                                >
-                                    Close
-                                </button>
-                            </div>
-                        </div>
-                    </div>
+                    <A4AnswerKey
+                        paper={{ title, subject, classes: [selectedClass, examType] }}
+                        questions={selectedQuestions}
+                        startQNo={startQNo}
+                        onClose={() => setShowAnswerKeyModal(false)}
+                    />
                 )}
 
-                {/* ── MODAL: SOLUTIONS GUIDE ── */}
+                {/* ── MODAL: SOLUTIONS GUIDE (TRUE A4 VIEW, KATEX MATH, INDEPENDENT PRINT & DOWNLOAD) ── */}
                 {showSolutionsModal && (
-                    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 backdrop-blur-sm p-4 overflow-y-auto">
-                        <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col border-b-8 border-gold animate-fade-in-up overflow-hidden my-auto">
-                            <div className="flex justify-between items-center p-6 border-b border-gray-200 bg-gray-50/80">
-                                <div>
-                                    <span className="text-[10px] font-black text-gold uppercase tracking-[0.2em] bg-navy px-3 py-1 rounded-full">
-                                        Solutions & Explanations
-                                    </span>
-                                    <h3 className="text-xl font-black text-navy mt-1 uppercase tracking-tight">
-                                        {title || `${subject} Assessment`} Detailed Solutions
-                                    </h3>
-                                </div>
-                                <button
-                                    onClick={() => setShowSolutionsModal(false)}
-                                    className="text-slate/30 hover:text-red-500 bg-white rounded-full w-8 h-8 flex items-center justify-center text-lg font-bold border shadow transition"
-                                >
-                                    ✕
-                                </button>
-                            </div>
-
-                            <div className="p-6 overflow-y-auto space-y-5">
-                                {selectedQuestions.map((q, idx) => (
-                                    <div key={idx} className="border border-gray-200 p-5 rounded-2xl bg-gray-50/50 space-y-2">
-                                        <div className="flex justify-between items-center border-b pb-2">
-                                            <span className="font-black text-sm text-navy">Question {startQNo + idx}</span>
-                                            <span className="bg-emerald-100 text-emerald-800 text-xs font-black px-2.5 py-0.5 rounded-md">
-                                                Answer: ({q.answer || 'N/A'})
-                                            </span>
-                                        </div>
-                                        <p className="text-xs font-bold text-gray-800">{q.questionText || q.question}</p>
-                                        <div className="bg-white p-3.5 rounded-xl border border-gray-200 text-xs text-gray-700">
-                                            <span className="font-bold text-navy block mb-1">Explanation:</span>
-                                            {q.solutionText ? q.solutionText : 'Detailed step-by-step solution available.'}
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-
-                            <div className="p-4 border-t border-gray-200 bg-gray-50 text-right">
-                                <button
-                                    onClick={() => setShowSolutionsModal(false)}
-                                    className="bg-navy text-gold px-6 py-2 rounded-xl font-bold text-xs uppercase tracking-wider cursor-pointer"
-                                >
-                                    Close Solutions
-                                </button>
-                            </div>
-                        </div>
-                    </div>
+                    <A4SolutionKey
+                        paper={{ title, subject, classes: [selectedClass, examType] }}
+                        questions={selectedQuestions}
+                        startQNo={startQNo}
+                        onClose={() => setShowSolutionsModal(false)}
+                    />
                 )}
 
                 {/* ── MODAL: IN-PLACE QUESTION & OPTIONS EDITOR ── */}

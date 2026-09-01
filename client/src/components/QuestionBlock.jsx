@@ -12,7 +12,7 @@
  */
 import React from 'react';
 import MathRenderer from './MathRenderer';
-import { optionLabel } from '../utils/sanitize';
+import { optionLabel, getQuestionOptionLabels } from '../utils/sanitize';
 
 // Dynamic option grid calculator based on length:
 // - Very Short (<= 20 chars): all 4 in one line
@@ -103,6 +103,8 @@ const Q = {
         marginBottom: '10px',
         color: '#111',
         fontSize: 'inherit',
+        fontFamily: 'inherit',
+        fontStyle: 'normal',
         lineHeight: '1.38',
         boxSizing: 'border-box',
         verticalAlign: 'top',
@@ -112,9 +114,13 @@ const Q = {
         justifyContent: 'space-between',
         alignItems: 'flex-start',
         gap: '6px',
+        fontFamily: 'inherit',
+        fontStyle: 'normal',
     },
     num: {
-        fontWeight: 700,
+        fontWeight: 400,
+        fontStyle: 'normal',
+        fontFamily: 'inherit',
         whiteSpace: 'nowrap',
         minWidth: '24px',
         fontSize: '1em',
@@ -124,9 +130,13 @@ const Q = {
     body: {
         flex: 1,
         minWidth: 0,
+        fontFamily: 'inherit',
+        fontStyle: 'normal',
     },
     qTextBold: {
-        fontWeight: 700,
+        fontWeight: 400,
+        fontStyle: 'normal',
+        fontFamily: 'inherit',
         color: '#000',
         display: 'inline',
         lineHeight: '1.38',
@@ -134,7 +144,9 @@ const Q = {
         overflowWrap: 'break-word',
     },
     marks: {
-        fontWeight: 700,
+        fontWeight: 400,
+        fontStyle: 'normal',
+        fontFamily: 'inherit',
         whiteSpace: 'nowrap',
         fontSize: '0.85em',
         alignSelf: 'flex-start',
@@ -150,10 +162,14 @@ const Q = {
         minWidth: 0,
         fontSize: '0.96em',
         fontWeight: 400,
+        fontStyle: 'normal',
+        fontFamily: 'inherit',
         color: '#111',
     },
     optLbl: {
-        fontWeight: 700,
+        fontWeight: 400,
+        fontStyle: 'normal',
+        fontFamily: 'inherit',
         whiteSpace: 'nowrap',
         minWidth: '20px',
         lineHeight: '1.45',
@@ -289,6 +305,7 @@ function BodyMCQ({ q, classes, singleColMode, diagramMaxHeight = '150px' }) {
     const imageUrl = q.imageUrl || q.image_url;
     const options = Array.isArray(q.options) ? q.options : [];
     const isSideBySide = shouldRenderSideBySide(q, singleColMode);
+    const labels = getQuestionOptionLabels(q);
 
     // Render Options List
     const renderOptions = (forceSingle = false) => {
@@ -297,7 +314,7 @@ function BodyMCQ({ q, classes, singleColMode, diagramMaxHeight = '150px' }) {
             <div style={forceSingle ? { display: 'grid', gridTemplateColumns: '1fr', gap: '2px 6px', marginTop: '4px' } : getDynamicOptGrid(options, singleColMode)}>
                 {options.map((opt, i) => (
                     <div key={i} style={Q.optRow}>
-                        <span style={Q.optLbl}>({optionLabel(i, classes)})</span>
+                        <span style={Q.optLbl}>({labels[i] || optionLabel(i, classes)})</span>
                         <span style={{ flex: 1, minWidth: 0, fontWeight: 400 }}>
                             <MathRenderer inline text={opt} />
                         </span>
@@ -455,14 +472,17 @@ function BodyMatchFollowing({ q, classes, singleColMode, diagramMaxHeight }) {
             )}
             {opts.length > 0 && (
                 <div style={getDynamicOptGrid(opts, true)}>
-                    {opts.map((opt, i) => (
-                        <div key={i} style={Q.optRow}>
-                            <span style={Q.optLbl}>({optionLabel(i, classes)})</span>
-                            <span style={{ flex: 1, minWidth: 0, fontWeight: 400 }}>
-                                <MathRenderer inline text={opt} />
-                            </span>
-                        </div>
-                    ))}
+                    {opts.map((opt, i) => {
+                        const labels = getQuestionOptionLabels(q);
+                        return (
+                            <div key={i} style={Q.optRow}>
+                                <span style={Q.optLbl}>({labels[i] || optionLabel(i, classes)})</span>
+                                <span style={{ flex: 1, minWidth: 0, fontWeight: 400 }}>
+                                    <MathRenderer inline text={opt} />
+                                </span>
+                            </div>
+                        );
+                    })}
                 </div>
             )}
         </>
@@ -477,6 +497,7 @@ function BodyStatementBased({ q, classes, singleColMode, diagramMaxHeight }) {
     const opts = q.options || [];
     const qText = cleanQuestionText(q.questionText || q.question || '');
     const imageUrl = q.imageUrl || q.image_url;
+    const labels = getQuestionOptionLabels(q);
 
     return (
         <>
@@ -507,7 +528,7 @@ function BodyStatementBased({ q, classes, singleColMode, diagramMaxHeight }) {
                 <div style={getDynamicOptGrid(opts, singleColMode)}>
                     {opts.map((opt, i) => (
                         <div key={i} style={Q.optRow}>
-                            <span style={Q.optLbl}>({optionLabel(i, classes)})</span>
+                            <span style={Q.optLbl}>({labels[i] || optionLabel(i, classes)})</span>
                             <span style={{ flex: 1, minWidth: 0, fontWeight: 400 }}>
                                 <MathRenderer inline text={opt} />
                             </span>
@@ -536,6 +557,7 @@ export default function QuestionBlock({
 }) {
     if (!q) return null;
 
+    const activeFontSize = q.fontSize || fontSize;
     const qType = (q.type || q.q_type || 'MCQ').toUpperCase();
 
     const renderBody = () => {
@@ -581,7 +603,7 @@ export default function QuestionBlock({
     };
 
     return (
-        <div style={{ ...Q.wrap, fontSize, lineHeight, ...extraStyle }} className="question-block">
+        <div style={{ ...Q.wrap, fontSize: activeFontSize, lineHeight, ...extraStyle }} className="question-block">
             <div style={Q.row}>
                 <span style={Q.num}>{displayNum}.</span>
                 <div style={Q.body}>{renderBody()}</div>

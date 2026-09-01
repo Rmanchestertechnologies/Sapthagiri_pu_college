@@ -8,6 +8,8 @@
  * - S Set: Maximum shuffle (shuffled questions, shuffled options) with recalculated answer keys.
  */
 
+import { getResolvedAnswerLabel } from './sanitize.js';
+
 // Seeded pseudo-random number generator for deterministic shuffling per paper ID + set name
 function createSeededRandom(seedStr) {
     let hash = 0;
@@ -185,11 +187,7 @@ export function generatePaperSet(paper, setName = 'P') {
 export function generateAnswerKey(questions = [], setName = 'P') {
     return questions.map((q, idx) => {
         const qNum = q.setQNo || (idx + 1);
-        let ans = q.answer || 'N/A';
-        // Normalize answer to clean string
-        if (typeof ans === 'number') {
-            ans = getOptionLetter(ans - 1);
-        }
+        const ans = getResolvedAnswerLabel(q);
         return {
             qNo: qNum,
             originalQNo: q.originalQNo || qNum,
@@ -197,7 +195,7 @@ export function generateAnswerKey(questions = [], setName = 'P') {
             type: q.type || 'MCQ',
             subject: q.subject || '',
             chapter: q.chapter || '',
-            solutionText: q.solutionText || '',
+            solutionText: q.solutionText || q.solution || '',
         };
     });
 }

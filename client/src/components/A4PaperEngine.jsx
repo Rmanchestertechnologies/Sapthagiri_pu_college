@@ -58,7 +58,7 @@ export default function A4PaperEngine({
                 }}
             >
                 {/* ── Single Unified Question Paper Sheet ── */}
-                <div className="a4-sheet-page a4-questions-page" style={{ position: 'relative', overflow: 'hidden' }}>
+                <div className="a4-sheet-page a4-questions-page" style={{ position: 'relative' }}>
                     {/* Official Sapthagiri PU College Campus Watermark */}
                     <div 
                         className="a4-watermark-print"
@@ -241,10 +241,41 @@ export default function A4PaperEngine({
                     body * {
                         visibility: hidden !important;
                     }
-                    .a4-print-document, .a4-print-document * {
+
+                    /* ── Target 1: Answer Key Print ── */
+                    body.printing-answer-key #print-target-answer-key,
+                    body.printing-answer-key #print-target-answer-key * {
                         visibility: visible !important;
                     }
-                    .a4-print-document {
+                    body.printing-answer-key #print-target-answer-key {
+                        position: absolute !important;
+                        top: 0 !important;
+                        left: 0 !important;
+                        width: 100% !important;
+                        display: block !important;
+                        overflow: visible !important;
+                    }
+
+                    /* ── Target 2: Solution Key Print ── */
+                    body.printing-solution-key #print-target-solution-key,
+                    body.printing-solution-key #print-target-solution-key * {
+                        visibility: visible !important;
+                    }
+                    body.printing-solution-key #print-target-solution-key {
+                        position: absolute !important;
+                        top: 0 !important;
+                        left: 0 !important;
+                        width: 100% !important;
+                        display: block !important;
+                        overflow: visible !important;
+                    }
+
+                    /* ── Target 3: Question Paper Print (Default) ── */
+                    body:not(.printing-answer-key):not(.printing-solution-key) .a4-print-document,
+                    body:not(.printing-answer-key):not(.printing-solution-key) .a4-print-document * {
+                        visibility: visible !important;
+                    }
+                    body:not(.printing-answer-key):not(.printing-solution-key) .a4-print-document {
                         position: absolute !important;
                         top: 0 !important;
                         left: 0 !important;
@@ -252,7 +283,9 @@ export default function A4PaperEngine({
                         margin: 0 !important;
                         padding: 0 !important;
                         transform: none !important;
+                        overflow: visible !important;
                     }
+
                     .a4-sheet-page {
                         box-shadow: none !important;
                         border: none !important;
@@ -260,6 +293,10 @@ export default function A4PaperEngine({
                         padding: 0 !important;
                         width: 100% !important;
                         min-height: auto !important;
+                        overflow: visible !important;
+                    }
+                    .a4-questions-page {
+                        overflow: visible !important;
                     }
                     .a4-cover-page {
                         page-break-after: always !important;
@@ -267,6 +304,7 @@ export default function A4PaperEngine({
                     }
                     .a4-page-content {
                         padding: 0 !important;
+                        overflow: visible !important;
                     }
                     .no-print {
                         display: none !important;

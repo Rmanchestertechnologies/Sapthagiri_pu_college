@@ -1,0 +1,152 @@
+import React from 'react';
+import { getResolvedAnswerLabel } from '../utils/sanitize';
+
+export default function A4AnswerKey({
+    paper = {},
+    questions = [],
+    startQNo = 1,
+    setName = 'P',
+    onClose,
+}) {
+    const paperTitle = paper.title || `${paper.subject || 'Academic'} Assessment`;
+    const resolvedQuestions = questions.length > 0 ? questions : (paper.questions || []);
+
+    const handlePrint = () => {
+        document.body.classList.add('printing-answer-key');
+        setTimeout(() => {
+            window.print();
+            setTimeout(() => {
+                document.body.classList.remove('printing-answer-key');
+            }, 300);
+        }, 150);
+    };
+
+    return (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 backdrop-blur-sm p-4 overflow-y-auto">
+            <div className="bg-slate-100 rounded-3xl shadow-2xl w-full max-w-4xl max-h-[92vh] flex flex-col overflow-hidden my-auto border border-slate-200 animate-fade-in">
+                
+                {/* ── Action Toolbar (Hidden during print) ── */}
+                <div className="flex justify-between items-center px-6 py-4 bg-white border-b border-gray-200 no-print">
+                    <div className="flex items-center gap-3">
+                        <span className="text-xs font-black text-gold uppercase tracking-widest bg-navy px-3 py-1 rounded-full">
+                            A4 Print & Export View
+                        </span>
+                        <h3 className="text-base font-black text-navy uppercase tracking-tight">
+                            Official Answer Key ({resolvedQuestions.length} Questions)
+                        </h3>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={handlePrint}
+                            className="bg-navy text-gold hover:bg-gold hover:text-navy px-5 py-2 rounded-xl font-black text-xs uppercase tracking-wider transition shadow cursor-pointer flex items-center gap-1.5"
+                        >
+                            <span>🖨️</span> Print Key (A4)
+                        </button>
+                        <button
+                            onClick={handlePrint}
+                            className="bg-emerald-600 text-white hover:bg-emerald-700 px-5 py-2 rounded-xl font-black text-xs uppercase tracking-wider transition shadow cursor-pointer flex items-center gap-1.5"
+                            title="Open print dialog and choose Save as PDF"
+                        >
+                            <span>📥</span> Download PDF
+                        </button>
+                        {onClose && (
+                            <button
+                                onClick={onClose}
+                                className="text-slate-400 hover:text-red-500 bg-gray-100 hover:bg-gray-200 rounded-xl w-9 h-9 flex items-center justify-center text-sm font-black transition cursor-pointer"
+                            >
+                                ✕
+                            </button>
+                        )}
+                    </div>
+                </div>
+
+                {/* ── A4 Sheet Preview Area ── */}
+                <div className="p-6 overflow-y-auto flex justify-center bg-slate-200/60">
+                    <div
+                        id="print-target-answer-key"
+                        className="bg-white shadow-xl p-8 sm:p-12 w-full text-slate-800"
+                        style={{
+                            maxWidth: '794px',
+                            minHeight: '1123px',
+                            boxSizing: 'border-box',
+                            fontFamily: 'Calibri, "Segoe UI", Arial, sans-serif',
+                        }}
+                    >
+                        {/* ── College Header ── */}
+                        <div className="text-center border-b-2 border-slate-900 pb-4 mb-6">
+                            <div className="flex items-center justify-center gap-3 mb-2">
+                                <img
+                                    src="/SapthagiriLogo.jpg"
+                                    alt="Sapthagiri PU College"
+                                    className="w-14 h-14 object-contain rounded-full border border-slate-200 shadow-xs"
+                                    onError={e => { e.currentTarget.style.display = 'none'; }}
+                                />
+                                <div className="text-left">
+                                    <h1 className="text-xl sm:text-2xl font-black text-navy uppercase tracking-tight leading-tight">
+                                        Sapthagiri Pre University College
+                                    </h1>
+                                    <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest">
+                                        Davanagere • The Land of Opportunity
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div className="mt-3 pt-2 border-t border-slate-200 flex flex-wrap justify-between items-center text-xs font-semibold text-slate-700">
+                                <span className="font-bold text-navy">{paperTitle}</span>
+                                {setName && <span>SET: <strong>{setName}</strong></span>}
+                                {paper.subject && <span>Subject: <strong>{paper.subject}</strong></span>}
+                                <span>Total Qs: <strong>{resolvedQuestions.length}</strong></span>
+                            </div>
+                            <div className="mt-1 text-center">
+                                <span className="inline-block bg-slate-900 text-amber-400 font-bold text-[11px] uppercase tracking-widest px-4 py-0.5 rounded-full">
+                                    Official Answer Key
+                                </span>
+                            </div>
+                        </div>
+
+                        {/* ── Answer Key Grid (5 columns on desktop, clean spacing) ── */}
+                        <div className="grid grid-cols-4 sm:grid-cols-5 gap-2.5 sm:gap-3 text-xs">
+                            {resolvedQuestions.map((q, idx) => {
+                                const currentQNo = q.setQNo || (startQNo + idx);
+                                const answerLabel = getResolvedAnswerLabel(q);
+                                return (
+                                    <div
+                                        key={idx}
+                                        className="border border-slate-300 rounded-lg p-2.5 flex items-center justify-between bg-slate-50/50 hover:bg-slate-100 transition"
+                                        style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}
+                                    >
+                                        <span className="font-semibold text-slate-600 text-xs">
+                                            Q.{currentQNo}
+                                        </span>
+                                        <span className="bg-navy text-amber-400 font-bold px-2.5 py-0.5 rounded text-xs min-w-[24px] text-center shadow-xs">
+                                            {answerLabel}
+                                        </span>
+                                    </div>
+                                );
+                            })}
+                        </div>
+
+                        {/* ── Document Footer ── */}
+                        <div className="mt-12 pt-4 border-t border-slate-300 text-center text-[11px] text-slate-500 flex justify-between items-center">
+                            <span>Sapthagiri PU College Examination Authority</span>
+                            <span>Page 1 of 1</span>
+                        </div>
+                    </div>
+                </div>
+
+                {/* ── Bottom Modal Footer (Hidden during print) ── */}
+                <div className="p-4 bg-white border-t border-gray-200 flex justify-between items-center no-print">
+                    <p className="text-xs text-slate-500 font-medium">
+                        Standard A4 printable format. Answer labels strictly reflect each question's actual option format.
+                    </p>
+                    <button
+                        onClick={onClose}
+                        className="bg-slate-200 hover:bg-slate-300 text-slate-800 px-6 py-2 rounded-xl font-bold text-xs uppercase tracking-wider transition cursor-pointer"
+                    >
+                        Close
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
