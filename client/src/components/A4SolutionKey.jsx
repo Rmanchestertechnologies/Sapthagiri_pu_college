@@ -61,143 +61,206 @@ export default function A4SolutionKey({
                     </div>
                 </div>
 
-                {/* ── A4 Sheet Preview Area ── */}
-                <div className="p-6 overflow-y-auto flex justify-center bg-slate-200/60">
-                    <div
-                        id="print-target-solution-key"
-                        className="bg-white shadow-xl p-8 sm:p-12 w-full text-slate-800 space-y-6"
-                        style={{
-                            maxWidth: '794px',
-                            minHeight: '1123px',
-                            boxSizing: 'border-box',
-                            fontFamily: 'Calibri, "Segoe UI", Arial, sans-serif',
-                        }}
-                    >
-                        {/* ── College Header ── */}
-                        <div className="text-center border-b-2 border-slate-900 pb-4 mb-6">
-                            <div className="flex items-center justify-center gap-3 mb-2">
-                                <img
-                                    src="/SapthagiriLogo.jpg"
-                                    alt="Sapthagiri PU College"
-                                    className="w-14 h-14 object-contain rounded-full border border-slate-200 shadow-xs"
-                                    onError={e => { e.currentTarget.style.display = 'none'; }}
-                                />
-                                <div className="text-left">
-                                    <h1 className="text-xl sm:text-2xl font-black text-navy uppercase tracking-tight leading-tight">
-                                        Sapthagiri Pre University College
-                                    </h1>
-                                    <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest">
-                                        Davanagere • The Land of Opportunity
-                                    </p>
-                                </div>
-                            </div>
+                {/* ── A4 Sheet Preview Area (Expands seamlessly to enclose 100% of questions) ── */}
+                <div className="flex-1 overflow-y-auto p-4 sm:p-8 bg-slate-300/80 min-h-0">
+                    <div className="mx-auto w-full max-w-[794px]">
+                        <div
+                            id="print-target-solution-key"
+                            className="bg-white shadow-2xl rounded-2xl p-8 sm:p-14 w-full text-slate-800 space-y-6 border border-slate-300 relative"
+                            style={{
+                                minHeight: '1123px',
+                                boxSizing: 'border-box',
+                                fontFamily: 'Calibri, "Segoe UI", Arial, sans-serif',
+                            }}
+                        >
+                            {/* Official Sapthagiri PU College Campus Watermark */}
+                            <div 
+                                className="a4-watermark-print"
+                                style={{
+                                    position: 'absolute',
+                                    top: '50%',
+                                    left: '50%',
+                                    transform: 'translate(-50%, -50%)',
+                                    width: '520px',
+                                    height: '400px',
+                                    backgroundImage: "url('/SapthagiriCampus.webp')",
+                                    backgroundRepeat: 'no-repeat',
+                                    backgroundPosition: 'center',
+                                    backgroundSize: 'contain',
+                                    opacity: 0.05,
+                                    filter: 'grayscale(100%)',
+                                    pointerEvents: 'none',
+                                    zIndex: 0
+                                }}
+                            />
 
-                            <div className="mt-3 pt-2 border-t border-slate-200 flex flex-wrap justify-between items-center text-xs font-semibold text-slate-700">
-                                <span className="font-bold text-navy">{paperTitle}</span>
-                                {setName && <span>SET: <strong>{setName}</strong></span>}
-                                {paper.subject && <span>Subject: <strong>{paper.subject}</strong></span>}
-                                <span>Total Questions: <strong>{resolvedQuestions.length}</strong></span>
-                            </div>
-                            <div className="mt-1 text-center">
-                                <span className="inline-block bg-slate-900 text-amber-400 font-bold text-[11px] uppercase tracking-widest px-4 py-0.5 rounded-full">
-                                    Detailed Solutions Guide
-                                </span>
-                            </div>
-                        </div>
-
-                        {/* ── Questions & Explanations Flow ── */}
-                        <div className="space-y-6">
-                            {resolvedQuestions.map((q, idx) => {
-                                const currentQNo = q.setQNo || (startQNo + idx);
-                                const answerLabel = getResolvedAnswerLabel(q);
-                                const labels = getQuestionOptionLabels(q);
-                                const qText = q.questionText || q.question || '';
-                                const diagramImg = q.imageUrl || q.image_url;
-                                const explanation = q.solutionText || q.solution || q.explanation || '';
-                                const options = Array.isArray(q.options) ? q.options : [];
-
-                                return (
-                                    <div
-                                        key={idx}
-                                        className="border border-slate-200 rounded-2xl p-5 bg-slate-50/40 space-y-3"
-                                        style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}
-                                    >
-                                        <div className="flex justify-between items-center border-b border-slate-200 pb-2">
-                                            <span className="font-bold text-sm text-navy">
-                                                Question {currentQNo}
-                                            </span>
-                                            <span className="bg-emerald-100 text-emerald-800 text-xs font-bold px-3 py-1 rounded-md border border-emerald-200">
-                                                Correct Answer: ({answerLabel})
-                                            </span>
-                                        </div>
-
-                                        {/* Question Text */}
-                                        <div className="text-xs text-slate-800 font-normal leading-relaxed">
-                                            <MathRenderer inline text={qText} />
-                                        </div>
-
-                                        {/* Diagram if present */}
-                                        {diagramImg && (
-                                            <div className="my-2 max-w-xs mx-auto border border-slate-200 rounded-lg p-1 bg-white">
-                                                <img
-                                                    src={diagramImg}
-                                                    alt={`Q${currentQNo} Diagram`}
-                                                    className="max-h-36 object-contain mx-auto"
-                                                    onError={e => { e.currentTarget.parentElement.style.display = 'none'; }}
-                                                />
-                                            </div>
-                                        )}
-
-                                        {/* Options summary */}
-                                        {options.length > 0 && (
-                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 pt-1 text-[11px] text-slate-600">
-                                                {options.map((opt, oi) => {
-                                                    const isCorrect = (labels[oi] === answerLabel) || (oi === parseInt(answerLabel, 10) - 1);
-                                                    return (
-                                                        <div
-                                                            key={oi}
-                                                            className={`p-1.5 rounded flex items-start gap-1.5 ${
-                                                                isCorrect
-                                                                    ? 'bg-emerald-50 text-emerald-900 font-medium border border-emerald-200'
-                                                                    : 'bg-white border border-slate-100'
-                                                            }`}
-                                                        >
-                                                            <span className="font-semibold">({labels[oi] || String.fromCharCode(65 + oi)})</span>
-                                                            <div className="flex-1 min-w-0">
-                                                                <MathRenderer inline text={typeof opt === 'object' ? (opt.text || '') : String(opt)} />
-                                                            </div>
-                                                            {isCorrect && <span className="text-emerald-700 font-bold">✓</span>}
-                                                        </div>
-                                                    );
-                                                })}
-                                            </div>
-                                        )}
-
-                                        {/* Explanation Box with full KaTeX Math Rendering */}
-                                        <div className="bg-white p-3.5 rounded-xl border border-slate-200 text-xs text-slate-700 space-y-1">
-                                            <span className="font-bold text-navy block">Explanation:</span>
-                                            {explanation ? (
-                                                <div className="leading-relaxed">
-                                                    <MathRenderer inline text={explanation} />
-                                                </div>
-                                            ) : (
-                                                <p className="text-slate-400 italic text-[11px]">
-                                                    Option ({answerLabel}) is the verified correct answer.
-                                                </p>
-                                            )}
+                            <div style={{ position: 'relative', zIndex: 1 }}>
+                                {/* ── College Header ── */}
+                                <div className="text-center border-b-2 border-slate-900 pb-4 mb-6">
+                                    <div className="flex items-center justify-center gap-3 mb-2">
+                                        <img
+                                            src="/SapthagiriLogo.jpg"
+                                            alt="Sapthagiri PU College"
+                                            className="w-14 h-14 object-contain rounded-full border border-slate-200 shadow-xs"
+                                            onError={e => { e.currentTarget.style.display = 'none'; }}
+                                        />
+                                        <div className="text-left">
+                                            <h1 className="text-xl sm:text-2xl font-black text-navy uppercase tracking-tight leading-tight">
+                                                Sapthagiri Pre University College
+                                            </h1>
+                                            <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest">
+                                                Davanagere • The Land of Opportunity
+                                            </p>
                                         </div>
                                     </div>
-                                );
-                            })}
-                        </div>
 
-                        {/* ── Document Footer ── */}
-                        <div className="mt-12 pt-4 border-t border-slate-300 text-center text-[11px] text-slate-500 flex justify-between items-center">
-                            <span>Sapthagiri PU College Examination Authority</span>
-                            <span>Comprehensive Solutions Guide</span>
+                                    <div className="mt-3 pt-2 border-t border-slate-200 flex flex-wrap justify-between items-center text-xs font-semibold text-slate-700">
+                                        <span className="font-bold text-navy">{paperTitle}</span>
+                                        {setName && <span>SET: <strong>{setName}</strong></span>}
+                                        {paper.subject && <span>Subject: <strong>{paper.subject}</strong></span>}
+                                        <span>Total Questions: <strong>{resolvedQuestions.length}</strong></span>
+                                    </div>
+                                    <div className="mt-1 text-center">
+                                        <span className="inline-block bg-slate-900 text-amber-400 font-bold text-[11px] uppercase tracking-widest px-4 py-0.5 rounded-full">
+                                            Detailed Solutions Guide
+                                        </span>
+                                    </div>
+                                </div>
+
+                                {/* ── Questions & Explanations Flow ── */}
+                                <div className="space-y-6">
+                                    {resolvedQuestions.map((q, idx) => {
+                                        const currentQNo = q.setQNo || (startQNo + idx);
+                                        const answerLabel = getResolvedAnswerLabel(q);
+                                        const labels = getQuestionOptionLabels(q);
+                                        const qText = q.questionText || q.question || '';
+                                        const diagramImg = q.imageUrl || q.image_url;
+                                        const explanation = q.solutionText || q.solution || q.explanation || '';
+                                        const options = Array.isArray(q.options) ? q.options : [];
+
+                                        return (
+                                            <div
+                                                key={idx}
+                                                className="border border-slate-200 rounded-2xl p-5 bg-slate-50/40 space-y-3"
+                                                style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}
+                                            >
+                                                <div className="flex justify-between items-center border-b border-slate-200 pb-2">
+                                                    <span className="font-bold text-sm text-navy">
+                                                        Question {currentQNo}
+                                                    </span>
+                                                    <span className="bg-emerald-100 text-emerald-800 text-xs font-bold px-3 py-1 rounded-md border border-emerald-200">
+                                                        Correct Answer: ({answerLabel})
+                                                    </span>
+                                                </div>
+
+                                                {/* Question Text */}
+                                                <div className="text-xs text-slate-800 font-normal leading-relaxed">
+                                                    <MathRenderer inline text={qText} />
+                                                </div>
+
+                                                {/* Diagram if present */}
+                                                {diagramImg && (
+                                                    <div className="my-2 max-w-xs mx-auto border border-slate-200 rounded-lg p-1 bg-white">
+                                                        <img
+                                                            src={diagramImg}
+                                                            alt={`Q${currentQNo} Diagram`}
+                                                            className="max-h-36 object-contain mx-auto"
+                                                            onError={e => { e.currentTarget.parentElement.style.display = 'none'; }}
+                                                        />
+                                                    </div>
+                                                )}
+
+                                                {/* Options summary */}
+                                                {options.length > 0 && (
+                                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 pt-1 text-[11px] text-slate-600">
+                                                        {options.map((opt, oi) => {
+                                                            const isCorrect = (labels[oi] === answerLabel) || (oi === parseInt(answerLabel, 10) - 1);
+                                                            return (
+                                                                <div
+                                                                    key={oi}
+                                                                    className={`p-1.5 rounded flex items-start gap-1.5 ${
+                                                                        isCorrect
+                                                                            ? 'bg-emerald-50 text-emerald-900 font-medium border border-emerald-200'
+                                                                            : 'bg-white border border-slate-100'
+                                                                    }`}
+                                                                >
+                                                                    <span className="font-semibold">({labels[oi] || String.fromCharCode(65 + oi)})</span>
+                                                                    <div className="flex-1 min-w-0">
+                                                                        <MathRenderer inline text={typeof opt === 'object' ? (opt.text || '') : String(opt)} />
+                                                                    </div>
+                                                                    {isCorrect && <span className="text-emerald-700 font-bold">✓</span>}
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                )}
+
+                                                {/* Explanation Box with full KaTeX Math Rendering */}
+                                                <div className="bg-white p-3.5 rounded-xl border border-slate-200 text-xs text-slate-700 space-y-1">
+                                                    <span className="font-bold text-navy block">Explanation:</span>
+                                                    {explanation ? (
+                                                        <div className="leading-relaxed">
+                                                            <MathRenderer inline text={explanation} />
+                                                        </div>
+                                                    ) : (
+                                                        <p className="text-slate-400 italic text-[11px]">
+                                                            Option ({answerLabel}) is the verified correct answer.
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+
+                                {/* ── Document Footer ── */}
+                                <div className="mt-12 pt-4 border-t border-slate-300 text-center text-[11px] text-slate-500 flex justify-between items-center">
+                                    <span>Sapthagiri PU College Examination Authority</span>
+                                    <span>Comprehensive Solutions Guide</span>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
+
+                {/* ── Self-Contained Print Styles ── */}
+                <style>{`
+                    @media print {
+                        @page {
+                            size: A4 portrait;
+                            margin: 10mm;
+                        }
+                        body {
+                            background: #ffffff !important;
+                            margin: 0 !important;
+                            padding: 0 !important;
+                        }
+                        .no-print, nav, header, button {
+                            display: none !important;
+                        }
+                        body * {
+                            visibility: hidden !important;
+                        }
+                        body.printing-solution-key #print-target-solution-key,
+                        body.printing-solution-key #print-target-solution-key * {
+                            visibility: visible !important;
+                        }
+                        body.printing-solution-key #print-target-solution-key {
+                            position: absolute !important;
+                            top: 0 !important;
+                            left: 0 !important;
+                            width: 100% !important;
+                            max-width: 100% !important;
+                            margin: 0 !important;
+                            padding: 0 !important;
+                            box-shadow: none !important;
+                            border: none !important;
+                            display: block !important;
+                            overflow: visible !important;
+                            background: #ffffff !important;
+                        }
+                    }
+                `}</style>
 
                 {/* ── Bottom Modal Footer (Hidden during print) ── */}
                 <div className="p-4 bg-white border-t border-gray-200 flex justify-between items-center no-print">

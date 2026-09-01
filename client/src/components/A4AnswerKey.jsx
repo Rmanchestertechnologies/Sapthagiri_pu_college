@@ -61,78 +61,141 @@ export default function A4AnswerKey({
                 </div>
 
                 {/* ── A4 Sheet Preview Area ── */}
-                <div className="p-6 overflow-y-auto flex justify-center bg-slate-200/60">
-                    <div
-                        id="print-target-answer-key"
-                        className="bg-white shadow-xl p-8 sm:p-12 w-full text-slate-800"
-                        style={{
-                            maxWidth: '794px',
-                            minHeight: '1123px',
-                            boxSizing: 'border-box',
-                            fontFamily: 'Calibri, "Segoe UI", Arial, sans-serif',
-                        }}
-                    >
-                        {/* ── College Header ── */}
-                        <div className="text-center border-b-2 border-slate-900 pb-4 mb-6">
-                            <div className="flex items-center justify-center gap-3 mb-2">
-                                <img
-                                    src="/SapthagiriLogo.jpg"
-                                    alt="Sapthagiri PU College"
-                                    className="w-14 h-14 object-contain rounded-full border border-slate-200 shadow-xs"
-                                    onError={e => { e.currentTarget.style.display = 'none'; }}
-                                />
-                                <div className="text-left">
-                                    <h1 className="text-xl sm:text-2xl font-black text-navy uppercase tracking-tight leading-tight">
-                                        Sapthagiri Pre University College
-                                    </h1>
-                                    <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest">
-                                        Davanagere • The Land of Opportunity
-                                    </p>
-                                </div>
-                            </div>
+                <div className="flex-1 overflow-y-auto p-4 sm:p-8 bg-slate-300/80 min-h-0">
+                    <div className="mx-auto w-full max-w-[794px]">
+                        <div
+                            id="print-target-answer-key"
+                            className="bg-white shadow-2xl rounded-2xl p-8 sm:p-14 w-full text-slate-800 border border-slate-300 relative"
+                            style={{
+                                minHeight: '1123px',
+                                boxSizing: 'border-box',
+                                fontFamily: 'Calibri, "Segoe UI", Arial, sans-serif',
+                            }}
+                        >
+                            {/* Official Sapthagiri PU College Campus Watermark */}
+                            <div 
+                                className="a4-watermark-print"
+                                style={{
+                                    position: 'absolute',
+                                    top: '50%',
+                                    left: '50%',
+                                    transform: 'translate(-50%, -50%)',
+                                    width: '520px',
+                                    height: '400px',
+                                    backgroundImage: "url('/SapthagiriCampus.webp')",
+                                    backgroundRepeat: 'no-repeat',
+                                    backgroundPosition: 'center',
+                                    backgroundSize: 'contain',
+                                    opacity: 0.05,
+                                    filter: 'grayscale(100%)',
+                                    pointerEvents: 'none',
+                                    zIndex: 0
+                                }}
+                            />
 
-                            <div className="mt-3 pt-2 border-t border-slate-200 flex flex-wrap justify-between items-center text-xs font-semibold text-slate-700">
-                                <span className="font-bold text-navy">{paperTitle}</span>
-                                {setName && <span>SET: <strong>{setName}</strong></span>}
-                                {paper.subject && <span>Subject: <strong>{paper.subject}</strong></span>}
-                                <span>Total Qs: <strong>{resolvedQuestions.length}</strong></span>
-                            </div>
-                            <div className="mt-1 text-center">
-                                <span className="inline-block bg-slate-900 text-amber-400 font-bold text-[11px] uppercase tracking-widest px-4 py-0.5 rounded-full">
-                                    Official Answer Key
-                                </span>
-                            </div>
-                        </div>
+                            <div style={{ position: 'relative', zIndex: 1 }}>
+                                {/* ── College Header ── */}
+                                <div className="text-center border-b-2 border-slate-900 pb-4 mb-6">
+                                    <div className="flex items-center justify-center gap-3 mb-2">
+                                        <img
+                                            src="/SapthagiriLogo.jpg"
+                                            alt="Sapthagiri PU College"
+                                            className="w-14 h-14 object-contain rounded-full border border-slate-200 shadow-xs"
+                                            onError={e => { e.currentTarget.style.display = 'none'; }}
+                                        />
+                                        <div className="text-left">
+                                            <h1 className="text-xl sm:text-2xl font-black text-navy uppercase tracking-tight leading-tight">
+                                                Sapthagiri Pre University College
+                                            </h1>
+                                            <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest">
+                                                Davanagere • The Land of Opportunity
+                                            </p>
+                                        </div>
+                                    </div>
 
-                        {/* ── Answer Key Grid (5 columns on desktop, clean spacing) ── */}
-                        <div className="grid grid-cols-4 sm:grid-cols-5 gap-2.5 sm:gap-3 text-xs">
-                            {resolvedQuestions.map((q, idx) => {
-                                const currentQNo = q.setQNo || (startQNo + idx);
-                                const answerLabel = getResolvedAnswerLabel(q);
-                                return (
-                                    <div
-                                        key={idx}
-                                        className="border border-slate-300 rounded-lg p-2.5 flex items-center justify-between bg-slate-50/50 hover:bg-slate-100 transition"
-                                        style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}
-                                    >
-                                        <span className="font-semibold text-slate-600 text-xs">
-                                            Q.{currentQNo}
-                                        </span>
-                                        <span className="bg-navy text-amber-400 font-bold px-2.5 py-0.5 rounded text-xs min-w-[24px] text-center shadow-xs">
-                                            {answerLabel}
+                                    <div className="mt-3 pt-2 border-t border-slate-200 flex flex-wrap justify-between items-center text-xs font-semibold text-slate-700">
+                                        <span className="font-bold text-navy">{paperTitle}</span>
+                                        {setName && <span>SET: <strong>{setName}</strong></span>}
+                                        {paper.subject && <span>Subject: <strong>{paper.subject}</strong></span>}
+                                        <span>Total Qs: <strong>{resolvedQuestions.length}</strong></span>
+                                    </div>
+                                    <div className="mt-1 text-center">
+                                        <span className="inline-block bg-slate-900 text-amber-400 font-bold text-[11px] uppercase tracking-widest px-4 py-0.5 rounded-full">
+                                            Official Answer Key
                                         </span>
                                     </div>
-                                );
-                            })}
-                        </div>
+                                </div>
 
-                        {/* ── Document Footer ── */}
-                        <div className="mt-12 pt-4 border-t border-slate-300 text-center text-[11px] text-slate-500 flex justify-between items-center">
-                            <span>Sapthagiri PU College Examination Authority</span>
-                            <span>Page 1 of 1</span>
+                                {/* ── Answer Key Grid (5 columns on desktop, clean spacing) ── */}
+                                <div className="grid grid-cols-4 sm:grid-cols-5 gap-2.5 sm:gap-3 text-xs">
+                                    {resolvedQuestions.map((q, idx) => {
+                                        const currentQNo = q.setQNo || (startQNo + idx);
+                                        const answerLabel = getResolvedAnswerLabel(q);
+                                        return (
+                                            <div
+                                                key={idx}
+                                                className="border border-slate-300 rounded-lg p-2.5 flex items-center justify-between bg-slate-50/50 hover:bg-slate-100 transition"
+                                                style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}
+                                            >
+                                                <span className="font-semibold text-slate-600 text-xs">
+                                                    Q.{currentQNo}
+                                                </span>
+                                                <span className="bg-navy text-amber-400 font-bold px-2.5 py-0.5 rounded text-xs min-w-[24px] text-center shadow-xs">
+                                                    {answerLabel}
+                                                </span>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+
+                                {/* ── Document Footer ── */}
+                                <div className="mt-12 pt-4 border-t border-slate-300 text-center text-[11px] text-slate-500 flex justify-between items-center">
+                                    <span>Sapthagiri PU College Examination Authority</span>
+                                    <span>Official Answer Key</span>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
+
+                {/* ── Self-Contained Print Styles ── */}
+                <style>{`
+                    @media print {
+                        @page {
+                            size: A4 portrait;
+                            margin: 10mm;
+                        }
+                        body {
+                            background: #ffffff !important;
+                            margin: 0 !important;
+                            padding: 0 !important;
+                        }
+                        .no-print, nav, header, button {
+                            display: none !important;
+                        }
+                        body * {
+                            visibility: hidden !important;
+                        }
+                        body.printing-answer-key #print-target-answer-key,
+                        body.printing-answer-key #print-target-answer-key * {
+                            visibility: visible !important;
+                        }
+                        body.printing-answer-key #print-target-answer-key {
+                            position: absolute !important;
+                            top: 0 !important;
+                            left: 0 !important;
+                            width: 100% !important;
+                            max-width: 100% !important;
+                            margin: 0 !important;
+                            padding: 0 !important;
+                            box-shadow: none !important;
+                            border: none !important;
+                            display: block !important;
+                            overflow: visible !important;
+                            background: #ffffff !important;
+                        }
+                    }
+                `}</style>
 
                 {/* ── Bottom Modal Footer (Hidden during print) ── */}
                 <div className="p-4 bg-white border-t border-gray-200 flex justify-between items-center no-print">
