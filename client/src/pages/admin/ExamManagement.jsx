@@ -24,15 +24,28 @@ const getOptionsGridStyle = (options) => {
         };
     }
     
-    // Estimate clean text length of options (ignoring LaTeX commands for a better text length estimation)
+    let hasComplexFormula = false;
     const cleanLengths = options.map(opt => {
-        const cleanText = (opt || '')
-            .replace(/\\(text|mathrm|ce|begin|end){[^}]*}/g, '')
-            .replace(/\$\$?[^$]+\$\$?/g, '')
-            .replace(/[{}$_^[\]]/g, '')
-            .trim();
-        return cleanText.length;
+        const str = String(typeof opt === 'object' ? (opt.text || opt.optionText || '') : (opt || ''));
+        const clean = str.replace(/<[^>]+>/g, '').trim();
+        if (/(\$|\\\[|\\\(|\\frac|\\sqrt|\\int|\\rightarrow|\||\^|_)/i.test(clean)) {
+            if (clean.length > 12 || clean.includes('|') || clean.includes('\\rightarrow') || clean.includes('\\frac')) {
+                hasComplexFormula = true;
+            }
+        }
+        return clean.length;
     });
+
+    if (hasComplexFormula) {
+        return {
+            display: 'grid',
+            gridTemplateColumns: '1fr',
+            gap: '8px 24px',
+            marginTop: '8px',
+            marginLeft: '24px',
+            fontSize: '0.95em'
+        };
+    }
     
     const maxLength = Math.max(...cleanLengths);
     const totalLength = cleanLengths.reduce((a, b) => a + b, 0);
@@ -40,10 +53,10 @@ const getOptionsGridStyle = (options) => {
     let columns = '1fr';
     let gap = '10px 24px';
     
-    if (maxLength <= 15 && totalLength <= 60) {
+    if (maxLength <= 10 && totalLength <= 40) {
         columns = '1fr 1fr 1fr 1fr';
         gap = '8px 16px';
-    } else if (maxLength <= 35 && totalLength <= 110) {
+    } else if (maxLength <= 28 && totalLength <= 90) {
         columns = '1fr 1fr';
         gap = '8px 24px';
     }
@@ -820,7 +833,8 @@ export default function ExamManagement() {
 
     const handlePrint = async (exam) => {
         try {
-            const res = await api.get(`/api/exams/admin/${exam._id}`);
+            const examId = exam._id || exam.id;
+            const res = await api.get(`/api/exams/admin/${examId}`);
             const data = res.data;
 
             const defaultOffline = `General Instructions for Offline Exam:

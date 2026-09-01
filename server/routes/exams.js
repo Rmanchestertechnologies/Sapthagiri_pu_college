@@ -343,14 +343,75 @@ router.get('/', [auth, checkRole(['admin'])], async (req, res) => {
     }
 });
 
+// Helper to hydrate full questions for composite/commissioned exams or string-ID questions
+async function hydrateExamQuestions(exam) {
+    if (!exam) return exam;
+    const eObj = exam.toObject ? exam.toObject() : { ...exam };
+    let questions = Array.isArray(eObj.questions) ? [...eObj.questions] : [];
+
+    // 1. If questions is empty, but subjectAssignments has submitted papers, merge questions from all assignments!
+    if (questions.length === 0 && Array.isArray(eObj.subjectAssignments) && eObj.subjectAssignments.length > 0) {
+        const allPapers = await storage.getPapers();
+        for (const sa of eObj.subjectAssignments) {
+            let paper = null;
+            if (sa.submittedPaperId) {
+                paper = allPapers.find(p => String(p._id || p.id) === String(sa.submittedPaperId));
+            }
+            if (!paper) {
+                paper = allPapers.find(p =>
+                    p.title && p.title.toLowerCase().includes(eObj.title.toLowerCase()) &&
+                    (p.subject || '').toLowerCase().includes((sa.subject || '').toLowerCase())
+                );
+            }
+            if (paper && Array.isArray(paper.questions) && paper.questions.length > 0) {
+                let paperQuestions = paper.questions;
+                if (typeof paperQuestions[0] === 'string') {
+                    try {
+                        paperQuestions = await supabaseQuestions.getQuestionsByIds(paperQuestions);
+                    } catch (err) {
+                        paperQuestions = paper.questionObjects || [];
+                    }
+                }
+                paperQuestions.forEach(q => {
+                    const qClone = typeof q === 'object' && q !== null ? { ...q } : { questionText: String(q) };
+                    if (!qClone.subject) qClone.subject = sa.subject;
+                    questions.push(qClone);
+                });
+            } else if (paper && Array.isArray(paper.questionObjects) && paper.questionObjects.length > 0) {
+                paper.questionObjects.forEach(q => {
+                    const qClone = typeof q === 'object' && q !== null ? { ...q } : { questionText: String(q) };
+                    if (!qClone.subject) qClone.subject = sa.subject;
+                    questions.push(qClone);
+                });
+            }
+        }
+    } else if (questions.length > 0 && typeof questions[0] === 'string') {
+        // 2. If questions contains string IDs, resolve them from Supabase!
+        try {
+            const resolved = await supabaseQuestions.getQuestionsByIds(questions);
+            if (resolved && resolved.length > 0) {
+                const map = new Map(resolved.map(q => [String(q._id || q.id), q]));
+                const ordered = questions.map(id => map.get(String(id))).filter(Boolean);
+                questions = ordered.length > 0 ? ordered : resolved;
+            }
+        } catch (err) {
+            console.error('Error hydrating exam questions by id:', err.message);
+        }
+    }
+
+    eObj.questions = questions;
+    return eObj;
+}
+
 // ─────────────────────────────────────────────────────────────────
 // ADMIN: Get single exam (full, with answers for admin)
 // GET /api/exams/admin/:id
 // ─────────────────────────────────────────────────────────────────
 router.get('/admin/:id', [auth, checkRole(['admin'])], async (req, res) => {
     try {
-        const exam = await storage.getExamById(req.params.id);
-        if (!exam) return res.status(404).json({ msg: 'Exam not found' });
+        const rawExam = await storage.getExamById(req.params.id);
+        if (!rawExam) return res.status(404).json({ msg: 'Exam not found' });
+        const exam = await hydrateExamQuestions(rawExam);
         res.json(exam);
     } catch (err) {
         res.status(500).json({ msg: 'Server Error: ' + err.message });
@@ -423,8 +484,9 @@ const seededShuffle = (arr, seed) => {
 // ─────────────────────────────────────────────────────────────────
 router.get('/:id/take', detectLabIp, async (req, res) => {
     try {
-        const exam = await storage.getExamById(req.params.id);
-        if (!exam) return res.status(404).json({ msg: 'Exam not found' });
+        const rawExam = await storage.getExamById(req.params.id);
+        if (!rawExam) return res.status(404).json({ msg: 'Exam not found' });
+        const exam = await hydrateExamQuestions(rawExam);
         if (!['live', 'scheduled', 'draft'].includes(exam.status)) {
             return res.status(403).json({ msg: 'Exam is not currently available.' });
         }

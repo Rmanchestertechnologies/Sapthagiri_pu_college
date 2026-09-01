@@ -222,7 +222,7 @@ const DashboardHome = () => {
                         Manage institutional examinations, track PCMB question delegation, and monitor faculty progress in real-time.
                     </p>
                 </div>
-                <div className="flex items-center gap-3 relative z-10">
+                <div className="flex items-center gap-3">
                     <button
                         onClick={() => setShowCommissionModal(true)}
                         className="bg-navy text-gold px-7 py-3.5 rounded-2xl font-black text-xs uppercase tracking-widest hover:scale-105 transition-all shadow-xl flex items-center gap-2.5 border-2 border-gold cursor-pointer"
@@ -785,7 +785,7 @@ const AdminNotificationBell = () => {
             </button>
 
             {isOpen && (
-                <div className="absolute right-0 mt-3 w-80 md:w-96 bg-white rounded-2xl shadow-2xl border-2 border-gold/40 z-50 text-gray-800 overflow-hidden animate-fade-in-up">
+                <div className="absolute right-0 mt-3 w-80 md:w-96 bg-white rounded-2xl shadow-2xl border-2 border-gold/40 z-[100] text-gray-800 overflow-hidden animate-fade-in-up">
                     <div className="p-3.5 bg-navy text-white flex justify-between items-center border-b border-gold/20">
                         <div className="flex items-center gap-2">
                             <span className="text-gold text-sm font-black uppercase tracking-wider">Notifications</span>
@@ -858,7 +858,7 @@ const AdminDashboard = () => {
     return (
         <div className="min-h-screen bg-[#F8FAFC] flex flex-col font-sans">
             {/* Top Navigation Bar - Sapthagiri Navy & Gold */}
-            <nav className="bg-[#081B3B] p-4 text-white flex justify-between items-center z-10 shadow-2xl border-b-4 border-amber-500">
+            <nav className="bg-[#081B3B] p-4 text-white flex justify-between items-center z-50 relative shadow-2xl border-b-4 border-amber-500">
                 <div 
                     className="flex items-center cursor-pointer hover:opacity-90 transition gap-4 ml-4"
                     onClick={() => navigate('/admin/dashboard')}

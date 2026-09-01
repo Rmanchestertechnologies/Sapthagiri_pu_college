@@ -17,25 +17,40 @@ import { optionLabel, getQuestionOptionLabels } from '../utils/sanitize';
 // Dynamic option grid calculator based on length:
 // - Very Short (<= 20 chars): all 4 in one line
 // - Medium (<= 52 chars): 2 on left, 2 on right (2x2 grid)
-// - Long (> 52 chars): 1 below one (vertical stack)
+// - Long (> 28 chars or complex formulas): 1 below one (vertical stack)
 function getDynamicOptGrid(options = [], singleColMode = false) {
     if (!options || options.length === 0) return { display: 'none' };
 
-    const maxLen = Math.max(...options.map(opt => {
+    let hasComplexFormula = false;
+    const lengths = options.map(opt => {
         if (!opt) return 0;
-        const plain = String(opt)
-            .replace(/<[^>]+>/g, '')
-            .replace(/\$\$[\s\S]*?\$\$/g, 'formula')
-            .replace(/\$[^$]*\$/g, 'm')
-            .replace(/\\\[[\s\S]*?\\\]/g, 'formula')
-            .replace(/\\\([\s\S]*?\\\)/g, 'm')
-            .trim();
-        return plain.length;
-    }));
+        const str = String(typeof opt === 'object' ? (opt.text || opt.optionText || '') : opt);
+        const clean = str.replace(/<[^>]+>/g, '').trim();
+        // Check for math or chemical formulas (superscripts, subscripts, arrows, cell pipes, fractions)
+        if (/(\$|\\\[|\\\(|\\frac|\\sqrt|\\int|\\rightarrow|\||\^|_)/i.test(clean)) {
+            if (clean.length > 12 || clean.includes('|') || clean.includes('\\rightarrow') || clean.includes('\\frac')) {
+                hasComplexFormula = true;
+            }
+        }
+        return clean.length;
+    });
+
+    const maxLen = Math.max(...lengths);
+
+    // If any option has a complex or multi-token formula, NEVER force into narrow multi-column side-by-side
+    if (hasComplexFormula) {
+        return {
+            display: 'grid',
+            gridTemplateColumns: '1fr',
+            gap: '3px 6px',
+            marginTop: '4px',
+            alignItems: 'start',
+        };
+    }
 
     if (singleColMode) {
-        // Two-column paper mode
-        if (maxLen <= 12 && options.length <= 4) {
+        // Two-column paper mode (half-width column)
+        if (maxLen <= 6 && options.length <= 4) {
             return {
                 display: 'grid',
                 gridTemplateColumns: `repeat(${options.length}, 1fr)`,
@@ -44,7 +59,7 @@ function getDynamicOptGrid(options = [], singleColMode = false) {
                 alignItems: 'start',
             };
         }
-        if (maxLen <= 35 && options.length <= 4) {
+        if (maxLen <= 22 && options.length <= 4) {
             return {
                 display: 'grid',
                 gridTemplateColumns: '1fr 1fr',
@@ -62,9 +77,9 @@ function getDynamicOptGrid(options = [], singleColMode = false) {
         };
     }
 
-    // Full width Single Column mode
-    if (maxLen <= 20 && options.length <= 4) {
-        // Very short: all in 1 line
+    // Full width Single Column mode (standard A4 page)
+    if (maxLen <= 10 && options.length <= 4) {
+        // Very short scalars only: all in 1 line
         return {
             display: 'grid',
             gridTemplateColumns: `repeat(${options.length}, 1fr)`,
@@ -73,7 +88,7 @@ function getDynamicOptGrid(options = [], singleColMode = false) {
             alignItems: 'start',
         };
     }
-    if (maxLen <= 52 && options.length <= 4) {
+    if (maxLen <= 28 && options.length <= 4) {
         // Medium: 2 on left, 2 on right (2x2)
         return {
             display: 'grid',
@@ -83,11 +98,11 @@ function getDynamicOptGrid(options = [], singleColMode = false) {
             alignItems: 'start',
         };
     }
-    // Very long: 1 below another
+    // Long: 1 below another
     return {
         display: 'grid',
         gridTemplateColumns: '1fr',
-        gap: '2px 6px',
+        gap: '3px 6px',
         marginTop: '4px',
         alignItems: 'start',
     };
@@ -160,6 +175,7 @@ const Q = {
         wordBreak: 'break-word',
         overflowWrap: 'break-word',
         minWidth: 0,
+        maxWidth: '100%',
         fontSize: '0.96em',
         fontWeight: 400,
         fontStyle: 'normal',

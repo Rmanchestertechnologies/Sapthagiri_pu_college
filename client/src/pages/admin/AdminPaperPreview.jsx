@@ -49,13 +49,28 @@ const AdminPaperPreview = () => {
     useEffect(() => {
         const fetchData = async () => {
             try {
+                let paper = null;
+                // 1. First attempt direct single-paper fetch (fast & hydrated)
+                try {
+                    const singlePaperRes = await api.get(`/api/papers/${paperId}`);
+                    if (singlePaperRes.data && (singlePaperRes.data._id || singlePaperRes.data.id)) {
+                        paper = singlePaperRes.data;
+                    }
+                } catch (e) {
+                    console.log('Single paper direct fetch fallback:', e.message);
+                }
+
+                // 2. Fetch templates & fallback papers if needed
                 const [papersRes, templatesRes] = await Promise.all([
-                    api.get('/api/papers/admin/all'),
-                    api.get('/api/templates')
+                    !paper ? api.get('/api/papers/admin/all').catch(() => ({ data: [] })) : Promise.resolve({ data: [] }),
+                    api.get('/api/templates').catch(() => ({ data: [] }))
                 ]);
 
-                const paper = papersRes.data.find(p => (p._id || p.id) === paperId);
-                setSelectedPaper(paper);
+                if (!paper && Array.isArray(papersRes.data)) {
+                    paper = papersRes.data.find(p => String(p._id || p.id) === String(paperId));
+                }
+
+                setSelectedPaper(paper || null);
 
                 if (templatesRes.data && templatesRes.data.length > 0) {
                     setActiveTemplate(templatesRes.data[0]);
@@ -64,7 +79,7 @@ const AdminPaperPreview = () => {
                 setLoading(false);
             } catch (err) {
                 console.error('Error loading paper for admin preview:', err);
-                if (err.response && [400, 401, 403].includes(err.response.status)) {
+                if (err.response && [401, 403].includes(err.response.status)) {
                     logout();
                     navigate('/');
                 }
@@ -74,17 +89,33 @@ const AdminPaperPreview = () => {
         fetchData();
     }, [paperId]);
 
-    // Compute all 4 sets from base paper
-    const pqrsSets = useMemo(() => {
-        if (!selectedPaper) return {};
-        return generateAllPQRS(selectedPaper);
+    // Ensure questions are valid objects before PQRS generation
+    const validPaper = useMemo(() => {
+        if (!selectedPaper) return null;
+        const rawQs = Array.isArray(selectedPaper.questions) ? selectedPaper.questions : [];
+        const cleanQs = rawQs.map((q, idx) => {
+            if (typeof q === 'object' && q !== null) return q;
+            return {
+                _id: String(q || idx),
+                questionText: `Question #${idx + 1}`,
+                options: ['Option 1', 'Option 2', 'Option 3', 'Option 4'],
+                answer: '1'
+            };
+        });
+        return { ...selectedPaper, questions: cleanQs };
     }, [selectedPaper]);
+
+    // Compute all 4 sets from sanitized paper
+    const pqrsSets = useMemo(() => {
+        if (!validPaper) return {};
+        return generateAllPQRS(validPaper);
+    }, [validPaper]);
 
     // Current displayed paper based on selected set
     const currentPaperSet = useMemo(() => {
-        if (!pqrsSets[activeSet]) return selectedPaper;
+        if (!pqrsSets[activeSet]) return validPaper;
         return pqrsSets[activeSet];
-    }, [pqrsSets, activeSet, selectedPaper]);
+    }, [pqrsSets, activeSet, validPaper]);
 
     const handlePrintPaper = () => {
         window.print();
