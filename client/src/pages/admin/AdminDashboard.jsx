@@ -220,105 +220,107 @@ const DashboardHome = () => {
     const facultyCount = allTeachers.length;
 
     return (
-        <div className="animate-fade-in-up space-y-10">
+        <div className="animate-fade-in-up space-y-8">
 
-            {/* ── EXECUTIVE COMMAND HERO DECK ── */}
-            <div className="relative overflow-hidden rounded-[2.5rem] bg-gradient-to-br from-[#0B1E48] via-[#081736] to-[#030A18] text-white p-8 md:p-10 shadow-2xl border border-amber-500/20">
-                {/* Ambient Glow Elements */}
-                <div className="absolute top-0 right-0 w-96 h-96 bg-amber-400/10 rounded-full blur-3xl pointer-events-none -mr-20 -mt-20"></div>
-                <div className="absolute bottom-0 left-1/3 w-64 h-64 bg-blue-500/10 rounded-full blur-2xl pointer-events-none"></div>
-
-                <div className="relative z-10 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-8">
-                    <div className="space-y-3 max-w-2xl">
-                        <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-emerald-500/15 border border-emerald-400/30 text-emerald-300 text-[10px] font-black uppercase tracking-widest shadow-inner">
-                            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                            <span>Academic Operations Active • Davanagere</span>
-                        </div>
-                        <h2 className="text-2xl sm:text-3xl lg:text-4xl font-black tracking-tight text-white leading-tight">
-                            Exam Operations &amp; Academic Delegation
-                        </h2>
-                        <p className="text-xs sm:text-sm text-slate-300 font-medium leading-relaxed">
-                            Centralized command for institutional assessments, automated PCMB question delegation, and real-time faculty compilation tracking.
-                        </p>
-
-                        {/* Quick KPI Stats Pill Bar */}
-                        <div className="pt-2 flex flex-wrap items-center gap-3">
-                            <div className="bg-white/10 backdrop-blur-md px-4 py-2 rounded-2xl border border-white/10 flex items-center gap-2.5 shadow-sm">
-                                <span className="text-amber-400 text-base">📋</span>
-                                <div>
-                                    <div className="text-[10px] uppercase font-black text-slate-400 tracking-wider">Active Exams</div>
-                                    <div className="text-sm font-black text-white">{totalExamsCount} Commissioned</div>
-                                </div>
-                            </div>
-                            <div className="bg-white/10 backdrop-blur-md px-4 py-2 rounded-2xl border border-white/10 flex items-center gap-2.5 shadow-sm">
-                                <span className="text-emerald-400 text-base">✍️</span>
-                                <div>
-                                    <div className="text-[10px] uppercase font-black text-slate-400 tracking-wider">Ready Questions</div>
-                                    <div className="text-sm font-black text-white">{totalReadyQuestions} Total Qs</div>
-                                </div>
-                            </div>
-                            <div className="bg-white/10 backdrop-blur-md px-4 py-2 rounded-2xl border border-white/10 flex items-center gap-2.5 shadow-sm">
-                                <span className="text-sky-400 text-base">👥</span>
-                                <div>
-                                    <div className="text-[10px] uppercase font-black text-slate-400 tracking-wider">Faculty Deployed</div>
-                                    <div className="text-sm font-black text-white">{facultyCount} Professors</div>
-                                </div>
-                            </div>
-                        </div>
+            {/* ── CLEAN EXECUTIVE HEADER & QUICK ACTION ── */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2 border-b border-slate-200/80">
+                <div>
+                    <div className="flex items-center gap-2 mb-1">
+                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                        <span className="text-[11px] font-black text-navy uppercase tracking-[0.2em]">Academic Session 2025–26</span>
                     </div>
+                    <h2 className="text-2xl sm:text-3xl font-black text-navy tracking-tight">
+                        Institutional Assessment Command
+                    </h2>
+                    <p className="text-xs sm:text-sm text-slate-500 font-medium mt-0.5">
+                        Centralized delegation, real-time question paper compilation, and department faculty progress.
+                    </p>
+                </div>
 
-                    {/* Action Button */}
-                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full lg:w-auto">
-                        <button
-                            onClick={() => setShowCommissionModal(true)}
-                            className="group relative overflow-hidden bg-gradient-to-r from-amber-400 via-amber-300 to-yellow-500 text-slate-950 px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-widest hover:scale-[1.03] active:scale-95 transition-all duration-300 shadow-[0_0_25px_rgba(245,158,11,0.35)] flex items-center justify-center gap-3 cursor-pointer"
-                        >
-                            <span className="w-6 h-6 rounded-xl bg-slate-950 text-amber-300 flex items-center justify-center text-sm shadow group-hover:rotate-12 transition-transform">
-                                ⚡
-                            </span>
-                            <span>Commission New Exam</span>
-                        </button>
+                <div className="flex items-center gap-3">
+                    <button
+                        id="admin-quick-commission-btn"
+                        onClick={() => setShowCommissionModal(true)}
+                        className="bg-navy text-gold hover:bg-slate-900 px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-widest hover:scale-105 active:scale-95 transition-all shadow-md flex items-center gap-2.5 border-2 border-gold cursor-pointer"
+                    >
+                        <span className="text-base">⚡</span>
+                        <span>Commission Exam</span>
+                    </button>
+                </div>
+            </div>
+
+            {/* ── 4 COMPACT EXECUTIVE KPI CARDS ── */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+                <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center text-xl font-black shadow-inner">
+                        📋
+                    </div>
+                    <div>
+                        <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Commissioned</div>
+                        <div className="text-xl font-black text-navy">{totalExamsCount} Exams</div>
+                    </div>
+                </div>
+
+                <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-xl font-black shadow-inner">
+                        ✍️
+                    </div>
+                    <div>
+                        <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Questions Ready</div>
+                        <div className="text-xl font-black text-navy">{totalReadyQuestions} Qs</div>
+                    </div>
+                </div>
+
+                <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center text-xl font-black shadow-inner">
+                        👥
+                    </div>
+                    <div>
+                        <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">PCMB Faculty</div>
+                        <div className="text-xl font-black text-navy">{facultyCount} Professors</div>
+                    </div>
+                </div>
+
+                <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center text-xl font-black shadow-inner">
+                        ⚡
+                    </div>
+                    <div>
+                        <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">CBT Engine</div>
+                        <div className="text-xl font-black text-emerald-600 flex items-center gap-1.5">
+                            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+                            <span>Live &amp; Online</span>
+                        </div>
                     </div>
                 </div>
             </div>
 
-            {/* ── SECTION 1: EXAM REEL & DEPARTMENT BREAKDOWN ── */}
-            <div className="bg-white p-6 sm:p-8 rounded-[2.5rem] shadow-sm border border-slate-200/80 space-y-6">
+            {/* ── CENTRAL EXAM MANAGEMENT & PCMB DELEGATION ── */}
+            <div className="bg-white p-6 sm:p-8 rounded-3xl shadow-sm border border-slate-200/80 space-y-6">
                 {/* Section Header */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100">
                     <div>
-                        <div className="flex items-center gap-2.5">
-                            <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-ping"></span>
-                            <h3 className="text-xs font-black text-navy uppercase tracking-[0.2em]">
-                                Institutional Assessment Hub
-                            </h3>
-                        </div>
+                        <h3 className="text-xs font-black text-navy uppercase tracking-[0.2em] flex items-center gap-2">
+                            <span>Exam Delegation &amp; Readiness</span>
+                        </h3>
                         <p className="text-xs text-slate-400 font-medium mt-0.5">
-                            Select an assessment below to inspect faculty question targets, compilation progress, and ready papers.
+                            Select an exam below to inspect question readiness and faculty assignments.
                         </p>
                     </div>
-                    <div className="flex items-center gap-3">
-                        <span className="text-xs font-black text-slate-500 bg-slate-100 px-3 py-1 rounded-xl">
-                            {commissionedExams.length} Total Exams
-                        </span>
-                        <button
-                            onClick={() => setShowCommissionModal(true)}
-                            className="bg-navy text-gold px-4 py-1.5 rounded-xl font-black text-xs uppercase tracking-wider hover:bg-navy/90 transition shadow-sm cursor-pointer"
-                        >
-                            + New Exam
-                        </button>
-                    </div>
+                    <span className="text-xs font-bold text-slate-500 bg-slate-100 px-3 py-1 rounded-xl self-start sm:self-auto">
+                        {commissionedExams.length} Assessments Registered
+                    </span>
                 </div>
 
                 {loading ? (
-                    <div className="p-16 text-center text-slate-400 font-bold text-sm animate-pulse">
-                        Loading assessment hub...
+                    <div className="p-16 text-center text-slate-400 font-bold text-sm">
+                        Loading assessment progress...
                     </div>
                 ) : commissionedExams.length === 0 ? (
-                    <div className="p-16 border-2 border-dashed border-slate-200 rounded-[2rem] text-center">
+                    <div className="p-16 border-2 border-dashed border-slate-200 rounded-3xl text-center">
                         <div className="w-16 h-16 bg-navy/5 text-navy rounded-2xl flex items-center justify-center text-2xl mx-auto mb-4 font-black">🎓</div>
                         <h4 className="font-black text-navy text-lg mb-1">No Commissioned Exams Yet</h4>
-                        <p className="text-xs text-gray-500 max-w-md mx-auto mb-6">Create your first exam (e.g. CET MOCK 1) and delegate question targets to PCMB faculty.</p>
+                        <p className="text-xs text-gray-500 max-w-md mx-auto mb-6">Create your first exam and delegate question targets to PCMB faculty.</p>
                         <button
                             onClick={() => setShowCommissionModal(true)}
                             className="bg-gold text-navy px-6 py-3 rounded-xl font-black text-xs uppercase tracking-widest hover:scale-105 transition shadow-lg cursor-pointer"
@@ -328,8 +330,8 @@ const DashboardHome = () => {
                     </div>
                 ) : (
                     <div className="space-y-6">
-                        {/* ── SLEEK HORIZONTAL EXAM REEL (NO UGLY SCROLLBAR) ── */}
-                        <div className="flex items-stretch gap-3.5 overflow-x-auto pb-2 scrollbar-none" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+                        {/* ── CLEAN HORIZONTAL EXAM TABS (NO HEAVY SCROLLBAR) ── */}
+                        <div className="flex items-center gap-2.5 overflow-x-auto pb-2 scrollbar-none">
                             {commissionedExams.map((exam) => {
                                 const examKey = exam._id || exam.id;
                                 const isSelected = ((activeExam?._id || activeExam?.id) === examKey);
@@ -342,51 +344,32 @@ const DashboardHome = () => {
                                 const examType = exam.examType || 'CET';
 
                                 return (
-                                    <div
+                                    <button
                                         key={examKey}
                                         onClick={() => setSelectedExamId(examKey)}
-                                        className={`min-w-[250px] max-w-[280px] p-4 rounded-2xl transition-all duration-300 cursor-pointer flex flex-col justify-between border ${
+                                        className={`px-4 py-2.5 rounded-2xl font-bold text-xs uppercase tracking-wider transition-all flex items-center gap-2.5 whitespace-nowrap cursor-pointer ${
                                             isSelected
-                                                ? 'bg-gradient-to-br from-[#0B1E48] to-[#06132F] text-white shadow-xl border-amber-400 ring-2 ring-amber-400/30 -translate-y-1'
-                                                : 'bg-slate-50 text-slate-700 hover:bg-slate-100/80 border-slate-200/80 hover:border-slate-300'
+                                                ? 'bg-navy text-gold shadow-md font-black border-2 border-gold scale-[1.02]'
+                                                : 'bg-slate-100 text-slate-600 hover:bg-slate-200/80 border border-slate-200'
                                         }`}
                                     >
-                                        <div>
-                                            <div className="flex items-center justify-between gap-2 mb-2">
-                                                <span className={`text-[9px] font-black uppercase px-2.5 py-0.5 rounded-md ${
-                                                    isSelected ? 'bg-amber-400 text-slate-950 font-black' : 'bg-navy/10 text-navy'
-                                                }`}>
-                                                    {examType}
-                                                </span>
-                                                <span className={`text-[10px] font-black ${
-                                                    overallPct >= 100 ? 'text-emerald-400' : overallPct > 0 ? (isSelected ? 'text-amber-300' : 'text-blue-600') : 'text-slate-400'
-                                                }`}>
-                                                    {overallPct}% Ready
-                                                </span>
-                                            </div>
-                                            <h4 className={`text-sm font-black truncate ${isSelected ? 'text-white' : 'text-navy'}`} title={exam.title}>
-                                                {exam.title}
-                                            </h4>
-                                            <p className={`text-[10px] font-semibold mt-0.5 ${isSelected ? 'text-slate-300' : 'text-slate-400'}`}>
-                                                {totalAdded} / {totalTarget} Questions
-                                            </p>
-                                        </div>
-
-                                        {/* Mini Progress Bar */}
-                                        <div className="w-full h-1.5 bg-black/20 rounded-full overflow-hidden mt-3 shadow-inner">
-                                            <div
-                                                style={{ width: `${overallPct}%` }}
-                                                className={`h-full rounded-full transition-all duration-500 ${
-                                                    overallPct >= 100 ? 'bg-emerald-400' : isSelected ? 'bg-amber-400' : 'bg-blue-600'
-                                                }`}
-                                            />
-                                        </div>
-                                    </div>
+                                        <span className={`text-[9px] font-black px-1.5 py-0.5 rounded ${
+                                            isSelected ? 'bg-gold/20 text-gold' : 'bg-white text-navy'
+                                        }`}>
+                                            {examType}
+                                        </span>
+                                        <span>{exam.title}</span>
+                                        <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
+                                            isSelected ? 'bg-white text-navy' : 'bg-white text-slate-600'
+                                        }`}>
+                                            {overallPct}%
+                                        </span>
+                                    </button>
                                 );
                             })}
                         </div>
 
-                        {/* ── ACTIVE EXAM DETAILS & 4 PCMB SUBJECT CARDS ── */}
+                        {/* ── ACTIVE EXAM DETAILS & 4 PCMB SUBJECT TILES ── */}
                         {activeExam && (() => {
                             const exam = activeExam;
                             const subAssignments = exam.subjectAssignments || [];
@@ -397,23 +380,23 @@ const DashboardHome = () => {
                             const overallPct = totalTarget > 0 ? Math.min(100, Math.round((totalAdded / totalTarget) * 100)) : 0;
 
                             return (
-                                <div className="space-y-6 animate-fade-in pt-1">
-                                    {/* Active Exam Action Deck */}
-                                    <div className="bg-gradient-to-r from-slate-50 via-gray-50 to-slate-100 p-6 rounded-3xl border border-slate-200/90 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                <div className="space-y-6 pt-2">
+                                    {/* Active Exam Action Card */}
+                                    <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-4">
                                         <div>
-                                            <div className="flex items-center gap-3 mb-1.5 flex-wrap">
-                                                <span className="bg-navy text-gold text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-xl shadow-sm">
+                                            <div className="flex items-center gap-3 mb-1 flex-wrap">
+                                                <span className="bg-navy text-gold text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-lg">
                                                     {exam.examType || 'CET'}
                                                 </span>
-                                                <h3 className="font-black text-xl sm:text-2xl text-navy uppercase tracking-tight">
+                                                <h3 className="font-black text-xl text-navy uppercase tracking-tight">
                                                     {exam.title}
                                                 </h3>
-                                                <span className="text-[10px] font-bold text-slate-600 bg-white px-3 py-1 rounded-xl border border-slate-200 shadow-2xs">
+                                                <span className="text-[10px] font-bold text-slate-500 bg-white px-2.5 py-1 rounded-md border border-slate-200">
                                                     Class {exam.classes?.join(', ') || '12'}
                                                 </span>
                                             </div>
-                                            <p className="text-xs text-slate-500 font-medium">
-                                                Created on {new Date(exam.createdAt).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })} • {subAssignments.length} Assigned Departments
+                                            <p className="text-xs text-slate-400 font-medium">
+                                                Created: {new Date(exam.createdAt).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}
                                             </p>
                                         </div>
 
@@ -421,19 +404,19 @@ const DashboardHome = () => {
                                         <div className="flex items-center gap-2.5 flex-wrap">
                                             <button
                                                 onClick={() => setSelectedViewExam(exam)}
-                                                className="bg-navy text-gold hover:bg-slate-900 px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-wider hover:scale-105 transition shadow-sm flex items-center gap-2 cursor-pointer"
+                                                className="bg-navy text-gold hover:bg-slate-900 px-4 py-2 rounded-xl font-bold text-xs uppercase tracking-wider hover:scale-105 transition shadow-xs flex items-center gap-1.5 cursor-pointer"
                                             >
-                                                <span>👁</span> View Full Paper ({totalAdded} Qs)
+                                                <span>👁</span> View Paper ({totalAdded} Qs)
                                             </button>
                                             <button
                                                 onClick={() => setSelectedAnalysisExam(exam)}
-                                                className="bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-wider hover:scale-105 transition shadow-sm flex items-center gap-2 cursor-pointer"
+                                                className="bg-gold text-navy hover:bg-amber-400 px-4 py-2 rounded-xl font-bold text-xs uppercase tracking-wider hover:scale-105 transition shadow-xs flex items-center gap-1.5 cursor-pointer"
                                             >
-                                                <span>📊</span> Paper Analysis
+                                                <span>📊</span> Analysis
                                             </button>
                                             <button
                                                 onClick={() => handleDeleteExam(exam._id || exam.id)}
-                                                className="bg-white text-rose-600 border border-rose-200 hover:bg-rose-50 px-3.5 py-2.5 rounded-xl font-black text-xs transition shadow-2xs cursor-pointer"
+                                                className="bg-white text-rose-600 border border-rose-200 hover:bg-rose-50 px-3 py-2 rounded-xl font-bold text-xs transition shadow-2xs cursor-pointer"
                                                 title="Delete this exam"
                                             >
                                                 ✕ Delete
@@ -441,29 +424,24 @@ const DashboardHome = () => {
                                         </div>
                                     </div>
 
-                                    {/* Assessment Progress Gauge */}
-                                    <div className="bg-slate-50 border border-slate-200/80 p-5 rounded-2xl space-y-2">
-                                        <div className="flex justify-between items-center text-xs font-black text-navy">
-                                            <span className="flex items-center gap-2">
-                                                <span className="w-2 h-2 rounded-full bg-blue-600"></span>
-                                                Overall Question Compilation Readiness
-                                            </span>
-                                            <span className="font-mono text-sm font-black">
-                                                {totalAdded} / {totalTarget} Questions <span className="text-slate-400 font-normal">({overallPct}%)</span>
-                                            </span>
+                                    {/* Overall Assessment Progress Bar */}
+                                    <div className="bg-slate-50 border border-slate-200 p-4 rounded-2xl">
+                                        <div className="flex justify-between items-center text-xs font-black text-navy mb-2">
+                                            <span>Overall Question Compilation Readiness</span>
+                                            <span className="font-mono">{totalAdded} / {totalTarget} Qs ({overallPct}%)</span>
                                         </div>
-                                        <div className="w-full h-3 bg-slate-200/80 rounded-full overflow-hidden p-0.5 shadow-inner">
+                                        <div className="w-full h-2.5 bg-gray-200 rounded-full overflow-hidden p-0.5 shadow-inner">
                                             <div
                                                 style={{ width: `${overallPct}%` }}
-                                                className={`h-full rounded-full transition-all duration-700 bg-gradient-to-r ${
-                                                    overallPct >= 100 ? 'from-emerald-500 to-teal-400' : overallPct >= 50 ? 'from-blue-600 to-cyan-400' : 'from-amber-500 to-yellow-400'
+                                                className={`h-full rounded-full transition-all duration-500 ${
+                                                    overallPct >= 100 ? 'bg-emerald-500' : overallPct >= 50 ? 'bg-blue-600' : 'bg-amber-500'
                                                 }`}
                                             />
                                         </div>
                                     </div>
 
-                                    {/* ── 4 PCMB SUBJECT TILES (ELEGANT COLOR-CODED CARDS) ── */}
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+                                    {/* ── 4 PCMB SUBJECT TILES ── */}
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                                         {subAssignments.map((sa, idx) => {
                                             const subName = sa.subject;
                                             const target = sa.targetQuestions || 60;
@@ -472,75 +450,58 @@ const DashboardHome = () => {
                                                 : (sa.submittedPaperId?.questions?.length || 0);
                                             const pct = Math.min(100, Math.round((count / target) * 100));
 
-                                            const isPhysics = subName.toLowerCase().includes('physic');
-                                            const isChemistry = subName.toLowerCase().includes('chem');
-                                            const isMath = subName.toLowerCase().includes('math');
-                                            const isBotany = subName.toLowerCase().includes('botan');
-                                            const isZoology = subName.toLowerCase().includes('zool');
-
-                                            const subIcon = isPhysics ? '⚛️'
-                                                : isChemistry ? '🧪'
-                                                : isMath ? '📐'
-                                                : isBotany ? '🌿'
-                                                : isZoology ? '🐾'
+                                            const subIcon = subName.toLowerCase().includes('physic') ? '⚛️'
+                                                : subName.toLowerCase().includes('chem') ? '🧪'
+                                                : subName.toLowerCase().includes('math') ? '📐'
+                                                : subName.toLowerCase().includes('botan') ? '🌿'
+                                                : subName.toLowerCase().includes('zool') ? '🐾'
                                                 : '🧬';
 
-                                            const colorScheme = isPhysics
-                                                ? { border: 'border-violet-200 hover:border-violet-400', accent: 'text-violet-700', bg: 'bg-violet-50/50', bar: 'from-violet-500 to-purple-600' }
-                                                : isChemistry
-                                                ? { border: 'border-cyan-200 hover:border-cyan-400', accent: 'text-cyan-700', bg: 'bg-cyan-50/50', bar: 'from-cyan-500 to-teal-500' }
-                                                : isMath
-                                                ? { border: 'border-amber-200 hover:border-amber-400', accent: 'text-amber-800', bg: 'bg-amber-50/50', bar: 'from-amber-500 to-yellow-500' }
-                                                : { border: 'border-emerald-200 hover:border-emerald-400', accent: 'text-emerald-700', bg: 'bg-emerald-50/50', bar: 'from-emerald-500 to-green-600' };
-
                                             return (
-                                                <div
-                                                    key={idx}
-                                                    className={`p-6 rounded-3xl bg-white border-2 ${colorScheme.border} transition-all duration-300 shadow-sm hover:shadow-md flex flex-col justify-between group`}
-                                                >
+                                                <div key={idx} className="border border-slate-200 p-5 rounded-2xl bg-white flex flex-col justify-between hover:border-navy transition shadow-xs">
                                                     <div>
-                                                        <div className="flex justify-between items-center mb-4">
-                                                            <div className="flex items-center gap-2.5">
-                                                                <span className="w-10 h-10 rounded-2xl bg-slate-100 flex items-center justify-center text-xl shadow-inner group-hover:scale-110 transition-transform">
-                                                                    {subIcon}
-                                                                </span>
-                                                                <h4 className="text-base font-black text-navy uppercase tracking-tight">{subName}</h4>
+                                                        <div className="flex justify-between items-center mb-3">
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="text-xl">{subIcon}</span>
+                                                                <h4 className="text-sm font-black text-navy uppercase">{subName}</h4>
                                                             </div>
-                                                            <span className={`text-[9px] font-black uppercase px-2.5 py-1 rounded-full ${
-                                                                pct >= 100 ? 'bg-emerald-100 text-emerald-800' : pct > 0 ? 'bg-blue-100 text-blue-800' : 'bg-slate-100 text-slate-500'
+                                                            <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full ${
+                                                                pct >= 100 ? 'bg-emerald-100 text-emerald-800' : pct > 0 ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-600'
                                                             }`}>
-                                                                {pct >= 100 ? '✓ Ready' : pct > 0 ? '⏳ Working' : '○ Pending'}
+                                                                {pct >= 100 ? 'Ready' : pct > 0 ? 'Working' : 'Pending'}
                                                             </span>
                                                         </div>
 
-                                                        {/* Faculty Chip */}
-                                                        <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100 mb-4 text-left">
-                                                            <div className="text-xs font-black text-navy truncate flex items-center gap-1.5">
-                                                                <span>👤</span> {sa.teacherName || `Prof. ${subName} Faculty`}
+                                                        {/* Faculty Name */}
+                                                        <div className="bg-slate-50 p-2.5 rounded-xl border border-gray-100 mb-3 text-left">
+                                                            <div className="text-[11px] font-bold text-navy truncate">
+                                                                👤 {sa.teacherName || `Prof. ${subName}`}
                                                             </div>
-                                                            <div className="text-[10px] text-slate-400 font-mono truncate mt-0.5 ml-4">
-                                                                {sa.teacherEmail || `${subName.toLowerCase()}@sapthagiri.edu`}
+                                                            <div className="text-[10px] text-blue-600 font-mono truncate mt-0.5">
+                                                                ✉ {sa.teacherEmail || `${subName.toLowerCase()}@sapthagiri.edu`}
                                                             </div>
                                                         </div>
 
-                                                        {/* Progress Info */}
-                                                        <div className="space-y-1.5 mb-2">
-                                                            <div className="flex justify-between text-xs font-black text-navy">
-                                                                <span className="text-slate-500 text-[11px]">Prepared</span>
+                                                        {/* Question Progress Bar */}
+                                                        <div className="mb-2">
+                                                            <div className="flex justify-between text-[11px] font-black text-navy mb-1">
+                                                                <span>Prepared</span>
                                                                 <span>{count} / {target} Qs ({pct}%)</span>
                                                             </div>
-                                                            <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden p-0.5 shadow-inner">
+                                                            <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden p-0.5 shadow-inner">
                                                                 <div
                                                                     style={{ width: `${pct}%` }}
-                                                                    className={`h-full rounded-full transition-all duration-500 bg-gradient-to-r ${colorScheme.bar}`}
+                                                                    className={`h-full rounded-full transition-all duration-500 ${
+                                                                        pct >= 100 ? 'bg-emerald-500' : pct > 0 ? 'bg-blue-600' : 'bg-gray-300'
+                                                                    }`}
                                                                 />
                                                             </div>
                                                         </div>
                                                     </div>
 
-                                                    <div className="mt-4 pt-3 border-t border-slate-100 flex justify-between items-center text-[10px] text-slate-400 font-bold uppercase tracking-wider">
-                                                        <span>Target Requirement</span>
-                                                        <span className="text-navy font-black">{target} Questions</span>
+                                                    <div className="mt-2 pt-2 border-t border-gray-100 flex justify-between items-center text-[10px] text-gray-400 font-bold uppercase tracking-wider">
+                                                        <span>Target</span>
+                                                        <span className="text-navy font-black">{target} Qs</span>
                                                     </div>
                                                 </div>
                                             );
@@ -963,135 +924,191 @@ const AdminDashboard = () => {
     const { logout } = useContext(AuthContext);
     const navigate = useNavigate();
     const location = useLocation();
+    const [isSideboxOpen, setIsSideboxOpen] = useState(false);
+
+    const navItems = [
+        {
+            group: 'Examination Operations',
+            items: [
+                { title: 'Executive Overview', path: '/admin/dashboard', icon: '📋', desc: 'Delegation & readiness dashboard' },
+                { title: 'CBT Online Exams', path: '/admin/dashboard/cbt-exams', icon: '⚡', desc: 'Manage & monitor online exams' },
+                { title: 'Results & Scorecards', path: '/admin/dashboard/results', icon: '📊', desc: 'View student scores and analytics' }
+            ]
+        },
+        {
+            group: 'Academic Vault',
+            items: [
+                { title: 'Question Bank', path: '/admin/dashboard/questions', icon: '📚', desc: 'Institutional question repository' },
+                { title: 'Grand Test Papers', path: '/admin/dashboard/grand-tests', icon: '🏆', desc: 'Archive of official grand tests' },
+                { title: 'Previous Year Papers', path: '/admin/dashboard/previous-year-papers', icon: '📑', desc: 'PYQs repository & keys' },
+                { title: 'Exam Blueprints', path: '/admin/dashboard/exam-blueprints', icon: '📐', desc: 'Chapter weightage & patterns' },
+                { title: 'Document Templates', path: '/admin/dashboard/upload-template', icon: '📄', desc: 'Institutional paper formatting' }
+            ]
+        },
+        {
+            group: 'Faculty & Access Control',
+            items: [
+                { title: 'Faculty & OMR Access', path: '/admin/dashboard/create-teacher', icon: '👥', desc: 'Manage faculty & toggle OMR permissions' }
+            ]
+        }
+    ];
+
+    // Current page label
+    const getCurrentPageTitle = () => {
+        if (location.pathname.includes('cbt-exams')) return 'CBT Online Exams';
+        if (location.pathname.includes('results')) return 'Result Scorecards';
+        if (location.pathname.includes('questions')) return 'Question Bank';
+        if (location.pathname.includes('grand-tests')) return 'Grand Tests';
+        if (location.pathname.includes('previous-year-papers')) return 'Previous Year Papers';
+        if (location.pathname.includes('exam-blueprints')) return 'Exam Blueprints';
+        if (location.pathname.includes('upload-template')) return 'Templates';
+        if (location.pathname.includes('create-teacher')) return 'Faculty & OMR Access';
+        return 'Executive Overview';
+    };
 
     return (
         <div className="min-h-screen bg-[#F8FAFC] flex flex-col font-sans">
-            {/* Top Navigation Bar — Sleek, Organized & Modern */}
-            <nav className="bg-gradient-to-r from-[#071738] via-[#081B3B] to-[#071738] px-6 py-3.5 text-white flex justify-between items-center z-50 sticky top-0 shadow-xl border-b border-amber-400/20 backdrop-blur-md">
+
+            {/* ── SLIDE-OVER SIDEBOX DRAWER ── */}
+            <div className={`fixed inset-0 z-50 transition-all duration-300 ${isSideboxOpen ? 'visible pointer-events-auto' : 'invisible pointer-events-none'}`}>
+                {/* Backdrop Overlay */}
                 <div 
-                    className="flex items-center cursor-pointer hover:opacity-95 transition gap-3.5"
-                    onClick={() => navigate('/admin/dashboard')}
-                >
-                    <div className="w-11 h-11 flex items-center justify-center shadow-md bg-white rounded-2xl p-1 border border-amber-400/40">
-                        <img src="/SapthagiriLogo.jpg" alt="Sapthagiri PU College" className="w-full h-full object-contain rounded-xl" />
-                    </div>
+                    onClick={() => setIsSideboxOpen(false)}
+                    className={`absolute inset-0 bg-slate-950/60 backdrop-blur-sm transition-opacity duration-300 ${isSideboxOpen ? 'opacity-100' : 'opacity-0'}`}
+                />
+
+                {/* Sidebox Panel */}
+                <aside className={`absolute top-0 left-0 h-full w-84 max-w-[85vw] bg-[#071738] text-white shadow-2xl border-r border-amber-400/20 flex flex-col justify-between transition-transform duration-300 ease-out ${isSideboxOpen ? 'translate-x-0' : '-translate-x-full'}`}>
                     <div>
-                        <h1 className="text-base font-black tracking-tight uppercase leading-tight text-white flex items-center gap-2">
-                            <span>Sapthagiri PU College</span>
-                            <span className="bg-amber-400/20 text-amber-300 border border-amber-400/30 text-[9px] font-black px-2 py-0.5 rounded-md uppercase tracking-wider">
-                                Admin Console
-                            </span>
-                        </h1>
-                        <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest">
-                            Central Academic Administration • Davanagere
-                        </p>
+                        {/* Sidebox Top Brand Bar */}
+                        <div className="p-5 border-b border-white/10 flex items-center justify-between bg-black/20">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-xl bg-white p-1 border border-amber-400/50 shadow-md flex items-center justify-center">
+                                    <img src="/SapthagiriLogo.jpg" alt="Logo" className="w-full h-full object-contain rounded-lg" />
+                                </div>
+                                <div>
+                                    <h2 className="text-sm font-black uppercase tracking-tight text-white leading-none">Sapthagiri PU College</h2>
+                                    <span className="text-[10px] text-amber-400 font-extrabold uppercase tracking-widest mt-1 block">Navigation Sidebox</span>
+                                </div>
+                            </div>
+                            <button 
+                                onClick={() => setIsSideboxOpen(false)}
+                                className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white flex items-center justify-center text-sm font-bold transition cursor-pointer"
+                                title="Close Sidebox"
+                            >
+                                ✕
+                            </button>
+                        </div>
+
+                        {/* Navigation Options List */}
+                        <div className="p-4 space-y-5 overflow-y-auto max-h-[calc(100vh-140px)]">
+                            {navItems.map((group, gIdx) => (
+                                <div key={gIdx}>
+                                    <span className="text-[10px] font-black uppercase tracking-[0.2em] text-amber-400/70 px-3 block mb-2">
+                                        {group.group}
+                                    </span>
+                                    <div className="space-y-1">
+                                        {group.items.map((item, iIdx) => {
+                                            const isActive = item.path === '/admin/dashboard'
+                                                ? (location.pathname === '/admin/dashboard' || location.pathname === '/admin/dashboard/')
+                                                : location.pathname.includes(item.path.split('/').pop());
+
+                                            return (
+                                                <button
+                                                    key={iIdx}
+                                                    onClick={() => {
+                                                        navigate(item.path);
+                                                        setIsSideboxOpen(false);
+                                                    }}
+                                                    className={`w-full flex items-center gap-3.5 px-3.5 py-2.5 rounded-xl text-left transition cursor-pointer ${
+                                                        isActive
+                                                            ? 'bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 font-black shadow-md'
+                                                            : 'text-slate-300 hover:bg-white/10 hover:text-white'
+                                                    }`}
+                                                >
+                                                    <span className="text-lg leading-none">{item.icon}</span>
+                                                    <div className="min-w-0 flex-1">
+                                                        <div className={`text-xs font-bold leading-tight ${isActive ? 'text-slate-950' : 'text-white'}`}>
+                                                            {item.title}
+                                                        </div>
+                                                        <div className={`text-[10px] truncate mt-0.5 ${isActive ? 'text-slate-900/80 font-semibold' : 'text-slate-400'}`}>
+                                                            {item.desc}
+                                                        </div>
+                                                    </div>
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Sidebox Bottom User & Logout */}
+                    <div className="p-4 border-t border-white/10 bg-black/30 flex items-center justify-between">
+                        <div className="flex items-center gap-2.5">
+                            <div className="w-8 h-8 rounded-full bg-amber-400 text-slate-950 font-black text-xs flex items-center justify-center shadow">
+                                AD
+                            </div>
+                            <div>
+                                <div className="text-xs font-black text-white leading-tight">Admin Console</div>
+                                <div className="text-[10px] text-slate-400 font-mono">Davanagere Campus</div>
+                            </div>
+                        </div>
+                        <button
+                            onClick={() => { logout(); navigate('/'); }}
+                            className="bg-rose-500/20 text-rose-400 hover:bg-rose-600 hover:text-white px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition cursor-pointer"
+                        >
+                            Logout
+                        </button>
+                    </div>
+                </aside>
+            </div>
+
+            {/* ── TOP APP BAR — ULTRA CLEAN & MINIMALIST ── */}
+            <nav className="bg-gradient-to-r from-[#071738] via-[#081B3B] to-[#071738] px-6 py-3.5 text-white flex justify-between items-center z-40 sticky top-0 shadow-md border-b border-amber-400/20 backdrop-blur-md">
+                <div className="flex items-center gap-4">
+                    {/* SIDEBOX TOGGLE BUTTON */}
+                    <button
+                        onClick={() => setIsSideboxOpen(true)}
+                        className="flex items-center gap-2 bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider hover:scale-105 active:scale-95 transition-all shadow-md cursor-pointer"
+                        title="Open Menu Sidebox"
+                    >
+                        <span className="text-base leading-none">☰</span>
+                        <span>Menu</span>
+                    </button>
+
+                    <div 
+                        className="flex items-center cursor-pointer hover:opacity-90 transition gap-3"
+                        onClick={() => navigate('/admin/dashboard')}
+                    >
+                        <div className="w-9 h-9 flex items-center justify-center shadow-md bg-white rounded-xl p-1 border border-amber-400/50">
+                            <img src="/SapthagiriLogo.jpg" alt="Logo" className="w-full h-full object-contain rounded-lg" />
+                        </div>
+                        <div>
+                            <h1 className="text-sm font-black tracking-tight uppercase leading-tight text-white flex items-center gap-2">
+                                <span>Sapthagiri PU College</span>
+                                <span className="bg-white/10 text-amber-300 text-[9px] font-black px-2 py-0.5 rounded-md uppercase tracking-wider hidden sm:inline-block">
+                                    Admin
+                                </span>
+                            </h1>
+                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest hidden md:block">
+                                {getCurrentPageTitle()}
+                            </p>
+                        </div>
                     </div>
                 </div>
-                
-                <div className="flex items-center gap-1.5 flex-wrap">
-                    <Link 
-                        to="/admin/dashboard/cbt-exams" 
-                        className={`px-3 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition flex items-center gap-1.5 ${
-                            location.pathname.includes('cbt-exams')
-                                ? 'bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 shadow-md'
-                                : 'text-slate-300 hover:text-white hover:bg-white/10'
-                        }`}
-                    >
-                        <span>⚡</span>
-                        <span>CBT Exams</span>
-                    </Link>
 
-                    <Link 
-                        to="/admin/dashboard/results" 
-                        className={`px-3 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition flex items-center gap-1.5 ${
-                            location.pathname.includes('results')
-                                ? 'bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 shadow-md'
-                                : 'text-slate-300 hover:text-white hover:bg-white/10'
-                        }`}
-                    >
-                        <span>📊</span>
-                        <span>Results</span>
-                    </Link>
-
-                    <Link 
-                        to="/admin/dashboard/questions" 
-                        className={`px-3 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition flex items-center gap-1.5 ${
-                            location.pathname.includes('questions')
-                                ? 'bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 shadow-md'
-                                : 'text-slate-300 hover:text-white hover:bg-white/10'
-                        }`}
-                    >
-                        <span>📚</span>
-                        <span>Question Bank</span>
-                    </Link>
-
-                    <Link 
-                        to="/admin/dashboard/grand-tests" 
-                        className={`px-3 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition flex items-center gap-1.5 ${
-                            location.pathname.includes('grand-tests')
-                                ? 'bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 shadow-md'
-                                : 'text-slate-300 hover:text-white hover:bg-white/10'
-                        }`}
-                    >
-                        <span>🏆</span>
-                        <span>Grand Tests</span>
-                    </Link>
-
-                    <Link 
-                        to="/admin/dashboard/previous-year-papers" 
-                        className={`px-3 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition flex items-center gap-1.5 ${
-                            location.pathname.includes('previous-year-papers')
-                                ? 'bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 shadow-md'
-                                : 'text-slate-300 hover:text-white hover:bg-white/10'
-                        }`}
-                    >
-                        <span>📑</span>
-                        <span>PYQs</span>
-                    </Link>
-
-                    <Link 
-                        to="/admin/dashboard/exam-blueprints" 
-                        className={`px-3 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition flex items-center gap-1.5 ${
-                            location.pathname.includes('exam-blueprints')
-                                ? 'bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 shadow-md'
-                                : 'text-slate-300 hover:text-white hover:bg-white/10'
-                        }`}
-                    >
-                        <span>📐</span>
-                        <span>Blueprints</span>
-                    </Link>
-
-                    <Link 
-                        to="/admin/dashboard/upload-template" 
-                        className={`px-3 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition flex items-center gap-1.5 ${
-                            location.pathname.includes('upload-template')
-                                ? 'bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 shadow-md'
-                                : 'text-slate-300 hover:text-white hover:bg-white/10'
-                        }`}
-                    >
-                        <span>📄</span>
-                        <span>Templates</span>
-                    </Link>
-
-                    <Link 
-                        to="/admin/dashboard/create-teacher" 
-                        className={`px-3.5 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition flex items-center gap-1.5 ${
-                            location.pathname.includes('create-teacher')
-                                ? 'bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 shadow-md'
-                                : 'bg-amber-400/15 text-amber-300 border border-amber-400/30 hover:bg-amber-400/25'
-                        }`}
-                    >
-                        <span>👥</span>
-                        <span>Faculty</span>
-                    </Link>
-
-                    {/* Notification Center */}
+                {/* Right Controls */}
+                <div className="flex items-center gap-3">
+                    {/* Notification Bell */}
                     <AdminNotificationBell />
 
-                    <div className="w-px h-6 bg-white/15 mx-1"></div>
+                    <div className="w-px h-6 bg-white/15"></div>
+
                     <button 
                         onClick={() => { logout(); navigate('/'); }} 
-                        className="bg-rose-500/15 border border-rose-500/30 text-rose-300 hover:bg-rose-600 hover:text-white px-3.5 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition shadow-xs cursor-pointer"
+                        className="bg-rose-500/15 border border-rose-500/30 text-rose-300 hover:bg-rose-600 hover:text-white px-3.5 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition shadow-xs cursor-pointer"
                         title="Sign Out"
                     >
                         Logout
@@ -1099,7 +1116,8 @@ const AdminDashboard = () => {
                 </div>
             </nav>
 
-            <div className="flex-1 p-10 max-w-7xl mx-auto w-full">
+            {/* ── MAIN CONTENT OUTLET ── */}
+            <div className="flex-1 p-6 sm:p-10 max-w-7xl mx-auto w-full">
                 <Routes>
                     <Route path="/" element={<DashboardHome />} />
                     <Route path="cbt-exams" element={<ExamManagement />} />
@@ -1120,3 +1138,4 @@ const AdminDashboard = () => {
 };
 
 export default AdminDashboard;
+
