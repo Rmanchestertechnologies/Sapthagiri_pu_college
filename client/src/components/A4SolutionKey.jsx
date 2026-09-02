@@ -73,9 +73,9 @@ export default function A4SolutionKey({
                                 fontFamily: 'Calibri, "Segoe UI", Arial, sans-serif',
                             }}
                         >
-                            {/* Official Sapthagiri PU College Crest Watermark */}
+                            {/* Official Sapthagiri PU College Crest Watermark - Real <img> element */}
                             <div 
-                                className="a4-watermark-print"
+                                className="a4-watermark-wrapper"
                                 style={{
                                     position: 'absolute',
                                     top: '50%',
@@ -83,17 +83,29 @@ export default function A4SolutionKey({
                                     transform: 'translate(-50%, -50%)',
                                     width: '380px',
                                     height: '380px',
-                                    backgroundImage: "url('/SapthagiriLogo.jpg')",
-                                    backgroundRepeat: 'no-repeat',
-                                    backgroundPosition: 'center',
-                                    backgroundSize: 'contain',
-                                    borderRadius: '50%',
-                                    opacity: 0.13,
-                                    mixBlendMode: 'multiply',
                                     pointerEvents: 'none',
-                                    zIndex: 0
+                                    zIndex: 0,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
                                 }}
-                            />
+                            >
+                                <img 
+                                    src="/SapthagiriLogo.jpg" 
+                                    alt="College Crest Watermark" 
+                                    className="a4-watermark-logo"
+                                    style={{
+                                        width: '380px',
+                                        height: '380px',
+                                        objectFit: 'contain',
+                                        borderRadius: '50%',
+                                        opacity: 0.16,
+                                        mixBlendMode: 'multiply',
+                                        display: 'block',
+                                        pointerEvents: 'none',
+                                    }}
+                                />
+                            </div>
 
                             <div style={{ position: 'relative', zIndex: 1 }}>
                                 {/* ── College Header ── */}

@@ -60,9 +60,9 @@ export default function A4PaperEngine({
             >
                 {/* ── Single Unified Question Paper Sheet ── */}
                 <div className="a4-sheet-page a4-questions-page" style={{ position: 'relative' }}>
-                    {/* Official Sapthagiri PU College Crest Watermark - Screen & Print Multi-Page */}
+                    {/* Official Sapthagiri PU College Crest Watermark - Real <img> foreground element guaranteed on all pages */}
                     <div 
-                        className="a4-watermark-screen no-print"
+                        className="a4-watermark-wrapper"
                         style={{
                             position: 'fixed',
                             top: '50%',
@@ -70,37 +70,29 @@ export default function A4PaperEngine({
                             transform: 'translate(-50%, -50%)',
                             width: '380px',
                             height: '380px',
-                            backgroundImage: "url('/SapthagiriLogo.jpg')",
-                            backgroundRepeat: 'no-repeat',
-                            backgroundPosition: 'center',
-                            backgroundSize: 'contain',
-                            borderRadius: '50%',
-                            opacity: 0.14,
-                            mixBlendMode: 'multiply',
                             pointerEvents: 'none',
-                            zIndex: 1
+                            zIndex: 0,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
                         }}
-                    />
-                    <div 
-                        className="a4-watermark-print"
-                        style={{
-                            position: 'absolute',
-                            top: '50%',
-                            left: '50%',
-                            transform: 'translate(-50%, -50%)',
-                            width: '380px',
-                            height: '380px',
-                            backgroundImage: "url('/SapthagiriLogo.jpg')",
-                            backgroundRepeat: 'no-repeat',
-                            backgroundPosition: 'center',
-                            backgroundSize: 'contain',
-                            borderRadius: '50%',
-                            opacity: 0.13,
-                            mixBlendMode: 'multiply',
-                            pointerEvents: 'none',
-                            zIndex: 0
-                        }}
-                    />
+                    >
+                        <img 
+                            src="/SapthagiriLogo.jpg" 
+                            alt="College Crest Watermark" 
+                            className="a4-watermark-logo"
+                            style={{
+                                width: '380px',
+                                height: '380px',
+                                objectFit: 'contain',
+                                borderRadius: '50%',
+                                opacity: 0.16,
+                                mixBlendMode: 'multiply',
+                                display: 'block',
+                                pointerEvents: 'none',
+                            }}
+                        />
+                    </div>
                     <div
                         className="a4-page-content"
                         style={{
@@ -284,18 +276,40 @@ export default function A4PaperEngine({
                     body * {
                         visibility: hidden !important;
                     }
-                    body:not(.printing-answer-key):not(.printing-solution-key) .a4-watermark-print {
+                    body {
+                        -webkit-print-color-adjust: exact !important;
+                        print-color-adjust: exact !important;
+                    }
+                    body:not(.printing-answer-key):not(.printing-solution-key) .a4-watermark-wrapper,
+                    body:not(.printing-answer-key):not(.printing-solution-key) .a4-watermark-wrapper * {
+                        visibility: visible !important;
+                    }
+                    body:not(.printing-answer-key):not(.printing-solution-key) .a4-watermark-wrapper {
                         position: fixed !important;
                         top: 50% !important;
                         left: 50% !important;
                         transform: translate(-50%, -50%) !important;
                         width: 380px !important;
                         height: 380px !important;
-                        opacity: 0.13 !important;
-                        mix-blend-mode: multiply !important;
-                        visibility: visible !important;
+                        display: flex !important;
+                        align-items: center !important;
+                        justify-content: center !important;
                         pointer-events: none !important;
                         z-index: 0 !important;
+                        -webkit-print-color-adjust: exact !important;
+                        print-color-adjust: exact !important;
+                    }
+                    body:not(.printing-answer-key):not(.printing-solution-key) .a4-watermark-logo {
+                        width: 380px !important;
+                        height: 380px !important;
+                        object-fit: contain !important;
+                        border-radius: 50% !important;
+                        opacity: 0.16 !important;
+                        mix-blend-mode: multiply !important;
+                        display: block !important;
+                        visibility: visible !important;
+                        -webkit-print-color-adjust: exact !important;
+                        print-color-adjust: exact !important;
                     }
 
                     /* ── Target 1: Answer Key Print ── */
