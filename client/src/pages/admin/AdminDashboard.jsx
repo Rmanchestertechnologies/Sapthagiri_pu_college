@@ -525,44 +525,6 @@ const DashboardHome = () => {
                 )}
             </div>
 
-            {/* ── SECTION 2: OMR SHEET EVALUATION & SCANNER HUB (NATIVE MODULE) ── */}
-            <div className="bg-gradient-to-r from-emerald-950/20 via-white to-emerald-950/10 p-6 sm:p-7 rounded-3xl border-2 border-emerald-500/30 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-6">
-                <div className="flex items-start gap-4">
-                    <div className="w-14 h-14 rounded-2xl bg-emerald-500 text-slate-950 flex items-center justify-center text-3xl font-black shadow-lg shrink-0">
-                        📑
-                    </div>
-                    <div>
-                        <div className="flex items-center gap-2 flex-wrap mb-1">
-                            <span className="bg-emerald-100 text-emerald-800 text-[10px] font-black uppercase tracking-widest px-2.5 py-0.5 rounded-md border border-emerald-300">
-                                Native OMR Engine Active
-                            </span>
-                            <h3 className="font-black text-xl text-navy uppercase tracking-tight">
-                                OMR Evaluation &amp; Scanner Hub
-                            </h3>
-                        </div>
-                        <p className="text-xs text-slate-600 font-medium max-w-2xl leading-relaxed">
-                            Upload and evaluate physical student OMR answer sheets using computer vision &amp; ONNX machine learning. Automatically scores against QPG answer keys, generates dynamic multi-subject merit lists, and diagnoses student concept weaknesses.
-                        </p>
-                    </div>
-                </div>
-
-                <div className="flex items-center gap-3 shrink-0 flex-wrap">
-                    <button
-                        onClick={() => navigate('/admin/dashboard/omr')}
-                        className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-3 rounded-2xl font-black text-xs uppercase tracking-wider transition-all shadow-md flex items-center gap-2 cursor-pointer hover:scale-105"
-                    >
-                        <span>🚀 Launch OMR Scanner</span>
-                        <span>→</span>
-                    </button>
-                    <button
-                        onClick={() => navigate('/admin/dashboard/create-teacher')}
-                        className="bg-white hover:bg-slate-50 text-navy border border-slate-200 px-4 py-3 rounded-2xl font-bold text-xs uppercase tracking-wider transition shadow-2xs cursor-pointer"
-                    >
-                        <span>👥 Faculty OMR Access</span>
-                    </button>
-                </div>
-            </div>
-
             {/* ── SECTION 3: PCMB SUBJECT DIRECTORY (ONE BOX - CLICK TO OPEN 4 SUBJECTS) ── */}
             <div className="bg-white rounded-3xl shadow-sm border border-slate-200/80 overflow-hidden transition-all duration-300">
                 {/* Master Box Header (Click to Open/Close) */}
@@ -1166,16 +1128,6 @@ const AdminDashboard = () => {
                     >
                         <span className="text-base leading-none">☰</span>
                         <span>Menu</span>
-                    </button>
-
-                    {/* QUICK DIRECT OMR SCANNER SHORTCUT */}
-                    <button
-                        onClick={() => navigate('/admin/dashboard/omr')}
-                        className="hidden sm:flex items-center gap-1.5 bg-emerald-500/20 text-emerald-300 border border-emerald-400/40 hover:bg-emerald-500 hover:text-slate-950 px-3 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer shadow-xs"
-                        title="Open OMR Evaluation & Scanner"
-                    >
-                        <span>📑</span>
-                        <span>OMR Scanner</span>
                     </button>
 
                     <div 
