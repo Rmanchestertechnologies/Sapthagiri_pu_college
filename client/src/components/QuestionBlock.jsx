@@ -8,100 +8,146 @@
  *     1. Side-by-Side (Left: Question + Options, Right: Diagram) when appropriate
  *     2. Inline (between statement and options)
  *     3. Full-width (for wide graphs / circuits)
+ * - Interactive Diagram Resizing via ResizableDiagram (+ / - controls right on the diagram)
  * - Zero overlap, no clipping, proper line spacing, KaTeX math/chem preservation.
  */
 import React from 'react';
 import MathRenderer from './MathRenderer';
+import ResizableDiagram from './ResizableDiagram';
 import { optionLabel, getQuestionOptionLabels } from '../utils/sanitize';
 
-// Dynamic option grid calculator based on length:
-// - Very Short (<= 20 chars): all 4 in one line
-// - Medium (<= 52 chars): 2 on left, 2 on right (2x2 grid)
-// - Long (> 28 chars or complex formulas): 1 below one (vertical stack)
-function getDynamicOptGrid(options = [], singleColMode = false) {
+/**
+ * Dynamic option grid calculator based on length and complexity:
+ * - Complex formulas / long equations (e.g. Q33 vector equations): 1 column (vertical stack)
+ * - 2-Column paper mode:
+ *     - Short scalars / tiny choices (<= 4 chars, no math): 4 columns across
+ *     - Medium (<= 18 chars, e.g. "50 minutes", short math): 2x2 grid (1fr 1fr)
+ *     - Long or complex formulas: 1 column (vertical stack)
+ * - 1-Column paper mode:
+ *     - Short scalars (<= 10 chars, no complex math): 4 columns across
+ *     - Medium (<= 32 chars): 2x2 grid
+ *     - Long or complex formulas: 1 column (vertical stack)
+ */
+function getDynamicOptGrid(options = [], isTwoColMode = false) {
     if (!options || options.length === 0) return { display: 'none' };
 
     let hasComplexFormula = false;
-    const lengths = options.map(opt => {
-        if (!opt) return 0;
-        const str = String(typeof opt === 'object' ? (opt.text || opt.optionText || '') : opt);
+    let hasAnyMath = false;
+
+    const parsedOptions = options.map((opt) => {
+        if (!opt) return { text: '', len: 0, hasMath: false, isComplex: false };
+        const str = String(typeof opt === 'object' ? (opt.text || opt.optionText || opt.value || opt.option || '') : opt).trim();
+        const hasImage = /\{\{IMG::|!\[/i.test(str);
         const clean = str.replace(/<[^>]+>/g, '').trim();
-        // Check for math or chemical formulas (superscripts, subscripts, arrows, cell pipes, fractions)
-        if (/(\$|\\\[|\\\(|\\frac|\\sqrt|\\int|\\rightarrow|\||\^|_)/i.test(clean)) {
-            if (clean.length > 12 || clean.includes('|') || clean.includes('\\rightarrow') || clean.includes('\\frac')) {
-                hasComplexFormula = true;
-            }
+
+        // Detect math / LaTeX commands / symbols
+        const mathMatch = /(\$|\\\(|\\\[|\\|\^|_)/i.test(clean);
+        if (mathMatch) hasAnyMath = true;
+
+        // Complex formula detection:
+        // - Fractions (\frac, \dfrac)
+        // - Vectors or hats (\vec, \hat)
+        // - Integrals, square roots, matrices, summations (\sqrt, \int, \sum, \matrix, \begin)
+        // - Long formulas with mathematical operators (+, -, =)
+        // - Images
+        const complexMatch =
+            hasImage ||
+            /(\\frac|\\dfrac|\\vec|\\hat|\\sqrt|\\int|\\sum|\\prod|\\matrix|\\begin|\\rightarrow|\|)/i.test(clean) ||
+            (mathMatch && (clean.length > 12 || /(=|\+.*\-|\-.*\+|\^\{?\d+\}?.*_)/.test(clean)));
+
+        if (complexMatch) {
+            hasComplexFormula = true;
         }
-        return clean.length;
+
+        return {
+            text: str,
+            len: clean.length,
+            hasMath: mathMatch,
+            isComplex: complexMatch,
+        };
     });
 
-    const maxLen = Math.max(...lengths);
+    const maxLen = Math.max(...parsedOptions.map((o) => o.len), 0);
 
-    // If any option has a complex or multi-token formula, NEVER force into narrow multi-column side-by-side
-    if (hasComplexFormula) {
-        return {
-            display: 'grid',
-            gridTemplateColumns: '1fr',
-            gap: '3px 6px',
-            marginTop: '4px',
-            alignItems: 'start',
-        };
-    }
-
-    if (singleColMode) {
-        // Two-column paper mode (half-width column)
-        if (maxLen <= 6 && options.length <= 4) {
+    // ── TWO-COLUMN PAPER MODE (each column is ~350px wide) ──
+    if (isTwoColMode) {
+        // If any option has a complex formula (vectors, fractions, etc.), ALWAYS stack 1-below-another
+        if (hasComplexFormula) {
             return {
                 display: 'grid',
-                gridTemplateColumns: `repeat(${options.length}, 1fr)`,
+                gridTemplateColumns: 'minmax(0, 1fr)',
+                gap: '3px 6px',
+                marginTop: '4px',
+                alignItems: 'start',
+            };
+        }
+
+        // Extremely short scalar choices only (e.g. 0, 1, 2, 3 or A, B, C, D)
+        if (maxLen <= 4 && !hasAnyMath && options.length <= 4) {
+            return {
+                display: 'grid',
+                gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))`,
                 gap: '2px 8px',
                 marginTop: '4px',
                 alignItems: 'start',
             };
         }
-        if (maxLen <= 22 && options.length <= 4) {
+
+        // Medium options (e.g. "50 minutes", short expressions up to 18 chars): 2x2 grid
+        if (maxLen <= 18 && options.length <= 4) {
             return {
                 display: 'grid',
-                gridTemplateColumns: '1fr 1fr',
+                gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
                 gap: '2px 10px',
                 marginTop: '4px',
                 alignItems: 'start',
             };
         }
+
+        // Long text or formulas: 1 column vertical stack
         return {
             display: 'grid',
-            gridTemplateColumns: '1fr',
+            gridTemplateColumns: 'minmax(0, 1fr)',
             gap: '2px 6px',
             marginTop: '4px',
             alignItems: 'start',
         };
     }
 
-    // Full width Single Column mode (standard A4 page)
-    if (maxLen <= 10 && options.length <= 4) {
-        // Very short scalars only: all in 1 line
+    // ── SINGLE-COLUMN PAPER MODE (full A4 width ~730px) ──
+    if (hasComplexFormula && maxLen > 24) {
         return {
             display: 'grid',
-            gridTemplateColumns: `repeat(${options.length}, 1fr)`,
+            gridTemplateColumns: 'minmax(0, 1fr)',
+            gap: '3px 6px',
+            marginTop: '4px',
+            alignItems: 'start',
+        };
+    }
+
+    if (maxLen <= 10 && !hasComplexFormula && options.length <= 4) {
+        return {
+            display: 'grid',
+            gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))`,
             gap: '2px 16px',
             marginTop: '4px',
             alignItems: 'start',
         };
     }
+
     if (maxLen <= 28 && options.length <= 4) {
-        // Medium: 2 on left, 2 on right (2x2)
         return {
             display: 'grid',
-            gridTemplateColumns: '1fr 1fr',
+            gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
             gap: '2px 16px',
             marginTop: '4px',
             alignItems: 'start',
         };
     }
-    // Long: 1 below another
+
     return {
         display: 'grid',
-        gridTemplateColumns: '1fr',
+        gridTemplateColumns: 'minmax(0, 1fr)',
         gap: '3px 6px',
         marginTop: '4px',
         alignItems: 'start',
@@ -172,7 +218,7 @@ const Q = {
         display: 'flex',
         alignItems: 'baseline',
         gap: '5px',
-        wordBreak: 'break-word',
+        wordBreak: 'normal',
         overflowWrap: 'break-word',
         minWidth: 0,
         maxWidth: '100%',
@@ -187,23 +233,11 @@ const Q = {
         fontStyle: 'normal',
         fontFamily: 'inherit',
         whiteSpace: 'nowrap',
-        minWidth: '20px',
+        minWidth: '22px',
+        flexShrink: 0,
         lineHeight: '1.45',
         color: '#222',
     },
-    // Standardized diagram image wrapper
-    diagramImg: (maxH = '135px', maxW = '240px') => ({
-        display: 'block',
-        maxWidth: maxW,
-        maxHeight: maxH,
-        width: 'auto',
-        height: 'auto',
-        objectFit: 'contain',
-        borderRadius: '4px',
-        backgroundColor: '#fff',
-        boxSizing: 'border-box',
-        margin: '4px auto',
-    }),
     sideBySideContainer: {
         display: 'flex',
         flexDirection: 'row',
@@ -273,10 +307,10 @@ const Q = {
  * Intelligent Layout Decision:
  * Decides whether diagram should be rendered side-by-side on the right, or inline/full-width
  */
-function shouldRenderSideBySide(q, singleColMode = false) {
+function shouldRenderSideBySide(q, isTwoCol = false) {
     if (!q.imageUrl && !q.image_url) return false;
     // In 2-column paper mode, column width is narrower, so inline is cleaner
-    if (singleColMode) return false;
+    if (isTwoCol) return false;
 
     // Check options length: if 4 standard short/medium options, side-by-side is optimal
     const options = Array.isArray(q.options) ? q.options : [];
@@ -309,33 +343,49 @@ function parseAssertionReason(q) {
 
 function cleanQuestionText(text) {
     if (!text) return '';
-    // Strip redundant leading question numbers like "6. ", "Q6: ", "6) " that might be in raw database text
     return String(text).replace(/^(\s*(?:Q\.?\s*)?\d+[\.\)\-:]\s*)+/i, '').trim();
 }
 
 /**
- * MCQ Body with Intelligent Diagram Placement
+ * MCQ Body with Intelligent Diagram Placement & Resizing
  */
-function BodyMCQ({ q, classes, singleColMode, diagramMaxHeight = '150px' }) {
+function BodyMCQ({ q, classes, isTwoCol, diagramMaxHeight = '150px', onDiagramResize, displayNum }) {
     const qText = cleanQuestionText(q.questionText || q.question || '');
     const imageUrl = q.imageUrl || q.image_url;
     const options = Array.isArray(q.options) ? q.options : [];
-    const isSideBySide = shouldRenderSideBySide(q, singleColMode);
+    const isSideBySide = shouldRenderSideBySide(q, isTwoCol);
     const labels = getQuestionOptionLabels(q);
+    const qId = q._id || q.id || displayNum;
+    const currentDiagramHeight = q.customDiagramHeight || diagramMaxHeight;
 
     // Render Options List
     const renderOptions = (forceSingle = false) => {
         if (options.length === 0) return null;
         return (
-            <div style={forceSingle ? { display: 'grid', gridTemplateColumns: '1fr', gap: '2px 6px', marginTop: '4px' } : getDynamicOptGrid(options, singleColMode)}>
-                {options.map((opt, i) => (
-                    <div key={i} style={Q.optRow}>
-                        <span style={Q.optLbl}>({labels[i] || optionLabel(i, classes)})</span>
-                        <span style={{ flex: 1, minWidth: 0, fontWeight: 400 }}>
-                            <MathRenderer inline text={opt} />
-                        </span>
-                    </div>
-                ))}
+            <div
+                style={
+                    forceSingle
+                        ? { display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: '2px 6px', marginTop: '4px' }
+                        : getDynamicOptGrid(options, isTwoCol)
+                }
+            >
+                {options.map((opt, i) => {
+                    const optText = typeof opt === 'object' ? (opt.text || opt.optionText || opt.value || opt.option || '') : String(opt || '');
+                    return (
+                        <div key={i} style={Q.optRow}>
+                            <span style={Q.optLbl}>({labels[i] || optionLabel(i, classes)})</span>
+                            <span style={{ flex: 1, minWidth: 0, maxWidth: '100%', fontWeight: 400 }}>
+                                <MathRenderer
+                                    inline
+                                    text={optText}
+                                    questionId={qId}
+                                    initialHeight={q.customOptionDiagramHeight || '70px'}
+                                    onSizeChange={onDiagramResize ? (h) => onDiagramResize(qId, h, `opt_${i}`) : undefined}
+                                />
+                            </span>
+                        </div>
+                    );
+                })}
             </div>
         );
     };
@@ -346,16 +396,25 @@ function BodyMCQ({ q, classes, singleColMode, diagramMaxHeight = '150px' }) {
             <div style={Q.sideBySideContainer}>
                 <div style={Q.sideLeftContent}>
                     <div style={Q.qTextBold}>
-                        <MathRenderer inline text={qText} />
+                        <MathRenderer
+                            inline
+                            text={qText}
+                            questionId={qId}
+                            initialHeight={currentDiagramHeight}
+                            onSizeChange={onDiagramResize ? (h) => onDiagramResize(qId, h, 'main') : undefined}
+                        />
                     </div>
                     {renderOptions(true)}
                 </div>
                 <div style={Q.sideRightDiagram}>
-                    <img
+                    <ResizableDiagram
                         src={imageUrl}
                         alt="Diagram"
-                        style={Q.diagramImg(diagramMaxHeight, '100%')}
-                        loading="lazy"
+                        questionId={qId}
+                        diagramKey="main"
+                        initialHeight={currentDiagramHeight}
+                        onSizeChange={onDiagramResize ? (h) => onDiagramResize(qId, h, 'main') : undefined}
+                        maxWidth="100%"
                     />
                 </div>
             </div>
@@ -366,15 +425,24 @@ function BodyMCQ({ q, classes, singleColMode, diagramMaxHeight = '150px' }) {
     return (
         <>
             <div style={Q.qTextBold}>
-                <MathRenderer inline text={qText} />
+                <MathRenderer
+                    inline
+                    text={qText}
+                    questionId={qId}
+                    initialHeight={currentDiagramHeight}
+                    onSizeChange={onDiagramResize ? (h) => onDiagramResize(qId, h, 'main') : undefined}
+                />
             </div>
             {imageUrl && (
-                <div style={{ textAlign: 'center', margin: '6px 0' }}>
-                    <img
+                <div style={{ textAlign: 'center', margin: '4px 0' }}>
+                    <ResizableDiagram
                         src={imageUrl}
                         alt="Diagram"
-                        style={{ ...Q.diagramImg(diagramMaxHeight, '240px'), margin: '0 auto' }}
-                        loading="lazy"
+                        questionId={qId}
+                        diagramKey="main"
+                        initialHeight={currentDiagramHeight}
+                        onSizeChange={onDiagramResize ? (h) => onDiagramResize(qId, h, 'main') : undefined}
+                        maxWidth={isTwoCol ? '100%' : '260px'}
                     />
                 </div>
             )}
@@ -386,17 +454,25 @@ function BodyMCQ({ q, classes, singleColMode, diagramMaxHeight = '150px' }) {
 /**
  * Assertion & Reason Body
  */
-function BodyAssertionReason({ q, classes, singleColMode, diagramMaxHeight }) {
+function BodyAssertionReason({ q, classes, isTwoCol, diagramMaxHeight, onDiagramResize, displayNum }) {
     const { assertion, reason } = parseAssertionReason(q);
     const opts = q.options && q.options.length > 0 ? q.options : AR_OPTIONS;
     const qText = cleanQuestionText(q.questionText || q.question || '');
     const imageUrl = q.imageUrl || q.image_url;
+    const qId = q._id || q.id || displayNum;
+    const currentDiagramHeight = q.customDiagramHeight || diagramMaxHeight;
 
     return (
         <>
             {qText && !q.assertion && (
                 <div style={{ ...Q.qTextBold, marginBottom: '4px' }}>
-                    <MathRenderer inline text={qText} />
+                    <MathRenderer
+                        inline
+                        text={qText}
+                        questionId={qId}
+                        initialHeight={currentDiagramHeight}
+                        onSizeChange={onDiagramResize ? (h) => onDiagramResize(qId, h, 'main') : undefined}
+                    />
                 </div>
             )}
             <div style={Q.assertRow}>
@@ -414,20 +490,23 @@ function BodyAssertionReason({ q, classes, singleColMode, diagramMaxHeight }) {
                 </div>
             )}
             {imageUrl && (
-                <div style={{ textAlign: 'center', margin: '6px 0' }}>
-                    <img
+                <div style={{ textAlign: 'center', margin: '4px 0' }}>
+                    <ResizableDiagram
                         src={imageUrl}
                         alt="Diagram"
-                        style={{ ...Q.diagramImg(diagramMaxHeight, '220px'), margin: '0 auto' }}
-                        loading="lazy"
+                        questionId={qId}
+                        diagramKey="main"
+                        initialHeight={currentDiagramHeight}
+                        onSizeChange={onDiagramResize ? (h) => onDiagramResize(qId, h, 'main') : undefined}
+                        maxWidth="240px"
                     />
                 </div>
             )}
-            <div style={{ marginTop: '5px', ...getDynamicOptGrid(opts, singleColMode) }}>
+            <div style={{ marginTop: '5px', ...getDynamicOptGrid(opts, isTwoCol) }}>
                 {opts.map((opt, i) => (
                     <div key={i} style={{ ...Q.optRow, marginBottom: '2px' }}>
                         <span style={Q.optLbl}>({optionLabel(i, classes)})</span>
-                        <span style={{ flex: 1, minWidth: 0, fontWeight: 400 }}>
+                        <span style={{ flex: 1, minWidth: 0, maxWidth: '100%', fontWeight: 400 }}>
                             <MathRenderer inline text={opt} />
                         </span>
                     </div>
@@ -440,25 +519,37 @@ function BodyAssertionReason({ q, classes, singleColMode, diagramMaxHeight }) {
 /**
  * Match the Following Body
  */
-function BodyMatchFollowing({ q, classes, singleColMode, diagramMaxHeight }) {
+function BodyMatchFollowing({ q, classes, isTwoCol, diagramMaxHeight, onDiagramResize, displayNum }) {
     const pairs = q.matchPairs || [];
     const opts = q.options || [];
     const qText = cleanQuestionText(q.questionText || q.question || '');
     const imageUrl = q.imageUrl || q.image_url;
+    const qId = q._id || q.id || displayNum;
+    const currentDiagramHeight = q.customDiagramHeight || diagramMaxHeight;
 
     return (
         <>
             {qText && (
                 <div style={{ ...Q.qTextBold, marginBottom: '4px' }}>
-                    <MathRenderer inline text={qText} />
+                    <MathRenderer
+                        inline
+                        text={qText}
+                        questionId={qId}
+                        initialHeight={currentDiagramHeight}
+                        onSizeChange={onDiagramResize ? (h) => onDiagramResize(qId, h, 'main') : undefined}
+                    />
                 </div>
             )}
             {imageUrl && (
-                <div style={{ textAlign: 'center', margin: '6px 0' }}>
-                    <img
+                <div style={{ textAlign: 'center', margin: '4px 0' }}>
+                    <ResizableDiagram
                         src={imageUrl}
                         alt="Diagram"
-                        style={{ ...Q.diagramImg(diagramMaxHeight, '220px'), margin: '0 auto' }}
+                        questionId={qId}
+                        diagramKey="main"
+                        initialHeight={currentDiagramHeight}
+                        onSizeChange={onDiagramResize ? (h) => onDiagramResize(qId, h, 'main') : undefined}
+                        maxWidth="240px"
                     />
                 </div>
             )}
@@ -487,13 +578,13 @@ function BodyMatchFollowing({ q, classes, singleColMode, diagramMaxHeight }) {
                 </table>
             )}
             {opts.length > 0 && (
-                <div style={getDynamicOptGrid(opts, true)}>
+                <div style={getDynamicOptGrid(opts, isTwoCol)}>
                     {opts.map((opt, i) => {
                         const labels = getQuestionOptionLabels(q);
                         return (
                             <div key={i} style={Q.optRow}>
                                 <span style={Q.optLbl}>({labels[i] || optionLabel(i, classes)})</span>
-                                <span style={{ flex: 1, minWidth: 0, fontWeight: 400 }}>
+                                <span style={{ flex: 1, minWidth: 0, maxWidth: '100%', fontWeight: 400 }}>
                                     <MathRenderer inline text={opt} />
                                 </span>
                             </div>
@@ -508,18 +599,26 @@ function BodyMatchFollowing({ q, classes, singleColMode, diagramMaxHeight }) {
 /**
  * Statement-Based Body
  */
-function BodyStatementBased({ q, classes, singleColMode, diagramMaxHeight }) {
+function BodyStatementBased({ q, classes, isTwoCol, diagramMaxHeight, onDiagramResize, displayNum }) {
     const statements = q.statements || [];
     const opts = q.options || [];
     const qText = cleanQuestionText(q.questionText || q.question || '');
     const imageUrl = q.imageUrl || q.image_url;
     const labels = getQuestionOptionLabels(q);
+    const qId = q._id || q.id || displayNum;
+    const currentDiagramHeight = q.customDiagramHeight || diagramMaxHeight;
 
     return (
         <>
             {qText && (
                 <div style={{ ...Q.qTextBold, marginBottom: '4px' }}>
-                    <MathRenderer inline text={qText} />
+                    <MathRenderer
+                        inline
+                        text={qText}
+                        questionId={qId}
+                        initialHeight={currentDiagramHeight}
+                        onSizeChange={onDiagramResize ? (h) => onDiagramResize(qId, h, 'main') : undefined}
+                    />
                 </div>
             )}
             {statements.length > 0 && (
@@ -532,20 +631,24 @@ function BodyStatementBased({ q, classes, singleColMode, diagramMaxHeight }) {
                 </div>
             )}
             {imageUrl && (
-                <div style={{ textAlign: 'center', margin: '6px 0' }}>
-                    <img
+                <div style={{ textAlign: 'center', margin: '4px 0' }}>
+                    <ResizableDiagram
                         src={imageUrl}
                         alt="Diagram"
-                        style={{ ...Q.diagramImg(diagramMaxHeight, '220px'), margin: '0 auto' }}
+                        questionId={qId}
+                        diagramKey="main"
+                        initialHeight={currentDiagramHeight}
+                        onSizeChange={onDiagramResize ? (h) => onDiagramResize(qId, h, 'main') : undefined}
+                        maxWidth="240px"
                     />
                 </div>
             )}
             {opts.length > 0 && (
-                <div style={getDynamicOptGrid(opts, singleColMode)}>
+                <div style={getDynamicOptGrid(opts, isTwoCol)}>
                     {opts.map((opt, i) => (
                         <div key={i} style={Q.optRow}>
                             <span style={Q.optLbl}>({labels[i] || optionLabel(i, classes)})</span>
-                            <span style={{ flex: 1, minWidth: 0, fontWeight: 400 }}>
+                            <span style={{ flex: 1, minWidth: 0, maxWidth: '100%', fontWeight: 400 }}>
                                 <MathRenderer inline text={opt} />
                             </span>
                         </div>
@@ -565,16 +668,19 @@ export default function QuestionBlock({
     classes = [],
     showMarks = false,
     singleColMode = false,
+    isTwoCol = false,
     fontSize = '13px',
     lineHeight = '1.45',
     formatMarks,
     extraStyle = {},
     diagramMaxHeight = '150px',
+    onDiagramResize,
 }) {
     if (!q) return null;
 
     const activeFontSize = q.fontSize || fontSize;
     const qType = (q.type || q.q_type || 'MCQ').toUpperCase();
+    const effectiveIsTwoCol = Boolean(isTwoCol || singleColMode);
 
     const renderBody = () => {
         if (qType.includes('ASSERTION')) {
@@ -582,8 +688,10 @@ export default function QuestionBlock({
                 <BodyAssertionReason
                     q={q}
                     classes={classes}
-                    singleColMode={singleColMode}
+                    isTwoCol={effectiveIsTwoCol}
                     diagramMaxHeight={diagramMaxHeight}
+                    onDiagramResize={onDiagramResize}
+                    displayNum={displayNum}
                 />
             );
         }
@@ -592,8 +700,10 @@ export default function QuestionBlock({
                 <BodyMatchFollowing
                     q={q}
                     classes={classes}
-                    singleColMode={singleColMode}
+                    isTwoCol={effectiveIsTwoCol}
                     diagramMaxHeight={diagramMaxHeight}
+                    onDiagramResize={onDiagramResize}
+                    displayNum={displayNum}
                 />
             );
         }
@@ -602,8 +712,10 @@ export default function QuestionBlock({
                 <BodyStatementBased
                     q={q}
                     classes={classes}
-                    singleColMode={singleColMode}
+                    isTwoCol={effectiveIsTwoCol}
                     diagramMaxHeight={diagramMaxHeight}
+                    onDiagramResize={onDiagramResize}
+                    displayNum={displayNum}
                 />
             );
         }
@@ -612,8 +724,10 @@ export default function QuestionBlock({
             <BodyMCQ
                 q={q}
                 classes={classes}
-                singleColMode={singleColMode}
+                isTwoCol={effectiveIsTwoCol}
                 diagramMaxHeight={diagramMaxHeight}
+                onDiagramResize={onDiagramResize}
+                displayNum={displayNum}
             />
         );
     };

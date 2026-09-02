@@ -318,6 +318,7 @@ export default function PaperRenderer({
     showSettingsPanel = false,
     onProceedToAlignment,
     onProceedToFinalize,
+    onDiagramResize,
 }) {
     const [internalSettings, setInternalSettings] = useState(DEFAULT_SETTINGS);
     const settings = externalSettings || internalSettings;
@@ -421,6 +422,7 @@ export default function PaperRenderer({
                 isAssignment={isAssignment}
                 settings={settings}
                 zoom={zoom}
+                onDiagramResize={onDiagramResize}
             />
         </div>
     );

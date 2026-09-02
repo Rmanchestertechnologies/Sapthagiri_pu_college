@@ -1,13 +1,12 @@
 import React, { useMemo } from 'react';
 import katex from 'katex';
 import DOMPurify from 'dompurify';
+import ResizableDiagram from './ResizableDiagram';
 
 /**
  * Renders text that may contain LaTeX math delimiters ($...$, $$...$$, \(...\), \[...\])
- * and {{IMG::...}} image blocks, into properly formatted HTML with KaTeX math rendering.
- *
- * Uses katex.renderToString() synchronously so math is ALWAYS rendered —
- * no race condition with dangerouslySetInnerHTML.
+ * and {{IMG::...}} image blocks, into properly formatted HTML with KaTeX math rendering
+ * and interactive resizable diagrams.
  */
 
 // KaTeX-permissive DOMPurify config — allows all KaTeX output HTML safely
@@ -39,10 +38,9 @@ const KATEX_CONFIG = {
 };
 
 /**
- * Converts a raw text string (with LaTeX delimiters) into rendered HTML.
- * Processes in order: $$...$$ → $...$ → \[...\] → \(...\) → {{IMG::...}}
+ * Converts a raw text string with LaTeX math delimiters into rendered HTML.
  */
-function processText(text, inline = false) {
+function processMathOnly(text) {
     if (!text || typeof text !== 'string') return '';
 
     // 0) Strip internal QPV / QBP / DIFFICULTY tags
@@ -51,36 +49,16 @@ function processText(text, inline = false) {
         .replace(/\[(?:QPV|QBP)_[A-Za-z0-9_]+:[^\]]*\]/gi, '')
         .trim();
 
-    // 1) Handle {{IMG::...}} image blocks with clean proportional sizing
-    result = result.replace(/\{\{IMG::(.*?)\}\}/gi, (_match, src) => {
-        if (inline) {
-            // Compact sizing for options / inline structures
-            return `<img src="${src}" alt="Structure" style="max-height:48px;max-width:110px;width:auto;height:auto;object-fit:contain;display:inline-block;vertical-align:middle;margin:2px 4px;" />`;
-        } else {
-            // Standard neat question diagram sizing (never oversized or blown up)
-            return `<img src="${src}" alt="Question Diagram" style="max-width:240px;max-height:120px;width:auto;height:auto;object-fit:contain;display:block;margin:6px auto;border-radius:4px;" />`;
-        }
-    });
-
-    // 2) Handle standard markdown ![alt](src) images if present
-    result = result.replace(/!\[(.*?)\]\((.*?)\)/gi, (_match, alt, src) => {
-        if (inline) {
-            return `<img src="${src}" alt="${alt || 'Structure'}" style="max-height:48px;max-width:110px;width:auto;height:auto;object-fit:contain;display:inline-block;vertical-align:middle;margin:2px 4px;" />`;
-        } else {
-            return `<img src="${src}" alt="${alt || 'Question Diagram'}" style="max-width:240px;max-height:120px;width:auto;height:auto;object-fit:contain;display:block;margin:6px auto;border-radius:4px;" />`;
-        }
-    });
-
-    // 3) Render display math: $$...$$ (rendered inline-block to preserve sentence flow)
+    // 1) Render display math: $$...$$ (rendered inline-block to preserve sentence flow)
     result = result.replace(/\$\$([\s\S]*?)\$\$/g, (_match, math) => {
         try {
             return katex.renderToString(math.trim(), { displayMode: false, throwOnError: false, output: 'html' });
         } catch {
-            return math; // fallback: show raw content without delimiters
+            return math;
         }
     });
 
-    // 4) Render display math: \[...\]
+    // 2) Render display math: \[...\]
     result = result.replace(/\\\[([\s\S]*?)\\\]/g, (_match, math) => {
         try {
             return katex.renderToString(math.trim(), { displayMode: false, throwOnError: false, output: 'html' });
@@ -89,7 +67,7 @@ function processText(text, inline = false) {
         }
     });
 
-    // 5) Render inline math: $...$  (single dollar — careful not to match $$ again)
+    // 3) Render inline math: $...$ (single dollar)
     result = result.replace(/\$([^$\n]+?)\$/g, (_match, math) => {
         try {
             return katex.renderToString(math.trim(), { displayMode: false, throwOnError: false, output: 'html' });
@@ -98,7 +76,7 @@ function processText(text, inline = false) {
         }
     });
 
-    // 6) Render inline math: \(...\)
+    // 4) Render inline math: \(...\)
     result = result.replace(/\\\(([\s\S]*?)\\\)/g, (_match, math) => {
         try {
             return katex.renderToString(math.trim(), { displayMode: false, throwOnError: false, output: 'html' });
@@ -110,21 +88,89 @@ function processText(text, inline = false) {
     return result;
 }
 
-const MathRenderer = ({ text, className = '', style = {}, inline = false }) => {
+const MathRenderer = ({
+    text,
+    className = '',
+    style = {},
+    inline = false,
+    questionId,
+    initialHeight,
+    onSizeChange,
+}) => {
     const safeText = typeof text === 'string' ? text : (text ? String(text) : '');
+    const hasImages = /\{\{IMG::.*?\}\}|!\[.*?\]\(.*?\)/i.test(safeText);
 
-    // Pre-render math synchronously — no useEffect race condition
-    const renderedHtml = useMemo(() => {
-        const processed = processText(safeText, inline);
-        return DOMPurify.sanitize(processed, KATEX_CONFIG);
-    }, [safeText, inline]);
+    const tokens = useMemo(() => {
+        if (!hasImages) return null;
+        const regex = /(\{\{IMG::.*?\}\}|!\[.*?\]\(.*?\))/gi;
+        const parts = safeText.split(regex);
+        return parts.map((part, index) => {
+            if (!part) return null;
+            const imgMatch1 = part.match(/^\{\{IMG::(.*?)\}\}$/i);
+            if (imgMatch1) {
+                return {
+                    type: 'image',
+                    src: imgMatch1[1].trim(),
+                    alt: 'Question Diagram',
+                    key: index,
+                };
+            }
+            const imgMatch2 = part.match(/^!\[(.*?)\]\((.*?)\)$/i);
+            if (imgMatch2) {
+                return {
+                    type: 'image',
+                    src: imgMatch2[2].trim(),
+                    alt: imgMatch2[1] || 'Question Diagram',
+                    key: index,
+                };
+            }
+            return {
+                type: 'text',
+                html: DOMPurify.sanitize(processMathOnly(part), KATEX_CONFIG),
+                key: index,
+            };
+        }).filter(Boolean);
+    }, [safeText, hasImages]);
+
+    if (!hasImages) {
+        const renderedHtml = DOMPurify.sanitize(processMathOnly(safeText), KATEX_CONFIG);
+        return (
+            <span
+                className={`math-renderer ${inline ? 'inline-math' : ''} ${className}`}
+                style={{ display: 'inline', ...style }}
+                dangerouslySetInnerHTML={{ __html: renderedHtml }}
+            />
+        );
+    }
 
     return (
         <span
             className={`math-renderer ${inline ? 'inline-math' : ''} ${className}`}
-            style={{ display: 'inline', ...style }}
-            dangerouslySetInnerHTML={{ __html: renderedHtml }}
-        />
+            style={{ display: inline ? 'inline' : 'block', ...style }}
+        >
+            {tokens.map((token) => {
+                if (token.type === 'text') {
+                    return (
+                        <span
+                            key={token.key}
+                            dangerouslySetInnerHTML={{ __html: token.html }}
+                        />
+                    );
+                }
+                return (
+                    <ResizableDiagram
+                        key={token.key}
+                        src={token.src}
+                        alt={token.alt}
+                        isOption={inline}
+                        questionId={questionId}
+                        diagramKey={`inline_${token.key}`}
+                        initialHeight={initialHeight}
+                        onSizeChange={onSizeChange}
+                    />
+                );
+            })}
+        </span>
     );
 };
 

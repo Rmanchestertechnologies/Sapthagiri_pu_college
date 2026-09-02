@@ -24,6 +24,7 @@ export default function A4PaperEngine({
     zoom = 100,
     fitMode = 'actual',
     singlePageMode = false,
+    onDiagramResize,
 }) {
     const questions = useMemo(() => paper?.questions || [], [paper]);
     const classes = useMemo(() => paper?.classes || [], [paper]);
@@ -129,11 +130,13 @@ export default function A4PaperEngine({
                                             classes={classes}
                                             showMarks={settings.showMarks}
                                             singleColMode={isTwoCol}
+                                            isTwoCol={isTwoCol}
                                             fontSize={settings.fontSize}
                                             lineHeight={settings.lineHeight}
                                             formatMarks={formatMarks}
                                             extraStyle={{ marginBottom: '0px' }}
                                             diagramMaxHeight={settings.diagramMaxHeight}
+                                            onDiagramResize={onDiagramResize}
                                         />
                                     </div>
                                 );
@@ -308,6 +311,14 @@ export default function A4PaperEngine({
                     }
                     .no-print {
                         display: none !important;
+                    }
+                    .resizable-diagram-wrap {
+                        margin: 2px auto !important;
+                    }
+                    .resizable-diagram-wrap img {
+                        box-shadow: none !important;
+                        outline: none !important;
+                        border: none !important;
                     }
                     .question-print-item {
                         break-inside: avoid !important;

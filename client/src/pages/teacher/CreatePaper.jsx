@@ -695,6 +695,25 @@ export default function CreatePaper() {
         }
     };
 
+    // Diagram resizing handler (interactive per-diagram scaling)
+    const handleDiagramResize = (qIdOrNum, newHeight, diagramKey = 'main') => {
+        setSelectedQuestions(prev => prev.map((q, idx) => {
+            const isMatch = (q._id && String(q._id) === String(qIdOrNum)) ||
+                            (q.id && String(q.id) === String(qIdOrNum)) ||
+                            (idx + startQNo === Number(qIdOrNum)) ||
+                            (String(idx) === String(qIdOrNum));
+            if (!isMatch) return q;
+            return {
+                ...q,
+                customDiagramHeight: newHeight,
+                customDiagramSizes: {
+                    ...(q.customDiagramSizes || {}),
+                    [diagramKey]: newHeight,
+                }
+            };
+        }));
+    };
+
     // Prepared paper object for preview renderer
     const currentPaperObject = useMemo(() => {
         const effectiveEnd = endQNo || (startQNo + selectedQuestions.length - 1);
@@ -1898,6 +1917,7 @@ export default function CreatePaper() {
                                 showSettingsPanel={false}
                                 onProceedToAlignment={() => setCurrentStep(5)}
                                 onProceedToFinalize={handleFinalizeAndSave}
+                                onDiagramResize={handleDiagramResize}
                             />
                         </div>
                     </div>
@@ -1963,6 +1983,7 @@ export default function CreatePaper() {
                                 setSettings={setSettings}
                                 showSettingsPanel={true}
                                 onProceedToFinalize={handleFinalizeAndSave}
+                                onDiagramResize={handleDiagramResize}
                             />
                         </div>
                     </div>

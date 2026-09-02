@@ -131,6 +131,29 @@ const AdminPaperPreview = () => {
         window.print();
     };
 
+    const handleDiagramResize = (qIdOrNum, newHeight, diagramKey = 'main') => {
+        setSelectedPaper(prev => {
+            if (!prev || !Array.isArray(prev.questions)) return prev;
+            return {
+                ...prev,
+                questions: prev.questions.map((q, idx) => {
+                    const isMatch = (q._id && String(q._id) === String(qIdOrNum)) || 
+                                    (q.id && String(q.id) === String(qIdOrNum)) ||
+                                    (idx + 1 === Number(qIdOrNum));
+                    if (!isMatch) return q;
+                    return {
+                        ...q,
+                        customDiagramHeight: newHeight,
+                        customDiagramSizes: {
+                            ...(q.customDiagramSizes || {}),
+                            [diagramKey]: newHeight,
+                        }
+                    };
+                })
+            };
+        });
+    };
+
     if (loading) {
         return (
             <div className="min-h-[60vh] flex flex-col items-center justify-center p-8">
@@ -263,6 +286,7 @@ const AdminPaperPreview = () => {
                     settings={settings}
                     setSettings={setSettings}
                     showSettingsPanel={showAlignment}
+                    onDiagramResize={handleDiagramResize}
                 />
             </div>
 
