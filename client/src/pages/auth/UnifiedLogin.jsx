@@ -1,6 +1,6 @@
 import React, { useState, useContext } from 'react';
 import { AuthContext } from '../../context/AuthContext';
-import { useNavigate, Navigate, Link } from 'react-router-dom';
+import { useNavigate, Navigate } from 'react-router-dom';
 
 const UnifiedLogin = () => {
     const [formData, setFormData] = useState({ email: '', password: '' });
@@ -132,17 +132,6 @@ const UnifiedLogin = () => {
                         )}
                     </button>
                 </form>
-
-                {/* Prominently Highlighted Student Online Exam Portal link */}
-                <div className="mt-6 pt-5 border-t border-slate-100">
-                    <Link
-                        to="/lab"
-                        className="w-full inline-flex items-center justify-center gap-2.5 text-xs font-black text-white bg-gradient-to-r from-amber-500 via-amber-600 to-amber-500 hover:from-amber-600 hover:to-amber-700 p-4 rounded-2xl shadow-xl hover:shadow-2xl transition-all transform hover:-translate-y-0.5 active:translate-y-0 uppercase tracking-wider cursor-pointer border-2 border-amber-300 ring-2 ring-amber-400/20"
-                    >
-                        <span className="text-base">🌐</span>
-                        <span>STUDENT ONLINE EXAM PORTAL →</span>
-                    </Link>
-                </div>
             </div>
         </div>
     );
