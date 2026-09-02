@@ -231,6 +231,123 @@ router.get('/papers', [auth, requireOmrAccess], async (req, res) => {
     }
 });
 
+/**
+ * Multi-Option Answer Parsing & Normalization (Server-Side)
+ * Handles: single ('A', '1'), multi ('1, 2', 'A, B', '12', 'AB'), and phrases ('Both A and B', 'Both 1 and 2')
+ */
+function parseAnswerIndicesServer(rawAns, options = []) {
+    if (rawAns === null || rawAns === undefined) return [];
+    if (Array.isArray(rawAns)) {
+        const set = new Set();
+        rawAns.forEach(item => {
+            parseAnswerIndicesServer(item, options).forEach(idx => set.add(idx));
+        });
+        return Array.from(set).sort((a, b) => a - b);
+    }
+    if (typeof rawAns === 'number') {
+        if (rawAns >= 1 && rawAns <= 4) return [rawAns - 1];
+        rawAns = String(rawAns);
+    }
+    const str = String(rawAns).trim();
+    if (!str) return [];
+
+    const indicesSet = new Set();
+
+    // 1. "Both A and B", "Both 1 and 2", "Both (A) and (B)", "Both (1) and (2)"
+    const bothMatch = str.match(/both\s*(?:\()?\s*([A-D1-4])\s*(?:\))?\s*(?:and|&|\/|,)\s*(?:\()?\s*([A-D1-4])\s*(?:\))?/i);
+    if (bothMatch) {
+        const toIdx = (char) => {
+            const c = char.toUpperCase();
+            if (/[1-4]/.test(c)) return parseInt(c, 10) - 1;
+            return c.charCodeAt(0) - 65;
+        };
+        indicesSet.add(toIdx(bothMatch[1]));
+        indicesSet.add(toIdx(bothMatch[2]));
+        return Array.from(indicesSet).sort((a, b) => a - b);
+    }
+
+    // 2. Concatenated digits: "12", "23", "34", "13", "123", "1234", "14"
+    if (/^[1-4]{2,4}$/.test(str)) {
+        str.split('').forEach(d => indicesSet.add(parseInt(d, 10) - 1));
+        return Array.from(indicesSet).sort((a, b) => a - b);
+    }
+
+    // 3. Concatenated letters: "AB", "BC", "CD", "AC", "BD", "ABC", "ABCD"
+    if (/^[A-Da-d]{2,4}$/.test(str)) {
+        str.toUpperCase().split('').forEach(ch => indicesSet.add(ch.charCodeAt(0) - 65));
+        return Array.from(indicesSet).sort((a, b) => a - b);
+    }
+
+    // 4. Delimited tokens: "1, 2", "A, B", "1 & 2", "A and B", "1 / 2", "A or B"
+    const splitTokens = str
+        .split(/[,;&/|\s]+|\band\b|\bor\b/i)
+        .map(t => t.trim().replace(/[\(\)\[\]\.]/g, ''))
+        .filter(Boolean);
+
+    if (splitTokens.length > 1) {
+        let allRecognized = true;
+        const tempIndices = [];
+        for (const token of splitTokens) {
+            if (/^[1-4]$/.test(token)) {
+                tempIndices.push(parseInt(token, 10) - 1);
+            } else if (/^[A-Da-d]$/.test(token)) {
+                tempIndices.push(token.toUpperCase().charCodeAt(0) - 65);
+            } else {
+                allRecognized = false;
+                break;
+            }
+        }
+        if (allRecognized && tempIndices.length > 0) {
+            tempIndices.forEach(idx => indicesSet.add(idx));
+            return Array.from(indicesSet).sort((a, b) => a - b);
+        }
+    }
+
+    // 5. Single digit 1-4
+    if (/^[1-4]$/.test(str)) {
+        return [parseInt(str, 10) - 1];
+    }
+
+    // 6. Single letter A-D
+    const singleLetter = str.match(/^[\(]?([A-Da-d])[\)\.]?$/);
+    if (singleLetter) {
+        return [singleLetter[1].toUpperCase().charCodeAt(0) - 65];
+    }
+
+    // 7. Match against option text
+    const cleanStr = (s) => String(s || '').replace(/<[^>]+>/g, '').replace(/[\$\s\\{}]/g, '').toLowerCase();
+    const targetStr = cleanStr(str);
+    if (targetStr && options.length > 0) {
+        const matchedIdx = options.findIndex((opt) => {
+            const optText = typeof opt === 'object' && opt ? (opt.text || opt.optionText || '') : String(opt || '');
+            const candidate = cleanStr(optText);
+            if (!candidate) return false;
+            if (candidate === targetStr) return true;
+            if (targetStr.length > 4 && (candidate.includes(targetStr) || targetStr.includes(candidate))) return true;
+            return false;
+        });
+        if (matchedIdx !== -1) return [matchedIdx];
+    }
+
+    return [];
+}
+
+function resolveAnswerServer(rawAns, isJee, options = []) {
+    const indices = parseAnswerIndicesServer(rawAns, options);
+    if (indices.length > 0) {
+        const cleanRaw = String(rawAns).trim();
+        const isCompact = /^[1-4]{2,4}$/.test(cleanRaw) || /^[A-Da-d]{2,4}$/.test(cleanRaw);
+        if (isJee) {
+            // JEE: letters A, B, C, D
+            return indices.map(i => String.fromCharCode(65 + i)).join(isCompact ? '' : (indices.length > 1 ? ', ' : ''));
+        } else {
+            // KCET / NEET: numbers 1, 2, 3, 4
+            return indices.map(i => String(i + 1)).join(isCompact ? '' : (indices.length > 1 ? ', ' : ''));
+        }
+    }
+    return String(rawAns || '').trim().toUpperCase();
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // @route   GET /api/omr/papers/:id/key
 // @desc    Get populated questions, answer key, and concept metadata for a paper
@@ -243,13 +360,14 @@ router.get('/papers/:id/key', [auth, requireOmrAccess], async (req, res) => {
             return res.status(404).json({ msg: 'Question paper not found.' });
         }
 
+        const paperClasses = paperData.paper.classes || [];
+        const isJee = Array.isArray(paperClasses) && paperClasses.some(c => String(c).toUpperCase() === 'JEE');
+
         const questions = paperData.questions.map((q, idx) => {
-            let cleanAns = (q.answer || q.correctAnswer || '').toString().trim().toUpperCase();
-            // Normalize numeric answer to Letter: 1->A, 2->B, 3->C, 4->D
-            if (cleanAns === '1') cleanAns = 'A';
-            else if (cleanAns === '2') cleanAns = 'B';
-            else if (cleanAns === '3') cleanAns = 'C';
-            else if (cleanAns === '4') cleanAns = 'D';
+            const rawAns = q.answer || q.correctAnswer || '';
+            const options = Array.isArray(q.options) ? q.options : [];
+            const cleanAns = resolveAnswerServer(rawAns, isJee, options);
+            const indices = parseAnswerIndicesServer(rawAns, options);
 
             return {
                 questionNumber: idx + 1,
@@ -258,6 +376,7 @@ router.get('/papers/:id/key', [auth, requireOmrAccess], async (req, res) => {
                 chapter: q.chapter || 'General',
                 concept: q.concept || q.topic || q.chapter || 'General Concept',
                 correctAnswer: cleanAns,
+                correctIndices: indices,
                 questionText: q.questionText || q.question || ''
             };
         });
@@ -306,19 +425,22 @@ router.post('/scan', [auth, requireOmrAccess, upload.array('sheets', 100)], asyn
             return res.status(404).json({ msg: 'Selected QPG paper not found or has no questions.' });
         }
 
+        const paperClasses = paperData.paper.classes || [];
+        const isJee = Array.isArray(paperClasses) && paperClasses.some(c => String(c).toUpperCase() === 'JEE');
+
         const questions = paperData.questions.map((q, idx) => {
-            let cleanAns = (q.answer || q.correctAnswer || '').toString().trim().toUpperCase();
-            if (cleanAns === '1') cleanAns = 'A';
-            else if (cleanAns === '2') cleanAns = 'B';
-            else if (cleanAns === '3') cleanAns = 'C';
-            else if (cleanAns === '4') cleanAns = 'D';
+            const rawAns = q.answer || q.correctAnswer || '';
+            const options = Array.isArray(q.options) ? q.options : [];
+            const cleanAns = resolveAnswerServer(rawAns, isJee, options);
+            const indices = parseAnswerIndicesServer(rawAns, options);
 
             return {
                 number: idx + 1,
                 id: String(q._id || q.id || idx + 1),
                 subject: q.subject || paperData.paper.subject || 'Physics',
                 concept: q.concept || q.topic || q.chapter || 'General',
-                correctAnswer: cleanAns
+                correctAnswer: cleanAns,
+                correctIndices: indices
             };
         });
 
@@ -369,6 +491,7 @@ router.post('/scan', [auth, requireOmrAccess, upload.array('sheets', 100)], asyn
                     const qNum = String(q.number);
                     const detected = (detectedAnswers[qNum] || 'BLANK').trim().toUpperCase();
                     const correct = q.correctAnswer;
+                    const correctIndices = q.correctIndices || [];
 
                     let status = 'not_attempted';
                     let marks = blankM;
@@ -377,14 +500,22 @@ router.post('/scan', [auth, requireOmrAccess, upload.array('sheets', 100)], asyn
                         status = 'not_attempted';
                         marks = blankM;
                         blankCount++;
-                    } else if (detected === correct) {
-                        status = 'correct';
-                        marks = correctM;
-                        correctCount++;
                     } else {
-                        status = 'wrong';
-                        marks = wrongM;
-                        wrongCount++;
+                        const studentIndices = parseAnswerIndicesServer(detected);
+                        const isIndexMatch = studentIndices.length > 0 && correctIndices.length > 0 &&
+                            studentIndices.some(idx => correctIndices.includes(idx));
+                        const isDirectMatch = detected === correct ||
+                            detected.replace(/[\s,]/g, '') === String(correct).replace(/[\s,]/g, '');
+
+                        if (isIndexMatch || isDirectMatch) {
+                            status = 'correct';
+                            marks = correctM;
+                            correctCount++;
+                        } else {
+                            status = 'wrong';
+                            marks = wrongM;
+                            wrongCount++;
+                        }
                     }
 
                     totalScore += marks;

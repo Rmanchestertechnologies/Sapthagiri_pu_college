@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../api';
-import { sanitize, optionLabel } from '../../utils/sanitize';
+import { sanitize, optionLabel, isOptionCorrect, getResolvedAnswerLabel } from '../../utils/sanitize';
 import MathRenderer from '../../components/MathRenderer';
 
 
@@ -371,20 +371,18 @@ const AdminQuestionBank = () => {
                                 {q.options.map((opt, idx) => {
                                     const optLbl = optionLabel(idx, q.classes);
                                     const optVal = typeof opt === 'object' ? (opt.text || opt.optionText || '') : String(opt || '');
-                                    const isCorrect = String(q.answer).trim().toLowerCase() === optLbl.toLowerCase() ||
-                                                      String(q.answer).trim().toLowerCase() === String(idx).toLowerCase() ||
-                                                      String(q.answer).trim().toLowerCase() === optVal.trim().toLowerCase();
+                                    const isCorrect = isOptionCorrect(q, idx);
                                     return (
                                         <div 
                                             key={idx} 
                                             className={`flex items-baseline gap-2 font-normal ${
-                                                isCorrect ? 'text-emerald-700' : 'text-slate-800'
+                                                isCorrect ? 'text-emerald-700 font-medium' : 'text-slate-800'
                                             }`}
                                         >
                                             <span className="font-normal min-w-[22px]">{optLbl}:</span>
                                             <div className="flex-1 min-w-0 font-normal">
                                                 <MathRenderer inline={true} text={optVal} />
-                                                {isCorrect && <span className="ml-2 text-emerald-600 font-normal">✓</span>}
+                                                {isCorrect && <span className="ml-2 text-emerald-600 font-bold">✓</span>}
                                             </div>
                                         </div>
                                     );
@@ -394,7 +392,7 @@ const AdminQuestionBank = () => {
 
                         <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between text-xs font-normal text-slate-500">
                             <div>
-                                Correct: <span className="text-emerald-700 font-normal">{q.answer}</span>
+                                Correct: <span className="text-emerald-700 font-bold">{getResolvedAnswerLabel(q)}</span>
                             </div>
                             {q.solutionText && (
                                 <details className="cursor-pointer text-slate-600 font-normal">

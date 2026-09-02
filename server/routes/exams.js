@@ -578,6 +578,67 @@ router.post('/:id/start', detectLabIp, async (req, res) => {
     }
 });
 
+function parseAnswerIndicesExam(rawAns, options = []) {
+    if (rawAns === null || rawAns === undefined) return [];
+    if (Array.isArray(rawAns)) {
+        const set = new Set();
+        rawAns.forEach(item => {
+            parseAnswerIndicesExam(item, options).forEach(idx => set.add(idx));
+        });
+        return Array.from(set).sort((a, b) => a - b);
+    }
+    if (typeof rawAns === 'number') {
+        if (rawAns >= 1 && rawAns <= 4) return [rawAns - 1];
+        rawAns = String(rawAns);
+    }
+    const str = String(rawAns).trim();
+    if (!str) return [];
+
+    const indicesSet = new Set();
+    const bothMatch = str.match(/both\s*(?:\()?\s*([A-D1-4])\s*(?:\))?\s*(?:and|&|\/|,)\s*(?:\()?\s*([A-D1-4])\s*(?:\))?/i);
+    if (bothMatch) {
+        const toIdx = (char) => {
+            const c = char.toUpperCase();
+            if (/[1-4]/.test(c)) return parseInt(c, 10) - 1;
+            return c.charCodeAt(0) - 65;
+        };
+        indicesSet.add(toIdx(bothMatch[1]));
+        indicesSet.add(toIdx(bothMatch[2]));
+        return Array.from(indicesSet).sort((a, b) => a - b);
+    }
+
+    if (/^[1-4]{2,4}$/.test(str)) {
+        str.split('').forEach(d => indicesSet.add(parseInt(d, 10) - 1));
+        return Array.from(indicesSet).sort((a, b) => a - b);
+    }
+
+    if (/^[A-Da-d]{2,4}$/.test(str)) {
+        str.toUpperCase().split('').forEach(ch => indicesSet.add(ch.charCodeAt(0) - 65));
+        return Array.from(indicesSet).sort((a, b) => a - b);
+    }
+
+    const splitTokens = str.split(/[,;&/|\s]+|\band\b|\bor\b/i).map(t => t.trim().replace(/[\(\)\[\]\.]/g, '')).filter(Boolean);
+    if (splitTokens.length > 1) {
+        let allRecognized = true;
+        const tempIndices = [];
+        for (const token of splitTokens) {
+            if (/^[1-4]$/.test(token)) tempIndices.push(parseInt(token, 10) - 1);
+            else if (/^[A-Da-d]$/.test(token)) tempIndices.push(token.toUpperCase().charCodeAt(0) - 65);
+            else { allRecognized = false; break; }
+        }
+        if (allRecognized && tempIndices.length > 0) {
+            tempIndices.forEach(idx => indicesSet.add(idx));
+            return Array.from(indicesSet).sort((a, b) => a - b);
+        }
+    }
+
+    if (/^[1-4]$/.test(str)) return [parseInt(str, 10) - 1];
+    const singleLetter = str.match(/^[\(]?([A-Da-d])[\)\.]?$/);
+    if (singleLetter) return [singleLetter[1].toUpperCase().charCodeAt(0) - 65];
+
+    return [];
+}
+
 // ─────────────────────────────────────────────────────────────────
 // STUDENT: Submit exam
 // POST /api/exams/:id/submit
@@ -623,6 +684,13 @@ router.post('/:id/submit', detectLabIp, async (req, res) => {
                 }
                 if (!isCorrect && String(selected).trim().toLowerCase() === String(q.answer).trim().toLowerCase()) {
                     isCorrect = true;
+                }
+                if (!isCorrect) {
+                    const selIndices = parseAnswerIndicesExam(selected, q.options || []);
+                    const ansIndices = parseAnswerIndicesExam(q.answer, q.options || []);
+                    if (selIndices.length > 0 && ansIndices.length > 0 && selIndices.some(idx => ansIndices.includes(idx))) {
+                        isCorrect = true;
+                    }
                 }
 
                 if (isCorrect) {

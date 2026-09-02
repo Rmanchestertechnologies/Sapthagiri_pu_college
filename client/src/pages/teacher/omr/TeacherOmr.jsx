@@ -558,7 +558,7 @@ const TeacherOmr = () => {
                                                         <td className="p-3 font-semibold text-slate-600">{q.subject}</td>
                                                         <td className="p-3 text-slate-600">{q.concept}</td>
                                                         <td className="p-3 text-center font-black">
-                                                            <span className="inline-block w-7 h-7 leading-7 rounded-lg bg-navy text-gold font-black shadow-sm">
+                                                            <span className="inline-block px-2.5 py-1 rounded-lg bg-navy text-gold font-black shadow-sm min-w-[32px] text-center text-xs tracking-wide">
                                                                 {q.correctAnswer || '—'}
                                                             </span>
                                                         </td>

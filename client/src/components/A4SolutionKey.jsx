@@ -1,6 +1,6 @@
 import React from 'react';
 import MathRenderer from './MathRenderer';
-import { getResolvedAnswerLabel, getQuestionOptionLabels } from '../utils/sanitize';
+import { getResolvedAnswerLabel, getQuestionOptionLabels, isOptionCorrect } from '../utils/sanitize';
 
 export default function A4SolutionKey({
     paper = {},
@@ -174,7 +174,7 @@ export default function A4SolutionKey({
                                                 {options.length > 0 && (
                                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 pt-1 text-[11px] text-slate-600">
                                                         {options.map((opt, oi) => {
-                                                            const isCorrect = (labels[oi] === answerLabel) || (oi === parseInt(answerLabel, 10) - 1);
+                                                            const isCorrect = isOptionCorrect(q, oi);
                                                             return (
                                                                 <div
                                                                     key={oi}
