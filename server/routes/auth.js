@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const mongoose = require('mongoose');
 const User = require('../models/User');
 const { loginLimiter } = require('../middleware/rateLimiter');
 const auth = require('../middleware/auth');
@@ -65,7 +66,7 @@ router.post('/login', loginLimiter, async (req, res) => {
         // Try Supabase PostgreSQL first (fast, reliable primary database)
         try {
             const pool = require('../config/postgres');
-            const pgRes = await pool.query('SELECT * FROM public.users WHERE email = $1', [email]);
+            const pgRes = await pool.query('SELECT * FROM public.users WHERE LOWER(TRIM(email)) = LOWER(TRIM($1))', [email]);
             if (pgRes.rows && pgRes.rows.length > 0) {
                 const pgUser = pgRes.rows[0];
                 userRecord = {
@@ -83,7 +84,7 @@ router.post('/login', loginLimiter, async (req, res) => {
         }
 
         // If not found in PostgreSQL, check MongoDB if connected (with 2s timeout)
-        if (!userRecord && mongoose.connection.readyState === 1 && User && User.findOne) {
+        if (!userRecord && mongoose?.connection?.readyState === 1 && User && User.findOne) {
             try {
                 const mongoUser = await Promise.race([
                     User.findOne({ email }),
@@ -204,7 +205,7 @@ router.get('/me', auth, async (req, res) => {
             console.warn('[AUTH] /me Postgres lookup warning:', pgErr.message);
         }
 
-        if (mongoose.connection.readyState === 1 && User) {
+        if (mongoose?.connection?.readyState === 1 && User) {
             const user = await User.findById(id).select('-password');
             if (user) {
                 return res.json({
