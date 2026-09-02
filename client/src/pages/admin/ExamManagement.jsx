@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import api from '../../api';
 import { sanitize, optionLabel } from '../../utils/sanitize';
 import MathRenderer from '../../components/MathRenderer';
+import ResizableDiagram from '../../components/ResizableDiagram';
 
 const EXAM_TYPES = ['JEE', 'NEET', 'CET'];
 const STATUS_COLORS = {
@@ -571,7 +572,7 @@ function ExamPrintView({ exam, templates, settings, setSettings, onBack }) {
                                                     </div>
                                                     {q.imageUrl && (
                                                         <div style={{ marginTop: '12px', marginBottom: '8px', display: 'flex', justifyContent: 'center' }}>
-                                                            <img src={q.imageUrl} alt="Diagram" style={{ maxWidth: '70%', maxHeight: '130px', objectFit: 'contain' }} />
+                                                            <ResizableDiagram src={q.imageUrl} alt="Diagram" maxWidth="380px" />
                                                         </div>
                                                     )}
                                                 </div>

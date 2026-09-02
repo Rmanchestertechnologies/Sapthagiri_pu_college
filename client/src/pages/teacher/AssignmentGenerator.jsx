@@ -18,7 +18,8 @@ import PaperRenderer, { DEFAULT_SETTINGS } from '../../components/PaperRenderer'
 import PaperAnalysisModal from '../../components/PaperAnalysisModal';
 import A4AnswerKey from '../../components/A4AnswerKey';
 import A4SolutionKey from '../../components/A4SolutionKey';
-import { optionLabel } from '../../utils/sanitize';
+import ResizableDiagram from '../../components/ResizableDiagram';
+import { optionLabel, getResolvedAnswerLabel } from '../../utils/sanitize';
 
 // Helper component to render complete options for a question
 const QuestionOptionsDisplay = ({ options = [] }) => {
@@ -708,12 +709,11 @@ const AssignmentGenerator = () => {
 
                                                 {/* Diagram */}
                                                 {diagramImg && (
-                                                    <div className="mt-2.5 max-w-sm border border-gray-200 rounded-xl overflow-hidden bg-white p-1 shadow-xs">
-                                                        <img
+                                                    <div className="mt-2.5 max-w-sm border border-gray-200 rounded-xl overflow-hidden bg-white p-2 shadow-xs">
+                                                        <ResizableDiagram
                                                             src={diagramImg}
                                                             alt="Diagram"
-                                                            className="max-h-36 object-contain mx-auto"
-                                                            onError={e => { e.currentTarget.parentElement.style.display = 'none'; }}
+                                                            maxWidth="100%"
                                                         />
                                                     </div>
                                                 )}
@@ -789,7 +789,7 @@ const AssignmentGenerator = () => {
                                                     </span>
                                                     {q.answer && (
                                                         <span className="text-[10px] font-black text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded">
-                                                            Answer: ({q.answer})
+                                                            Answer: ({getResolvedAnswerLabel(q)})
                                                         </span>
                                                     )}
                                                 </div>
@@ -799,12 +799,11 @@ const AssignmentGenerator = () => {
                                                 </div>
 
                                                 {diagramImg && (
-                                                    <div className="mt-2 max-w-xs border border-gray-200 rounded-xl overflow-hidden bg-white p-1">
-                                                        <img
+                                                    <div className="mt-2 max-w-sm border border-gray-200 rounded-xl overflow-hidden bg-white p-2">
+                                                        <ResizableDiagram
                                                             src={diagramImg}
                                                             alt="Diagram"
-                                                            className="max-h-32 object-contain mx-auto"
-                                                            onError={e => { e.currentTarget.parentElement.style.display = 'none'; }}
+                                                            maxWidth="100%"
                                                         />
                                                     </div>
                                                 )}

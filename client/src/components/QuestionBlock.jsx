@@ -369,7 +369,7 @@ function extractDiagramFromText(rawText, existingImageUrl) {
     const imgMatch1 = cleanText.match(/\{\{IMG::(.*?)\}\}/i);
     if (imgMatch1) {
         if (!extractedUrl) extractedUrl = imgMatch1[1].trim();
-        cleanText = cleanText.replace(/(\b\w+)\s*\{\{IMG::.*?\}\}\s*(\w+\b)/gi, '$1$2');
+        cleanText = cleanText.replace(/(\w+)\s*\{\{IMG::.*?\}\}\s*(\w+)/gi, (m, p1, p2) => p1 + p2);
         cleanText = cleanText.replace(/\{\{IMG::.*?\}\}/gi, ' ');
     }
 
@@ -377,7 +377,7 @@ function extractDiagramFromText(rawText, existingImageUrl) {
     const imgMatch2 = cleanText.match(/!\[(.*?)\]\((.*?)\)/i);
     if (imgMatch2) {
         if (!extractedUrl) extractedUrl = imgMatch2[2].trim();
-        cleanText = cleanText.replace(/(\b\w+)\s*!\[.*?\]\(.*?\)\s*(\w+\b)/gi, '$1$2');
+        cleanText = cleanText.replace(/(\w+)\s*!\[.*?\]\(.*?\)\s*(\w+)/gi, (m, p1, p2) => p1 + p2);
         cleanText = cleanText.replace(/!\[.*?\]\(.*?\)/gi, ' ');
     }
 
@@ -385,7 +385,7 @@ function extractDiagramFromText(rawText, existingImageUrl) {
     const imgMatch3 = cleanText.match(/<img[^>]+src=["']([^"']+)["'][^>]*>/i);
     if (imgMatch3) {
         if (!extractedUrl) extractedUrl = imgMatch3[1].trim();
-        cleanText = cleanText.replace(/(\b\w+)\s*<img[^>]*>\s*(\w+\b)/gi, '$1$2');
+        cleanText = cleanText.replace(/(\w+)\s*<img[^>]*>\s*(\w+)/gi, (m, p1, p2) => p1 + p2);
         cleanText = cleanText.replace(/<img[^>]*>/gi, ' ');
     }
 

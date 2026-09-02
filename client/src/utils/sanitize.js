@@ -75,7 +75,24 @@ export function getQuestionOptionLabels(q) {
         return Array.from({ length: count }, (_, i) => String.fromCharCode(65 + i));
     }
 
-    // 3. Detect from answer format: if answer is numeric like '1', '2', '12', '1, 2'
+    // 3. Exam type convention (KCET/NEET/CET -> 1, 2, 3, 4; JEE -> A, B, C, D)
+    const allClasses = [
+        ...(Array.isArray(q.classes) ? q.classes : [q.classes]),
+        q.examType,
+        q.exam_type
+    ].filter(Boolean).map(c => String(c).toUpperCase());
+
+    const isExplicitJEE = allClasses.some(c => c === 'JEE');
+    const isExplicitNumericExam = allClasses.some(c => c === 'KCET' || c === 'CET' || c === 'NEET' || c === 'STATE_BOARD');
+
+    if (isExplicitJEE) {
+        return Array.from({ length: count }, (_, i) => String.fromCharCode(65 + i));
+    }
+    if (isExplicitNumericExam) {
+        return Array.from({ length: count }, (_, i) => String(i + 1));
+    }
+
+    // 4. Detect from answer format: if answer is numeric like '1', '2', '12', '1, 2'
     const rawAns = String(q.answer ?? q.correct_option ?? q.correctAnswer ?? '').trim();
     if (/^[1-4]$/.test(rawAns) || /^[1-4]{2,4}$/.test(rawAns) || /^[1-4]([\s,;&/]+[1-4])+$/.test(rawAns) || /both.*[1-4]/i.test(rawAns)) {
         return Array.from({ length: count }, (_, i) => String(i + 1));
@@ -84,9 +101,8 @@ export function getQuestionOptionLabels(q) {
         return Array.from({ length: count }, (_, i) => String.fromCharCode(65 + i));
     }
 
-    // 4. Fall back to exam type convention:
-    const isJEE = Array.isArray(q.classes) && q.classes.some(c => String(c).toUpperCase() === 'JEE');
-    return Array.from({ length: count }, (_, i) => isJEE ? String.fromCharCode(65 + i) : String(i + 1));
+    // 5. Default fallback to numeric
+    return Array.from({ length: count }, (_, i) => String(i + 1));
 }
 
 /**
