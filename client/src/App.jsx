@@ -86,6 +86,7 @@ function App() {
                                 <CreatePaper />
                             </ProtectedRoute>
                         } />
+                        <Route path="/teacher/omr" element={<Navigate to="/teacher/dashboard/omr" replace />} />
 
                         {/* Student CBT Examination Routes */}
                         <Route path="/exam/:examId/instructions" element={<ExamInstructions />} />

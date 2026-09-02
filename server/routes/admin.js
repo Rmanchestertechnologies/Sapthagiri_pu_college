@@ -110,7 +110,7 @@ router.get('/teachers', [auth, checkRole(['admin'])], async (req, res) => {
         // 1. Fetch from PostgreSQL (Primary)
         try {
             const pgRes = await pool.query(`
-                SELECT id, name, email, role, subject, created_at
+                SELECT id, name, email, role, subject, omr_access, created_at
                 FROM public.users
                 WHERE role = 'teacher'
                 ORDER BY created_at DESC
@@ -124,6 +124,8 @@ router.get('/teachers', [auth, checkRole(['admin'])], async (req, res) => {
                     email: r.email,
                     role: r.role,
                     subject: r.subject || '',
+                    omrAccess: Boolean(r.omr_access),
+                    omr_access: Boolean(r.omr_access),
                     createdAt: r.created_at,
                     created_at: r.created_at
                 });
@@ -270,6 +272,79 @@ router.put('/teachers/:id/password', [auth, checkRole(['admin'])], async (req, r
     } catch (err) {
         console.error('[ADMIN] Error updating password:', err.message);
         return res.status(500).json({ msg: 'Server error updating password.' });
+    }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// @route   PATCH /api/admin/teachers/:id/omr-access
+// @desc    Assign or revoke OMR access permission for a teacher
+// @access  Admin only
+// ─────────────────────────────────────────────────────────────────────────────
+router.patch('/teachers/:id/omr-access', [auth, checkRole(['admin'])], async (req, res) => {
+    const teacherId = req.params.id;
+    const { enabled } = req.body;
+
+    try {
+        let updatedUser = null;
+        let isEnabled = typeof enabled === 'boolean' ? enabled : true;
+
+        // 1. Update in PostgreSQL
+        try {
+            // If enabled wasn't provided, toggle existing state
+            if (typeof enabled !== 'boolean') {
+                const cur = await pool.query('SELECT omr_access FROM public.users WHERE id::text = $1', [teacherId.toString()]);
+                if (cur.rows.length > 0) {
+                    isEnabled = !cur.rows[0].omr_access;
+                }
+            }
+
+            const pgRes = await pool.query(`
+                UPDATE public.users
+                SET omr_access = $1
+                WHERE id::text = $2
+                RETURNING id, name, email, role, subject, omr_access
+            `, [isEnabled, teacherId.toString()]);
+
+            if (pgRes.rows.length > 0) {
+                updatedUser = pgRes.rows[0];
+            }
+        } catch (pgErr) {
+            console.error('[ADMIN] PostgreSQL OMR access update error:', pgErr.message);
+        }
+
+        // 2. Non-blocking MongoDB sync
+        if (mongoose.connection.readyState === 1 && User) {
+            setImmediate(async () => {
+                try {
+                    if (mongoose.Types.ObjectId.isValid(teacherId)) {
+                        await User.findByIdAndUpdate(teacherId, { omrAccess: isEnabled });
+                    } else if (updatedUser && updatedUser.email) {
+                        await User.updateOne({ email: updatedUser.email }, { omrAccess: isEnabled });
+                    }
+                } catch (mErr) {
+                    console.warn('[ADMIN] Mongo OMR sync notice:', mErr.message);
+                }
+            });
+        }
+
+        if (!updatedUser) {
+            return res.status(404).json({ msg: 'Teacher not found.' });
+        }
+
+        console.log(`[ADMIN] OMR access ${isEnabled ? 'GRANTED' : 'REVOKED'} for teacher ${updatedUser.name} (${updatedUser.email})`);
+        return res.json({
+            msg: `OMR access ${isEnabled ? 'granted' : 'revoked'} successfully.`,
+            teacher: {
+                id: updatedUser.id,
+                name: updatedUser.name,
+                email: updatedUser.email,
+                omrAccess: Boolean(updatedUser.omr_access),
+                omr_access: Boolean(updatedUser.omr_access)
+            }
+        });
+    } catch (err) {
+        console.error('[ADMIN] Error updating OMR access:', err.message);
+        return res.status(500).json({ msg: 'Server error updating OMR access.' });
     }
 });
 

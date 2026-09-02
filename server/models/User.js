@@ -7,6 +7,7 @@ const UserSchema = new mongoose.Schema({
     role: { type: String, enum: ['admin', 'teacher'], required: true },
     subject: { type: String }, // For teachers
     classes: [{ type: String }], // Optional depending on how assignment works
+    omrAccess: { type: Boolean, default: false }, // Assigned by Admin
     createdAt: { type: Date, default: Date.now }
 }, {
     bufferCommands: false,

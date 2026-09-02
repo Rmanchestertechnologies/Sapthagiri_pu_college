@@ -61,6 +61,23 @@ const CreateTeacher = () => {
         }
     };
 
+    const handleToggleOmrAccess = async (teacher) => {
+        const teacherId = teacher._id || teacher.id;
+        const currentAccess = !!(teacher.omrAccess || teacher.omr_access);
+        const target = !currentAccess;
+        try {
+            await api.patch(`/api/admin/teachers/${teacherId}/omr-access`, { enabled: target });
+            setTeachers(prev => prev.map(t => {
+                if ((t._id || t.id) === teacherId) {
+                    return { ...t, omrAccess: target, omr_access: target };
+                }
+                return t;
+            }));
+        } catch (err) {
+            alert(err.response?.data?.msg || 'Failed to update OMR permission.');
+        }
+    };
+
     return (
         <div className="animate-fade-in-up max-w-4xl mx-auto space-y-10 px-4 py-8">
             {/* Header */}
@@ -134,6 +151,18 @@ const CreateTeacher = () => {
                                     <span className="text-[10px] font-black uppercase tracking-widest bg-gold/20 text-navy px-3 py-1 rounded-xl">
                                         {teacher.subject || 'N/A'}
                                     </span>
+                                    <button
+                                        onClick={() => handleToggleOmrAccess(teacher)}
+                                        className={`px-3.5 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer border flex items-center gap-1.5 ${
+                                            (teacher.omrAccess || teacher.omr_access)
+                                                ? 'bg-emerald-50 border-emerald-400 text-emerald-700 hover:bg-emerald-100 shadow-sm'
+                                                : 'bg-slate-100 border-slate-300 text-slate-500 hover:bg-slate-200'
+                                        }`}
+                                        title={(teacher.omrAccess || teacher.omr_access) ? 'Click to Revoke OMR Access' : 'Click to Enable OMR Access'}
+                                    >
+                                        <span>{(teacher.omrAccess || teacher.omr_access) ? '✓' : '○'}</span>
+                                        <span>{(teacher.omrAccess || teacher.omr_access) ? 'OMR Enabled' : 'Enable OMR'}</span>
+                                    </button>
                                     <button
                                         onClick={() => handleResetPassword(teacher)}
                                         className="bg-amber-50 border border-amber-300 text-amber-800 px-3.5 py-2 rounded-xl text-xs font-black uppercase tracking-wider hover:bg-amber-100 transition-all cursor-pointer"

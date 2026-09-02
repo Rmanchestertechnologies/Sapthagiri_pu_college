@@ -74,7 +74,8 @@ router.post('/login', loginLimiter, async (req, res) => {
                     email: pgUser.email,
                     password: pgUser.password,
                     role: pgUser.role,
-                    subject: pgUser.subject
+                    subject: pgUser.subject,
+                    omrAccess: Boolean(pgUser.omr_access)
                 };
             }
         } catch (pgErr) {
@@ -95,7 +96,8 @@ router.post('/login', loginLimiter, async (req, res) => {
                         email: mongoUser.email,
                         password: mongoUser.password,
                         role: mongoUser.role,
-                        subject: mongoUser.subject
+                        subject: mongoUser.subject,
+                        omrAccess: Boolean(mongoUser.omrAccess)
                     };
                 }
             } catch (mongoErr) {
@@ -124,7 +126,8 @@ router.post('/login', loginLimiter, async (req, res) => {
         const payload = {
             id: userRecord.id,
             role: userRecord.role,
-            subject: userRecord.subject
+            subject: userRecord.subject,
+            omrAccess: Boolean(userRecord.omrAccess)
         };
 
         const token = jwt.sign(payload, process.env.JWT_SECRET || 'sapthagiri_jwt_secret_2026', { expiresIn: '10h' });
@@ -139,7 +142,8 @@ router.post('/login', loginLimiter, async (req, res) => {
                 name: userRecord.name,
                 email: userRecord.email,
                 role: userRecord.role,
-                subject: userRecord.subject
+                subject: userRecord.subject,
+                omrAccess: Boolean(userRecord.omrAccess)
             }
         });
     } catch (err) {
@@ -173,18 +177,50 @@ router.get('/me', auth, async (req, res) => {
         const { id, role } = req.user;
 
         // Admin special case (hardcoded)
-        if (id === '000000000000000000000000') {
+        if (id === '000000000000000000000000' || role === 'admin') {
             return res.json({
-                user: { id, name: 'College Admin', email: 'college@gmail.com', role: 'admin' }
+                user: { id, name: 'Sapthagiri Admin', email: 'sapthagiripucollegedvg@gmail.com', role: 'admin', omrAccess: true }
             });
         }
 
-        const user = await User.findById(id).select('-password');
-        if (!user) return res.status(404).json({ msg: 'User not found.' });
+        // Try PostgreSQL first
+        try {
+            const pool = require('../config/postgres');
+            const pgRes = await pool.query('SELECT id, name, email, role, subject, omr_access FROM public.users WHERE id::text = $1', [id.toString()]);
+            if (pgRes.rows.length > 0) {
+                const u = pgRes.rows[0];
+                return res.json({
+                    user: {
+                        id: String(u.id),
+                        name: u.name,
+                        email: u.email,
+                        role: u.role,
+                        subject: u.subject,
+                        omrAccess: Boolean(u.omr_access)
+                    }
+                });
+            }
+        } catch (pgErr) {
+            console.warn('[AUTH] /me Postgres lookup warning:', pgErr.message);
+        }
 
-        return res.json({
-            user: { id: user.id, name: user.name, email: user.email, role: user.role, subject: user.subject }
-        });
+        if (mongoose.connection.readyState === 1 && User) {
+            const user = await User.findById(id).select('-password');
+            if (user) {
+                return res.json({
+                    user: {
+                        id: user.id,
+                        name: user.name,
+                        email: user.email,
+                        role: user.role,
+                        subject: user.subject,
+                        omrAccess: Boolean(user.omrAccess)
+                    }
+                });
+            }
+        }
+
+        return res.status(404).json({ msg: 'User not found.' });
     } catch (err) {
         console.error('[AUTH] /me error:', err.message);
         return res.status(500).json({ msg: 'Server error.' });

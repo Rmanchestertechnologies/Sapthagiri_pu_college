@@ -17,6 +17,7 @@ import TemplateCart from './TemplateCart';
 import GrandTestList from '../admin/GrandTestList';
 import PreviousYearPapers from '../admin/PreviousYearPapers';
 import AssignmentGenerator from './AssignmentGenerator';
+import TeacherOmr from './omr/TeacherOmr';
 import api from '../../api';
 
 // ── Teacher Notification Bell Component ──────────────────────────────────────
@@ -296,6 +297,9 @@ const TeacherAssignmentsSection = () => {
 
 // ── Teacher Dashboard Home ────────────────────────────────────────────────────
 const TeacherDashboardHome = () => {
+    const { user } = useContext(AuthContext);
+    const hasOmr = Boolean(user?.role === 'admin' || user?.omrAccess || user?.omr_access);
+
     return (
         <div className="animate-fade-in-up">
             <div className="mb-8 bg-surface p-8 rounded-3xl shadow-sm border-l-8 border-navy relative overflow-hidden">
@@ -314,7 +318,7 @@ const TeacherDashboardHome = () => {
                 <div className="h-px flex-1 bg-gray-100"></div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
+            <div className={`grid grid-cols-1 sm:grid-cols-2 ${hasOmr ? 'lg:grid-cols-6' : 'lg:grid-cols-5'} gap-6`}>
                 {/* Question Bank */}
                 <Link
                     to="/teacher/dashboard/add-question"
@@ -384,6 +388,25 @@ const TeacherDashboardHome = () => {
                         <p className="text-xs text-slate/50 mt-2 font-bold uppercase tracking-widest">GT Paper Archives</p>
                     </div>
                 </Link>
+
+                {/* OMR Evaluation Module — ONLY visible if Admin granted OMR access */}
+                {hasOmr && (
+                    <Link
+                        to="/teacher/dashboard/omr"
+                        className="bg-emerald-950/20 p-8 rounded-3xl shadow-sm text-center border-2 border-emerald-500/40 hover:shadow-xl hover:border-emerald-400 transform hover:-translate-y-2 transition-all flex flex-col items-center justify-center gap-4 group ring-2 ring-emerald-500/20"
+                    >
+                        <div className="bg-emerald-500/20 text-emerald-400 w-16 h-16 rounded-2xl flex items-center justify-center text-3xl font-black shadow-inner group-hover:bg-emerald-500 group-hover:text-navy transition-colors duration-300">
+                            📑
+                        </div>
+                        <div>
+                            <div className="flex items-center justify-center gap-1.5">
+                                <h2 className="text-lg font-black text-navy">OMR Evaluation</h2>
+                                <span className="bg-emerald-100 text-emerald-800 text-[9px] font-black px-2 py-0.5 rounded-full uppercase">Enabled</span>
+                            </div>
+                            <p className="text-xs text-slate/50 mt-2 font-bold uppercase tracking-widest">Scanner & Analytics</p>
+                        </div>
+                    </Link>
+                )}
             </div>
         </div>
     );
@@ -464,6 +487,21 @@ const TeacherDashboard = () => {
                         PYQs
                     </Link>
 
+                    {/* Conditional OMR Tab */}
+                    {(user?.role === 'admin' || user?.omrAccess || user?.omr_access) && (
+                        <Link
+                            to="/teacher/dashboard/omr"
+                            className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition flex items-center gap-1.5 ${
+                                location.pathname.includes('omr')
+                                    ? 'bg-emerald-500 text-white shadow-lg'
+                                    : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 hover:bg-emerald-500/30'
+                            }`}
+                        >
+                            <span>📑</span>
+                            <span>OMR</span>
+                        </Link>
+                    )}
+
                     {/* Teacher Notification Bell */}
                     <TeacherNotificationBell />
 
@@ -498,6 +536,7 @@ const TeacherDashboard = () => {
                     <Route path="grand-tests" element={<GrandTestList />} />
                     <Route path="previous-year-papers" element={<PreviousYearPapers />} />
                     <Route path="assignments" element={<AssignmentGenerator onBack={() => navigate('/teacher/dashboard')} />} />
+                    <Route path="omr/*" element={<TeacherOmr />} />
                 </Routes>
             </div>
 
