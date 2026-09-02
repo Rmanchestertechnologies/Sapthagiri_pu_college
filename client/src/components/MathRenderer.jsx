@@ -145,8 +145,8 @@ const MathRenderer = ({
 
     return (
         <span
-            className={`math-renderer ${inline ? 'inline-math' : ''} ${className}`}
-            style={{ display: inline ? 'inline' : 'block', ...style }}
+            className={`math-renderer ${inline && !hasImages ? 'inline-math' : 'block-math'} ${className}`}
+            style={{ display: inline && !hasImages ? 'inline' : 'block', ...style }}
         >
             {tokens.map((token) => {
                 if (token.type === 'text') {
@@ -158,16 +158,17 @@ const MathRenderer = ({
                     );
                 }
                 return (
-                    <ResizableDiagram
-                        key={token.key}
-                        src={token.src}
-                        alt={token.alt}
-                        isOption={inline}
-                        questionId={questionId}
-                        diagramKey={`inline_${token.key}`}
-                        initialHeight={initialHeight}
-                        onSizeChange={onSizeChange}
-                    />
+                    <div key={token.key} style={{ display: 'block', textAlign: 'center', margin: '6px auto', clear: 'both' }}>
+                        <ResizableDiagram
+                            src={token.src}
+                            alt={token.alt}
+                            isOption={false}
+                            questionId={questionId}
+                            diagramKey={`inline_${token.key}`}
+                            initialHeight={initialHeight}
+                            onSizeChange={onSizeChange}
+                        />
+                    </div>
                 );
             })}
         </span>

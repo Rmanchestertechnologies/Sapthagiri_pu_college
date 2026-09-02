@@ -210,8 +210,15 @@ export default function A4PaperEngine({
                     vertical-align: top;
                     box-sizing: border-box;
                 }
-                .math-renderer {
+                .math-renderer.inline-math {
                     display: inline !important;
+                }
+                .math-renderer.block-math,
+                .math-renderer:has(.resizable-diagram-wrap) {
+                    display: block !important;
+                }
+                .diagram-resize-toolbar {
+                    display: flex !important;
                 }
                 .katex-display {
                     display: inline-block !important;
@@ -227,10 +234,14 @@ export default function A4PaperEngine({
                 }
                 .katex {
                     text-rendering: auto !important;
-                    font-size: 1.02em !important;
+                    font-size: 1em !important;
                 }
 
                 @media print {
+                    .diagram-resize-toolbar,
+                    .no-print {
+                        display: none !important;
+                    }
                     @page {
                         size: A4 portrait;
                         margin: 10mm 12mm 10mm 12mm;

@@ -355,11 +355,52 @@ function cleanQuestionText(text) {
 }
 
 /**
+ * Extracts any embedded diagrams from raw question text (e.g. {{IMG::url}} or ![...](url)),
+ * repairs any split words caused by inline image markers (e.g. "plo {{IMG}} s" -> "plots"),
+ * and returns clean text plus the extracted diagram URL.
+ */
+function extractDiagramFromText(rawText, existingImageUrl) {
+    if (!rawText) return { cleanText: '', diagramUrl: existingImageUrl || null };
+
+    let cleanText = String(rawText);
+    let extractedUrl = existingImageUrl || null;
+
+    // Pattern 1: {{IMG::url}}
+    const imgMatch1 = cleanText.match(/\{\{IMG::(.*?)\}\}/i);
+    if (imgMatch1) {
+        if (!extractedUrl) extractedUrl = imgMatch1[1].trim();
+        cleanText = cleanText.replace(/(\b\w+)\s*\{\{IMG::.*?\}\}\s*(\w+\b)/gi, '$1$2');
+        cleanText = cleanText.replace(/\{\{IMG::.*?\}\}/gi, ' ');
+    }
+
+    // Pattern 2: ![alt](url)
+    const imgMatch2 = cleanText.match(/!\[(.*?)\]\((.*?)\)/i);
+    if (imgMatch2) {
+        if (!extractedUrl) extractedUrl = imgMatch2[2].trim();
+        cleanText = cleanText.replace(/(\b\w+)\s*!\[.*?\]\(.*?\)\s*(\w+\b)/gi, '$1$2');
+        cleanText = cleanText.replace(/!\[.*?\]\(.*?\)/gi, ' ');
+    }
+
+    // Pattern 3: <img ... src="..." />
+    const imgMatch3 = cleanText.match(/<img[^>]+src=["']([^"']+)["'][^>]*>/i);
+    if (imgMatch3) {
+        if (!extractedUrl) extractedUrl = imgMatch3[1].trim();
+        cleanText = cleanText.replace(/(\b\w+)\s*<img[^>]*>\s*(\w+\b)/gi, '$1$2');
+        cleanText = cleanText.replace(/<img[^>]*>/gi, ' ');
+    }
+
+    // Clean up excessive whitespace
+    cleanText = cleanText.replace(/\s{2,}/g, ' ').trim();
+
+    return { cleanText, diagramUrl: extractedUrl };
+}
+
+/**
  * MCQ Body with Intelligent Diagram Placement & Resizing
  */
-function BodyMCQ({ q, classes, isTwoCol, diagramMaxHeight = '150px', onDiagramResize, displayNum }) {
-    const qText = cleanQuestionText(q.questionText || q.question || '');
-    const imageUrl = q.imageUrl || q.image_url;
+function BodyMCQ({ q, classes, isTwoCol, diagramMaxHeight = '185px', onDiagramResize, displayNum }) {
+    const rawQText = cleanQuestionText(q.questionText || q.question || '');
+    const { cleanText: qText, diagramUrl: imageUrl } = extractDiagramFromText(rawQText, q.imageUrl || q.image_url);
     const options = Array.isArray(q.options) ? q.options : [];
     const isSideBySide = shouldRenderSideBySide(q, isTwoCol);
     const labels = getQuestionOptionLabels(q);
@@ -403,15 +444,15 @@ function BodyMCQ({ q, classes, isTwoCol, diagramMaxHeight = '150px', onDiagramRe
         return (
             <div style={Q.sideBySideContainer}>
                 <div style={Q.sideLeftContent}>
-                    <div style={Q.qTextBold}>
-                        <MathRenderer
-                            inline
-                            text={qText}
-                            questionId={qId}
-                            initialHeight={currentDiagramHeight}
-                            onSizeChange={onDiagramResize ? (h) => onDiagramResize(qId, h, 'main') : undefined}
-                        />
-                    </div>
+                    {qText && (
+                        <div style={Q.qTextBold}>
+                            <MathRenderer
+                                inline
+                                text={qText}
+                                questionId={qId}
+                            />
+                        </div>
+                    )}
                     {renderOptions(true)}
                 </div>
                 <div style={Q.sideRightDiagram}>
@@ -432,17 +473,17 @@ function BodyMCQ({ q, classes, isTwoCol, diagramMaxHeight = '150px', onDiagramRe
     // INLINE / STANDARD LAYOUT
     return (
         <>
-            <div style={Q.qTextBold}>
-                <MathRenderer
-                    inline
-                    text={qText}
-                    questionId={qId}
-                    initialHeight={currentDiagramHeight}
-                    onSizeChange={onDiagramResize ? (h) => onDiagramResize(qId, h, 'main') : undefined}
-                />
-            </div>
+            {qText && (
+                <div style={{ ...Q.qTextBold, marginBottom: imageUrl ? '4px' : '2px' }}>
+                    <MathRenderer
+                        inline
+                        text={qText}
+                        questionId={qId}
+                    />
+                </div>
+            )}
             {imageUrl && (
-                <div style={{ textAlign: 'center', margin: '4px 0' }}>
+                <div style={{ textAlign: 'center', margin: '4px auto 6px', clear: 'both' }}>
                     <ResizableDiagram
                         src={imageUrl}
                         alt="Diagram"
@@ -450,7 +491,7 @@ function BodyMCQ({ q, classes, isTwoCol, diagramMaxHeight = '150px', onDiagramRe
                         diagramKey="main"
                         initialHeight={currentDiagramHeight}
                         onSizeChange={onDiagramResize ? (h) => onDiagramResize(qId, h, 'main') : undefined}
-                        maxWidth={isTwoCol ? '100%' : '260px'}
+                        maxWidth={isTwoCol ? '100%' : '380px'}
                     />
                 </div>
             )}
@@ -462,11 +503,11 @@ function BodyMCQ({ q, classes, isTwoCol, diagramMaxHeight = '150px', onDiagramRe
 /**
  * Assertion & Reason Body
  */
-function BodyAssertionReason({ q, classes, isTwoCol, diagramMaxHeight, onDiagramResize, displayNum }) {
+function BodyAssertionReason({ q, classes, isTwoCol, diagramMaxHeight = '185px', onDiagramResize, displayNum }) {
     const { assertion, reason } = parseAssertionReason(q);
     const opts = q.options && q.options.length > 0 ? q.options : AR_OPTIONS;
-    const qText = cleanQuestionText(q.questionText || q.question || '');
-    const imageUrl = q.imageUrl || q.image_url;
+    const rawQText = cleanQuestionText(q.questionText || q.question || '');
+    const { cleanText: qText, diagramUrl: imageUrl } = extractDiagramFromText(rawQText, q.imageUrl || q.image_url);
     const qId = q._id || q.id || displayNum;
     const currentDiagramHeight = q.customDiagramHeight || diagramMaxHeight;
 
@@ -478,8 +519,6 @@ function BodyAssertionReason({ q, classes, isTwoCol, diagramMaxHeight, onDiagram
                         inline
                         text={qText}
                         questionId={qId}
-                        initialHeight={currentDiagramHeight}
-                        onSizeChange={onDiagramResize ? (h) => onDiagramResize(qId, h, 'main') : undefined}
                     />
                 </div>
             )}
@@ -498,7 +537,7 @@ function BodyAssertionReason({ q, classes, isTwoCol, diagramMaxHeight, onDiagram
                 </div>
             )}
             {imageUrl && (
-                <div style={{ textAlign: 'center', margin: '4px 0' }}>
+                <div style={{ textAlign: 'center', margin: '4px auto 6px', clear: 'both' }}>
                     <ResizableDiagram
                         src={imageUrl}
                         alt="Diagram"
@@ -506,7 +545,7 @@ function BodyAssertionReason({ q, classes, isTwoCol, diagramMaxHeight, onDiagram
                         diagramKey="main"
                         initialHeight={currentDiagramHeight}
                         onSizeChange={onDiagramResize ? (h) => onDiagramResize(qId, h, 'main') : undefined}
-                        maxWidth="240px"
+                        maxWidth={isTwoCol ? '100%' : '380px'}
                     />
                 </div>
             )}
@@ -527,11 +566,11 @@ function BodyAssertionReason({ q, classes, isTwoCol, diagramMaxHeight, onDiagram
 /**
  * Match the Following Body
  */
-function BodyMatchFollowing({ q, classes, isTwoCol, diagramMaxHeight, onDiagramResize, displayNum }) {
+function BodyMatchFollowing({ q, classes, isTwoCol, diagramMaxHeight = '185px', onDiagramResize, displayNum }) {
     const pairs = q.matchPairs || [];
     const opts = q.options || [];
-    const qText = cleanQuestionText(q.questionText || q.question || '');
-    const imageUrl = q.imageUrl || q.image_url;
+    const rawQText = cleanQuestionText(q.questionText || q.question || '');
+    const { cleanText: qText, diagramUrl: imageUrl } = extractDiagramFromText(rawQText, q.imageUrl || q.image_url);
     const qId = q._id || q.id || displayNum;
     const currentDiagramHeight = q.customDiagramHeight || diagramMaxHeight;
 
@@ -543,13 +582,11 @@ function BodyMatchFollowing({ q, classes, isTwoCol, diagramMaxHeight, onDiagramR
                         inline
                         text={qText}
                         questionId={qId}
-                        initialHeight={currentDiagramHeight}
-                        onSizeChange={onDiagramResize ? (h) => onDiagramResize(qId, h, 'main') : undefined}
                     />
                 </div>
             )}
             {imageUrl && (
-                <div style={{ textAlign: 'center', margin: '4px 0' }}>
+                <div style={{ textAlign: 'center', margin: '4px auto 6px', clear: 'both' }}>
                     <ResizableDiagram
                         src={imageUrl}
                         alt="Diagram"
@@ -557,7 +594,7 @@ function BodyMatchFollowing({ q, classes, isTwoCol, diagramMaxHeight, onDiagramR
                         diagramKey="main"
                         initialHeight={currentDiagramHeight}
                         onSizeChange={onDiagramResize ? (h) => onDiagramResize(qId, h, 'main') : undefined}
-                        maxWidth="240px"
+                        maxWidth={isTwoCol ? '100%' : '380px'}
                     />
                 </div>
             )}
@@ -607,11 +644,11 @@ function BodyMatchFollowing({ q, classes, isTwoCol, diagramMaxHeight, onDiagramR
 /**
  * Statement-Based Body
  */
-function BodyStatementBased({ q, classes, isTwoCol, diagramMaxHeight, onDiagramResize, displayNum }) {
+function BodyStatementBased({ q, classes, isTwoCol, diagramMaxHeight = '185px', onDiagramResize, displayNum }) {
     const statements = q.statements || [];
     const opts = q.options || [];
-    const qText = cleanQuestionText(q.questionText || q.question || '');
-    const imageUrl = q.imageUrl || q.image_url;
+    const rawQText = cleanQuestionText(q.questionText || q.question || '');
+    const { cleanText: qText, diagramUrl: imageUrl } = extractDiagramFromText(rawQText, q.imageUrl || q.image_url);
     const labels = getQuestionOptionLabels(q);
     const qId = q._id || q.id || displayNum;
     const currentDiagramHeight = q.customDiagramHeight || diagramMaxHeight;
@@ -624,8 +661,6 @@ function BodyStatementBased({ q, classes, isTwoCol, diagramMaxHeight, onDiagramR
                         inline
                         text={qText}
                         questionId={qId}
-                        initialHeight={currentDiagramHeight}
-                        onSizeChange={onDiagramResize ? (h) => onDiagramResize(qId, h, 'main') : undefined}
                     />
                 </div>
             )}
@@ -639,7 +674,7 @@ function BodyStatementBased({ q, classes, isTwoCol, diagramMaxHeight, onDiagramR
                 </div>
             )}
             {imageUrl && (
-                <div style={{ textAlign: 'center', margin: '4px 0' }}>
+                <div style={{ textAlign: 'center', margin: '4px auto 6px', clear: 'both' }}>
                     <ResizableDiagram
                         src={imageUrl}
                         alt="Diagram"
@@ -647,7 +682,7 @@ function BodyStatementBased({ q, classes, isTwoCol, diagramMaxHeight, onDiagramR
                         diagramKey="main"
                         initialHeight={currentDiagramHeight}
                         onSizeChange={onDiagramResize ? (h) => onDiagramResize(qId, h, 'main') : undefined}
-                        maxWidth="240px"
+                        maxWidth={isTwoCol ? '100%' : '380px'}
                     />
                 </div>
             )}
