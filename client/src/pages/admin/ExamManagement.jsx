@@ -880,7 +880,30 @@ export default function ExamManagement() {
         <div style={styles.container}>
             <div style={styles.header}>
                 <h2 style={styles.title}>📋 Exam Management</h2>
-                <div style={{ display: 'flex', gap: 12 }}>
+                <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                    <button
+                        onClick={() => {
+                            const url = `${window.location.origin}/lab-exam`;
+                            navigator.clipboard.writeText(url);
+                            setMsg(`✅ Permanent Student Lab Portal link copied: ${url}`);
+                        }}
+                        style={{
+                            padding: '10px 18px',
+                            background: '#071328',
+                            color: '#fbbf24',
+                            border: '1.5px solid #f59e0b',
+                            borderRadius: '12px',
+                            fontWeight: 800,
+                            fontSize: '12px',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px'
+                        }}
+                    >
+                        <span>🖥️</span>
+                        <span>Copy Student Lab Link (/lab-exam)</span>
+                    </button>
                     <button style={styles.primaryBtn} onClick={() => setShowMergeModal(true)}>
                         ⊕ Generate Composite Exam
                     </button>

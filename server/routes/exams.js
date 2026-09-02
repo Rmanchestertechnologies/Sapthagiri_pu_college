@@ -343,6 +343,52 @@ router.get('/', [auth, checkRole(['admin'])], async (req, res) => {
     }
 });
 
+// ─────────────────────────────────────────────────────────────────
+// STUDENT LAB PORTAL: Get all online CBT exams scheduled by admin
+// GET /api/exams/lab-active
+// Public access for lab terminals
+// ─────────────────────────────────────────────────────────────────
+router.get('/lab-active', async (req, res) => {
+    try {
+        const exams = await storage.getExams();
+        const now = Date.now();
+
+        // Filter to online exams: exclude drafts/archived
+        const onlineExams = exams.filter(e => {
+            const status = String(e.status || '').toLowerCase();
+            return status !== 'draft' && status !== 'archived';
+        });
+
+        const safeList = onlineExams.map(e => {
+            const start = e.start_time ? new Date(e.start_time).getTime() : null;
+            const duration = e.duration_minutes || 180;
+            const end = e.end_time ? new Date(e.end_time).getTime() : (start ? start + duration * 60000 : null);
+
+            return {
+                _id: String(e._id || e.id),
+                id: String(e.id || e._id),
+                title: e.title,
+                examType: e.examType || 'CET',
+                classes: e.classes || ['12'],
+                duration_minutes: duration,
+                start_time: e.start_time || null,
+                end_time: e.end_time || null,
+                totalQuestions: Array.isArray(e.questions) ? e.questions.length : (e.totalQuestions || 60),
+                status: e.status || 'live',
+                instructions: e.instructions || ''
+            };
+        });
+
+        res.json({
+            serverTime: new Date().toISOString(),
+            exams: safeList
+        });
+    } catch (err) {
+        console.error('Lab Active Exams Error:', err.message);
+        res.status(500).json({ msg: 'Server Error: ' + err.message });
+    }
+});
+
 // Helper to hydrate full questions for composite/commissioned exams or string-ID questions
 async function hydrateExamQuestions(exam) {
     if (!exam) return exam;

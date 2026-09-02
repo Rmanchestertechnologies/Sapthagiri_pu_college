@@ -35,9 +35,9 @@ function getDynamicOptGrid(options = [], isTwoColMode = false) {
     let hasAnyMath = false;
 
     const parsedOptions = options.map((opt) => {
-        if (!opt) return { text: '', len: 0, hasMath: false, isComplex: false };
+        if (!opt) return { text: '', len: 0, hasMath: false, isComplex: false, hasImage: false };
         const str = String(typeof opt === 'object' ? (opt.text || opt.optionText || opt.value || opt.option || '') : opt).trim();
-        const hasImage = /\{\{IMG::|!\[/i.test(str);
+        const hasImage = /\{\{IMG::|!\[|\[DIAGRAM:|<img|https?:\/\/.*?\.(png|jpg|jpeg|webp|svg|gif)|data:image\//i.test(str);
         const clean = str.replace(/<[^>]+>/g, '').trim();
 
         // Detect math / LaTeX commands / symbols
@@ -49,9 +49,7 @@ function getDynamicOptGrid(options = [], isTwoColMode = false) {
         // - Vectors or hats (\vec, \hat)
         // - Integrals, square roots, matrices, summations (\sqrt, \int, \sum, \matrix, \begin)
         // - Long formulas with mathematical operators (+, -, =)
-        // - Images
         const complexMatch =
-            hasImage ||
             /(\\frac|\\dfrac|\\vec|\\hat|\\sqrt|\\int|\\sum|\\prod|\\matrix|\\begin|\\rightarrow|\|)/i.test(clean) ||
             (mathMatch && (clean.length > 12 || /(=|\+.*\-|\-.*\+|\^\{?\d+\}?.*_)/.test(clean)));
 
@@ -64,8 +62,32 @@ function getDynamicOptGrid(options = [], isTwoColMode = false) {
             len: clean.length,
             hasMath: mathMatch,
             isComplex: complexMatch,
+            hasImage,
         };
     });
+
+    // ── HORIZONTAL GRID FOR OPTIONS WITH DIAGRAMS (Q40, Q52) ──
+    const hasAnyOptionImage = parsedOptions.some((o) => o.hasImage);
+    if (hasAnyOptionImage) {
+        if (isTwoColMode) {
+            // In 2-column mode: 2x2 grid
+            return {
+                display: 'grid',
+                gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+                gap: '4px 8px',
+                marginTop: '4px',
+                alignItems: 'start',
+            };
+        }
+        // In 1-column mode: All 4 options laid out horizontally side-by-side!
+        return {
+            display: 'grid',
+            gridTemplateColumns: `repeat(${Math.min(4, options.length)}, minmax(0, 1fr))`,
+            gap: '4px 12px',
+            marginTop: '4px',
+            alignItems: 'start',
+        };
+    }
 
     const maxLen = Math.max(...parsedOptions.map((o) => o.len), 0);
 
@@ -242,17 +264,18 @@ const Q = {
     sideBySideContainer: {
         display: 'flex',
         flexDirection: 'row',
-        alignItems: 'flex-start',
-        gap: '12px',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: '16px',
         marginTop: '4px',
     },
     sideLeftContent: {
-        flex: '1 1 65%',
+        flex: '1 1 58%',
         minWidth: 0,
     },
     sideRightDiagram: {
-        flex: '0 0 35%',
-        maxWidth: '220px',
+        flex: '0 0 38%',
+        maxWidth: '260px',
         display: 'flex',
         justifyContent: 'center',
         alignItems: 'center',
@@ -315,16 +338,23 @@ const Q = {
  * Intelligent Layout Decision:
  * Decides whether diagram should be rendered side-by-side on the right, or inline/full-width
  */
-function shouldRenderSideBySide(q, isTwoCol = false) {
-    if (!q.imageUrl && !q.image_url) return false;
-    // In 2-column paper mode, column width is narrower, so inline is cleaner
+function shouldRenderSideBySide(q, isTwoCol = false, resolvedImageUrl = null) {
+    const img = resolvedImageUrl || q.imageUrl || q.image_url;
+    if (!img) return false;
+    // In 2-column paper mode, column width is narrower, so inline/balanced is cleaner
     if (isTwoCol) return false;
 
-    // Check options length: if 4 standard short/medium options, side-by-side is optimal
+    // Check options: if 2 to 4 options and options don't have images themselves
     const options = Array.isArray(q.options) ? q.options : [];
     if (options.length >= 2 && options.length <= 4) {
-        const totalOptLength = options.reduce((sum, opt) => sum + String(opt || '').length, 0);
-        return totalOptLength < 250; // Side-by-side works cleanly when text isn't massive
+        const hasOptImg = options.some(opt => {
+            const str = String(typeof opt === 'object' ? (opt.text || opt.option || '') : (opt || ''));
+            return /\{\{IMG::|!\[|\[DIAGRAM:|<img|https?:\/\/.*?\.(png|jpg|jpeg|webp|svg|gif)|data:image\//i.test(str);
+        });
+        if (hasOptImg) return false; // Options with diagrams use horizontal grid
+
+        const totalOptLength = options.reduce((sum, opt) => sum + String(typeof opt === 'object' ? (opt.text || opt.option || '') : (opt || '')).length, 0);
+        return totalOptLength < 280; // Side-by-side works cleanly when options fit neatly on the left
     }
     return false;
 }
@@ -402,10 +432,15 @@ function BodyMCQ({ q, classes, isTwoCol, diagramMaxHeight = '260px', onDiagramRe
     const rawQText = cleanQuestionText(q.questionText || q.question || '');
     const { cleanText: qText, diagramUrl: imageUrl } = extractDiagramFromText(rawQText, q.imageUrl || q.image_url);
     const options = Array.isArray(q.options) ? q.options : [];
-    const isSideBySide = shouldRenderSideBySide(q, isTwoCol);
+    const isSideBySide = shouldRenderSideBySide(q, isTwoCol, imageUrl);
     const labels = getQuestionOptionLabels(q);
     const qId = q._id || q.id || displayNum;
     const currentDiagramHeight = q.customDiagramHeight || diagramMaxHeight;
+
+    const hasAnyOptionImage = options.some(opt => {
+        const str = String(typeof opt === 'object' ? (opt.text || opt.optionText || opt.value || opt.option || '') : (opt || ''));
+        return /\{\{IMG::|!\[|\[DIAGRAM:|<img|https?:\/\/.*?\.(png|jpg|jpeg|webp|svg|gif)|data:image\//i.test(str);
+    });
 
     // Render Options List
     const renderOptions = (forceSingle = false) => {
@@ -421,14 +456,23 @@ function BodyMCQ({ q, classes, isTwoCol, diagramMaxHeight = '260px', onDiagramRe
                 {options.map((opt, i) => {
                     const optText = typeof opt === 'object' ? (opt.text || opt.optionText || opt.value || opt.option || '') : String(opt || '');
                     return (
-                        <div key={i} style={Q.optRow}>
+                        <div
+                            key={i}
+                            style={{
+                                ...Q.optRow,
+                                flexDirection: hasAnyOptionImage && !forceSingle ? 'column' : 'row',
+                                alignItems: hasAnyOptionImage && !forceSingle ? 'center' : 'flex-start',
+                                textAlign: hasAnyOptionImage && !forceSingle ? 'center' : 'left',
+                                gap: '2px',
+                            }}
+                        >
                             <span style={Q.optLbl}>({labels[i] || optionLabel(i, classes)})</span>
                             <span style={{ flex: 1, minWidth: 0, maxWidth: '100%', fontWeight: 400 }}>
                                 <MathRenderer
                                     inline
                                     text={optText}
                                     questionId={qId}
-                                    initialHeight={q.customOptionDiagramHeight || '70px'}
+                                    initialHeight={q.customOptionDiagramHeight || '80px'}
                                     onSizeChange={onDiagramResize ? (h) => onDiagramResize(qId, h, `opt_${i}`) : undefined}
                                 />
                             </span>
@@ -440,34 +484,38 @@ function BodyMCQ({ q, classes, isTwoCol, diagramMaxHeight = '260px', onDiagramRe
     };
 
     if (imageUrl && isSideBySide) {
-        // SIDE-BY-SIDE: Left (Question Text + Options), Right (Diagram)
+        // SIDE-BY-SIDE:
+        // Top: Question statement (full width)
+        // Bottom: Left = Options (stacked vertically), Right = Diagram
         return (
-            <div style={Q.sideBySideContainer}>
-                <div style={Q.sideLeftContent}>
-                    {qText && (
-                        <div style={Q.qTextBold}>
-                            <MathRenderer
-                                inline
-                                text={qText}
-                                questionId={qId}
-                            />
-                        </div>
-                    )}
-                    {renderOptions(true)}
+            <>
+                {qText && (
+                    <div style={{ ...Q.qTextBold, marginBottom: '4px' }}>
+                        <MathRenderer
+                            inline
+                            text={qText}
+                            questionId={qId}
+                        />
+                    </div>
+                )}
+                <div style={Q.sideBySideContainer}>
+                    <div style={Q.sideLeftContent}>
+                        {renderOptions(true)}
+                    </div>
+                    <div style={Q.sideRightDiagram}>
+                        <ResizableDiagram
+                            src={imageUrl}
+                            alt="Diagram"
+                            questionId={qId}
+                            diagramKey="main"
+                            initialHeight={currentDiagramHeight}
+                            isManual={Boolean(q.customDiagramHeight)}
+                            onSizeChange={onDiagramResize ? (h) => onDiagramResize(qId, h, 'main') : undefined}
+                            maxWidth="100%"
+                        />
+                    </div>
                 </div>
-                <div style={Q.sideRightDiagram}>
-                    <ResizableDiagram
-                        src={imageUrl}
-                        alt="Diagram"
-                        questionId={qId}
-                        diagramKey="main"
-                        initialHeight={currentDiagramHeight}
-                        isManual={Boolean(q.customDiagramHeight)}
-                        onSizeChange={onDiagramResize ? (h) => onDiagramResize(qId, h, 'main') : undefined}
-                        maxWidth="100%"
-                    />
-                </div>
-            </div>
+            </>
         );
     }
 

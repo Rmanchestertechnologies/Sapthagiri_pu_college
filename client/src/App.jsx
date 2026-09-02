@@ -13,6 +13,7 @@ import Scorecard from './pages/exam/Scorecard';
 import Disqualified from './pages/exam/Disqualified';
 import LabLogin from './pages/lab/LabLogin';
 import LabExamList from './pages/lab/LabExamList';
+import StudentLabPortal from './pages/exam/StudentLabPortal';
 import BridgeApp from './pages/admin/BridgeApp';
 
 // ── App Loader Linker ────────────────────────────────────────────────────────
@@ -94,9 +95,14 @@ function App() {
                         <Route path="/exam/:examId" element={<ExamEngine />} />
                         <Route path="/exam/disqualified" element={<Disqualified />} />
 
+                        {/* Dedicated Student Lab Examination Portal */}
+                        <Route path="/lab-exam" element={<StudentLabPortal />} />
+                        <Route path="/student-exam" element={<Navigate to="/lab-exam" replace />} />
+                        <Route path="/student/exam" element={<Navigate to="/lab-exam" replace />} />
+
                         {/* Student Lab Engine Routes */}
-                        <Route path="/lab" element={<LabLogin />} />
-                        <Route path="/lab-login" element={<Navigate to="/lab" replace />} />
+                        <Route path="/lab" element={<StudentLabPortal />} />
+                        <Route path="/lab-login" element={<LabLogin />} />
                         <Route path="/lab/exams" element={<LabExamList />} />
 
                         {/* Fallback */}

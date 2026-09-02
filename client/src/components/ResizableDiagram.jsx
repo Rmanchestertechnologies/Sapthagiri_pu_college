@@ -28,32 +28,35 @@ function parsePx(val, fallback = 180) {
  * are immediately legible without manual intervention.
  */
 function computeSmartHeight(naturalWidth, naturalHeight, isOption = false) {
-    if (!naturalWidth || !naturalHeight) return isOption ? 80 : 260;
+    if (!naturalWidth || !naturalHeight) return isOption ? 80 : 190;
     const ar = naturalWidth / naturalHeight;
 
     if (isOption) {
-        // Option diagrams: compact yet clear
-        if (ar > 1.5) return 80;
-        if (ar < 0.8) return 100;
-        return 85;
+        // Option diagrams: compact yet clear, ideal for 4-in-a-row or 2x2 grid
+        if (ar > 1.5) return 75;
+        if (ar < 0.8) return 90;
+        return 80;
     }
 
-    // Main Question Diagrams (Graphs, Circuits, Anatomical Figures, Pyramids)
-    // Ensures large, crystal-clear readability even when rendered in two-column layouts (~340px column width)
+    // Main Question Diagrams:
+    // Balanced sizing so markings and text are sharp and visible to naked eyes without huge blank spaces.
+    let target = 200;
     if (ar >= 2.0) {
-        // Very wide diagrams (e.g. landscape pyramids, circuits, timelines)
-        return 220;
+        target = 170; // Wide landscape diagrams (pyramids, circuits)
     } else if (ar >= 1.2 && ar < 2.0) {
-        // Standard landscape graphs (like Q38, Q40 with X/Y axes and numbers)
-        // 260px allows full ~340px column width without vertical cutoff
-        return 260;
+        target = 210; // Standard graphs with axes (Q38, Q40)
     } else if (ar < 0.85) {
-        // Tall vertical diagrams (e.g. human anatomy, column graphs, pedigrees)
-        return 300;
+        target = 240; // Tall vertical figures
     } else {
-        // Square or near-square diagrams (0.85 <= ar < 1.2)
-        return 270;
+        target = 210; // Square or near-square
     }
+
+    // Don't upscale naturally small illustrations into huge blurry items,
+    // but ensure at least 140px so small labels are clearly visible.
+    if (naturalHeight < target) {
+        return Math.max(140, naturalHeight);
+    }
+    return target;
 }
 
 export default function ResizableDiagram({

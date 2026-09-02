@@ -72,7 +72,7 @@ export default function A4AnswerKey({
                                 fontFamily: 'Calibri, "Segoe UI", Arial, sans-serif',
                             }}
                         >
-                            {/* Official Sapthagiri PU College Campus Watermark */}
+                            {/* Official Sapthagiri PU College Crest Watermark */}
                             <div 
                                 className="a4-watermark-print"
                                 style={{
@@ -80,14 +80,16 @@ export default function A4AnswerKey({
                                     top: '50%',
                                     left: '50%',
                                     transform: 'translate(-50%, -50%)',
-                                    width: '520px',
-                                    height: '400px',
-                                    backgroundImage: "url('/SapthagiriCampus.webp')",
+                                    width: '380px',
+                                    height: '380px',
+                                    backgroundImage: "url('/SapthagiriLogo.jpg')",
                                     backgroundRepeat: 'no-repeat',
                                     backgroundPosition: 'center',
                                     backgroundSize: 'contain',
-                                    opacity: 0.05,
+                                    borderRadius: '50%',
+                                    opacity: 0.07,
                                     filter: 'grayscale(100%)',
+                                    mixBlendMode: 'multiply',
                                     pointerEvents: 'none',
                                     zIndex: 0
                                 }}

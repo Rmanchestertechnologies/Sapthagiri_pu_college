@@ -60,7 +60,7 @@ export default function A4PaperEngine({
             >
                 {/* ── Single Unified Question Paper Sheet ── */}
                 <div className="a4-sheet-page a4-questions-page" style={{ position: 'relative' }}>
-                    {/* Official Sapthagiri PU College Campus Watermark */}
+                    {/* Official Sapthagiri PU College Crest Watermark */}
                     <div 
                         className="a4-watermark-print"
                         style={{
@@ -68,14 +68,16 @@ export default function A4PaperEngine({
                             top: '50%',
                             left: '50%',
                             transform: 'translate(-50%, -50%)',
-                            width: '520px',
-                            height: '400px',
-                            backgroundImage: "url('/SapthagiriCampus.webp')",
+                            width: '420px',
+                            height: '420px',
+                            backgroundImage: "url('/SapthagiriLogo.jpg')",
                             backgroundRepeat: 'no-repeat',
                             backgroundPosition: 'center',
                             backgroundSize: 'contain',
-                            opacity: 0.08,
+                            borderRadius: '50%',
+                            opacity: 0.07,
                             filter: 'grayscale(100%)',
+                            mixBlendMode: 'multiply',
                             pointerEvents: 'none',
                             zIndex: 0
                         }}
@@ -262,6 +264,19 @@ export default function A4PaperEngine({
                     }
                     body * {
                         visibility: hidden !important;
+                    }
+                    body:not(.printing-answer-key):not(.printing-solution-key) .a4-watermark-print {
+                        position: fixed !important;
+                        top: 50% !important;
+                        left: 50% !important;
+                        transform: translate(-50%, -50%) !important;
+                        width: 400px !important;
+                        height: 400px !important;
+                        opacity: 0.06 !important;
+                        mix-blend-mode: multiply !important;
+                        visibility: visible !important;
+                        pointer-events: none !important;
+                        z-index: 0 !important;
                     }
 
                     /* ── Target 1: Answer Key Print ── */
