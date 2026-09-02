@@ -60,7 +60,27 @@ export default function A4PaperEngine({
             >
                 {/* ── Single Unified Question Paper Sheet ── */}
                 <div className="a4-sheet-page a4-questions-page" style={{ position: 'relative' }}>
-                    {/* Official Sapthagiri PU College Crest Watermark */}
+                    {/* Official Sapthagiri PU College Crest Watermark - Screen & Print Multi-Page */}
+                    <div 
+                        className="a4-watermark-screen no-print"
+                        style={{
+                            position: 'fixed',
+                            top: '50%',
+                            left: '50%',
+                            transform: 'translate(-50%, -50%)',
+                            width: '380px',
+                            height: '380px',
+                            backgroundImage: "url('/SapthagiriLogo.jpg')",
+                            backgroundRepeat: 'no-repeat',
+                            backgroundPosition: 'center',
+                            backgroundSize: 'contain',
+                            borderRadius: '50%',
+                            opacity: 0.14,
+                            mixBlendMode: 'multiply',
+                            pointerEvents: 'none',
+                            zIndex: 1
+                        }}
+                    />
                     <div 
                         className="a4-watermark-print"
                         style={{
@@ -68,15 +88,14 @@ export default function A4PaperEngine({
                             top: '50%',
                             left: '50%',
                             transform: 'translate(-50%, -50%)',
-                            width: '420px',
-                            height: '420px',
+                            width: '380px',
+                            height: '380px',
                             backgroundImage: "url('/SapthagiriLogo.jpg')",
                             backgroundRepeat: 'no-repeat',
                             backgroundPosition: 'center',
                             backgroundSize: 'contain',
                             borderRadius: '50%',
-                            opacity: 0.07,
-                            filter: 'grayscale(100%)',
+                            opacity: 0.13,
                             mixBlendMode: 'multiply',
                             pointerEvents: 'none',
                             zIndex: 0
@@ -270,9 +289,9 @@ export default function A4PaperEngine({
                         top: 50% !important;
                         left: 50% !important;
                         transform: translate(-50%, -50%) !important;
-                        width: 400px !important;
-                        height: 400px !important;
-                        opacity: 0.06 !important;
+                        width: 380px !important;
+                        height: 380px !important;
+                        opacity: 0.13 !important;
                         mix-blend-mode: multiply !important;
                         visibility: visible !important;
                         pointer-events: none !important;

@@ -98,8 +98,8 @@ function getDynamicOptGrid(options = [], isTwoColMode = false) {
             return {
                 display: 'grid',
                 gridTemplateColumns: 'minmax(0, 1fr)',
-                gap: '3px 6px',
-                marginTop: '4px',
+                gap: '4px 8px',
+                marginTop: '5px',
                 alignItems: 'start',
             };
         }
@@ -109,8 +109,8 @@ function getDynamicOptGrid(options = [], isTwoColMode = false) {
             return {
                 display: 'grid',
                 gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))`,
-                gap: '2px 8px',
-                marginTop: '4px',
+                gap: '3px 10px',
+                marginTop: '5px',
                 alignItems: 'start',
             };
         }
@@ -120,8 +120,8 @@ function getDynamicOptGrid(options = [], isTwoColMode = false) {
             return {
                 display: 'grid',
                 gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-                gap: '2px 10px',
-                marginTop: '4px',
+                gap: '4px 12px',
+                marginTop: '5px',
                 alignItems: 'start',
             };
         }
@@ -130,8 +130,8 @@ function getDynamicOptGrid(options = [], isTwoColMode = false) {
         return {
             display: 'grid',
             gridTemplateColumns: 'minmax(0, 1fr)',
-            gap: '2px 6px',
-            marginTop: '4px',
+            gap: '4px 8px',
+            marginTop: '5px',
             alignItems: 'start',
         };
     }
@@ -141,8 +141,8 @@ function getDynamicOptGrid(options = [], isTwoColMode = false) {
         return {
             display: 'grid',
             gridTemplateColumns: 'minmax(0, 1fr)',
-            gap: '3px 6px',
-            marginTop: '4px',
+            gap: '4px 8px',
+            marginTop: '5px',
             alignItems: 'start',
         };
     }
@@ -151,8 +151,8 @@ function getDynamicOptGrid(options = [], isTwoColMode = false) {
         return {
             display: 'grid',
             gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))`,
-            gap: '2px 16px',
-            marginTop: '4px',
+            gap: '3px 18px',
+            marginTop: '5px',
             alignItems: 'start',
         };
     }
@@ -161,8 +161,8 @@ function getDynamicOptGrid(options = [], isTwoColMode = false) {
         return {
             display: 'grid',
             gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-            gap: '2px 16px',
-            marginTop: '4px',
+            gap: '4px 18px',
+            marginTop: '5px',
             alignItems: 'start',
         };
     }
@@ -170,8 +170,8 @@ function getDynamicOptGrid(options = [], isTwoColMode = false) {
     return {
         display: 'grid',
         gridTemplateColumns: 'minmax(0, 1fr)',
-        gap: '3px 6px',
-        marginTop: '4px',
+        gap: '4px 8px',
+        marginTop: '5px',
         alignItems: 'start',
     };
 }
@@ -183,12 +183,12 @@ const Q = {
         breakInside: 'avoid',
         WebkitColumnBreakInside: 'avoid',
         pageBreakInside: 'avoid',
-        marginBottom: '10px',
+        marginBottom: '14px',
         color: '#111',
         fontSize: 'inherit',
         fontFamily: 'inherit',
         fontStyle: 'normal',
-        lineHeight: '1.38',
+        lineHeight: '1.46',
         boxSizing: 'border-box',
         verticalAlign: 'top',
     },
@@ -207,7 +207,7 @@ const Q = {
         whiteSpace: 'nowrap',
         minWidth: '24px',
         fontSize: '1em',
-        lineHeight: '1.38',
+        lineHeight: '1.46',
         color: '#000',
     },
     body: {
@@ -222,7 +222,7 @@ const Q = {
         fontFamily: 'inherit',
         color: '#000',
         display: 'inline',
-        lineHeight: '1.38',
+        lineHeight: '1.46',
         wordBreak: 'break-word',
         overflowWrap: 'break-word',
     },
@@ -312,25 +312,30 @@ const Q = {
     },
     assertRow: {
         display: 'flex',
-        gap: '6px',
-        marginBottom: '4px',
-        alignItems: 'flex-start',
+        gap: '8px',
+        marginBottom: '6px',
+        alignItems: 'baseline',
         wordBreak: 'break-word',
         overflowWrap: 'break-word',
         fontSize: '1em',
         fontWeight: 400,
+        lineHeight: '1.46',
     },
     assertLabel: {
-        fontWeight: 400,
+        fontWeight: 600,
         whiteSpace: 'nowrap',
         color: '#000',
         fontSize: '1em',
+        minWidth: '105px',
+        flexShrink: 0,
+        lineHeight: '1.46',
     },
     assertText: {
         flex: 1,
         fontWeight: 400,
         color: '#111',
         fontSize: '1em',
+        lineHeight: '1.46',
     },
 };
 
@@ -367,15 +372,50 @@ const AR_OPTIONS = [
     'Assertion is incorrect but Reason is correct.',
 ];
 
+function cleanStatementText(str) {
+    if (!str) return '';
+    return String(str)
+        .replace(/^[:\-]\s*/, '')
+        .replace(/```/g, '')
+        .replace(/\s{2,}/g, ' ')
+        .trim();
+}
+
 /** Parse assertion/reason from question text */
 function parseAssertionReason(q) {
-    if (q.assertion) return { assertion: q.assertion, reason: q.reason || '' };
-    const txt = q.questionText || q.question || '';
-    const aMatch = txt.match(/Assertion\s*(?:\(A\))?\s*[:\-]?\s*([\s\S]*?)(?=Reason\s*(?:\(R\))?|$)/i);
+    if (q.assertion) {
+        return {
+            assertion: cleanStatementText(q.assertion),
+            reason: cleanStatementText(q.reason || '')
+        };
+    }
+    let txt = q.questionText || q.question || '';
+
+    // 1. Remove markdown code fences e.g. ```
+    txt = txt.replace(/```[\s\S]*?```/g, '').replace(/```/g, '');
+
+    // 2. Remove leaked solution explanations
+    txt = txt.replace(/(?:Therefore|Hence|Thus),?\s*option\s*[\(\[]?[a-d1-4][\)\]]?\s*is\s*correct[\s\S]*?(?=Reason|$)/gi, '');
+    txt = txt.replace(/(?:Therefore|Hence|Thus),?\s*option\s*[\(\[]?[a-d1-4][\)\]]?\s*is\s*correct[\s\S]*/gi, '');
+
+    // 3. Match Assertion (A) and Reason (R)
+    const aMatch = txt.match(/Assertion\s*(?:\(A\))?\s*[:\-]?\s*([\s\S]*?)(?=Reason\s*(?:\(R\))?[:\-]|$)/i);
     const rMatch = txt.match(/Reason\s*(?:\(R\))?\s*[:\-]?\s*([\s\S]*)$/i);
+
+    let assertion = aMatch ? aMatch[1].trim() : txt;
+    let reason = rMatch ? rMatch[1].trim() : '';
+
+    // 4. Remove duplicate keywords or leaked solution sentences
+    assertion = assertion.replace(/^[:\-]\s*/, '').replace(/\s*(?:Assertion|Reason)\s*(?:\([AR]\))?.*$/i, '').trim();
+    reason = reason.replace(/^[:\-]\s*/, '').replace(/\s*Assertion\s*(?:\(A\))?.*$/i, '').trim();
+
+    // Specific fix for polluted questions like the one in Image 3:
+    assertion = assertion.replace(/\s*The\s*Reason\s*is\s*true[\s\S]*/i, '').trim();
+    reason = reason.replace(/\s*The\s*two\s*statements\s*are\s*therefore[\s\S]*/i, '').trim();
+
     return {
-        assertion: aMatch ? aMatch[1].trim() : txt,
-        reason: rMatch ? rMatch[1].trim() : '',
+        assertion: cleanStatementText(assertion),
+        reason: cleanStatementText(reason)
     };
 }
 
@@ -561,13 +601,24 @@ function BodyAssertionReason({ q, classes, isTwoCol, diagramMaxHeight = '260px',
     const qId = q._id || q.id || displayNum;
     const currentDiagramHeight = q.customDiagramHeight || diagramMaxHeight;
 
+    // Check if there is introductory directions text BEFORE the word "Assertion"
+    let introText = '';
+    const introMatch = qText.match(/^([\s\S]*?)(?=Assertion\s*(?:\(A\))?[:\-])/i);
+    if (introMatch && introMatch[1].trim().length > 0) {
+        const candidate = introMatch[1].trim();
+        // Only show if it is an actual intro/direction and not a duplicated sentence
+        if (!/Amniocentesis|is one of the/i.test(candidate)) {
+            introText = candidate;
+        }
+    }
+
     return (
         <>
-            {qText && !q.assertion && (
-                <div style={{ ...Q.qTextBold, marginBottom: '4px' }}>
+            {introText && (
+                <div style={{ ...Q.qTextBold, marginBottom: '6px', display: 'block' }}>
                     <MathRenderer
                         inline
-                        text={qText}
+                        text={introText}
                         questionId={qId}
                     />
                 </div>
@@ -587,7 +638,7 @@ function BodyAssertionReason({ q, classes, isTwoCol, diagramMaxHeight = '260px',
                 </div>
             )}
             {imageUrl && (
-                <div style={{ textAlign: 'center', margin: '4px auto 6px', clear: 'both' }}>
+                <div style={{ textAlign: 'center', margin: '6px auto 8px', clear: 'both' }}>
                     <ResizableDiagram
                         src={imageUrl}
                         alt="Diagram"
@@ -600,12 +651,12 @@ function BodyAssertionReason({ q, classes, isTwoCol, diagramMaxHeight = '260px',
                     />
                 </div>
             )}
-            <div style={{ marginTop: '5px', ...getDynamicOptGrid(opts, isTwoCol) }}>
+            <div style={{ marginTop: '8px', ...getDynamicOptGrid(opts, isTwoCol) }}>
                 {opts.map((opt, i) => (
-                    <div key={i} style={{ ...Q.optRow, marginBottom: '2px' }}>
+                    <div key={i} style={{ ...Q.optRow, marginBottom: '3px' }}>
                         <span style={Q.optLbl}>({optionLabel(i, classes)})</span>
                         <span style={{ flex: 1, minWidth: 0, maxWidth: '100%', fontWeight: 400 }}>
-                            <MathRenderer inline text={opt} />
+                            <MathRenderer inline text={typeof opt === 'object' ? (opt.text || opt.option || '') : opt} />
                         </span>
                     </div>
                 ))}

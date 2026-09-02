@@ -88,8 +88,7 @@ export default function A4SolutionKey({
                                     backgroundPosition: 'center',
                                     backgroundSize: 'contain',
                                     borderRadius: '50%',
-                                    opacity: 0.07,
-                                    filter: 'grayscale(100%)',
+                                    opacity: 0.13,
                                     mixBlendMode: 'multiply',
                                     pointerEvents: 'none',
                                     zIndex: 0
