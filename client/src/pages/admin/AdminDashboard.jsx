@@ -14,6 +14,7 @@ import AdminQuestionBank from './AdminQuestionBank';
 import AssignmentGenerator from '../teacher/AssignmentGenerator';
 import PaperAnalysisModal from '../../components/PaperAnalysisModal';
 import MathRenderer from '../../components/MathRenderer';
+import TeacherOmr from '../teacher/omr/TeacherOmr';
 import api from '../../api';
 
 const DashboardHome = () => {
@@ -69,6 +70,10 @@ const DashboardHome = () => {
     const [selectedViewExam, setSelectedViewExam] = useState(null);
     // Analysis Modal
     const [selectedAnalysisExam, setSelectedAnalysisExam] = useState(null);
+
+    // Expandable Box States (One box when clicked the four will open)
+    const [isExamSubjectsOpen, setIsExamSubjectsOpen] = useState(false);
+    const [isSubjectDirectoryOpen, setIsSubjectDirectoryOpen] = useState(false);
 
     const fetchData = async () => {
         try {
@@ -295,254 +300,337 @@ const DashboardHome = () => {
                 </div>
             </div>
 
-            {/* ── CENTRAL EXAM MANAGEMENT & PCMB DELEGATION ── */}
-            <div className="bg-white p-6 sm:p-8 rounded-3xl shadow-sm border border-slate-200/80 space-y-6">
-                {/* Section Header */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100">
-                    <div>
-                        <h3 className="text-xs font-black text-navy uppercase tracking-[0.2em] flex items-center gap-2">
-                            <span>Exam Delegation &amp; Readiness</span>
-                        </h3>
-                        <p className="text-xs text-slate-400 font-medium mt-0.5">
-                            Select an exam below to inspect question readiness and faculty assignments.
-                        </p>
+            {/* ── SECTION 1: COMMISSIONED EXAMS & PCMB TARGETS (ONE BOX - CLICK TO EXPAND 4 SUBJECTS) ── */}
+            <div className="bg-white rounded-3xl shadow-sm border border-slate-200/80 overflow-hidden transition-all duration-300">
+                {/* Master Box Header (Click to Open/Close) */}
+                <div
+                    onClick={() => setIsExamSubjectsOpen(!isExamSubjectsOpen)}
+                    className="p-6 cursor-pointer hover:bg-slate-50/70 transition flex flex-col md:flex-row md:items-center justify-between gap-4 select-none"
+                >
+                    <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 rounded-2xl bg-navy text-gold flex items-center justify-center text-2xl font-black shadow-md shrink-0">
+                            📋
+                        </div>
+                        <div>
+                            <div className="flex items-center gap-2 flex-wrap mb-1">
+                                <span className="bg-navy text-gold text-[10px] font-black uppercase tracking-widest px-2.5 py-0.5 rounded-lg">
+                                    {activeExam?.examType || 'CET'}
+                                </span>
+                                <h3 className="font-black text-lg text-navy uppercase tracking-tight">
+                                    {activeExam?.title || 'Commissioned Examination Targets'}
+                                </h3>
+                                <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2.5 py-0.5 rounded-md">
+                                    Class {activeExam?.classes?.join(', ') || '12'}
+                                </span>
+                            </div>
+                            <p className="text-xs text-slate-500 font-medium">
+                                {commissionedExams.length} Total Exams Registered • Tap to open 4 PCMB department target breakdown
+                            </p>
+                        </div>
                     </div>
-                    <span className="text-xs font-bold text-slate-500 bg-slate-100 px-3 py-1 rounded-xl self-start sm:self-auto">
-                        {commissionedExams.length} Assessments Registered
-                    </span>
+
+                    <div className="flex items-center gap-4 self-end md:self-auto">
+                        <div className="text-right hidden sm:block">
+                            <span className="text-xs font-black text-navy block">
+                                {isExamSubjectsOpen ? 'Hide Department Subjects' : 'View 4 Subjects & Switch Exam'}
+                            </span>
+                            <span className="text-[10px] text-slate-400">
+                                Physics • Chemistry • Maths • Biology
+                            </span>
+                        </div>
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-base transition-all duration-300 ${
+                            isExamSubjectsOpen ? 'bg-navy text-gold rotate-180 shadow-md' : 'bg-slate-100 text-navy hover:bg-slate-200'
+                        }`}>
+                            ▾
+                        </div>
+                    </div>
                 </div>
 
-                {loading ? (
-                    <div className="p-16 text-center text-slate-400 font-bold text-sm">
-                        Loading assessment progress...
-                    </div>
-                ) : commissionedExams.length === 0 ? (
-                    <div className="p-16 border-2 border-dashed border-slate-200 rounded-3xl text-center">
-                        <div className="w-16 h-16 bg-navy/5 text-navy rounded-2xl flex items-center justify-center text-2xl mx-auto mb-4 font-black">🎓</div>
-                        <h4 className="font-black text-navy text-lg mb-1">No Commissioned Exams Yet</h4>
-                        <p className="text-xs text-gray-500 max-w-md mx-auto mb-6">Create your first exam and delegate question targets to PCMB faculty.</p>
-                        <button
-                            onClick={() => setShowCommissionModal(true)}
-                            className="bg-gold text-navy px-6 py-3 rounded-xl font-black text-xs uppercase tracking-widest hover:scale-105 transition shadow-lg cursor-pointer"
-                        >
-                            + Create Exam
-                        </button>
-                    </div>
-                ) : (
-                    <div className="space-y-6">
-                        {/* ── CLEAN HORIZONTAL EXAM TABS (NO HEAVY SCROLLBAR) ── */}
-                        <div className="flex items-center gap-2.5 overflow-x-auto pb-2 scrollbar-none">
-                            {commissionedExams.map((exam) => {
-                                const examKey = exam._id || exam.id;
-                                const isSelected = ((activeExam?._id || activeExam?.id) === examKey);
-                                const subAssignments = exam.subjectAssignments || [];
-                                const totalTarget = subAssignments.reduce((sum, sa) => sum + (sa.targetQuestions || 60), 0);
-                                const totalAdded = exam.totalQuestionsAdded !== undefined
-                                    ? exam.totalQuestionsAdded
-                                    : subAssignments.reduce((sum, sa) => sum + (sa.questionsCount || (sa.submittedPaperId?.questions?.length || 0)), 0);
-                                const overallPct = totalTarget > 0 ? Math.min(100, Math.round((totalAdded / totalTarget) * 100)) : 0;
-                                const examType = exam.examType || 'CET';
-
-                                return (
-                                    <button
-                                        key={examKey}
-                                        onClick={() => setSelectedExamId(examKey)}
-                                        className={`px-4 py-2.5 rounded-2xl font-bold text-xs uppercase tracking-wider transition-all flex items-center gap-2.5 whitespace-nowrap cursor-pointer ${
-                                            isSelected
-                                                ? 'bg-navy text-gold shadow-md font-black border-2 border-gold scale-[1.02]'
-                                                : 'bg-slate-100 text-slate-600 hover:bg-slate-200/80 border border-slate-200'
-                                        }`}
-                                    >
-                                        <span className={`text-[9px] font-black px-1.5 py-0.5 rounded ${
-                                            isSelected ? 'bg-gold/20 text-gold' : 'bg-white text-navy'
-                                        }`}>
-                                            {examType}
-                                        </span>
-                                        <span>{exam.title}</span>
-                                        <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
-                                            isSelected ? 'bg-white text-navy' : 'bg-white text-slate-600'
-                                        }`}>
-                                            {overallPct}%
-                                        </span>
-                                    </button>
-                                );
-                            })}
-                        </div>
-
-                        {/* ── ACTIVE EXAM DETAILS & 4 PCMB SUBJECT TILES ── */}
-                        {activeExam && (() => {
-                            const exam = activeExam;
-                            const subAssignments = exam.subjectAssignments || [];
-                            const totalTarget = subAssignments.reduce((sum, sa) => sum + (sa.targetQuestions || 60), 0);
-                            const totalAdded = exam.totalQuestionsAdded !== undefined
-                                ? exam.totalQuestionsAdded
-                                : subAssignments.reduce((sum, sa) => sum + (sa.questionsCount || (sa.submittedPaperId?.questions?.length || 0)), 0);
-                            const overallPct = totalTarget > 0 ? Math.min(100, Math.round((totalAdded / totalTarget) * 100)) : 0;
-
-                            return (
-                                <div className="space-y-6 pt-2">
-                                    {/* Active Exam Action Card */}
-                                    <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-4">
-                                        <div>
-                                            <div className="flex items-center gap-3 mb-1 flex-wrap">
-                                                <span className="bg-navy text-gold text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-lg">
-                                                    {exam.examType || 'CET'}
-                                                </span>
-                                                <h3 className="font-black text-xl text-navy uppercase tracking-tight">
-                                                    {exam.title}
-                                                </h3>
-                                                <span className="text-[10px] font-bold text-slate-500 bg-white px-2.5 py-1 rounded-md border border-slate-200">
-                                                    Class {exam.classes?.join(', ') || '12'}
-                                                </span>
-                                            </div>
-                                            <p className="text-xs text-slate-400 font-medium">
-                                                Created: {new Date(exam.createdAt).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}
-                                            </p>
-                                        </div>
-
-                                        {/* Action Buttons */}
-                                        <div className="flex items-center gap-2.5 flex-wrap">
-                                            <button
-                                                onClick={() => setSelectedViewExam(exam)}
-                                                className="bg-navy text-gold hover:bg-slate-900 px-4 py-2 rounded-xl font-bold text-xs uppercase tracking-wider hover:scale-105 transition shadow-xs flex items-center gap-1.5 cursor-pointer"
-                                            >
-                                                <span>👁</span> View Paper ({totalAdded} Qs)
-                                            </button>
-                                            <button
-                                                onClick={() => setSelectedAnalysisExam(exam)}
-                                                className="bg-gold text-navy hover:bg-amber-400 px-4 py-2 rounded-xl font-bold text-xs uppercase tracking-wider hover:scale-105 transition shadow-xs flex items-center gap-1.5 cursor-pointer"
-                                            >
-                                                <span>📊</span> Analysis
-                                            </button>
-                                            <button
-                                                onClick={() => handleDeleteExam(exam._id || exam.id)}
-                                                className="bg-white text-rose-600 border border-rose-200 hover:bg-rose-50 px-3 py-2 rounded-xl font-bold text-xs transition shadow-2xs cursor-pointer"
-                                                title="Delete this exam"
-                                            >
-                                                ✕ Delete
-                                            </button>
-                                        </div>
+                {/* WHEN CLICKED: THE EXAM SWITCHER & 4 PCMB SUBJECTS EXPAND */}
+                {isExamSubjectsOpen && (
+                    <div className="p-6 pt-0 border-t border-slate-100 space-y-6 animate-fade-in bg-slate-50/40">
+                        {loading ? (
+                            <div className="p-12 text-center text-slate-400 font-bold text-sm">
+                                Loading assessment progress...
+                            </div>
+                        ) : commissionedExams.length === 0 ? (
+                            <div className="p-12 border-2 border-dashed border-slate-200 rounded-2xl text-center">
+                                <h4 className="font-black text-navy text-base mb-1">No Commissioned Exams Yet</h4>
+                                <p className="text-xs text-gray-500 mb-4">Create your first exam and delegate targets to PCMB faculty.</p>
+                                <button
+                                    onClick={() => setShowCommissionModal(true)}
+                                    className="bg-gold text-navy px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest hover:scale-105 transition shadow cursor-pointer"
+                                >
+                                    + Create Exam
+                                </button>
+                            </div>
+                        ) : (
+                            <div className="space-y-6 pt-4">
+                                {/* Exam Switcher Pills */}
+                                <div>
+                                    <div className="text-xs font-black text-navy uppercase tracking-wider mb-2.5">
+                                        Select Assessment:
                                     </div>
-
-                                    {/* Overall Assessment Progress Bar */}
-                                    <div className="bg-slate-50 border border-slate-200 p-4 rounded-2xl">
-                                        <div className="flex justify-between items-center text-xs font-black text-navy mb-2">
-                                            <span>Overall Question Compilation Readiness</span>
-                                            <span className="font-mono">{totalAdded} / {totalTarget} Qs ({overallPct}%)</span>
-                                        </div>
-                                        <div className="w-full h-2.5 bg-gray-200 rounded-full overflow-hidden p-0.5 shadow-inner">
-                                            <div
-                                                style={{ width: `${overallPct}%` }}
-                                                className={`h-full rounded-full transition-all duration-500 ${
-                                                    overallPct >= 100 ? 'bg-emerald-500' : overallPct >= 50 ? 'bg-blue-600' : 'bg-amber-500'
-                                                }`}
-                                            />
-                                        </div>
-                                    </div>
-
-                                    {/* ── 4 PCMB SUBJECT TILES ── */}
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                                        {subAssignments.map((sa, idx) => {
-                                            const subName = sa.subject;
-                                            const target = sa.targetQuestions || 60;
-                                            const count = sa.questionsCount !== undefined
-                                                ? sa.questionsCount
-                                                : (sa.submittedPaperId?.questions?.length || 0);
-                                            const pct = Math.min(100, Math.round((count / target) * 100));
-
-                                            const subIcon = subName.toLowerCase().includes('physic') ? '⚛️'
-                                                : subName.toLowerCase().includes('chem') ? '🧪'
-                                                : subName.toLowerCase().includes('math') ? '📐'
-                                                : subName.toLowerCase().includes('botan') ? '🌿'
-                                                : subName.toLowerCase().includes('zool') ? '🐾'
-                                                : '🧬';
+                                    <div className="flex items-center gap-2.5 overflow-x-auto pb-2 scrollbar-none">
+                                        {commissionedExams.map((exam) => {
+                                            const examKey = exam._id || exam.id;
+                                            const isSelected = ((activeExam?._id || activeExam?.id) === examKey);
+                                            const subAssignments = exam.subjectAssignments || [];
+                                            const totalTarget = subAssignments.reduce((sum, sa) => sum + (sa.targetQuestions || 60), 0);
+                                            const totalAdded = exam.totalQuestionsAdded !== undefined
+                                                ? exam.totalQuestionsAdded
+                                                : subAssignments.reduce((sum, sa) => sum + (sa.questionsCount || (sa.submittedPaperId?.questions?.length || 0)), 0);
+                                            const overallPct = totalTarget > 0 ? Math.min(100, Math.round((totalAdded / totalTarget) * 100)) : 0;
+                                            const examType = exam.examType || 'CET';
 
                                             return (
-                                                <div key={idx} className="border border-slate-200 p-5 rounded-2xl bg-white flex flex-col justify-between hover:border-navy transition shadow-xs">
-                                                    <div>
-                                                        <div className="flex justify-between items-center mb-3">
-                                                            <div className="flex items-center gap-2">
-                                                                <span className="text-xl">{subIcon}</span>
-                                                                <h4 className="text-sm font-black text-navy uppercase">{subName}</h4>
-                                                            </div>
-                                                            <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full ${
-                                                                pct >= 100 ? 'bg-emerald-100 text-emerald-800' : pct > 0 ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-600'
-                                                            }`}>
-                                                                {pct >= 100 ? 'Ready' : pct > 0 ? 'Working' : 'Pending'}
-                                                            </span>
-                                                        </div>
-
-                                                        {/* Faculty Name */}
-                                                        <div className="bg-slate-50 p-2.5 rounded-xl border border-gray-100 mb-3 text-left">
-                                                            <div className="text-[11px] font-bold text-navy truncate">
-                                                                👤 {sa.teacherName || `Prof. ${subName}`}
-                                                            </div>
-                                                            <div className="text-[10px] text-blue-600 font-mono truncate mt-0.5">
-                                                                ✉ {sa.teacherEmail || `${subName.toLowerCase()}@sapthagiri.edu`}
-                                                            </div>
-                                                        </div>
-
-                                                        {/* Question Progress Bar */}
-                                                        <div className="mb-2">
-                                                            <div className="flex justify-between text-[11px] font-black text-navy mb-1">
-                                                                <span>Prepared</span>
-                                                                <span>{count} / {target} Qs ({pct}%)</span>
-                                                            </div>
-                                                            <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden p-0.5 shadow-inner">
-                                                                <div
-                                                                    style={{ width: `${pct}%` }}
-                                                                    className={`h-full rounded-full transition-all duration-500 ${
-                                                                        pct >= 100 ? 'bg-emerald-500' : pct > 0 ? 'bg-blue-600' : 'bg-gray-300'
-                                                                    }`}
-                                                                />
-                                                            </div>
-                                                        </div>
-                                                    </div>
-
-                                                    <div className="mt-2 pt-2 border-t border-gray-100 flex justify-between items-center text-[10px] text-gray-400 font-bold uppercase tracking-wider">
-                                                        <span>Target</span>
-                                                        <span className="text-navy font-black">{target} Qs</span>
-                                                    </div>
-                                                </div>
+                                                <button
+                                                    key={examKey}
+                                                    onClick={() => setSelectedExamId(examKey)}
+                                                    className={`px-4 py-2 rounded-xl font-bold text-xs uppercase tracking-wider transition-all flex items-center gap-2 whitespace-nowrap cursor-pointer ${
+                                                        isSelected
+                                                            ? 'bg-navy text-gold shadow-md font-black border-2 border-gold scale-[1.02]'
+                                                            : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                                                    }`}
+                                                >
+                                                    <span className={`text-[9px] font-black px-1.5 py-0.5 rounded ${
+                                                        isSelected ? 'bg-gold/20 text-gold' : 'bg-slate-100 text-navy'
+                                                    }`}>
+                                                        {examType}
+                                                    </span>
+                                                    <span>{exam.title}</span>
+                                                    <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
+                                                        isSelected ? 'bg-white text-navy' : 'bg-slate-100 text-slate-600'
+                                                    }`}>
+                                                        {overallPct}%
+                                                    </span>
+                                                </button>
                                             );
                                         })}
                                     </div>
                                 </div>
-                            );
-                        })()}
+
+                                {/* Active Exam Action Controls */}
+                                {activeExam && (() => {
+                                    const exam = activeExam;
+                                    const subAssignments = exam.subjectAssignments || [];
+                                    const totalTarget = subAssignments.reduce((sum, sa) => sum + (sa.targetQuestions || 60), 0);
+                                    const totalAdded = exam.totalQuestionsAdded !== undefined
+                                        ? exam.totalQuestionsAdded
+                                        : subAssignments.reduce((sum, sa) => sum + (sa.questionsCount || (sa.submittedPaperId?.questions?.length || 0)), 0);
+                                    const overallPct = totalTarget > 0 ? Math.min(100, Math.round((totalAdded / totalTarget) * 100)) : 0;
+
+                                    return (
+                                        <div className="space-y-5">
+                                            <div className="bg-white p-5 rounded-2xl border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xs">
+                                                <div>
+                                                    <h4 className="font-black text-base text-navy uppercase">{exam.title}</h4>
+                                                    <p className="text-xs text-slate-400 mt-0.5">
+                                                        Total Readiness: {totalAdded} / {totalTarget} Questions Compiled ({overallPct}%)
+                                                    </p>
+                                                </div>
+                                                <div className="flex items-center gap-2 flex-wrap">
+                                                    <button
+                                                        onClick={() => setSelectedViewExam(exam)}
+                                                        className="bg-navy text-gold hover:bg-slate-900 px-3.5 py-1.5 rounded-xl font-bold text-xs uppercase tracking-wider transition flex items-center gap-1.5 cursor-pointer shadow-xs"
+                                                    >
+                                                        <span>👁</span> View Full Paper
+                                                    </button>
+                                                    <button
+                                                        onClick={() => setSelectedAnalysisExam(exam)}
+                                                        className="bg-gold text-navy hover:bg-amber-400 px-3.5 py-1.5 rounded-xl font-bold text-xs uppercase tracking-wider transition flex items-center gap-1.5 cursor-pointer shadow-xs"
+                                                    >
+                                                        <span>📊</span> Analysis
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleDeleteExam(exam._id || exam.id)}
+                                                        className="bg-white text-rose-600 border border-rose-200 hover:bg-rose-50 px-3 py-1.5 rounded-xl font-bold text-xs transition cursor-pointer"
+                                                    >
+                                                        ✕ Delete
+                                                    </button>
+                                                </div>
+                                            </div>
+
+                                            {/* The 4 PCMB Department Cards */}
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                                                {subAssignments.map((sa, idx) => {
+                                                    const subName = sa.subject;
+                                                    const target = sa.targetQuestions || 60;
+                                                    const count = sa.questionsCount !== undefined
+                                                        ? sa.questionsCount
+                                                        : (sa.submittedPaperId?.questions?.length || 0);
+                                                    const pct = Math.min(100, Math.round((count / target) * 100));
+
+                                                    const subIcon = subName.toLowerCase().includes('physic') ? '⚛️'
+                                                        : subName.toLowerCase().includes('chem') ? '🧪'
+                                                        : subName.toLowerCase().includes('math') ? '📐'
+                                                        : subName.toLowerCase().includes('botan') ? '🌿'
+                                                        : subName.toLowerCase().includes('zool') ? '🐾'
+                                                        : '🧬';
+
+                                                    return (
+                                                        <div key={idx} className="border border-slate-200 p-4 rounded-2xl bg-white flex flex-col justify-between shadow-xs hover:border-navy transition">
+                                                            <div>
+                                                                <div className="flex justify-between items-center mb-3">
+                                                                    <div className="flex items-center gap-2">
+                                                                        <span className="text-lg">{subIcon}</span>
+                                                                        <h5 className="text-xs font-black text-navy uppercase">{subName}</h5>
+                                                                    </div>
+                                                                    <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full ${
+                                                                        pct >= 100 ? 'bg-emerald-100 text-emerald-800' : pct > 0 ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-600'
+                                                                    }`}>
+                                                                        {pct >= 100 ? 'Ready' : pct > 0 ? 'Working' : 'Pending'}
+                                                                    </span>
+                                                                </div>
+
+                                                                <div className="bg-slate-50 p-2.5 rounded-xl border border-gray-100 mb-3 text-left">
+                                                                    <div className="text-[11px] font-bold text-navy truncate">
+                                                                        👤 {sa.teacherName || `Prof. ${subName}`}
+                                                                    </div>
+                                                                    <div className="text-[10px] text-blue-600 font-mono truncate mt-0.5">
+                                                                        ✉ {sa.teacherEmail || `${subName.toLowerCase()}@sapthagiri.edu`}
+                                                                    </div>
+                                                                </div>
+
+                                                                <div className="mb-2">
+                                                                    <div className="flex justify-between text-[10px] font-black text-navy mb-1">
+                                                                        <span>Progress</span>
+                                                                        <span>{count} / {target} Qs ({pct}%)</span>
+                                                                    </div>
+                                                                    <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden p-0.5 shadow-inner">
+                                                                        <div
+                                                                            style={{ width: `${pct}%` }}
+                                                                            className={`h-full rounded-full transition-all duration-500 ${
+                                                                                pct >= 100 ? 'bg-emerald-500' : pct > 0 ? 'bg-blue-600' : 'bg-gray-300'
+                                                                            }`}
+                                                                        />
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+
+                                                            <div className="mt-2 pt-2 border-t border-gray-100 flex justify-between items-center text-[10px] text-gray-400 font-bold uppercase tracking-wider">
+                                                                <span>Target</span>
+                                                                <span className="text-navy font-black">{target} Qs</span>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    );
+                                })()}
+                            </div>
+                        )}
                     </div>
                 )}
             </div>
 
-            {/* ── SECTION 2: SUBJECT DIRECTORY (STRICTLY PCMB) ── */}
-            <div>
-                <div className="flex items-center gap-4 mb-6">
-                    <h2 className="text-sm font-black text-navy uppercase tracking-[0.2em]">Subject Directory (PCMB)</h2>
-                    <div className="h-px flex-1 bg-gray-200"></div>
+            {/* ── SECTION 2: OMR SHEET EVALUATION & SCANNER HUB (NATIVE MODULE) ── */}
+            <div className="bg-gradient-to-r from-emerald-950/20 via-white to-emerald-950/10 p-6 sm:p-7 rounded-3xl border-2 border-emerald-500/30 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-6">
+                <div className="flex items-start gap-4">
+                    <div className="w-14 h-14 rounded-2xl bg-emerald-500 text-slate-950 flex items-center justify-center text-3xl font-black shadow-lg shrink-0">
+                        📑
+                    </div>
+                    <div>
+                        <div className="flex items-center gap-2 flex-wrap mb-1">
+                            <span className="bg-emerald-100 text-emerald-800 text-[10px] font-black uppercase tracking-widest px-2.5 py-0.5 rounded-md border border-emerald-300">
+                                Native OMR Engine Active
+                            </span>
+                            <h3 className="font-black text-xl text-navy uppercase tracking-tight">
+                                OMR Evaluation &amp; Scanner Hub
+                            </h3>
+                        </div>
+                        <p className="text-xs text-slate-600 font-medium max-w-2xl leading-relaxed">
+                            Upload and evaluate physical student OMR answer sheets using computer vision &amp; ONNX machine learning. Automatically scores against QPG answer keys, generates dynamic multi-subject merit lists, and diagnoses student concept weaknesses.
+                        </p>
+                    </div>
                 </div>
-                
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                    {subjects.map(sub => (
-                        <Link 
-                            to={`/admin/dashboard/subject/${sub}`}
-                            key={sub}
-                            className="bg-surface p-8 rounded-3xl shadow-sm text-center font-black text-lg transition border border-gray-100 text-slate hover:shadow-xl hover:border-gold hover:text-navy transform hover:-translate-y-2 flex flex-col items-center justify-center gap-4 group"
-                        >
-                            <div className="w-16 h-16 rounded-2xl flex items-center justify-center overflow-hidden shadow-inner group-hover:scale-110 transition-transform duration-300 bg-white p-2">
-                                <img 
-                                    src={logoMap[sub] || '/physicslogo.jpeg'} 
-                                    alt={sub} 
-                                    className="w-full h-full object-contain"
-                                    onError={(e) => {
-                                        e.target.onerror = null;
-                                        e.target.parentNode.innerHTML = `<div class="bg-gray-50 text-gold w-full h-full flex items-center justify-center text-2xl font-black">${sub.charAt(0)}</div>`;
-                                    }}
-                                />
+
+                <div className="flex items-center gap-3 shrink-0 flex-wrap">
+                    <button
+                        onClick={() => navigate('/admin/dashboard/omr')}
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-3 rounded-2xl font-black text-xs uppercase tracking-wider transition-all shadow-md flex items-center gap-2 cursor-pointer hover:scale-105"
+                    >
+                        <span>🚀 Launch OMR Scanner</span>
+                        <span>→</span>
+                    </button>
+                    <button
+                        onClick={() => navigate('/admin/dashboard/create-teacher')}
+                        className="bg-white hover:bg-slate-50 text-navy border border-slate-200 px-4 py-3 rounded-2xl font-bold text-xs uppercase tracking-wider transition shadow-2xs cursor-pointer"
+                    >
+                        <span>👥 Faculty OMR Access</span>
+                    </button>
+                </div>
+            </div>
+
+            {/* ── SECTION 3: PCMB SUBJECT DIRECTORY (ONE BOX - CLICK TO OPEN 4 SUBJECTS) ── */}
+            <div className="bg-white rounded-3xl shadow-sm border border-slate-200/80 overflow-hidden transition-all duration-300">
+                {/* Master Box Header (Click to Open/Close) */}
+                <div
+                    onClick={() => setIsSubjectDirectoryOpen(!isSubjectDirectoryOpen)}
+                    className="p-6 cursor-pointer hover:bg-slate-50/70 transition flex flex-col md:flex-row md:items-center justify-between gap-4 select-none"
+                >
+                    <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center text-2xl font-black shadow-inner shrink-0">
+                            🏛️
+                        </div>
+                        <div>
+                            <div className="flex items-center gap-2">
+                                <h3 className="font-black text-lg text-navy uppercase tracking-tight">
+                                    PCMB Subject Directory
+                                </h3>
+                                <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200">
+                                    4 Core Departments
+                                </span>
                             </div>
-                            {sub}
-                        </Link>
-                    ))}
+                            <p className="text-xs text-slate-400 font-medium mt-0.5">
+                                Tap to open department repositories: Physics • Chemistry • Mathematics • Biology
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="flex items-center gap-4 self-end md:self-auto">
+                        <span className="text-xs font-bold text-slate-500 hidden sm:inline-block">
+                            {isSubjectDirectoryOpen ? 'Hide 4 Departments' : 'Open 4 Departments'}
+                        </span>
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-base transition-all duration-300 ${
+                            isSubjectDirectoryOpen ? 'bg-navy text-gold rotate-180 shadow-md' : 'bg-slate-100 text-navy hover:bg-slate-200'
+                        }`}>
+                            ▾
+                        </div>
+                    </div>
                 </div>
+
+                {/* WHEN CLICKED: THE 4 SUBJECT CARDS OPEN */}
+                {isSubjectDirectoryOpen && (
+                    <div className="p-6 pt-0 border-t border-slate-100 animate-fade-in bg-slate-50/30">
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4">
+                            {subjects.map(sub => (
+                                <Link
+                                    to={`/admin/dashboard/subject/${sub}`}
+                                    key={sub}
+                                    className="bg-white p-6 rounded-2xl shadow-xs text-center font-black text-base transition border border-slate-200 text-slate-700 hover:shadow-md hover:border-navy hover:text-navy transform hover:-translate-y-1 flex flex-col items-center justify-center gap-3 group"
+                                >
+                                    <div className="w-14 h-14 rounded-2xl flex items-center justify-center overflow-hidden shadow-inner group-hover:scale-105 transition-transform duration-300 bg-slate-50 p-2 border border-slate-100">
+                                        <img
+                                            src={logoMap[sub] || '/physicslogo.jpeg'}
+                                            alt={sub}
+                                            className="w-full h-full object-contain"
+                                            onError={(e) => {
+                                                e.target.onerror = null;
+                                                e.target.parentNode.innerHTML = `<div class="bg-gray-50 text-gold w-full h-full flex items-center justify-center text-xl font-black">${sub.charAt(0)}</div>`;
+                                            }}
+                                        />
+                                    </div>
+                                    <span>{sub}</span>
+                                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider group-hover:text-navy">
+                                        Open Repository →
+                                    </span>
+                                </Link>
+                            ))}
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* ── MODAL: CREATE & COMMISSION EXAM ── */}
@@ -931,6 +1019,7 @@ const AdminDashboard = () => {
             group: 'Examination Operations',
             items: [
                 { title: 'Executive Overview', path: '/admin/dashboard', icon: '📋', desc: 'Delegation & readiness dashboard' },
+                { title: 'OMR Evaluation & Scanner', path: '/admin/dashboard/omr', icon: '📑', desc: 'Scan physical OMR sheets & merit lists' },
                 { title: 'CBT Online Exams', path: '/admin/dashboard/cbt-exams', icon: '⚡', desc: 'Manage & monitor online exams' },
                 { title: 'Results & Scorecards', path: '/admin/dashboard/results', icon: '📊', desc: 'View student scores and analytics' }
             ]
@@ -955,6 +1044,7 @@ const AdminDashboard = () => {
 
     // Current page label
     const getCurrentPageTitle = () => {
+        if (location.pathname.includes('omr')) return 'OMR Sheet Evaluation';
         if (location.pathname.includes('cbt-exams')) return 'CBT Online Exams';
         if (location.pathname.includes('results')) return 'Result Scorecards';
         if (location.pathname.includes('questions')) return 'Question Bank';
@@ -1078,6 +1168,16 @@ const AdminDashboard = () => {
                         <span>Menu</span>
                     </button>
 
+                    {/* QUICK DIRECT OMR SCANNER SHORTCUT */}
+                    <button
+                        onClick={() => navigate('/admin/dashboard/omr')}
+                        className="hidden sm:flex items-center gap-1.5 bg-emerald-500/20 text-emerald-300 border border-emerald-400/40 hover:bg-emerald-500 hover:text-slate-950 px-3 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer shadow-xs"
+                        title="Open OMR Evaluation & Scanner"
+                    >
+                        <span>📑</span>
+                        <span>OMR Scanner</span>
+                    </button>
+
                     <div 
                         className="flex items-center cursor-pointer hover:opacity-90 transition gap-3"
                         onClick={() => navigate('/admin/dashboard')}
@@ -1120,6 +1220,7 @@ const AdminDashboard = () => {
             <div className="flex-1 p-6 sm:p-10 max-w-7xl mx-auto w-full">
                 <Routes>
                     <Route path="/" element={<DashboardHome />} />
+                    <Route path="omr/*" element={<TeacherOmr />} />
                     <Route path="cbt-exams" element={<ExamManagement />} />
                     <Route path="results" element={<AdminResults />} />
                     <Route path="questions" element={<AdminQuestionBank />} />
