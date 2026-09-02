@@ -609,8 +609,9 @@ router.post('/:id/submit', detectLabIp, async (req, res) => {
             const timeTaken = submitted?.timeTaken || 0;
 
             let isAttempted = selected !== null && selected !== '';
-            let correctMarks = 4;
-            let incorrectMarks = -1;
+            const isKcetExam = (exam.examType === 'CET' || exam.examType === 'KCET');
+            let correctMarks = isKcetExam ? 1 : 4;
+            let incorrectMarks = isKcetExam ? 0 : -1;
             let unattemptedMarks = 0;
 
             if (isAttempted) {

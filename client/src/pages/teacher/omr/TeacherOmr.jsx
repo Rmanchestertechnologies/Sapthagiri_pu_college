@@ -18,8 +18,20 @@ const TeacherOmr = () => {
     const [loadingKey, setLoadingKey] = useState(false);
 
     // Exam & Scoring Configuration
+    const DEFAULT_MARKING_SCHEMES = {
+        KCET: { correct: 1, wrong: 0, blank: 0 },
+        JEE: { correct: 4, wrong: -1, blank: 0 },
+        NEET: { correct: 4, wrong: -1, blank: 0 }
+    };
     const [examType, setExamType] = useState('NEET');
     const [markingScheme, setMarkingScheme] = useState({ correct: 4, wrong: -1, blank: 0 });
+
+    const handleExamTypeChange = (type) => {
+        setExamType(type);
+        if (DEFAULT_MARKING_SCHEMES[type]) {
+            setMarkingScheme({ ...DEFAULT_MARKING_SCHEMES[type] });
+        }
+    };
 
     // Active Tab
     const [activeTab, setActiveTab] = useState('select'); // 'select', 'scan', 'results', 'student'
@@ -73,6 +85,17 @@ const TeacherOmr = () => {
                 setLoadingKey(true);
                 const res = await api.get(`/api/omr/papers/${selectedPaperId}/key`);
                 setPaperKeyData(res.data);
+
+                // Auto-detect exam type from paper title / classes / type
+                const paperObj = papers.find(p => String(p.id || p._id) === String(selectedPaperId));
+                const titleStr = `${paperObj?.title || ''} ${(paperObj?.classes || []).join(' ')} ${res.data?.paper?.examType || ''}`.toUpperCase();
+                if (titleStr.includes('KCET') || titleStr.includes('CET')) {
+                    handleExamTypeChange('KCET');
+                } else if (titleStr.includes('JEE')) {
+                    handleExamTypeChange('JEE');
+                } else if (titleStr.includes('NEET')) {
+                    handleExamTypeChange('NEET');
+                }
             } catch (err) {
                 console.error('Failed to load answer key:', err);
                 setPaperKeyData(null);
@@ -388,7 +411,7 @@ const TeacherOmr = () => {
                                                 <button
                                                     key={type}
                                                     type="button"
-                                                    onClick={() => setExamType(type)}
+                                                    onClick={() => handleExamTypeChange(type)}
                                                     className={`py-3 rounded-xl font-black text-xs uppercase tracking-wider transition-all border ${
                                                         examType === type
                                                             ? 'bg-navy text-gold border-navy shadow-sm'
@@ -399,13 +422,34 @@ const TeacherOmr = () => {
                                                 </button>
                                             ))}
                                         </div>
+
+                                        {examType === 'KCET' && (
+                                            <div className="mt-2.5 p-2 bg-emerald-50 border border-emerald-200 rounded-xl text-[11px] text-emerald-800 font-medium leading-tight">
+                                                <span className="font-bold">✓ KCET Official Rules:</span> +1 Mark per question • <strong>No negative marking</strong> (Wrong = 0).
+                                            </div>
+                                        )}
+                                        {examType === 'JEE' && (
+                                            <div className="mt-2.5 p-2 bg-blue-50 border border-blue-200 rounded-xl text-[11px] text-blue-800 font-medium leading-tight">
+                                                <span className="font-bold">✓ JEE Main Rules:</span> +4 Marks for correct • <strong>-1 Mark penalty</strong> for wrong.
+                                            </div>
+                                        )}
+                                        {examType === 'NEET' && (
+                                            <div className="mt-2.5 p-2 bg-purple-50 border border-purple-200 rounded-xl text-[11px] text-purple-800 font-medium leading-tight">
+                                                <span className="font-bold">✓ NEET UG Rules:</span> +4 Marks for correct • <strong>-1 Mark penalty</strong> for wrong.
+                                            </div>
+                                        )}
                                     </div>
 
                                     {/* Marking Scheme */}
                                     <div className="pt-2 border-t border-gray-100">
-                                        <label className="block text-[10px] font-black text-navy/40 uppercase tracking-widest mb-3 ml-1">
-                                            Marking Scheme
-                                        </label>
+                                        <div className="flex justify-between items-center mb-3 ml-1">
+                                            <label className="block text-[10px] font-black text-navy/40 uppercase tracking-widest">
+                                                Marking Scheme
+                                            </label>
+                                            <span className="text-[10px] text-gray-500 font-medium">
+                                                {examType === 'KCET' ? 'No negative marking' : 'Negative marking enabled'}
+                                            </span>
+                                        </div>
                                         <div className="grid grid-cols-3 gap-3">
                                             <div>
                                                 <span className="block text-[9px] font-black text-emerald-600 uppercase mb-1">Correct</span>

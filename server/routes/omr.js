@@ -292,7 +292,7 @@ router.post('/scan', [auth, requireOmrAccess, upload.array('sheets', 100)], asyn
         return res.status(400).json({ msg: 'Please upload at least one OMR sheet image.' });
     }
 
-    const { paperId, examType = 'NEET', correctMarks = 4, wrongMarks = -1, blankMarks = 0 } = req.body;
+    const { paperId, examType = 'NEET', correctMarks, wrongMarks, blankMarks } = req.body;
     if (!paperId) {
         // Clean up uploaded files
         files.forEach(f => { try { fs.unlinkSync(f.path); } catch(e){} });
@@ -322,9 +322,18 @@ router.post('/scan', [auth, requireOmrAccess, upload.array('sheets', 100)], asyn
             };
         });
 
-        const correctM = Number(correctMarks) || 4;
-        const wrongM = Number(wrongMarks) || -1;
-        const blankM = Number(blankMarks) || 0;
+        // KCET has +1 for correct and 0 (NO negative marking) for wrong.
+        // JEE and NEET have +4 for correct and -1 for wrong.
+        const isKcet = (examType || '').toUpperCase() === 'KCET';
+        const correctM = (req.body.correctMarks !== undefined && req.body.correctMarks !== '')
+            ? Number(req.body.correctMarks)
+            : (isKcet ? 1 : 4);
+        const wrongM = (req.body.wrongMarks !== undefined && req.body.wrongMarks !== '')
+            ? Number(req.body.wrongMarks)
+            : (isKcet ? 0 : -1);
+        const blankM = (req.body.blankMarks !== undefined && req.body.blankMarks !== '')
+            ? Number(req.body.blankMarks)
+            : 0;
 
         const results = [];
         const errors = [];
