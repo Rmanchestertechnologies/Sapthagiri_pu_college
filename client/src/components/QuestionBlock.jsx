@@ -398,7 +398,7 @@ function extractDiagramFromText(rawText, existingImageUrl) {
 /**
  * MCQ Body with Intelligent Diagram Placement & Resizing
  */
-function BodyMCQ({ q, classes, isTwoCol, diagramMaxHeight = '185px', onDiagramResize, displayNum }) {
+function BodyMCQ({ q, classes, isTwoCol, diagramMaxHeight = '260px', onDiagramResize, displayNum }) {
     const rawQText = cleanQuestionText(q.questionText || q.question || '');
     const { cleanText: qText, diagramUrl: imageUrl } = extractDiagramFromText(rawQText, q.imageUrl || q.image_url);
     const options = Array.isArray(q.options) ? q.options : [];
@@ -462,6 +462,7 @@ function BodyMCQ({ q, classes, isTwoCol, diagramMaxHeight = '185px', onDiagramRe
                         questionId={qId}
                         diagramKey="main"
                         initialHeight={currentDiagramHeight}
+                        isManual={Boolean(q.customDiagramHeight)}
                         onSizeChange={onDiagramResize ? (h) => onDiagramResize(qId, h, 'main') : undefined}
                         maxWidth="100%"
                     />
@@ -490,8 +491,9 @@ function BodyMCQ({ q, classes, isTwoCol, diagramMaxHeight = '185px', onDiagramRe
                         questionId={qId}
                         diagramKey="main"
                         initialHeight={currentDiagramHeight}
+                        isManual={Boolean(q.customDiagramHeight)}
                         onSizeChange={onDiagramResize ? (h) => onDiagramResize(qId, h, 'main') : undefined}
-                        maxWidth={isTwoCol ? '100%' : '380px'}
+                        maxWidth="100%"
                     />
                 </div>
             )}
@@ -503,7 +505,7 @@ function BodyMCQ({ q, classes, isTwoCol, diagramMaxHeight = '185px', onDiagramRe
 /**
  * Assertion & Reason Body
  */
-function BodyAssertionReason({ q, classes, isTwoCol, diagramMaxHeight = '185px', onDiagramResize, displayNum }) {
+function BodyAssertionReason({ q, classes, isTwoCol, diagramMaxHeight = '260px', onDiagramResize, displayNum }) {
     const { assertion, reason } = parseAssertionReason(q);
     const opts = q.options && q.options.length > 0 ? q.options : AR_OPTIONS;
     const rawQText = cleanQuestionText(q.questionText || q.question || '');
@@ -544,8 +546,9 @@ function BodyAssertionReason({ q, classes, isTwoCol, diagramMaxHeight = '185px',
                         questionId={qId}
                         diagramKey="main"
                         initialHeight={currentDiagramHeight}
+                        isManual={Boolean(q.customDiagramHeight)}
                         onSizeChange={onDiagramResize ? (h) => onDiagramResize(qId, h, 'main') : undefined}
-                        maxWidth={isTwoCol ? '100%' : '380px'}
+                        maxWidth="100%"
                     />
                 </div>
             )}
@@ -566,7 +569,7 @@ function BodyAssertionReason({ q, classes, isTwoCol, diagramMaxHeight = '185px',
 /**
  * Match the Following Body
  */
-function BodyMatchFollowing({ q, classes, isTwoCol, diagramMaxHeight = '185px', onDiagramResize, displayNum }) {
+function BodyMatchFollowing({ q, classes, isTwoCol, diagramMaxHeight = '260px', onDiagramResize, displayNum }) {
     const pairs = q.matchPairs || [];
     const opts = q.options || [];
     const rawQText = cleanQuestionText(q.questionText || q.question || '');
@@ -593,8 +596,9 @@ function BodyMatchFollowing({ q, classes, isTwoCol, diagramMaxHeight = '185px', 
                         questionId={qId}
                         diagramKey="main"
                         initialHeight={currentDiagramHeight}
+                        isManual={Boolean(q.customDiagramHeight)}
                         onSizeChange={onDiagramResize ? (h) => onDiagramResize(qId, h, 'main') : undefined}
-                        maxWidth={isTwoCol ? '100%' : '380px'}
+                        maxWidth="100%"
                     />
                 </div>
             )}
@@ -644,7 +648,7 @@ function BodyMatchFollowing({ q, classes, isTwoCol, diagramMaxHeight = '185px', 
 /**
  * Statement-Based Body
  */
-function BodyStatementBased({ q, classes, isTwoCol, diagramMaxHeight = '185px', onDiagramResize, displayNum }) {
+function BodyStatementBased({ q, classes, isTwoCol, diagramMaxHeight = '260px', onDiagramResize, displayNum }) {
     const statements = q.statements || [];
     const opts = q.options || [];
     const rawQText = cleanQuestionText(q.questionText || q.question || '');
@@ -681,8 +685,9 @@ function BodyStatementBased({ q, classes, isTwoCol, diagramMaxHeight = '185px', 
                         questionId={qId}
                         diagramKey="main"
                         initialHeight={currentDiagramHeight}
+                        isManual={Boolean(q.customDiagramHeight)}
                         onSizeChange={onDiagramResize ? (h) => onDiagramResize(qId, h, 'main') : undefined}
-                        maxWidth={isTwoCol ? '100%' : '380px'}
+                        maxWidth="100%"
                     />
                 </div>
             )}
@@ -716,7 +721,7 @@ export default function QuestionBlock({
     lineHeight = '1.45',
     formatMarks,
     extraStyle = {},
-    diagramMaxHeight = '150px',
+    diagramMaxHeight = '260px',
     onDiagramResize,
 }) {
     if (!q) return null;

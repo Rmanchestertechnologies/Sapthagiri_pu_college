@@ -217,6 +217,14 @@ export default function A4PaperEngine({
                 .math-renderer:has(.resizable-diagram-wrap) {
                     display: block !important;
                 }
+                .resizable-diagram-wrap {
+                    width: 100% !important;
+                    text-align: center !important;
+                    margin: 4px 0 !important;
+                }
+                .resizable-diagram-wrap img {
+                    max-width: 100% !important;
+                }
                 .diagram-resize-toolbar {
                     display: flex !important;
                 }

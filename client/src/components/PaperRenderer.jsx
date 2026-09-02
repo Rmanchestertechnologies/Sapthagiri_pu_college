@@ -64,7 +64,7 @@ const DEFAULT_SETTINGS = {
     marginRight: '18mm',
     questionSpacing: '14px',
     optionSpacing: '4px',
-    diagramMaxHeight: '150px',
+    diagramMaxHeight: '260px',
 };
 
 // ─── Settings / Alignment Panel ───────────────────────────────────────────────
@@ -115,10 +115,10 @@ export function SettingsPanel({ settings, setSettings, totalQuestions = 0 }) {
 
                 <SettingField label="Diagram Max Height">
                     <select style={selectStyle} value={settings.diagramMaxHeight} onChange={e => update('diagramMaxHeight', e.target.value)}>
-                        <option value="120px">Small (120px)</option>
-                        <option value="150px">Standard (150px)</option>
-                        <option value="180px">Large (180px)</option>
-                        <option value="220px">Extra Large (220px)</option>
+                        <option value="200px">Medium (200px)</option>
+                        <option value="260px">Standard / Clear (260px - Recommended)</option>
+                        <option value="300px">Large (300px)</option>
+                        <option value="350px">Extra Large (350px)</option>
                     </select>
                 </SettingField>
 
