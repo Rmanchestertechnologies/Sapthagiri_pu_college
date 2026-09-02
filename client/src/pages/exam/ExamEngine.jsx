@@ -58,7 +58,7 @@ export default function ExamEngine() {
         
         try {
             await api.post(`/api/exams/${examId}/malpractice`, {
-                sessionId: session?._id,
+                sessionId: session?._id || session?.id,
                 reason
             });
         } catch (e) {

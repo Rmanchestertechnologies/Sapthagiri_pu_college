@@ -848,19 +848,57 @@ router.get('/bridge/:key', async (req, res) => {
 router.post('/:id/malpractice', detectLabIp, async (req, res) => {
     try {
         const { sessionId, reason } = req.body;
-        const session = await ExamSession.findById(sessionId);
-        if (!session) return res.status(404).json({ msg: 'Session not found' });
+        let session = null;
 
-        session.submitted = true;
-        session.endTime = new Date();
-        session.malpracticeFlag = true;
-        session.malpracticeReason = reason || 'Window blurred or switched tab';
+        if (sessionId) {
+            session = await storage.getSessionById(sessionId);
+        }
+        if (!session && req.params.id) {
+            const sessions = await storage.getSessionsByExam(req.params.id);
+            session = sessions.find(s => String(s._id || s.id) === String(sessionId));
+        }
 
-        await session.save();
+        if (session) {
+            session.submitted = true;
+            session.endTime = new Date();
+            session.end_time = session.endTime;
+            session.malpracticeFlag = true;
+            session.malpractice_flag = true;
+            session.malpracticeReason = reason || 'Window blurred or switched tab';
+            session.malpractice_reason = reason || 'Window blurred or switched tab';
+            await storage.saveSession(session);
+        }
+
+        const exam = await storage.getExamById(req.params.id);
+        const sName = session?.studentName || session?.student_name || 'Candidate';
+        const sRoll = session?.rollNumber || session?.roll_number || 'N/A';
+        const examTitle = exam?.title || 'Online Exam';
+        const violationReason = reason || 'Window blurred or switched tab';
+
+        // Dispatch immediate Admin notification for cheating detection
+        try {
+            await createNotification({
+                recipient_role: 'admin',
+                type: 'malpractice_alert',
+                title: '🚨 Cheating / Malpractice Detected',
+                message: `Student ${sName} (Reg/Roll: ${sRoll}) was disqualified from exam "${examTitle}". Violation: ${violationReason}.`,
+                metadata: {
+                    examId: req.params.id,
+                    sessionId: String(sessionId || session?._id || session?.id),
+                    studentName: sName,
+                    rollNumber: sRoll,
+                    reason: violationReason,
+                    detectedAt: new Date().toISOString()
+                }
+            });
+        } catch (notifErr) {
+            console.error('Error creating malpractice notification:', notifErr.message);
+        }
+
         res.json({ msg: 'Malpractice reported and session locked', session });
     } catch (err) {
         console.error('Error reporting malpractice:', err.message);
-        res.status(500).json({ msg: 'Server Error' });
+        res.status(500).json({ msg: 'Server Error: ' + err.message });
     }
 });
 

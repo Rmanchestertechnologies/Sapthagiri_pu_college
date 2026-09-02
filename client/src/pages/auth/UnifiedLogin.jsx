@@ -33,20 +33,6 @@ const UnifiedLogin = () => {
         }
     };
 
-    const handleFillAdmin = () => {
-        setFormData({
-            email: 'sapthagiripucollegedvg@gmail.com',
-            password: 'Sapthagiri1'
-        });
-    };
-
-    const handleFillTeacher = () => {
-        setFormData({
-            email: 'physics@gmail.com',
-            password: 'Sapthagiri1'
-        });
-    };
-
     return (
         <div className="min-h-screen relative flex items-center justify-center p-4 font-sans overflow-hidden bg-[#06101E]">
             {/* Campus Background Image with Deep Gradient Overlay */}
@@ -72,9 +58,6 @@ const UnifiedLogin = () => {
                                 className="w-full h-full object-contain rounded-full" 
                             />
                         </div>
-                        <span className="absolute -bottom-1 -right-1 bg-amber-500 text-[#071328] text-[9px] font-black uppercase px-2 py-0.5 rounded-full shadow-md">
-                            Official
-                        </span>
                     </div>
 
                     <h1 className="text-2xl sm:text-3xl font-black text-[#081B3B] tracking-tight uppercase leading-tight">
@@ -109,7 +92,7 @@ const UnifiedLogin = () => {
                             <input 
                                 type="email" 
                                 required 
-                                placeholder="sapthagiripucollegedvg@gmail.com"
+                                placeholder="Enter College ID / Email"
                                 value={formData.email} 
                                 onChange={e => setFormData({...formData, email: e.target.value})} 
                                 className="w-full border-2 border-slate-200 p-3.5 pl-11 rounded-2xl bg-slate-50/70 focus:outline-none focus:border-amber-500 focus:bg-white transition-all text-sm font-medium text-slate-800" 
@@ -118,28 +101,9 @@ const UnifiedLogin = () => {
                     </div>
 
                     <div>
-                        <div className="flex justify-between items-center mb-2 ml-1">
-                            <label className="block text-[11px] font-black text-[#081B3B] uppercase tracking-wider">
-                                Secret Password
-                            </label>
-                            <div className="flex items-center gap-2">
-                                <button
-                                    type="button"
-                                    onClick={handleFillAdmin}
-                                    className="text-[10px] font-bold text-amber-600 hover:text-amber-700 hover:underline cursor-pointer"
-                                >
-                                    Fill Admin
-                                </button>
-                                <span className="text-slate-300 text-xs">•</span>
-                                <button
-                                    type="button"
-                                    onClick={handleFillTeacher}
-                                    className="text-[10px] font-bold text-blue-600 hover:text-blue-700 hover:underline cursor-pointer"
-                                >
-                                    Fill Faculty
-                                </button>
-                            </div>
-                        </div>
+                        <label className="block text-[11px] font-black text-[#081B3B] uppercase tracking-wider mb-2 ml-1">
+                            Secret Password
+                        </label>
                         <div className="relative">
                             <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">🔒</span>
                             <input 
@@ -169,30 +133,15 @@ const UnifiedLogin = () => {
                     </button>
                 </form>
 
-                {/* Quick Credentials Info Box */}
-                <div className="mt-4 p-3 rounded-2xl bg-amber-500/10 border border-amber-400/30 text-center">
-                    <p className="text-[11px] font-bold text-navy">
-                        Default Faculty: <span className="text-amber-700">physics@gmail.com</span> • Pass: <span className="text-amber-700 font-black">Sapthagiri1</span>
-                    </p>
-                </div>
-
-                {/* Student CBT Exam Portal link */}
-                <div className="mt-6 text-center">
+                {/* Prominently Highlighted Student Online Exam Portal link */}
+                <div className="mt-6 pt-5 border-t border-slate-100">
                     <Link
                         to="/lab"
-                        className="inline-flex items-center gap-2 text-xs font-black text-navy bg-amber-500/10 border border-amber-400/30 px-4 py-2.5 rounded-xl hover:bg-amber-500/20 transition shadow-sm uppercase tracking-wider cursor-pointer"
+                        className="w-full inline-flex items-center justify-center gap-2.5 text-xs font-black text-white bg-gradient-to-r from-amber-500 via-amber-600 to-amber-500 hover:from-amber-600 hover:to-amber-700 p-4 rounded-2xl shadow-xl hover:shadow-2xl transition-all transform hover:-translate-y-0.5 active:translate-y-0 uppercase tracking-wider cursor-pointer border-2 border-amber-300 ring-2 ring-amber-400/20"
                     >
-                        <span>💻</span> Student CBT Exam Portal →
+                        <span className="text-base">🌐</span>
+                        <span>STUDENT ONLINE EXAM PORTAL →</span>
                     </Link>
-                </div>
-
-                {/* Footer branding */}
-                <div className="mt-6 pt-5 border-t border-slate-100 text-center">
-                    <div className="flex items-center justify-center gap-2 text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                        <span>Sapthagiri PU College</span>
-                        <span>•</span>
-                        <span className="text-amber-600">Production Release</span>
-                    </div>
                 </div>
             </div>
         </div>
