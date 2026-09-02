@@ -761,20 +761,27 @@ const DashboardHome = () => {
                             ) : (
                                 <div className="space-y-6">
                                     {selectedViewExam.allQuestions.map((q, qIdx) => (
-                                        <div key={q._id || qIdx} className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm space-y-3">
-                                            <div className="flex justify-between items-center text-xs">
-                                                <span className="font-black text-navy bg-gold/20 px-2.5 py-1 rounded">Q{qIdx + 1}. [{q.subject || 'Physics'}]</span>
-                                                <span className="text-gray-500 font-bold text-[10px] uppercase">{q.type || 'MCQ'} • {q.level || 'medium'}</span>
+                                        <div key={q._id || qIdx} className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm space-y-3 font-normal text-[15px]">
+                                            <div className="flex justify-between items-center text-xs font-normal text-slate-500">
+                                                <span className="bg-slate-100 text-slate-700 px-2.5 py-1 rounded font-normal">Q{qIdx + 1}. [{q.subject || 'Physics'}]</span>
+                                                <span className="font-normal uppercase">{q.type || 'MCQ'} • {q.level || 'medium'}</span>
                                             </div>
-                                            <div className="text-sm font-semibold text-gray-800 leading-relaxed">
+                                            <div className="text-[15px] font-normal text-slate-800 leading-relaxed">
                                                 <MathRenderer text={q.questionText || ''} />
                                             </div>
+                                            {q.imageUrl && (
+                                                <div className="mt-2 text-center">
+                                                    <img src={q.imageUrl} alt="Diagram" className="max-h-56 mx-auto rounded border border-gray-200 object-contain" />
+                                                </div>
+                                            )}
                                             {q.options && q.options.length > 0 && (
-                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-2 pt-2">
+                                                <div className="space-y-1.5 pt-2 text-[15px] font-normal text-slate-800">
                                                     {q.options.map((opt, oIdx) => (
-                                                        <div key={oIdx} className="p-2.5 rounded-xl border border-gray-200 text-xs flex items-start gap-2 bg-gray-50/50">
-                                                            <span className="font-bold text-navy">({String.fromCharCode(65 + oIdx)})</span>
-                                                            <MathRenderer inline text={opt || ''} />
+                                                        <div key={oIdx} className="p-2 rounded-lg border border-gray-100 flex items-baseline gap-2 bg-gray-50/50 font-normal">
+                                                            <span className="font-normal text-slate-700 min-w-[22px]">({String.fromCharCode(65 + oIdx)})</span>
+                                                            <div className="flex-1 min-w-0 font-normal">
+                                                                <MathRenderer inline text={opt || ''} />
+                                                            </div>
                                                         </div>
                                                     ))}
                                                 </div>

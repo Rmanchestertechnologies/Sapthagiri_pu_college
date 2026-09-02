@@ -314,35 +314,40 @@ const AdminQuestionBank = () => {
                             <span className="text-[10px] font-semibold text-gold bg-navy px-3 py-1 rounded-full uppercase tracking-wider">{q.sourceType} {q.sourceDisplayCode ? `(${q.sourceDisplayCode})` : ''}</span>
                         </div>
 
-                        {/* Rendering formats based on questionType */}
+                        {/* Rendering formats based on questionType — Uniform Font & Size, Normal Weight */}
                         {q.type === 'ASSERTION_REASON' ? (
-                            <div className="space-y-2 mt-2 text-base text-gray-900 font-medium">
-                                <p><strong>Assertion (A):</strong> {q.assertion}</p>
-                                <p><strong>Reason (R):</strong> {q.reason}</p>
+                            <div className="space-y-2 mt-2 text-[15px] text-slate-800 font-normal leading-relaxed">
+                                {q.questionText && <MathRenderer text={q.questionText} />}
+                                <p className="font-normal"><span>Assertion (A):</span> <MathRenderer inline text={q.assertion} /></p>
+                                <p className="font-normal"><span>Reason (R):</span> <MathRenderer inline text={q.reason} /></p>
                             </div>
                         ) : q.type === 'STATEMENT_BASED' ? (
-                            <div className="space-y-2 mt-2 text-base text-gray-900 font-medium">
+                            <div className="space-y-2 mt-2 text-[15px] text-slate-800 font-normal leading-relaxed">
                                 <MathRenderer text={q.questionText} />
                                 {q.statements?.map((stmt, idx) => (
-                                    <p key={idx}><strong>Statement {idx+1}:</strong> {stmt}</p>
+                                    <p key={idx} className="font-normal"><span>Statement {idx+1}:</span> <MathRenderer inline text={stmt} /></p>
                                 ))}
                             </div>
                         ) : q.type === 'MATCH_FOLLOWING' ? (
-                            <div className="space-y-2 mt-2 text-base text-gray-900 font-medium">
+                            <div className="space-y-2 mt-2 text-[15px] text-slate-800 font-normal leading-relaxed">
                                 <MathRenderer text={q.questionText} />
-                                <div className="border border-gray-100 rounded-lg p-3 bg-gray-50/50 max-w-md">
-                                    <table className="w-full text-sm">
+                                <div className="border border-gray-200 rounded-lg p-3 bg-gray-50/50 max-w-lg mt-2">
+                                    <table className="w-full text-[15px] font-normal">
                                         <thead>
-                                            <tr>
-                                                <th className="text-left font-bold pb-2">Column A</th>
-                                                <th className="text-left font-bold pb-2">Column B</th>
+                                            <tr className="border-b border-gray-200">
+                                                <th className="text-left font-normal pb-2 text-slate-700">Column A</th>
+                                                <th className="text-left font-normal pb-2 text-slate-700">Column B</th>
                                             </tr>
                                         </thead>
-                                        <tbody>
+                                        <tbody className="divide-y divide-gray-100">
                                             {q.matchPairs?.map((pair, idx) => (
                                                 <tr key={idx}>
-                                                    <td className="py-1">{String.fromCharCode(65+idx)}. {pair.left}</td>
-                                                    <td className="py-1">{idx+1}. {pair.right}</td>
+                                                    <td className="py-1.5 pr-2 font-normal text-slate-800">
+                                                        ({String.fromCharCode(97+idx)}) <MathRenderer inline text={pair.left || ''} />
+                                                    </td>
+                                                    <td className="py-1.5 pl-2 font-normal text-slate-800">
+                                                        ({['i','ii','iii','iv','v'][idx] || idx+1}) <MathRenderer inline text={pair.right || ''} />
+                                                    </td>
                                                 </tr>
                                             ))}
                                         </tbody>
@@ -350,25 +355,55 @@ const AdminQuestionBank = () => {
                                 </div>
                             </div>
                         ) : (
-                            <MathRenderer className="mt-2 text-base text-gray-900 font-medium whitespace-pre-wrap" text={q.questionText} />
+                            <div className="mt-2 text-[15px] text-slate-800 font-normal leading-relaxed whitespace-pre-wrap">
+                                <MathRenderer text={q.questionText} />
+                            </div>
                         )}
 
                         {q.imageUrl && (
                             <div className="mt-3">
-                                <img src={q.imageUrl} alt="Reference" className="max-h-48 rounded border border-gray-200" />
+                                <img src={q.imageUrl} alt="Reference Diagram" className="max-h-56 rounded border border-gray-200 object-contain" />
                             </div>
                         )}
                         
                         {(q.type === 'MCQ' || q.type === 'DIAGRAM_BASED' || q.type === 'ASSERTION_REASON' || q.type === 'STATEMENT_BASED' || q.type === 'MATCH_FOLLOWING') && q.options && q.options.length > 0 && (
-                            <div className="mt-4 grid grid-cols-2 gap-2 text-sm text-gray-700 bg-gray-50 p-3 rounded border border-gray-100">
-                                {q.options.map((opt, idx) => (
-                                    <div key={idx} className="flex"><strong className="mr-1">{optionLabel(idx, q.classes)})</strong> <MathRenderer inline={true} text={opt} /></div>
-                                ))}
+                            <div className="mt-4 space-y-2 text-[15px] text-slate-800 font-normal">
+                                {q.options.map((opt, idx) => {
+                                    const optLbl = optionLabel(idx, q.classes);
+                                    const optVal = typeof opt === 'object' ? (opt.text || opt.optionText || '') : String(opt || '');
+                                    const isCorrect = String(q.answer).trim().toLowerCase() === optLbl.toLowerCase() ||
+                                                      String(q.answer).trim().toLowerCase() === String(idx).toLowerCase() ||
+                                                      String(q.answer).trim().toLowerCase() === optVal.trim().toLowerCase();
+                                    return (
+                                        <div 
+                                            key={idx} 
+                                            className={`flex items-baseline gap-2 font-normal ${
+                                                isCorrect ? 'text-emerald-700' : 'text-slate-800'
+                                            }`}
+                                        >
+                                            <span className="font-normal min-w-[22px]">{optLbl}:</span>
+                                            <div className="flex-1 min-w-0 font-normal">
+                                                <MathRenderer inline={true} text={optVal} />
+                                                {isCorrect && <span className="ml-2 text-emerald-600 font-normal">✓</span>}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
                             </div>
                         )}
 
-                        <div className="mt-3 text-sm font-bold text-gray-700">
-                            Correct Answer: <span className="text-navy">{q.answer}</span>
+                        <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between text-xs font-normal text-slate-500">
+                            <div>
+                                Correct: <span className="text-emerald-700 font-normal">{q.answer}</span>
+                            </div>
+                            {q.solutionText && (
+                                <details className="cursor-pointer text-slate-600 font-normal">
+                                    <summary className="hover:text-navy">View Detailed Solution</summary>
+                                    <div className="mt-2 p-3 bg-slate-50 rounded-lg text-[15px] text-slate-800 font-normal">
+                                        <MathRenderer text={q.solutionText} />
+                                    </div>
+                                </details>
+                            )}
                         </div>
                     </div>
                 ))}

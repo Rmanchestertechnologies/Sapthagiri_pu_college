@@ -32,6 +32,29 @@ body {
   padding: 0;
 }
 
+/* ── UNIFORM TYPOGRAPHY FOR QUESTIONS, OPTIONS & KATEX MATH ── */
+/* Prevents KaTeX default 1.21em scaling so math matches surrounding text size 100% */
+.katex {
+  font-size: 1em !important;
+  font-weight: 400 !important;
+  text-rendering: auto;
+}
+
+.katex-display {
+  font-size: 1em !important;
+  margin: 0.4em 0 !important;
+}
+
+.katex * {
+  font-weight: 400 !important;
+}
+
+.math-renderer {
+  font-size: inherit !important;
+  font-weight: 400 !important;
+  font-style: normal;
+}
+
 /* HTML: <div class="loader"></div> */
 .loader {
   --s: 15px;

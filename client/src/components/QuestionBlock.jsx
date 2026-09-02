@@ -209,7 +209,7 @@ const Q = {
         fontStyle: 'normal',
         fontFamily: 'inherit',
         whiteSpace: 'nowrap',
-        fontSize: '0.85em',
+        fontSize: '1em',
         alignSelf: 'flex-start',
         marginLeft: '6px',
         color: '#444',
@@ -222,7 +222,7 @@ const Q = {
         overflowWrap: 'break-word',
         minWidth: 0,
         maxWidth: '100%',
-        fontSize: '0.96em',
+        fontSize: '1em',
         fontWeight: 400,
         fontStyle: 'normal',
         fontFamily: 'inherit',
@@ -237,6 +237,7 @@ const Q = {
         flexShrink: 0,
         lineHeight: '1.45',
         color: '#222',
+        fontSize: '1em',
     },
     sideBySideContainer: {
         display: 'flex',
@@ -261,17 +262,19 @@ const Q = {
         width: '100%',
         borderCollapse: 'collapse',
         margin: '6px 0 8px',
-        fontSize: '0.92em',
+        fontSize: '1em',
         tableLayout: 'fixed',
+        fontWeight: 400,
     },
     matchTh: {
         border: '1px solid #999',
         padding: '3px 6px',
         background: '#f5f5f5',
-        fontWeight: 700,
+        fontWeight: 400,
         textAlign: 'left',
         width: '50%',
         color: '#111',
+        fontSize: '1em',
     },
     matchTd: {
         border: '1px solid #999',
@@ -282,6 +285,7 @@ const Q = {
         width: '50%',
         fontWeight: 400,
         color: '#111',
+        fontSize: '1em',
     },
     assertRow: {
         display: 'flex',
@@ -290,16 +294,20 @@ const Q = {
         alignItems: 'flex-start',
         wordBreak: 'break-word',
         overflowWrap: 'break-word',
+        fontSize: '1em',
+        fontWeight: 400,
     },
     assertLabel: {
-        fontWeight: 700,
+        fontWeight: 400,
         whiteSpace: 'nowrap',
         color: '#000',
+        fontSize: '1em',
     },
     assertText: {
         flex: 1,
         fontWeight: 400,
         color: '#111',
+        fontSize: '1em',
     },
 };
 
@@ -625,7 +633,7 @@ function BodyStatementBased({ q, classes, isTwoCol, diagramMaxHeight, onDiagramR
                 <div style={{ borderLeft: '2px solid #666', paddingLeft: '8px', margin: '4px 0 6px' }}>
                     {statements.map((stmt, si) => (
                         <div key={si} style={{ marginBottom: '2px', fontWeight: 400 }}>
-                            <strong>Statement {si + 1}:</strong> <MathRenderer inline text={stmt} />
+                            <span>Statement {si + 1}:</span> <MathRenderer inline text={stmt} />
                         </div>
                     ))}
                 </div>

@@ -557,7 +557,7 @@ function ExamPrintView({ exam, templates, settings, setSettings, onBack }) {
                                     <div key={q._id || idx} style={{ color: '#111', breakInside: 'avoid-column' }}>
                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                                             <div style={{ display: 'flex', alignItems: 'flex-start', flex: 1, paddingRight: '16px' }}>
-                                                <span style={{ fontWeight: 700, marginRight: '8px', whiteSpace: 'nowrap', fontSize: '1.1em' }}>{idx + 1}.</span>
+                                                <span style={{ fontWeight: 400, marginRight: '8px', whiteSpace: 'nowrap', fontSize: '1em' }}>{idx + 1}.</span>
                                                 <div style={{ flex: 1 }}>
                                                     <div style={{ display: 'grid', gridTemplateColumns: settings.bilingualMode ? '1fr 1fr' : '1fr', gap: '20px' }}>
                                                         <div>
@@ -576,13 +576,13 @@ function ExamPrintView({ exam, templates, settings, setSettings, onBack }) {
                                                     )}
                                                 </div>
                                             </div>
-                                            {settings.showMarks && <span style={{ fontWeight: 700, whiteSpace: 'nowrap', fontSize: '0.9em' }}>[{formatMarks(q.type)}]</span>}
+                                            {settings.showMarks && <span style={{ fontWeight: 400, whiteSpace: 'nowrap', fontSize: '1em' }}>[{formatMarks(q.type)}]</span>}
                                         </div>
                                         {q.options && q.options.length > 0 && (
                                             <div style={getOptionsGridStyle(q.options)}>
                                                 {q.options.map((opt, i) => (
-                                                    <div key={i} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline' }}>
-                                                        <span style={{ marginRight: '6px', fontWeight: 600 }}>{optionLabel(i, q.classes)})</span>
+                                                    <div key={i} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', fontSize: '1em', fontWeight: 400 }}>
+                                                        <span style={{ marginRight: '6px', fontWeight: 400 }}>{optionLabel(i, q.classes)})</span>
                                                         <MathRenderer inline={true} text={opt} />
                                                         {settings.bilingualMode && q.optionsTranslation?.[i] && (
                                                             <span style={{ color: '#6b7280', fontSize: '11px', fontFamily: 'sans-serif', fontStyle: 'italic', marginLeft: '6px' }}>
