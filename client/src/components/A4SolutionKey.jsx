@@ -23,8 +23,8 @@ export default function A4SolutionKey({
     };
 
     return (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 backdrop-blur-sm p-4 overflow-y-auto">
-            <div className="bg-slate-100 rounded-3xl shadow-2xl w-full max-w-5xl max-h-[92vh] flex flex-col overflow-hidden my-auto border border-slate-200 animate-fade-in">
+        <div className="a4-solution-key-modal fixed inset-0 bg-black/60 flex items-center justify-center z-50 backdrop-blur-sm p-4 overflow-y-auto">
+            <div className="a4-solution-key-card bg-slate-100 rounded-3xl shadow-2xl w-full max-w-5xl max-h-[92vh] flex flex-col overflow-hidden my-auto border border-slate-200 animate-fade-in">
                 
                 {/* ── Action Toolbar (Hidden during print) ── */}
                 <div className="flex justify-between items-center px-6 py-4 bg-white border-b border-gray-200 no-print">
@@ -62,13 +62,13 @@ export default function A4SolutionKey({
                 </div>
 
                 {/* ── A4 Sheet Preview Area (Expands seamlessly to enclose 100% of questions) ── */}
-                <div className="flex-1 overflow-y-auto p-4 sm:p-8 bg-slate-300/80 min-h-0">
+                <div className="a4-solution-key-body flex-1 overflow-y-auto p-4 sm:p-8 bg-slate-300/80 min-h-0">
                     <div className="mx-auto w-full max-w-[794px]">
                         <div
                             id="print-target-solution-key"
-                            className="bg-white shadow-2xl rounded-2xl p-8 sm:p-14 w-full text-slate-800 space-y-6 border border-slate-300 relative"
+                            className="a4-solution-key-sheet bg-white shadow-2xl rounded-2xl p-6 sm:p-10 w-full text-slate-800 space-y-6 border border-slate-300 relative"
                             style={{
-                                minHeight: '1123px',
+                                minHeight: 'auto',
                                 boxSizing: 'border-box',
                                 fontFamily: 'Calibri, "Segoe UI", Arial, sans-serif',
                             }}
@@ -228,36 +228,100 @@ export default function A4SolutionKey({
                     @media print {
                         @page {
                             size: A4 portrait;
-                            margin: 10mm;
+                            margin: 10mm 12mm;
                         }
-                        body {
+                        html, body {
                             background: #ffffff !important;
                             margin: 0 !important;
                             padding: 0 !important;
+                            width: 100% !important;
+                            height: auto !important;
+                            min-height: 0 !important;
+                            overflow: visible !important;
                         }
-                        .no-print, nav, header, button {
+                        .no-print, nav, header, button, .diagram-resize-toolbar {
                             display: none !important;
+                        }
+                        /* ── CRITICAL: Completely hide background question paper so it creates 0 extra pages ── */
+                        .a4-engine-wrapper,
+                        .a4-print-document,
+                        .paper-renderer-wrapper,
+                        .paper-preview-container {
+                            display: none !important;
+                            height: 0 !important;
+                            max-height: 0 !important;
+                            margin: 0 !important;
+                            padding: 0 !important;
+                            overflow: hidden !important;
                         }
                         body * {
                             visibility: hidden !important;
+                        }
+                        /* ── Make modal wrappers static so they NEVER repeat as fixed page elements ── */
+                        .a4-solution-key-modal,
+                        body.printing-solution-key .a4-solution-key-modal {
+                            position: static !important;
+                            display: block !important;
+                            background: transparent !important;
+                            padding: 0 !important;
+                            margin: 0 !important;
+                            height: auto !important;
+                            min-height: 0 !important;
+                            inset: auto !important;
+                            overflow: visible !important;
+                            z-index: auto !important;
+                        }
+                        .a4-solution-key-card,
+                        body.printing-solution-key .a4-solution-key-card {
+                            position: static !important;
+                            display: block !important;
+                            background: transparent !important;
+                            box-shadow: none !important;
+                            border: none !important;
+                            margin: 0 !important;
+                            padding: 0 !important;
+                            max-height: none !important;
+                            max-width: 100% !important;
+                            overflow: visible !important;
+                        }
+                        .a4-solution-key-body,
+                        body.printing-solution-key .a4-solution-key-body {
+                            position: static !important;
+                            display: block !important;
+                            background: transparent !important;
+                            padding: 0 !important;
+                            margin: 0 !important;
+                            overflow: visible !important;
                         }
                         body.printing-solution-key #print-target-solution-key,
                         body.printing-solution-key #print-target-solution-key * {
                             visibility: visible !important;
                         }
                         body.printing-solution-key #print-target-solution-key {
-                            position: absolute !important;
-                            top: 0 !important;
-                            left: 0 !important;
+                            position: static !important;
+                            top: auto !important;
+                            left: auto !important;
                             width: 100% !important;
                             max-width: 100% !important;
-                            margin: 0 !important;
-                            padding: 0 !important;
+                            min-height: 0 !important;
+                            margin: 0 auto !important;
+                            padding: 4mm 6mm !important;
                             box-shadow: none !important;
                             border: none !important;
                             display: block !important;
                             overflow: visible !important;
                             background: #ffffff !important;
+                            break-inside: auto !important;
+                            page-break-after: auto !important;
+                        }
+                        body.printing-solution-key #print-target-solution-key > div {
+                            break-inside: auto !important;
+                        }
+                        body.printing-solution-key #print-target-solution-key .border-slate-300 {
+                            break-inside: avoid !important;
+                            page-break-inside: avoid !important;
+                            margin-bottom: 8px !important;
+                            padding: 8px !important;
                         }
                     }
                 `}</style>

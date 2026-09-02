@@ -265,14 +265,28 @@ export default function A4PaperEngine({
                     }
 
                     /* ── Target 1: Answer Key Print ── */
+                    body.printing-answer-key .a4-engine-wrapper,
+                    body.printing-answer-key .a4-print-document,
+                    body.printing-answer-key .paper-renderer-wrapper,
+                    body.printing-solution-key .a4-engine-wrapper,
+                    body.printing-solution-key .a4-print-document,
+                    body.printing-solution-key .paper-renderer-wrapper {
+                        display: none !important;
+                        height: 0 !important;
+                        max-height: 0 !important;
+                        margin: 0 !important;
+                        padding: 0 !important;
+                        overflow: hidden !important;
+                    }
+
                     body.printing-answer-key #print-target-answer-key,
                     body.printing-answer-key #print-target-answer-key * {
                         visibility: visible !important;
                     }
                     body.printing-answer-key #print-target-answer-key {
-                        position: absolute !important;
-                        top: 0 !important;
-                        left: 0 !important;
+                        position: static !important;
+                        top: auto !important;
+                        left: auto !important;
                         width: 100% !important;
                         display: block !important;
                         overflow: visible !important;
@@ -284,15 +298,19 @@ export default function A4PaperEngine({
                         visibility: visible !important;
                     }
                     body.printing-solution-key #print-target-solution-key {
-                        position: absolute !important;
-                        top: 0 !important;
-                        left: 0 !important;
+                        position: static !important;
+                        top: auto !important;
+                        left: auto !important;
                         width: 100% !important;
                         display: block !important;
                         overflow: visible !important;
                     }
 
                     /* ── Target 3: Question Paper Print (Default) ── */
+                    body:not(.printing-answer-key) .a4-answer-key-modal,
+                    body:not(.printing-solution-key) .a4-solution-key-modal {
+                        display: none !important;
+                    }
                     body:not(.printing-answer-key):not(.printing-solution-key) .a4-print-document,
                     body:not(.printing-answer-key):not(.printing-solution-key) .a4-print-document * {
                         visibility: visible !important;
