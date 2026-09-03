@@ -60,16 +60,16 @@ export default function A4PaperEngine({
             >
                 {/* ── Single Unified Question Paper Sheet ── */}
                 <div className="a4-sheet-page a4-questions-page" style={{ position: 'relative' }}>
-                    {/* Official Sapthagiri PU College Crest Watermark - Elegant, non-intrusive watermark */}
+                    {/* Official Sapthagiri PU College Crest Watermark - Perfectly centered on sheet */}
                     <div 
                         className="a4-watermark-wrapper"
                         style={{
-                            position: 'fixed',
+                            position: 'absolute',
                             top: '50%',
                             left: '50%',
                             transform: 'translate(-50%, -50%)',
-                            width: '320px',
-                            height: '320px',
+                            width: '400px',
+                            height: '400px',
                             pointerEvents: 'none',
                             zIndex: 0,
                             display: 'flex',
@@ -82,12 +82,11 @@ export default function A4PaperEngine({
                             alt="College Crest Watermark" 
                             className="a4-watermark-logo"
                             style={{
-                                width: '320px',
-                                height: '320px',
+                                width: '400px',
+                                height: '400px',
                                 objectFit: 'contain',
                                 borderRadius: '50%',
-                                opacity: 0.045,
-                                filter: 'grayscale(100%) brightness(1.15) contrast(60%)',
+                                opacity: 0.08,
                                 display: 'block',
                                 pointerEvents: 'none',
                             }}
@@ -121,9 +120,8 @@ export default function A4PaperEngine({
                             className="a4-questions-flow"
                             style={isTwoCol ? {
                                 columnCount: 2,
-                                columnGap: settings.columnGap || '18px',
+                                columnGap: settings.columnGap || '20px',
                                 columnRule: '1px solid #e0e0e0',
-                                columnFill: 'auto',
                             } : {}}
                         >
                             {visibleQuestions.map((q, idx) => {
@@ -136,7 +134,7 @@ export default function A4PaperEngine({
                                             breakInside: 'avoid',
                                             WebkitColumnBreakInside: 'avoid',
                                             pageBreakInside: 'avoid',
-                                            marginBottom: settings.questionSpacing || (isTwoCol ? '7px' : '9px'),
+                                            marginBottom: settings.questionSpacing || (isTwoCol ? '8px' : '10px'),
                                         }}
                                     >
                                         <QuestionBlock
@@ -287,12 +285,12 @@ export default function A4PaperEngine({
                         visibility: visible !important;
                     }
                     body:not(.printing-answer-key):not(.printing-solution-key) .a4-watermark-wrapper {
-                        position: fixed !important;
+                        position: absolute !important;
                         top: 50% !important;
                         left: 50% !important;
                         transform: translate(-50%, -50%) !important;
-                        width: 320px !important;
-                        height: 320px !important;
+                        width: 400px !important;
+                        height: 400px !important;
                         display: flex !important;
                         align-items: center !important;
                         justify-content: center !important;
@@ -302,12 +300,11 @@ export default function A4PaperEngine({
                         print-color-adjust: exact !important;
                     }
                     body:not(.printing-answer-key):not(.printing-solution-key) .a4-watermark-logo {
-                        width: 320px !important;
-                        height: 320px !important;
+                        width: 400px !important;
+                        height: 400px !important;
                         object-fit: contain !important;
                         border-radius: 50% !important;
-                        opacity: 0.045 !important;
-                        filter: grayscale(100%) brightness(1.15) contrast(60%) !important;
+                        opacity: 0.08 !important;
                         display: block !important;
                         visibility: visible !important;
                         -webkit-print-color-adjust: exact !important;

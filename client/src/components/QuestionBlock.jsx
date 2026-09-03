@@ -680,10 +680,75 @@ function BodyAssertionReason({ q, classes, isTwoCol, diagramMaxHeight = '180px',
 /**
  * Match the Following Body
  */
+/** Parse match the following from text when matchPairs array is empty */
+function parseMatchFromText(q) {
+    if (Array.isArray(q.matchPairs) && q.matchPairs.length > 0) {
+        return { introText: q.questionText || q.question || '', pairs: q.matchPairs };
+    }
+    const txt = q.questionText || q.question || '';
+    
+    // Check if question text has Column I / Column II or List I / List II
+    const colRegex = /(?:\*\*|__)?(?:Column|List)\s*I(?:\*\*|__)?([\s\S]*?)(?:\*\*|__)?(?:Column|List)\s*II(?:\*\*|__)?([\s\S]*?)(?=Choose the correct|Select the correct|Options:|$)/i;
+    const match = txt.match(colRegex);
+    if (match) {
+        const introText = txt.substring(0, match.index).trim();
+        const rawCol1 = match[1].trim();
+        const rawCol2 = match[2].trim();
+
+        const splitItems = (str) => {
+            let items = str.split(/(?:\([A-Da-d1-4ivx]+\)|[A-Da-d1-4ivx]\.|\b[A-D]\b)/g)
+                .map(s => s.trim().replace(/^[:\-]\s*/, ''))
+                .filter(Boolean);
+            if (items.length >= 2) return items;
+            return str.split(/[\n,;]+/).map(s => s.trim()).filter(Boolean);
+        };
+
+        const col1Items = splitItems(rawCol1);
+        const col2Items = splitItems(rawCol2);
+        const maxLen = Math.max(col1Items.length, col2Items.length);
+        const pairs = [];
+        for (let i = 0; i < maxLen; i++) {
+            pairs.push({
+                left: col1Items[i] || '',
+                right: col2Items[i] || ''
+            });
+        }
+        if (pairs.length > 0) {
+            return { introText, pairs };
+        }
+    }
+    return { introText: txt, pairs: [] };
+}
+
+/** Parse statement-based questions from text */
+function parseStatementsFromText(q) {
+    if (Array.isArray(q.statements) && q.statements.length > 0) {
+        return { introText: '', statements: q.statements };
+    }
+    const txt = q.questionText || q.question || '';
+    const stmts = [];
+    const regex = /Statement\s*([I|V|X|0-9]+)\s*[:\-]\s*([\s\S]*?)(?=Statement\s*[I|V|X|0-9]+\s*[:\-]|$)/gi;
+    let m;
+    let firstIndex = -1;
+    while ((m = regex.exec(txt)) !== null) {
+        if (firstIndex === -1) firstIndex = m.index;
+        stmts.push(cleanStatementText(m[2]));
+    }
+    if (stmts.length > 0) {
+        const introText = txt.substring(0, firstIndex).trim();
+        return { introText, statements: stmts };
+    }
+    return { introText: txt, statements: [] };
+}
+
+/**
+ * Match the Following Body
+ */
 function BodyMatchFollowing({ q, classes, isTwoCol, diagramMaxHeight = '180px', onDiagramResize, displayNum }) {
-    const pairs = q.matchPairs || [];
+    const { introText, pairs: parsedPairs } = parseMatchFromText(q);
+    const pairs = (Array.isArray(q.matchPairs) && q.matchPairs.length > 0) ? q.matchPairs : parsedPairs;
     const opts = q.options || [];
-    const rawQText = cleanQuestionText(q.questionText || q.question || '');
+    const rawQText = cleanQuestionText(introText || q.questionText || q.question || '');
     const { cleanText: qText, diagramUrl: imageUrl } = extractDiagramFromText(rawQText, q.imageUrl || q.image_url);
     const qId = q._id || q.id || displayNum;
     const currentDiagramHeight = q.customDiagramSizes?.['main'] || q.customDiagramHeight || diagramMaxHeight;
@@ -763,9 +828,10 @@ function BodyMatchFollowing({ q, classes, isTwoCol, diagramMaxHeight = '180px', 
  * Statement-Based Body
  */
 function BodyStatementBased({ q, classes, isTwoCol, diagramMaxHeight = '180px', onDiagramResize, displayNum }) {
-    const statements = q.statements || [];
+    const { introText, statements: parsedStmts } = parseStatementsFromText(q);
+    const statements = (Array.isArray(q.statements) && q.statements.length > 0) ? q.statements : parsedStmts;
     const opts = q.options || [];
-    const rawQText = cleanQuestionText(q.questionText || q.question || '');
+    const rawQText = cleanQuestionText(introText || q.questionText || q.question || '');
     const { cleanText: qText, diagramUrl: imageUrl } = extractDiagramFromText(rawQText, q.imageUrl || q.image_url);
     const labels = getQuestionOptionLabels(q);
     const qId = q._id || q.id || displayNum;
@@ -845,10 +911,15 @@ export default function QuestionBlock({
 
     const activeFontSize = q.fontSize || fontSize;
     const qType = (q.type || q.q_type || 'MCQ').toUpperCase();
+    const qTextRaw = q.questionText || q.question || '';
     const effectiveIsTwoCol = Boolean(isTwoCol);
 
+    const isMatch = qType.includes('MATCH') || /(?:Column|List)\s*I[\s\S]*(?:Column|List)\s*II/i.test(qTextRaw) || /Match (?:List|the following|Column)/i.test(qTextRaw);
+    const isAssertion = qType.includes('ASSERTION') || (/Assertion\s*(?:\(A\))?/i.test(qTextRaw) && /Reason\s*(?:\(R\))?/i.test(qTextRaw));
+    const isStatement = qType.includes('STATEMENT') || (/Statement\s*(?:I|1)\s*[:\-]/i.test(qTextRaw) && /Statement\s*(?:II|2)\s*[:\-]/i.test(qTextRaw));
+
     const renderBody = () => {
-        if (qType.includes('ASSERTION')) {
+        if (isAssertion) {
             return (
                 <BodyAssertionReason
                     q={q}
@@ -860,7 +931,7 @@ export default function QuestionBlock({
                 />
             );
         }
-        if (qType.includes('MATCH')) {
+        if (isMatch) {
             return (
                 <BodyMatchFollowing
                     q={q}
@@ -872,7 +943,7 @@ export default function QuestionBlock({
                 />
             );
         }
-        if (qType.includes('STATEMENT') || qType.includes('MULTIPLE_STATEMENT')) {
+        if (isStatement) {
             return (
                 <BodyStatementBased
                     q={q}
