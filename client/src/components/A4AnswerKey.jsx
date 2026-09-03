@@ -72,16 +72,15 @@ export default function A4AnswerKey({
                                 fontFamily: 'Calibri, "Segoe UI", Arial, sans-serif',
                             }}
                         >
-                            {/* Official Sapthagiri PU College Crest Watermark - Real <img> element */}
+                            {/* Official Sapthagiri PU College Crest Watermark - Non-intrusive background layer */}
                             <div 
                                 className="a4-watermark-wrapper"
                                 style={{
-                                    position: 'absolute',
-                                    top: '50%',
-                                    left: '50%',
-                                    transform: 'translate(-50%, -50%)',
-                                    width: '380px',
-                                    height: '380px',
+                                    position: 'fixed',
+                                    top: 0,
+                                    left: 0,
+                                    width: '100vw',
+                                    height: '100vh',
                                     pointerEvents: 'none',
                                     zIndex: 0,
                                     display: 'flex',
@@ -94,12 +93,12 @@ export default function A4AnswerKey({
                                     alt="College Crest Watermark" 
                                     className="a4-watermark-logo"
                                     style={{
-                                        width: '380px',
-                                        height: '380px',
+                                        width: '340px',
+                                        height: '340px',
                                         objectFit: 'contain',
                                         borderRadius: '50%',
-                                        opacity: 0.16,
-                                        mixBlendMode: 'multiply',
+                                        opacity: 0.045,
+                                        filter: 'grayscale(100%)',
                                         display: 'block',
                                         pointerEvents: 'none',
                                     }}
@@ -241,6 +240,41 @@ export default function A4AnswerKey({
                             margin: 0 !important;
                             overflow: visible !important;
                         }
+                        /* Watermark in print: Fixed viewport background layer on every page */
+                        body.printing-answer-key .a4-watermark-wrapper,
+                        body.printing-answer-key .a4-watermark-wrapper * {
+                            visibility: visible !important;
+                        }
+                        body.printing-answer-key .a4-watermark-wrapper {
+                            position: fixed !important;
+                            top: 0 !important;
+                            left: 0 !important;
+                            right: 0 !important;
+                            bottom: 0 !important;
+                            width: 100vw !important;
+                            height: 100vh !important;
+                            display: flex !important;
+                            align-items: center !important;
+                            justify-content: center !important;
+                            pointer-events: none !important;
+                            z-index: 0 !important;
+                            -webkit-print-color-adjust: exact !important;
+                            print-color-adjust: exact !important;
+                        }
+                        body.printing-answer-key .a4-watermark-logo {
+                            width: 340px !important;
+                            height: 340px !important;
+                            object-fit: contain !important;
+                            border-radius: 50% !important;
+                            opacity: 0.045 !important;
+                            filter: grayscale(100%) !important;
+                            display: block !important;
+                            visibility: visible !important;
+                            pointer-events: none !important;
+                            -webkit-print-color-adjust: exact !important;
+                            print-color-adjust: exact !important;
+                        }
+
                         body.printing-answer-key #print-target-answer-key,
                         body.printing-answer-key #print-target-answer-key * {
                             visibility: visible !important;
@@ -261,14 +295,18 @@ export default function A4AnswerKey({
                             background: #ffffff !important;
                             break-inside: auto !important;
                             page-break-after: auto !important;
+                            position: relative !important;
+                            z-index: 1 !important;
                         }
                         body.printing-answer-key #print-target-answer-key .grid > div {
-                            padding: 3px 6px !important;
+                            padding: 2.5px 5px !important;
                             font-size: 11px !important;
                             background: #f8fafc !important;
                             border: 1px solid #cbd5e1 !important;
                             break-inside: avoid !important;
                             page-break-inside: avoid !important;
+                            position: relative !important;
+                            z-index: 1 !important;
                         }
                     }
                 `}</style>
