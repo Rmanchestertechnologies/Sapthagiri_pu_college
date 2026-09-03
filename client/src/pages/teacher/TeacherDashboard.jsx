@@ -452,7 +452,7 @@ const TeacherDashboard = () => {
     return (
         <div className="min-h-screen bg-background flex flex-col font-sans">
 
-            {/* ── RIGHT-SIDE SLIDE-OVER SIDEBOX DRAWER ── */}
+            {/* ── LEFT-SIDE SLIDE-OVER SIDEBOX DRAWER ── */}
             <div className={`fixed inset-0 z-50 transition-all duration-300 ${isSideboxOpen ? 'visible pointer-events-auto' : 'invisible pointer-events-none'}`}>
                 {/* Backdrop Overlay */}
                 <div 
@@ -460,8 +460,8 @@ const TeacherDashboard = () => {
                     className={`absolute inset-0 bg-slate-950/60 backdrop-blur-sm transition-opacity duration-300 ${isSideboxOpen ? 'opacity-100' : 'opacity-0'}`}
                 />
 
-                {/* Sidebox Panel (Slides in from RIGHT) */}
-                <aside className={`absolute top-0 right-0 h-full w-88 max-w-[85vw] bg-[#071738] text-white shadow-2xl border-l-4 border-amber-400 flex flex-col justify-between transition-transform duration-300 ease-out ${isSideboxOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+                {/* Sidebox Panel (Slides in from LEFT) */}
+                <aside className={`absolute top-0 left-0 h-full w-88 max-w-[85vw] bg-[#071738] text-white shadow-2xl border-r-4 border-amber-400 flex flex-col justify-between transition-transform duration-300 ease-out ${isSideboxOpen ? 'translate-x-0' : '-translate-x-full'}`}>
                     <div>
                         {/* Sidebox Top Brand Bar */}
                         <div className="p-5 border-b border-white/10 flex items-center justify-between bg-black/20">
@@ -471,7 +471,7 @@ const TeacherDashboard = () => {
                                 </div>
                                 <div>
                                     <h2 className="text-sm font-black uppercase tracking-tight text-white leading-none">Sapthagiri PU College</h2>
-                                    <span className="text-[10px] text-amber-400 font-extrabold uppercase tracking-widest mt-1 block">Faculty Dashboard Menu</span>
+                                    <span className="text-[10px] text-amber-400 font-extrabold uppercase tracking-widest mt-1 block">Faculty Navigation Menu</span>
                                 </div>
                             </div>
                             <button 
@@ -526,7 +526,7 @@ const TeacherDashboard = () => {
                             {/* Template Cart Trigger */}
                             <div>
                                 <span className="text-[10px] font-black uppercase tracking-[0.2em] text-amber-400/70 px-3 block mb-2">
-                                    Templates
+                                    Resources & Headers
                                 </span>
                                 <button
                                     onClick={() => {
@@ -572,24 +572,38 @@ const TeacherDashboard = () => {
 
             {/* Top Navigation Bar - Sapthagiri Navy & Gold */}
             <nav className="bg-[#081B3B] px-6 py-3.5 text-white flex justify-between items-center z-10 shadow-2xl border-b-4 border-amber-500">
-                <div
-                    className="flex items-center cursor-pointer hover:opacity-80 transition gap-3"
-                    onClick={() => navigate('/teacher/dashboard')}
-                >
-                    <div className="w-10 h-10 flex items-center justify-center shadow-lg bg-white rounded-xl p-1 border-2 border-amber-400">
-                        <img src="/SapthagiriLogo.jpg" alt="Sapthagiri PU College" className="w-full h-full object-contain rounded-lg" />
-                    </div>
-                    <div className="flex flex-col">
-                        <h1 className="text-base font-black tracking-tight uppercase leading-tight text-white">
-                            Sapthagiri PU College
-                        </h1>
-                        <div className="flex items-center gap-2 mt-0.5">
-                            {user?.subject && logoMap[user.subject] && (
-                                <img src={logoMap[user.subject]} alt={user.subject} className="w-4 h-4 object-contain rounded-sm" />
-                            )}
-                            <span className="text-[10px] font-black text-amber-400 uppercase tracking-widest">
-                                Faculty Portal • {user?.subject || 'PCMB'}
-                            </span>
+                <div className="flex items-center gap-3.5">
+                    {/* LEFT-SIDE HAMBURGER MENU BUTTON */}
+                    <button
+                        onClick={() => setIsSideboxOpen(true)}
+                        title="Open Faculty Menu"
+                        className="relative bg-amber-400 text-slate-950 hover:bg-amber-300 w-10 h-10 rounded-xl flex items-center justify-center font-black text-lg hover:scale-105 transition shadow-lg cursor-pointer"
+                    >
+                        <span className="text-xl leading-none">☰</span>
+                        <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[8px] font-black w-4 h-4 rounded-full flex items-center justify-center leading-none">
+                            T
+                        </span>
+                    </button>
+
+                    <div
+                        className="flex items-center cursor-pointer hover:opacity-80 transition gap-3"
+                        onClick={() => navigate('/teacher/dashboard')}
+                    >
+                        <div className="w-10 h-10 flex items-center justify-center shadow-lg bg-white rounded-xl p-1 border-2 border-amber-400">
+                            <img src="/SapthagiriLogo.jpg" alt="Sapthagiri PU College" className="w-full h-full object-contain rounded-lg" />
+                        </div>
+                        <div className="flex flex-col">
+                            <h1 className="text-base font-black tracking-tight uppercase leading-tight text-white">
+                                Sapthagiri PU College
+                            </h1>
+                            <div className="flex items-center gap-2 mt-0.5">
+                                {user?.subject && logoMap[user.subject] && (
+                                    <img src={logoMap[user.subject]} alt={user.subject} className="w-4 h-4 object-contain rounded-sm" />
+                                )}
+                                <span className="text-[10px] font-black text-amber-400 uppercase tracking-widest">
+                                    Faculty Portal • {user?.subject || 'PCMB'}
+                                </span>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -646,18 +660,6 @@ const TeacherDashboard = () => {
 
                     {/* Teacher Notification Bell */}
                     <TeacherNotificationBell />
-
-                    {/* RIGHT-SIDE HAMBURGER MENU BUTTON */}
-                    <button
-                        onClick={() => setIsSideboxOpen(true)}
-                        title="Open Faculty Dashboard Menu"
-                        className="relative bg-amber-400 text-slate-950 hover:bg-amber-300 w-10 h-10 rounded-xl flex items-center justify-center font-black text-lg hover:scale-105 transition shadow-lg cursor-pointer"
-                    >
-                        <span className="text-xl leading-none">☰</span>
-                        <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[8px] font-black w-4 h-4 rounded-full flex items-center justify-center leading-none">
-                            T
-                        </span>
-                    </button>
 
                     <div className="w-px h-7 bg-gold/20 mx-1"></div>
                     <button
