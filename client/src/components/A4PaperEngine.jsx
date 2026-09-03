@@ -60,16 +60,15 @@ export default function A4PaperEngine({
             >
                 {/* ── Single Unified Question Paper Sheet ── */}
                 <div className="a4-sheet-page a4-questions-page" style={{ position: 'relative' }}>
-                    {/* Official Sapthagiri PU College Crest Watermark - Perfectly centered on sheet */}
+                    {/* Official Sapthagiri PU College Crest Watermark - Fixed across all pages in print and screen */}
                     <div 
                         className="a4-watermark-wrapper"
                         style={{
-                            position: 'absolute',
-                            top: '50%',
-                            left: '50%',
-                            transform: 'translate(-50%, -50%)',
-                            width: '400px',
-                            height: '400px',
+                            position: 'fixed',
+                            top: 0,
+                            left: 0,
+                            width: '100vw',
+                            height: '100vh',
                             pointerEvents: 'none',
                             zIndex: 0,
                             display: 'flex',
@@ -82,8 +81,8 @@ export default function A4PaperEngine({
                             alt="College Crest Watermark" 
                             className="a4-watermark-logo"
                             style={{
-                                width: '400px',
-                                height: '400px',
+                                width: '360px',
+                                height: '360px',
                                 objectFit: 'contain',
                                 borderRadius: '50%',
                                 opacity: 0.08,
@@ -285,12 +284,13 @@ export default function A4PaperEngine({
                         visibility: visible !important;
                     }
                     body:not(.printing-answer-key):not(.printing-solution-key) .a4-watermark-wrapper {
-                        position: absolute !important;
-                        top: 50% !important;
-                        left: 50% !important;
-                        transform: translate(-50%, -50%) !important;
-                        width: 400px !important;
-                        height: 400px !important;
+                        position: fixed !important;
+                        top: 0 !important;
+                        left: 0 !important;
+                        right: 0 !important;
+                        bottom: 0 !important;
+                        width: 100vw !important;
+                        height: 100vh !important;
                         display: flex !important;
                         align-items: center !important;
                         justify-content: center !important;
@@ -300,8 +300,8 @@ export default function A4PaperEngine({
                         print-color-adjust: exact !important;
                     }
                     body:not(.printing-answer-key):not(.printing-solution-key) .a4-watermark-logo {
-                        width: 400px !important;
-                        height: 400px !important;
+                        width: 360px !important;
+                        height: 360px !important;
                         object-fit: contain !important;
                         border-radius: 50% !important;
                         opacity: 0.08 !important;

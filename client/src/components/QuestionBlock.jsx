@@ -283,36 +283,36 @@ const Q = {
     matchTable: {
         width: '100%',
         borderCollapse: 'collapse',
-        margin: '6px 0 8px',
-        fontSize: '1em',
+        margin: '2px 0 4px',
+        fontSize: '0.92em',
         tableLayout: 'fixed',
         fontWeight: 400,
     },
     matchTh: {
-        border: '1px solid #999',
-        padding: '3px 6px',
-        background: '#f5f5f5',
-        fontWeight: 400,
+        border: '1px solid #aaa',
+        padding: '2px 4px',
+        background: '#f8fafc',
+        fontWeight: 600,
         textAlign: 'left',
         width: '50%',
         color: '#111',
-        fontSize: '1em',
+        fontSize: '0.92em',
     },
     matchTd: {
-        border: '1px solid #999',
-        padding: '3px 6px',
+        border: '1px solid #aaa',
+        padding: '2px 4px',
         verticalAlign: 'top',
         wordBreak: 'break-word',
         overflowWrap: 'break-word',
         width: '50%',
         fontWeight: 400,
         color: '#111',
-        fontSize: '1em',
+        fontSize: '0.92em',
     },
     assertRow: {
         display: 'flex',
-        gap: '8px',
-        marginBottom: '6px',
+        gap: '6px',
+        marginBottom: '3px',
         alignItems: 'baseline',
         wordBreak: 'break-word',
         overflowWrap: 'break-word',
@@ -748,7 +748,7 @@ function BodyMatchFollowing({ q, classes, isTwoCol, diagramMaxHeight = '180px', 
     const { introText, pairs: parsedPairs } = parseMatchFromText(q);
     const pairs = (Array.isArray(q.matchPairs) && q.matchPairs.length > 0) ? q.matchPairs : parsedPairs;
     const opts = q.options || [];
-    const rawQText = cleanQuestionText(introText || q.questionText || q.question || '');
+    const rawQText = cleanQuestionText(pairs.length > 0 ? introText : (q.questionText || q.question || ''));
     const { cleanText: qText, diagramUrl: imageUrl } = extractDiagramFromText(rawQText, q.imageUrl || q.image_url);
     const qId = q._id || q.id || displayNum;
     const currentDiagramHeight = q.customDiagramSizes?.['main'] || q.customDiagramHeight || diagramMaxHeight;
@@ -757,7 +757,7 @@ function BodyMatchFollowing({ q, classes, isTwoCol, diagramMaxHeight = '180px', 
     return (
         <>
             {qText && (
-                <div style={{ ...Q.qTextBold, marginBottom: '3px' }}>
+                <div style={{ ...Q.qTextBold, marginBottom: '2px' }}>
                     <MathRenderer
                         inline
                         text={qText}
@@ -768,7 +768,7 @@ function BodyMatchFollowing({ q, classes, isTwoCol, diagramMaxHeight = '180px', 
                 </div>
             )}
             {imageUrl && (
-                <div style={{ textAlign: 'center', margin: '3px auto 5px', clear: 'both' }}>
+                <div style={{ textAlign: 'center', margin: '2px auto 4px', clear: 'both' }}>
                     <ResizableDiagram
                         src={imageUrl}
                         alt="Diagram"
@@ -831,7 +831,7 @@ function BodyStatementBased({ q, classes, isTwoCol, diagramMaxHeight = '180px', 
     const { introText, statements: parsedStmts } = parseStatementsFromText(q);
     const statements = (Array.isArray(q.statements) && q.statements.length > 0) ? q.statements : parsedStmts;
     const opts = q.options || [];
-    const rawQText = cleanQuestionText(introText || q.questionText || q.question || '');
+    const rawQText = cleanQuestionText(statements.length > 0 ? introText : (q.questionText || q.question || ''));
     const { cleanText: qText, diagramUrl: imageUrl } = extractDiagramFromText(rawQText, q.imageUrl || q.image_url);
     const labels = getQuestionOptionLabels(q);
     const qId = q._id || q.id || displayNum;
@@ -841,7 +841,7 @@ function BodyStatementBased({ q, classes, isTwoCol, diagramMaxHeight = '180px', 
     return (
         <>
             {qText && (
-                <div style={{ ...Q.qTextBold, marginBottom: '3px' }}>
+                <div style={{ ...Q.qTextBold, marginBottom: '2px' }}>
                     <MathRenderer
                         inline
                         text={qText}
@@ -852,16 +852,16 @@ function BodyStatementBased({ q, classes, isTwoCol, diagramMaxHeight = '180px', 
                 </div>
             )}
             {statements.length > 0 && (
-                <div style={{ borderLeft: '2px solid #666', paddingLeft: '8px', margin: '3px 0 5px' }}>
+                <div style={{ borderLeft: '2px solid #666', paddingLeft: '6px', margin: '2px 0 3px' }}>
                     {statements.map((stmt, si) => (
-                        <div key={si} style={{ marginBottom: '2px', fontWeight: 400 }}>
-                            <span>Statement {si + 1}:</span> <MathRenderer inline text={stmt} />
+                        <div key={si} style={{ marginBottom: '1px', fontWeight: 400 }}>
+                            <span style={{ fontWeight: 600 }}>Statement {si + 1}:</span> <MathRenderer inline text={stmt} />
                         </div>
                     ))}
                 </div>
             )}
             {imageUrl && (
-                <div style={{ textAlign: 'center', margin: '3px auto 5px', clear: 'both' }}>
+                <div style={{ textAlign: 'center', margin: '2px auto 4px', clear: 'both' }}>
                     <ResizableDiagram
                         src={imageUrl}
                         alt="Diagram"
