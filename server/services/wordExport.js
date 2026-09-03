@@ -198,8 +198,8 @@ async function generatePaperDoc(paper, template = null) {
     }
     
     // 2. Institution Details
-    const instName = template?.institutionName || "MANCHESTER TECHNOLOGIES COLLEGE";
-    const instAddr = template?.address || "";
+    const instName = template?.institutionName || "SAPTHAGIRI PU COLLEGE";
+    const instAddr = template?.address || "DAVANAGERE • THE LAND OF OPPORTUNITY";
     const headerTitle = template?.headerText || paper.title;
     
     docChildren.push(
