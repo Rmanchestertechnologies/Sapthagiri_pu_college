@@ -703,13 +703,14 @@ export default function CreatePaper() {
                             (idx + startQNo === Number(qIdOrNum)) ||
                             (String(idx) === String(qIdOrNum));
             if (!isMatch) return q;
+            const nextSizes = {
+                ...(q.customDiagramSizes || {}),
+                [diagramKey]: newHeight,
+            };
             return {
                 ...q,
-                customDiagramHeight: newHeight,
-                customDiagramSizes: {
-                    ...(q.customDiagramSizes || {}),
-                    [diagramKey]: newHeight,
-                }
+                ...(diagramKey === 'main' ? { customDiagramHeight: newHeight } : {}),
+                customDiagramSizes: nextSizes,
             };
         }));
     };

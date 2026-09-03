@@ -95,7 +95,10 @@ const MathRenderer = ({
     inline = false,
     questionId,
     initialHeight,
+    customDiagramSizes = {},
     onSizeChange,
+    isOption = false,
+    optionIndex,
 }) => {
     const safeText = typeof text === 'string' ? text : (text ? String(text) : '');
     const hasImages = /\{\{IMG::.*?\}\}|!\[.*?\]\(.*?\)/i.test(safeText);
@@ -157,16 +160,30 @@ const MathRenderer = ({
                         />
                     );
                 }
+                const tokenKey = isOption
+                    ? (optionIndex !== undefined ? `opt_${optionIndex}` : `opt_${token.key}`)
+                    : `inline_${token.key}`;
+                const resolvedHeight = customDiagramSizes?.[tokenKey] || initialHeight;
+
                 return (
-                    <div key={token.key} style={{ display: 'block', textAlign: 'center', margin: '6px auto', clear: 'both' }}>
+                    <div
+                        key={token.key}
+                        style={{
+                            display: isOption ? 'inline-block' : 'block',
+                            textAlign: 'center',
+                            margin: isOption ? '2px auto' : '4px auto',
+                            clear: isOption ? 'none' : 'both'
+                        }}
+                    >
                         <ResizableDiagram
                             src={token.src}
                             alt={token.alt}
-                            isOption={false}
+                            isOption={isOption}
                             questionId={questionId}
-                            diagramKey={`inline_${token.key}`}
-                            initialHeight={initialHeight}
-                            onSizeChange={onSizeChange}
+                            diagramKey={tokenKey}
+                            initialHeight={resolvedHeight}
+                            isManual={Boolean(customDiagramSizes?.[tokenKey])}
+                            onSizeChange={(h) => onSizeChange && onSizeChange(h, tokenKey)}
                         />
                     </div>
                 );

@@ -121,7 +121,7 @@ export default function A4PaperEngine({
                             className="a4-questions-flow"
                             style={isTwoCol ? {
                                 columnCount: 2,
-                                columnGap: settings.columnGap || '24px',
+                                columnGap: settings.columnGap || '20px',
                                 columnRule: '1px solid #e0e0e0',
                             } : {}}
                         >
@@ -133,8 +133,9 @@ export default function A4PaperEngine({
                                         className="question-print-item"
                                         style={{
                                             breakInside: 'avoid',
+                                            WebkitColumnBreakInside: 'avoid',
                                             pageBreakInside: 'avoid',
-                                            marginBottom: settings.questionSpacing || '12px',
+                                            marginBottom: settings.questionSpacing || (isTwoCol ? '10px' : '12px'),
                                         }}
                                     >
                                         <QuestionBlock
@@ -142,7 +143,7 @@ export default function A4PaperEngine({
                                             displayNum={displayNum}
                                             classes={classes}
                                             showMarks={settings.showMarks}
-                                            singleColMode={isTwoCol}
+                                            singleColMode={!isTwoCol}
                                             isTwoCol={isTwoCol}
                                             fontSize={settings.fontSize}
                                             lineHeight={settings.lineHeight}
@@ -182,7 +183,7 @@ export default function A4PaperEngine({
                     margin-bottom: 32px;
                 }
                 .a4-page-content {
-                    padding: ${settings.marginTop || '12mm'} ${settings.marginRight || '14mm'} ${settings.marginBottom || '12mm'} ${settings.marginLeft || '14mm'};
+                    padding: ${settings.marginTop || '10mm'} ${settings.marginRight || '12mm'} ${settings.marginBottom || '10mm'} ${settings.marginLeft || '12mm'};
                     box-sizing: border-box;
                     color: #000000;
                 }

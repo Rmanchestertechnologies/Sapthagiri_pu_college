@@ -47,9 +47,9 @@ export function calcTotal(questions = [], classes = []) {
 const DEFAULT_SETTINGS = {
     fontFamily: 'Georgia, "Times New Roman", serif',
     fontSize: '13px',
-    lineHeight: '1.45',
+    lineHeight: '1.42',
     columns: 1,
-    columnGap: '24px',
+    columnGap: '20px',
     showMarks: false,
     showAnswerKey: false,
     showDifficulty: false,
@@ -58,12 +58,12 @@ const DEFAULT_SETTINGS = {
     endQNo: null,
     pageSize: 'A4',
     orientation: 'portrait',
-    marginTop: '15mm',
-    marginBottom: '15mm',
-    marginLeft: '18mm',
-    marginRight: '18mm',
-    questionSpacing: '14px',
-    optionSpacing: '4px',
+    marginTop: '10mm',
+    marginBottom: '10mm',
+    marginLeft: '12mm',
+    marginRight: '12mm',
+    questionSpacing: '10px',
+    optionSpacing: '3px',
     diagramMaxHeight: '260px',
 };
 
@@ -99,10 +99,10 @@ export function SettingsPanel({ settings, setSettings, totalQuestions = 0 }) {
                 {/* ── Spacing & Layout ── */}
                 <SettingField label="Question Spacing">
                     <select style={selectStyle} value={settings.questionSpacing} onChange={e => update('questionSpacing', e.target.value)}>
-                        <option value="10px">Compact (10px)</option>
-                        <option value="14px">Standard (14px)</option>
-                        <option value="18px">Relaxed (18px)</option>
-                        <option value="24px">Wide (24px)</option>
+                        <option value="8px">Compact (8px)</option>
+                        <option value="10px">Standard (10px - Recommended)</option>
+                        <option value="14px">Relaxed (14px)</option>
+                        <option value="18px">Wide (18px)</option>
                     </select>
                 </SettingField>
 

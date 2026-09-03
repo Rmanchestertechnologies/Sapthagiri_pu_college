@@ -92,8 +92,8 @@ router.get('/exams', labIpOnly, async (req, res) => {
         const exams = await storage.getExams();
 
         const availableExams = exams.filter(e => {
-            const statusMatch = ['live', 'scheduled', 'draft', 'active'].includes(e.status);
-            if (!statusMatch) return false;
+            const statusMatch = ['live', 'scheduled', 'active'].includes(e.status);
+            if (!statusMatch || e.isOnlineVisible === false) return false;
             if (rollNumber && Array.isArray(e.allowedStudents) && e.allowedStudents.length > 0) {
                 return e.allowedStudents.includes(rollNumber);
             }

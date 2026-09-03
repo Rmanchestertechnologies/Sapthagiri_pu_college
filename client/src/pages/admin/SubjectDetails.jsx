@@ -75,6 +75,20 @@ const SubjectDetails = () => {
         }
     };
 
+    const handlePublishToOnlineExam = async (paper) => {
+        try {
+            await api.post('/api/exams/from-paper', {
+                paperId: paper._id || paper.id,
+                title: paper.title || `${subject} Online Examination`,
+                duration_minutes: paper.duration || 180,
+            });
+            alert('✅ Exam successfully created and enabled for Online CBT!');
+            navigate('/admin/dashboard/cbt-exams');
+        } catch (err) {
+            alert('Failed to publish online exam: ' + (err.response?.data?.msg || err.message));
+        }
+    };
+
     const handleCommissionSubmit = async (e) => {
         e.preventDefault();
         if (!commissionForm.title) return alert('Please enter an Exam Title');
@@ -232,18 +246,27 @@ const SubjectDetails = () => {
                                         </div>
                                     </div>
 
-                                    <div className="grid grid-cols-2 gap-2 mt-auto border-t border-gray-100 pt-4">
+                                    <div className="grid grid-cols-3 gap-2 mt-auto border-t border-gray-100 pt-4">
                                         <button 
-                                            onClick={() => navigate(`/admin/paper-preview/${p._id}`)} 
-                                            className="bg-navy text-gold py-2.5 rounded-xl text-xs font-black uppercase tracking-wider hover:scale-105 transition shadow flex items-center justify-center gap-1 col-span-1"
+                                            onClick={() => navigate(`/admin/dashboard/preview/${p._id || p.id}`)} 
+                                            className="bg-navy text-gold py-2 rounded-xl text-xs font-black uppercase tracking-wider hover:scale-105 transition shadow flex items-center justify-center gap-1 col-span-1"
+                                            title="View Question Paper"
                                         >
-                                            <span>👁</span> View Paper
+                                            <span>👁</span> View
                                         </button>
                                         <button 
                                             onClick={() => setSelectedAnalysisPaper(p)} 
-                                            className="bg-gold/20 border border-gold/60 text-navy hover:bg-gold py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition flex items-center justify-center gap-1 col-span-1"
+                                            className="bg-gold/20 border border-gold/60 text-navy hover:bg-gold py-2 rounded-xl text-xs font-black uppercase tracking-wider transition flex items-center justify-center gap-1 col-span-1"
+                                            title="Paper Analytics & Stats"
                                         >
-                                            <span>📊</span> Analysis
+                                            <span>📊</span> Stats
+                                        </button>
+                                        <button 
+                                            onClick={() => handlePublishToOnlineExam(p)} 
+                                            className="bg-emerald-600 text-white hover:bg-emerald-700 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition flex items-center justify-center gap-1 col-span-1 shadow-xs"
+                                            title="Publish directly to Online CBT Exam"
+                                        >
+                                            <span>⚡</span> Online
                                         </button>
                                     </div>
                                 </div>

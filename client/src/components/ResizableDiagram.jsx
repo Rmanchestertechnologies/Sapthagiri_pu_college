@@ -78,46 +78,48 @@ export default function ResizableDiagram({
     const hasManualOverride = useRef(Boolean(isManual));
     const containerRef = useRef(null);
 
-    // Sync if initialHeight changes externally ONLY if explicitly manual
+    // Sync if initialHeight changes externally
     useEffect(() => {
-        if (isManual && initialHeight) {
+        if (initialHeight) {
             const parsed = parsePx(initialHeight, defaultFallbackHeight);
             setHeight(parsed);
-            hasManualOverride.current = true;
+            if (isManual) {
+                hasManualOverride.current = true;
+            }
         }
     }, [initialHeight, isManual, defaultFallbackHeight]);
 
-    const step = isOption ? 15 : 25;
-    const minHeight = isOption ? 40 : 100;
-    const maxHeight = isOption ? 220 : 480;
+    const step = isOption ? 10 : 20;
+    const minHeight = isOption ? 35 : 80;
+    const maxHeight = isOption ? 240 : 500;
 
     const handleIncrease = useCallback((e) => {
         e.stopPropagation();
         hasManualOverride.current = true;
         setHeight((prev) => {
             const next = Math.min(maxHeight, prev + step);
-            if (onSizeChange) onSizeChange(next);
+            if (onSizeChange) onSizeChange(next, diagramKey);
             return next;
         });
-    }, [maxHeight, step, onSizeChange]);
+    }, [maxHeight, step, onSizeChange, diagramKey]);
 
     const handleDecrease = useCallback((e) => {
         e.stopPropagation();
         hasManualOverride.current = true;
         setHeight((prev) => {
             const next = Math.max(minHeight, prev - step);
-            if (onSizeChange) onSizeChange(next);
+            if (onSizeChange) onSizeChange(next, diagramKey);
             return next;
         });
-    }, [minHeight, step, onSizeChange]);
+    }, [minHeight, step, onSizeChange, diagramKey]);
 
     const handleReset = useCallback((e) => {
         e.stopPropagation();
         hasManualOverride.current = false;
         const target = smartHeight || defaultFallbackHeight;
         setHeight(target);
-        if (onSizeChange) onSizeChange(target);
-    }, [smartHeight, defaultFallbackHeight, onSizeChange]);
+        if (onSizeChange) onSizeChange(target, diagramKey);
+    }, [smartHeight, defaultFallbackHeight, onSizeChange, diagramKey]);
 
     // Intelligent Image Dimension Analysis upon loading:
     // If not manually customized by user, ALWAYS auto-scale to optimal clear size!

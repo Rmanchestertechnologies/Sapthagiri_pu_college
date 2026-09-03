@@ -74,14 +74,13 @@ const DashboardHome = () => {
     // Expandable Box States (One box when clicked the four will open)
     const [isExamSubjectsOpen, setIsExamSubjectsOpen] = useState(false);
     const [isSubjectDirectoryOpen, setIsSubjectDirectoryOpen] = useState(false);
+    const [allPapers, setAllPapers] = useState([]);
 
     const fetchData = async () => {
         try {
-            // Fetch teachers and exams in parallel.
-            // Teachers loading state is tracked independently so the faculty
-            // dropdown in the commission modal never shows a false empty message.
+            // Fetch teachers, exams, and teacher papers in parallel.
             setTeachersLoading(true);
-            const [teachersRes, examsRes] = await Promise.all([
+            const [teachersRes, examsRes, papersRes] = await Promise.all([
                 api.get('/api/admin/teachers').catch(err => {
                     console.error('Teachers load notice:', err.message);
                     return { data: [] };
@@ -89,12 +88,19 @@ const DashboardHome = () => {
                 api.get('/api/exams/commissioned').catch(err => {
                     console.warn('Exams load notice:', err.message);
                     return { data: [] };
+                }),
+                api.get('/api/papers/admin/all').catch(err => {
+                    console.warn('Papers load notice:', err.message);
+                    return { data: [] };
                 })
             ]);
             setAllTeachers(Array.isArray(teachersRes.data) ? teachersRes.data : []);
             setTeachersLoading(false);
             const examsList = Array.isArray(examsRes.data) ? examsRes.data : [];
             setCommissionedExams(examsList);
+            const papersList = Array.isArray(papersRes.data) ? papersRes.data : [];
+            setAllPapers(papersList);
+
             if (examsList.length > 0) {
                 setSelectedExamId(prev => (prev && examsList.some(e => (e._id || e.id) === prev) ? prev : (examsList[0]._id || examsList[0].id)));
             }
@@ -563,33 +569,100 @@ const DashboardHome = () => {
                     </div>
                 </div>
 
-                {/* WHEN CLICKED: THE 4 SUBJECT CARDS OPEN */}
+                {/* WHEN CLICKED: THE 4 SUBJECT CARDS OPEN WITH TEACHER PAPERS */}
                 {isSubjectDirectoryOpen && (
                     <div className="p-6 pt-0 border-t border-slate-100 animate-fade-in bg-slate-50/30">
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4">
-                            {subjects.map(sub => (
-                                <Link
-                                    to={`/admin/dashboard/subject/${sub}`}
-                                    key={sub}
-                                    className="bg-white p-6 rounded-2xl shadow-xs text-center font-black text-base transition border border-slate-200 text-slate-700 hover:shadow-md hover:border-navy hover:text-navy transform hover:-translate-y-1 flex flex-col items-center justify-center gap-3 group"
-                                >
-                                    <div className="w-14 h-14 rounded-2xl flex items-center justify-center overflow-hidden shadow-inner group-hover:scale-105 transition-transform duration-300 bg-slate-50 p-2 border border-slate-100">
-                                        <img
-                                            src={logoMap[sub] || '/physicslogo.jpeg'}
-                                            alt={sub}
-                                            className="w-full h-full object-contain"
-                                            onError={(e) => {
-                                                e.target.onerror = null;
-                                                e.target.parentNode.innerHTML = `<div class="bg-gray-50 text-gold w-full h-full flex items-center justify-center text-xl font-black">${sub.charAt(0)}</div>`;
-                                            }}
-                                        />
+                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 pt-4">
+                            {subjects.map(sub => {
+                                const subPapers = allPapers.filter(p => {
+                                    const s = String(p.subject || '').toLowerCase();
+                                    return s.includes(sub.toLowerCase()) || sub.toLowerCase().includes(s);
+                                });
+                                return (
+                                    <div
+                                        key={sub}
+                                        className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 flex flex-col justify-between hover:border-navy/50 hover:shadow-md transition duration-200"
+                                    >
+                                        {/* Header */}
+                                        <div>
+                                            <div className="flex items-center justify-between gap-3 mb-4 pb-3 border-b border-slate-100">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-12 h-12 rounded-xl flex items-center justify-center overflow-hidden bg-slate-50 p-1.5 border border-slate-100 shrink-0 shadow-inner">
+                                                        <img
+                                                            src={logoMap[sub] || '/physicslogo.jpeg'}
+                                                            alt={sub}
+                                                            className="w-full h-full object-contain"
+                                                            onError={(e) => {
+                                                                e.target.onerror = null;
+                                                                e.target.parentNode.innerHTML = `<div class="bg-gray-50 text-gold w-full h-full flex items-center justify-center text-lg font-black">${sub.charAt(0)}</div>`;
+                                                            }}
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <h4 className="font-black text-navy text-base tracking-tight">{sub}</h4>
+                                                        <span className="text-[11px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
+                                                            {subPapers.length} {subPapers.length === 1 ? 'Paper' : 'Papers'} Created
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* Papers List */}
+                                            <div className="space-y-2 mb-4 max-h-[260px] overflow-y-auto pr-1">
+                                                {subPapers.slice(0, 5).map(p => {
+                                                    const teacherName = p.creator?.name || p.teacherName || p.createdBy?.name || 'Faculty Member';
+                                                    const qCount = Array.isArray(p.questions) ? p.questions.length : 0;
+                                                    return (
+                                                        <div
+                                                            key={p._id || p.id}
+                                                            className="p-2.5 rounded-xl bg-slate-50 hover:bg-amber-50/50 border border-slate-100 hover:border-amber-200 transition text-left"
+                                                        >
+                                                            <div className="font-bold text-xs text-navy truncate" title={p.title || 'Assessment Paper'}>
+                                                                {p.title || `${sub} Question Paper`}
+                                                            </div>
+                                                            <div className="flex items-center justify-between text-[10px] text-slate-500 mt-1 font-medium">
+                                                                <span className="truncate max-w-[120px] font-semibold text-slate-700">👤 {teacherName}</span>
+                                                                <span>📝 {qCount} Qs</span>
+                                                            </div>
+                                                            <div className="flex items-center gap-1.5 mt-2 pt-1.5 border-t border-slate-200/60">
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => navigate(`/admin/dashboard/preview/${p._id || p.id}`)}
+                                                                    className="flex-1 bg-navy text-gold hover:bg-navy/90 py-1 px-2 rounded-lg text-[10px] font-black uppercase tracking-wider transition text-center cursor-pointer shadow-xs"
+                                                                >
+                                                                    👁 View Paper
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => setSelectedAnalysisPaper(p)}
+                                                                    className="bg-gold/20 hover:bg-gold text-navy py-1 px-2 rounded-lg text-[10px] font-black uppercase tracking-wider transition cursor-pointer"
+                                                                    title="View Paper Analysis"
+                                                                >
+                                                                    📊
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+
+                                                {subPapers.length === 0 && (
+                                                    <div className="py-8 text-center text-slate-400 text-xs font-semibold border border-dashed border-slate-200 rounded-xl bg-slate-50/50">
+                                                        No papers submitted yet
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        {/* Footer Link */}
+                                        <Link
+                                            to={`/admin/dashboard/subject/${sub}`}
+                                            className="mt-2 block text-center py-2 px-3 rounded-xl bg-slate-100 hover:bg-navy hover:text-gold text-navy text-xs font-black uppercase tracking-wider transition font-mono"
+                                        >
+                                            Open Department Archive →
+                                        </Link>
                                     </div>
-                                    <span>{sub}</span>
-                                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider group-hover:text-navy">
-                                        Open Repository →
-                                    </span>
-                                </Link>
-                            ))}
+                                );
+                            })}
                         </div>
                     </div>
                 )}

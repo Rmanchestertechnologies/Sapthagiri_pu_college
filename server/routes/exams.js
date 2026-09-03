@@ -344,7 +344,7 @@ router.get('/', [auth, checkRole(['admin'])], async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────────
-// STUDENT LAB PORTAL: Get all online CBT exams scheduled by admin
+// STUDENT LAB PORTAL: Get all online CBT exams selected by admin
 // GET /api/exams/lab-active
 // Public access for lab terminals
 // ─────────────────────────────────────────────────────────────────
@@ -353,10 +353,11 @@ router.get('/lab-active', async (req, res) => {
         const exams = await storage.getExams();
         const now = Date.now();
 
-        // Filter to online exams: exclude drafts/archived
+        // Filter to online exams: only exams where isOnlineVisible is true and not draft/archived
         const onlineExams = exams.filter(e => {
             const status = String(e.status || '').toLowerCase();
-            return status !== 'draft' && status !== 'archived';
+            const isVis = e.isOnlineVisible !== false && status !== 'draft' && status !== 'archived';
+            return isVis;
         });
 
         const safeList = onlineExams.map(e => {
@@ -375,6 +376,7 @@ router.get('/lab-active', async (req, res) => {
                 end_time: e.end_time || null,
                 totalQuestions: Array.isArray(e.questions) ? e.questions.length : (e.totalQuestions || 60),
                 status: e.status || 'live',
+                isOnlineVisible: e.isOnlineVisible !== false,
                 instructions: e.instructions || ''
             };
         });
@@ -386,6 +388,67 @@ router.get('/lab-active', async (req, res) => {
     } catch (err) {
         console.error('Lab Active Exams Error:', err.message);
         res.status(500).json({ msg: 'Server Error: ' + err.message });
+    }
+});
+
+// ─────────────────────────────────────────────────────────────────
+// ADMIN: Toggle Online Exam Visibility for an exam
+// PUT /api/exams/:id/toggle-online-visibility
+// ─────────────────────────────────────────────────────────────────
+router.put('/:id/toggle-online-visibility', [auth, checkRole(['admin'])], async (req, res) => {
+    try {
+        const exam = await storage.getExamById(req.params.id);
+        if (!exam) return res.status(404).json({ msg: 'Exam not found' });
+        
+        const currentVis = exam.isOnlineVisible !== false && exam.status !== 'draft' && exam.status !== 'archived';
+        const newVis = !currentVis;
+        const newStatus = newVis ? (exam.start_time ? 'scheduled' : 'live') : 'draft';
+        
+        const updated = await storage.updateExam(req.params.id, {
+            isOnlineVisible: newVis,
+            status: newStatus
+        });
+        res.json({ msg: `Exam online visibility updated to ${newVis ? 'Visible' : 'Hidden'}`, exam: updated });
+    } catch (err) {
+        console.error('Toggle visibility error:', err);
+        res.status(500).json({ msg: 'Server error: ' + err.message });
+    }
+});
+
+// ─────────────────────────────────────────────────────────────────
+// ADMIN: Create & publish an online CBT exam directly from a teacher paper
+// POST /api/exams/from-paper
+// ─────────────────────────────────────────────────────────────────
+router.post('/from-paper', [auth, checkRole(['admin'])], async (req, res) => {
+    try {
+        const { paperId, title, duration_minutes, start_time, end_time, instructions } = req.body;
+        if (!paperId) return res.status(400).json({ msg: 'Paper ID is required' });
+
+        const paper = await storage.getPaperById(paperId);
+        if (!paper) return res.status(404).json({ msg: 'Paper not found' });
+
+        const examTitle = title || paper.title || `${paper.subject} Online Examination`;
+        const qList = Array.isArray(paper.questions) ? paper.questions : [];
+
+        const newExam = await storage.createExam({
+            title: examTitle,
+            examType: paper.examType || (paper.classes && paper.classes.includes('NEET') ? 'NEET' : 'CET'),
+            classes: Array.isArray(paper.classes) ? paper.classes : ['12'],
+            duration_minutes: Number(duration_minutes) || paper.duration || 180,
+            start_time: start_time || null,
+            end_time: end_time || null,
+            instructions: instructions || paper.instructions || '',
+            questions: qList,
+            totalQuestions: qList.length,
+            status: 'live',
+            isOnlineVisible: true,
+            createdBy: req.user.id
+        });
+
+        res.json({ msg: 'Exam successfully created and enabled for Online CBT', exam: newExam });
+    } catch (err) {
+        console.error('Create from paper error:', err);
+        res.status(500).json({ msg: 'Server error: ' + err.message });
     }
 });
 

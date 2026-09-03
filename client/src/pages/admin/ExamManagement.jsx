@@ -821,6 +821,16 @@ export default function ExamManagement() {
         setLoading(false);
     };
 
+    const handleToggleOnlineVisibility = async (examId) => {
+        try {
+            const res = await api.put(`/api/exams/${examId}/toggle-online-visibility`);
+            setMsg(res.data.msg || 'Online exam visibility updated');
+            fetchExams();
+        } catch (e) {
+            setMsg(e.response?.data?.msg || 'Failed to toggle visibility');
+        }
+    };
+
     const handleDeleteExam = async (examId) => {
         if (!window.confirm('Are you sure you want to delete this exam? This will remove all student sessions as well.')) return;
         try {
@@ -945,45 +955,78 @@ export default function ExamManagement() {
                         <div style={styles.empty}>No online exams created yet. Click "Generate Composite Exam" to start.</div>
                     ) : (
                         <div style={styles.examGrid}>
-                            {exams.map(exam => (
-                                <div key={exam._id} style={styles.examCard}>
-                                    <div style={styles.examCardHeader}>
-                                        <span style={styles.examType}>{exam.examType}</span>
-                                        <span style={{ ...styles.statusBadge, background: STATUS_COLORS[exam.status] }}>
-                                            {exam.status.toUpperCase()}
-                                        </span>
-                                    </div>
-                                    <h3 style={styles.examCardTitle}>{exam.title}</h3>
-                                    <div style={styles.examMeta}>
-                                        <span>📝 {exam.questions?.length || 0} Questions</span>
-                                        <span>⏱ {exam.duration_minutes} min</span>
-                                    </div>
-                                    {exam.start_time && (
-                                        <div style={styles.examTime}>
-                                            🕐 {new Date(exam.start_time).toLocaleString()} → {exam.end_time ? new Date(exam.end_time).toLocaleString() : 'Open'}
+                            {exams.map(exam => {
+                                const isOnlineActive = exam.isOnlineVisible !== false && exam.status !== 'draft' && exam.status !== 'archived';
+                                return (
+                                    <div key={exam._id} style={styles.examCard}>
+                                        <div style={styles.examCardHeader}>
+                                            <span style={styles.examType}>{exam.examType}</span>
+                                            <span style={{ ...styles.statusBadge, background: STATUS_COLORS[exam.status] || '#16a34a' }}>
+                                                {exam.status.toUpperCase()}
+                                            </span>
                                         </div>
-                                    )}
-                                    {['scheduled', 'live'].includes(exam.status) && (
-                                        <ExamCountdown 
-                                            startTime={exam.start_time} 
-                                            endTime={exam.end_time} 
-                                            status={exam.status}
-                                            onZero={fetchExams}
-                                        />
-                                    )}
-                                    <div style={{ ...styles.examActions, marginTop: 12 }}>
-                                        <button style={styles.actionBtn} onClick={() => openConfigModal(exam)}>⚙️ Configure</button>
-                                        <button style={styles.actionBtn} onClick={() => copyShareLink(exam._id)}>🔗 Share Link</button>
-                                        <button style={{ ...styles.actionBtn, background: '#7c3aed' }}
-                                            onClick={() => window.open(`/admin/dashboard/results?examId=${exam._id}`, '_self')}>
-                                            📊 Results
-                                        </button>
-                                        <button style={{ ...styles.actionBtn, background: '#ef4444' }} onClick={() => handleDeleteExam(exam._id)}>
-                                            Delete
-                                        </button>
+                                        <h3 style={styles.examCardTitle}>{exam.title}</h3>
+                                        <div style={styles.examMeta}>
+                                            <span>📝 {exam.questions?.length || 0} Questions</span>
+                                            <span>⏱ {exam.duration_minutes} min</span>
+                                        </div>
+                                        {exam.start_time && (
+                                            <div style={styles.examTime}>
+                                                🕐 {new Date(exam.start_time).toLocaleString()} → {exam.end_time ? new Date(exam.end_time).toLocaleString() : 'Open'}
+                                            </div>
+                                        )}
+
+                                        {/* Quick Online Exam Visibility Switch */}
+                                        <div style={{ marginTop: 10, marginBottom: 4 }}>
+                                            <button
+                                                type="button"
+                                                onClick={() => handleToggleOnlineVisibility(exam._id)}
+                                                style={{
+                                                    width: '100%',
+                                                    padding: '8px 12px',
+                                                    borderRadius: '8px',
+                                                    fontSize: '11px',
+                                                    fontWeight: 800,
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'space-between',
+                                                    cursor: 'pointer',
+                                                    transition: 'all 0.2s',
+                                                    border: isOnlineActive ? '1.5px solid #16a34a' : '1.5px solid #94a3b8',
+                                                    background: isOnlineActive ? '#f0fdf4' : '#f8fafc',
+                                                    color: isOnlineActive ? '#15803d' : '#64748b'
+                                                }}
+                                                title="Click to toggle visibility on student online CBT portal"
+                                            >
+                                                <span>{isOnlineActive ? '🟢 Visible in Online Exam' : '⚪ Hidden from Students'}</span>
+                                                <span style={{ textDecoration: 'underline', fontSize: '10px' }}>
+                                                    {isOnlineActive ? 'Hide' : 'Enable'}
+                                                </span>
+                                            </button>
+                                        </div>
+
+                                        {['scheduled', 'live'].includes(exam.status) && (
+                                            <ExamCountdown 
+                                                startTime={exam.start_time} 
+                                                endTime={exam.end_time} 
+                                                status={exam.status}
+                                                onZero={fetchExams}
+                                            />
+                                        )}
+                                        <div style={{ ...styles.examActions, marginTop: 10 }}>
+                                            <button style={styles.actionBtn} onClick={() => openConfigModal(exam)}>⚙️ Configure</button>
+                                            <button style={styles.actionBtn} onClick={() => copyShareLink(exam._id)}>🔗 Link</button>
+                                            <button style={{ ...styles.actionBtn, background: '#7c3aed' }}
+                                                onClick={() => window.open(`/admin/dashboard/results?examId=${exam._id}`, '_self')}>
+                                                📊 Results
+                                            </button>
+                                            <button style={{ ...styles.actionBtn, background: '#ef4444' }} onClick={() => handleDeleteExam(exam._id)}>
+                                                Delete
+                                            </button>
+                                        </div>
                                     </div>
-                                </div>
-                            ))}
+                                );
+                            })}
                         </div>
                     )}
                 </div>

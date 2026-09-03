@@ -51,7 +51,7 @@ function getDynamicOptGrid(options = [], isTwoColMode = false) {
         // - Long formulas with mathematical operators (+, -, =)
         const complexMatch =
             /(\\frac|\\dfrac|\\vec|\\hat|\\sqrt|\\int|\\sum|\\prod|\\matrix|\\begin|\\rightarrow|\|)/i.test(clean) ||
-            (mathMatch && (clean.length > 12 || /(=|\+.*\-|\-.*\+|\^\{?\d+\}?.*_)/.test(clean)));
+            (mathMatch && (clean.length > 14 || /(=|\+.*\-|\-.*\+|\^\{?\d+\}?.*_)/.test(clean)));
 
         if (complexMatch) {
             hasComplexFormula = true;
@@ -74,8 +74,8 @@ function getDynamicOptGrid(options = [], isTwoColMode = false) {
             return {
                 display: 'grid',
                 gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-                gap: '4px 8px',
-                marginTop: '4px',
+                gap: '3px 6px',
+                marginTop: '3px',
                 alignItems: 'start',
             };
         }
@@ -83,8 +83,8 @@ function getDynamicOptGrid(options = [], isTwoColMode = false) {
         return {
             display: 'grid',
             gridTemplateColumns: `repeat(${Math.min(4, options.length)}, minmax(0, 1fr))`,
-            gap: '4px 12px',
-            marginTop: '4px',
+            gap: '3px 10px',
+            marginTop: '3px',
             alignItems: 'start',
         };
     }
@@ -93,35 +93,34 @@ function getDynamicOptGrid(options = [], isTwoColMode = false) {
 
     // ── TWO-COLUMN PAPER MODE (each column is ~350px wide) ──
     if (isTwoColMode) {
-        // If any option has a complex formula (vectors, fractions, etc.), ALWAYS stack 1-below-another
         if (hasComplexFormula) {
             return {
                 display: 'grid',
                 gridTemplateColumns: 'minmax(0, 1fr)',
-                gap: '4px 8px',
-                marginTop: '5px',
+                gap: '2px 6px',
+                marginTop: '3px',
                 alignItems: 'start',
             };
         }
 
-        // Extremely short scalar choices only (e.g. 0, 1, 2, 3 or A, B, C, D)
-        if (maxLen <= 4 && !hasAnyMath && options.length <= 4) {
+        // Short scalar choices (e.g. 0, 1, 2, 3 or A, B, C, D)
+        if (maxLen <= 5 && !hasAnyMath && options.length <= 4) {
             return {
                 display: 'grid',
                 gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))`,
-                gap: '3px 10px',
-                marginTop: '5px',
+                gap: '2px 8px',
+                marginTop: '3px',
                 alignItems: 'start',
             };
         }
 
-        // Medium options (e.g. "50 minutes", short expressions up to 18 chars): 2x2 grid
-        if (maxLen <= 18 && options.length <= 4) {
+        // Medium options (e.g. up to 22 chars): 2x2 grid
+        if (maxLen <= 22 && options.length <= 4) {
             return {
                 display: 'grid',
                 gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-                gap: '4px 12px',
-                marginTop: '5px',
+                gap: '2px 8px',
+                marginTop: '3px',
                 alignItems: 'start',
             };
         }
@@ -130,39 +129,39 @@ function getDynamicOptGrid(options = [], isTwoColMode = false) {
         return {
             display: 'grid',
             gridTemplateColumns: 'minmax(0, 1fr)',
-            gap: '4px 8px',
-            marginTop: '5px',
+            gap: '2px 6px',
+            marginTop: '3px',
             alignItems: 'start',
         };
     }
 
     // ── SINGLE-COLUMN PAPER MODE (full A4 width ~730px) ──
-    if (hasComplexFormula && maxLen > 24) {
+    if (hasComplexFormula && maxLen > 28) {
         return {
             display: 'grid',
             gridTemplateColumns: 'minmax(0, 1fr)',
-            gap: '4px 8px',
-            marginTop: '5px',
+            gap: '3px 6px',
+            marginTop: '3px',
             alignItems: 'start',
         };
     }
 
-    if (maxLen <= 10 && !hasComplexFormula && options.length <= 4) {
+    if (maxLen <= 16 && !hasComplexFormula && options.length <= 4) {
         return {
             display: 'grid',
             gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))`,
-            gap: '3px 18px',
-            marginTop: '5px',
+            gap: '2px 14px',
+            marginTop: '3px',
             alignItems: 'start',
         };
     }
 
-    if (maxLen <= 28 && options.length <= 4) {
+    if (maxLen <= 36 && options.length <= 4) {
         return {
             display: 'grid',
             gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-            gap: '4px 18px',
-            marginTop: '5px',
+            gap: '3px 14px',
+            marginTop: '3px',
             alignItems: 'start',
         };
     }
@@ -170,8 +169,8 @@ function getDynamicOptGrid(options = [], isTwoColMode = false) {
     return {
         display: 'grid',
         gridTemplateColumns: 'minmax(0, 1fr)',
-        gap: '4px 8px',
-        marginTop: '5px',
+        gap: '3px 6px',
+        marginTop: '3px',
         alignItems: 'start',
     };
 }
@@ -183,7 +182,7 @@ const Q = {
         breakInside: 'avoid',
         WebkitColumnBreakInside: 'avoid',
         pageBreakInside: 'avoid',
-        marginBottom: '11px',
+        marginBottom: '0px',
         color: '#111',
         fontSize: 'inherit',
         fontFamily: 'inherit',
@@ -239,7 +238,7 @@ const Q = {
     optRow: {
         display: 'flex',
         alignItems: 'baseline',
-        gap: '5px',
+        gap: '4px',
         wordBreak: 'normal',
         overflowWrap: 'break-word',
         minWidth: 0,
@@ -257,7 +256,7 @@ const Q = {
         whiteSpace: 'nowrap',
         minWidth: '22px',
         flexShrink: 0,
-        lineHeight: '1.45',
+        lineHeight: '1.42',
         color: '#222',
         fontSize: '1em',
     },
@@ -266,16 +265,16 @@ const Q = {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        gap: '16px',
-        marginTop: '4px',
+        gap: '12px',
+        marginTop: '3px',
     },
     sideLeftContent: {
         flex: '1 1 58%',
         minWidth: 0,
     },
     sideRightDiagram: {
-        flex: '0 0 38%',
-        maxWidth: '260px',
+        flex: '0 0 40%',
+        maxWidth: '270px',
         display: 'flex',
         justifyContent: 'center',
         alignItems: 'center',
@@ -475,7 +474,8 @@ function BodyMCQ({ q, classes, isTwoCol, diagramMaxHeight = '260px', onDiagramRe
     const isSideBySide = shouldRenderSideBySide(q, isTwoCol, imageUrl);
     const labels = getQuestionOptionLabels(q);
     const qId = q._id || q.id || displayNum;
-    const currentDiagramHeight = q.customDiagramHeight || diagramMaxHeight;
+    const currentDiagramHeight = q.customDiagramSizes?.['main'] || q.customDiagramHeight || diagramMaxHeight;
+    const isMainManual = Boolean(q.customDiagramSizes?.['main'] || q.customDiagramHeight);
 
     const hasAnyOptionImage = options.some(opt => {
         const str = String(typeof opt === 'object' ? (opt.text || opt.optionText || opt.value || opt.option || '') : (opt || ''));
@@ -489,12 +489,14 @@ function BodyMCQ({ q, classes, isTwoCol, diagramMaxHeight = '260px', onDiagramRe
             <div
                 style={
                     forceSingle
-                        ? { display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: '2px 6px', marginTop: '4px' }
+                        ? { display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: '2px 6px', marginTop: '3px' }
                         : getDynamicOptGrid(options, isTwoCol)
                 }
             >
                 {options.map((opt, i) => {
                     const optText = typeof opt === 'object' ? (opt.text || opt.optionText || opt.value || opt.option || '') : String(opt || '');
+                    const optHeight = q.customDiagramSizes?.[`opt_${i}`] || q.customOptionDiagramHeight || '80px';
+
                     return (
                         <div
                             key={i}
@@ -512,8 +514,11 @@ function BodyMCQ({ q, classes, isTwoCol, diagramMaxHeight = '260px', onDiagramRe
                                     inline
                                     text={optText}
                                     questionId={qId}
-                                    initialHeight={q.customOptionDiagramHeight || '80px'}
-                                    onSizeChange={onDiagramResize ? (h) => onDiagramResize(qId, h, `opt_${i}`) : undefined}
+                                    initialHeight={optHeight}
+                                    customDiagramSizes={q.customDiagramSizes}
+                                    isOption={true}
+                                    optionIndex={i}
+                                    onSizeChange={onDiagramResize ? (h, key) => onDiagramResize(qId, h, key || `opt_${i}`) : undefined}
                                 />
                             </span>
                         </div>
@@ -530,11 +535,13 @@ function BodyMCQ({ q, classes, isTwoCol, diagramMaxHeight = '260px', onDiagramRe
         return (
             <>
                 {qText && (
-                    <div style={{ ...Q.qTextBold, marginBottom: '4px' }}>
+                    <div style={{ ...Q.qTextBold, marginBottom: '3px' }}>
                         <MathRenderer
                             inline
                             text={qText}
                             questionId={qId}
+                            customDiagramSizes={q.customDiagramSizes}
+                            onSizeChange={onDiagramResize ? (h, key) => onDiagramResize(qId, h, key) : undefined}
                         />
                     </div>
                 )}
@@ -549,8 +556,8 @@ function BodyMCQ({ q, classes, isTwoCol, diagramMaxHeight = '260px', onDiagramRe
                             questionId={qId}
                             diagramKey="main"
                             initialHeight={currentDiagramHeight}
-                            isManual={Boolean(q.customDiagramHeight)}
-                            onSizeChange={onDiagramResize ? (h) => onDiagramResize(qId, h, 'main') : undefined}
+                            isManual={isMainManual}
+                            onSizeChange={onDiagramResize ? (h, key) => onDiagramResize(qId, h, key || 'main') : undefined}
                             maxWidth="100%"
                         />
                     </div>
@@ -563,24 +570,26 @@ function BodyMCQ({ q, classes, isTwoCol, diagramMaxHeight = '260px', onDiagramRe
     return (
         <>
             {qText && (
-                <div style={{ ...Q.qTextBold, marginBottom: imageUrl ? '4px' : '2px' }}>
+                <div style={{ ...Q.qTextBold, marginBottom: imageUrl ? '3px' : '2px' }}>
                     <MathRenderer
                         inline
                         text={qText}
                         questionId={qId}
+                        customDiagramSizes={q.customDiagramSizes}
+                        onSizeChange={onDiagramResize ? (h, key) => onDiagramResize(qId, h, key) : undefined}
                     />
                 </div>
             )}
             {imageUrl && (
-                <div style={{ textAlign: 'center', margin: '4px auto 6px', clear: 'both' }}>
+                <div style={{ textAlign: 'center', margin: '3px auto 5px', clear: 'both' }}>
                     <ResizableDiagram
                         src={imageUrl}
                         alt="Diagram"
                         questionId={qId}
                         diagramKey="main"
                         initialHeight={currentDiagramHeight}
-                        isManual={Boolean(q.customDiagramHeight)}
-                        onSizeChange={onDiagramResize ? (h) => onDiagramResize(qId, h, 'main') : undefined}
+                        isManual={isMainManual}
+                        onSizeChange={onDiagramResize ? (h, key) => onDiagramResize(qId, h, key || 'main') : undefined}
                         maxWidth="100%"
                     />
                 </div>
@@ -599,7 +608,8 @@ function BodyAssertionReason({ q, classes, isTwoCol, diagramMaxHeight = '260px',
     const rawQText = cleanQuestionText(q.questionText || q.question || '');
     const { cleanText: qText, diagramUrl: imageUrl } = extractDiagramFromText(rawQText, q.imageUrl || q.image_url);
     const qId = q._id || q.id || displayNum;
-    const currentDiagramHeight = q.customDiagramHeight || diagramMaxHeight;
+    const currentDiagramHeight = q.customDiagramSizes?.['main'] || q.customDiagramHeight || diagramMaxHeight;
+    const isMainManual = Boolean(q.customDiagramSizes?.['main'] || q.customDiagramHeight);
 
     // Check if there is introductory directions text BEFORE the word "Assertion"
     let introText = '';
@@ -615,11 +625,13 @@ function BodyAssertionReason({ q, classes, isTwoCol, diagramMaxHeight = '260px',
     return (
         <>
             {introText && (
-                <div style={{ ...Q.qTextBold, marginBottom: '6px', display: 'block' }}>
+                <div style={{ ...Q.qTextBold, marginBottom: '4px', display: 'block' }}>
                     <MathRenderer
                         inline
                         text={introText}
                         questionId={qId}
+                        customDiagramSizes={q.customDiagramSizes}
+                        onSizeChange={onDiagramResize ? (h, key) => onDiagramResize(qId, h, key) : undefined}
                     />
                 </div>
             )}
@@ -638,22 +650,22 @@ function BodyAssertionReason({ q, classes, isTwoCol, diagramMaxHeight = '260px',
                 </div>
             )}
             {imageUrl && (
-                <div style={{ textAlign: 'center', margin: '6px auto 8px', clear: 'both' }}>
+                <div style={{ textAlign: 'center', margin: '4px auto 6px', clear: 'both' }}>
                     <ResizableDiagram
                         src={imageUrl}
                         alt="Diagram"
                         questionId={qId}
                         diagramKey="main"
                         initialHeight={currentDiagramHeight}
-                        isManual={Boolean(q.customDiagramHeight)}
-                        onSizeChange={onDiagramResize ? (h) => onDiagramResize(qId, h, 'main') : undefined}
+                        isManual={isMainManual}
+                        onSizeChange={onDiagramResize ? (h, key) => onDiagramResize(qId, h, key || 'main') : undefined}
                         maxWidth="100%"
                     />
                 </div>
             )}
-            <div style={{ marginTop: '8px', ...getDynamicOptGrid(opts, isTwoCol) }}>
+            <div style={{ marginTop: '5px', ...getDynamicOptGrid(opts, isTwoCol) }}>
                 {opts.map((opt, i) => (
-                    <div key={i} style={{ ...Q.optRow, marginBottom: '3px' }}>
+                    <div key={i} style={{ ...Q.optRow, marginBottom: '2px' }}>
                         <span style={Q.optLbl}>({optionLabel(i, classes)})</span>
                         <span style={{ flex: 1, minWidth: 0, maxWidth: '100%', fontWeight: 400 }}>
                             <MathRenderer inline text={typeof opt === 'object' ? (opt.text || opt.option || '') : opt} />
@@ -674,29 +686,32 @@ function BodyMatchFollowing({ q, classes, isTwoCol, diagramMaxHeight = '260px', 
     const rawQText = cleanQuestionText(q.questionText || q.question || '');
     const { cleanText: qText, diagramUrl: imageUrl } = extractDiagramFromText(rawQText, q.imageUrl || q.image_url);
     const qId = q._id || q.id || displayNum;
-    const currentDiagramHeight = q.customDiagramHeight || diagramMaxHeight;
+    const currentDiagramHeight = q.customDiagramSizes?.['main'] || q.customDiagramHeight || diagramMaxHeight;
+    const isMainManual = Boolean(q.customDiagramSizes?.['main'] || q.customDiagramHeight);
 
     return (
         <>
             {qText && (
-                <div style={{ ...Q.qTextBold, marginBottom: '4px' }}>
+                <div style={{ ...Q.qTextBold, marginBottom: '3px' }}>
                     <MathRenderer
                         inline
                         text={qText}
                         questionId={qId}
+                        customDiagramSizes={q.customDiagramSizes}
+                        onSizeChange={onDiagramResize ? (h, key) => onDiagramResize(qId, h, key) : undefined}
                     />
                 </div>
             )}
             {imageUrl && (
-                <div style={{ textAlign: 'center', margin: '4px auto 6px', clear: 'both' }}>
+                <div style={{ textAlign: 'center', margin: '3px auto 5px', clear: 'both' }}>
                     <ResizableDiagram
                         src={imageUrl}
                         alt="Diagram"
                         questionId={qId}
                         diagramKey="main"
                         initialHeight={currentDiagramHeight}
-                        isManual={Boolean(q.customDiagramHeight)}
-                        onSizeChange={onDiagramResize ? (h) => onDiagramResize(qId, h, 'main') : undefined}
+                        isManual={isMainManual}
+                        onSizeChange={onDiagramResize ? (h, key) => onDiagramResize(qId, h, key || 'main') : undefined}
                         maxWidth="100%"
                     />
                 </div>
@@ -754,21 +769,24 @@ function BodyStatementBased({ q, classes, isTwoCol, diagramMaxHeight = '260px', 
     const { cleanText: qText, diagramUrl: imageUrl } = extractDiagramFromText(rawQText, q.imageUrl || q.image_url);
     const labels = getQuestionOptionLabels(q);
     const qId = q._id || q.id || displayNum;
-    const currentDiagramHeight = q.customDiagramHeight || diagramMaxHeight;
+    const currentDiagramHeight = q.customDiagramSizes?.['main'] || q.customDiagramHeight || diagramMaxHeight;
+    const isMainManual = Boolean(q.customDiagramSizes?.['main'] || q.customDiagramHeight);
 
     return (
         <>
             {qText && (
-                <div style={{ ...Q.qTextBold, marginBottom: '4px' }}>
+                <div style={{ ...Q.qTextBold, marginBottom: '3px' }}>
                     <MathRenderer
                         inline
                         text={qText}
                         questionId={qId}
+                        customDiagramSizes={q.customDiagramSizes}
+                        onSizeChange={onDiagramResize ? (h, key) => onDiagramResize(qId, h, key) : undefined}
                     />
                 </div>
             )}
             {statements.length > 0 && (
-                <div style={{ borderLeft: '2px solid #666', paddingLeft: '8px', margin: '4px 0 6px' }}>
+                <div style={{ borderLeft: '2px solid #666', paddingLeft: '8px', margin: '3px 0 5px' }}>
                     {statements.map((stmt, si) => (
                         <div key={si} style={{ marginBottom: '2px', fontWeight: 400 }}>
                             <span>Statement {si + 1}:</span> <MathRenderer inline text={stmt} />
@@ -777,15 +795,15 @@ function BodyStatementBased({ q, classes, isTwoCol, diagramMaxHeight = '260px', 
                 </div>
             )}
             {imageUrl && (
-                <div style={{ textAlign: 'center', margin: '4px auto 6px', clear: 'both' }}>
+                <div style={{ textAlign: 'center', margin: '3px auto 5px', clear: 'both' }}>
                     <ResizableDiagram
                         src={imageUrl}
                         alt="Diagram"
                         questionId={qId}
                         diagramKey="main"
                         initialHeight={currentDiagramHeight}
-                        isManual={Boolean(q.customDiagramHeight)}
-                        onSizeChange={onDiagramResize ? (h) => onDiagramResize(qId, h, 'main') : undefined}
+                        isManual={isMainManual}
+                        onSizeChange={onDiagramResize ? (h, key) => onDiagramResize(qId, h, key || 'main') : undefined}
                         maxWidth="100%"
                     />
                 </div>
@@ -827,7 +845,7 @@ export default function QuestionBlock({
 
     const activeFontSize = q.fontSize || fontSize;
     const qType = (q.type || q.q_type || 'MCQ').toUpperCase();
-    const effectiveIsTwoCol = Boolean(isTwoCol || singleColMode);
+    const effectiveIsTwoCol = Boolean(isTwoCol);
 
     const renderBody = () => {
         if (qType.includes('ASSERTION')) {

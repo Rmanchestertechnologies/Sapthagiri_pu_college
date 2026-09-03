@@ -141,13 +141,14 @@ const AdminPaperPreview = () => {
                                     (q.id && String(q.id) === String(qIdOrNum)) ||
                                     (idx + 1 === Number(qIdOrNum));
                     if (!isMatch) return q;
+                    const nextSizes = {
+                        ...(q.customDiagramSizes || {}),
+                        [diagramKey]: newHeight,
+                    };
                     return {
                         ...q,
-                        customDiagramHeight: newHeight,
-                        customDiagramSizes: {
-                            ...(q.customDiagramSizes || {}),
-                            [diagramKey]: newHeight,
-                        }
+                        ...(diagramKey === 'main' ? { customDiagramHeight: newHeight } : {}),
+                        customDiagramSizes: nextSizes,
                     };
                 })
             };
