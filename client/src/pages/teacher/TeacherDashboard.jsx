@@ -431,20 +431,9 @@ const TeacherDashboard = () => {
 
     const navItems = [
         {
-            group: 'Paper Creation & Management',
+            group: 'Archives & Reference Papers',
             items: [
-                { title: 'Create Paper', path: '/teacher/create-paper', icon: '✍️', desc: 'Step-by-step paper generator wizard' },
-                { title: 'Question Bank', path: '/teacher/dashboard/add-question', icon: '📚', desc: 'Manage subject question repository' },
-                { title: 'Assignments Generator', path: '/teacher/dashboard/assignments', icon: '📝', desc: 'Practice worksheets & answer keys' },
-                { title: 'Saved Papers', path: '/teacher/dashboard/saved-papers', icon: '📁', desc: 'Document archives & print exports' }
-            ]
-        },
-        {
-            group: 'Institutional Archives & Evaluation',
-            items: [
-                { title: 'Grand Test Papers', path: '/teacher/dashboard/grand-tests', icon: '🏆', desc: 'Archive of official grand tests' },
-                { title: 'Previous Year Papers', path: '/teacher/dashboard/previous-year-papers', icon: '📑', desc: 'Official PYQs repository & keys' },
-                ...(hasOmr ? [{ title: 'OMR Evaluation', path: '/teacher/dashboard/omr', icon: '📑', desc: 'OMR scanner & score evaluation' }] : [])
+                { title: 'Previous Year Papers (PYQs)', path: '/teacher/dashboard/previous-year-papers', icon: '📑', desc: 'Official question papers & answer keys repository' }
             ]
         }
     ];
