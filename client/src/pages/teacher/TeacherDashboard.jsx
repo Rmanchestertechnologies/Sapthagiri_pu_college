@@ -416,7 +416,10 @@ const TeacherDashboard = () => {
     const { user, logout } = useContext(AuthContext);
     const navigate = useNavigate();
     const location = useLocation();
+    const [isSideboxOpen, setIsSideboxOpen] = useState(false);
     const [showTemplateCart, setShowTemplateCart] = useState(false);
+
+    const hasOmr = Boolean(user?.role === 'admin' || user?.omrAccess || user?.omr_access);
 
     const logoMap = {
         'Physics': '/physicslogo.jpeg',
@@ -426,41 +429,167 @@ const TeacherDashboard = () => {
         'Mathematics': '/mathslogo.jpeg',
     };
 
+    const navItems = [
+        {
+            group: 'Paper Creation & Management',
+            items: [
+                { title: 'Create Paper', path: '/teacher/create-paper', icon: '✍️', desc: 'Step-by-step paper generator wizard' },
+                { title: 'Question Bank', path: '/teacher/dashboard/add-question', icon: '📚', desc: 'Manage subject question repository' },
+                { title: 'Assignments Generator', path: '/teacher/dashboard/assignments', icon: '📝', desc: 'Practice worksheets & answer keys' },
+                { title: 'Saved Papers', path: '/teacher/dashboard/saved-papers', icon: '📁', desc: 'Document archives & print exports' }
+            ]
+        },
+        {
+            group: 'Institutional Archives & Evaluation',
+            items: [
+                { title: 'Grand Test Papers', path: '/teacher/dashboard/grand-tests', icon: '🏆', desc: 'Archive of official grand tests' },
+                { title: 'Previous Year Papers', path: '/teacher/dashboard/previous-year-papers', icon: '📑', desc: 'Official PYQs repository & keys' },
+                ...(hasOmr ? [{ title: 'OMR Evaluation', path: '/teacher/dashboard/omr', icon: '📑', desc: 'OMR scanner & score evaluation' }] : [])
+            ]
+        }
+    ];
+
     return (
         <div className="min-h-screen bg-background flex flex-col font-sans">
+
+            {/* ── RIGHT-SIDE SLIDE-OVER SIDEBOX DRAWER ── */}
+            <div className={`fixed inset-0 z-50 transition-all duration-300 ${isSideboxOpen ? 'visible pointer-events-auto' : 'invisible pointer-events-none'}`}>
+                {/* Backdrop Overlay */}
+                <div 
+                    onClick={() => setIsSideboxOpen(false)}
+                    className={`absolute inset-0 bg-slate-950/60 backdrop-blur-sm transition-opacity duration-300 ${isSideboxOpen ? 'opacity-100' : 'opacity-0'}`}
+                />
+
+                {/* Sidebox Panel (Slides in from RIGHT) */}
+                <aside className={`absolute top-0 right-0 h-full w-88 max-w-[85vw] bg-[#071738] text-white shadow-2xl border-l-4 border-amber-400 flex flex-col justify-between transition-transform duration-300 ease-out ${isSideboxOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+                    <div>
+                        {/* Sidebox Top Brand Bar */}
+                        <div className="p-5 border-b border-white/10 flex items-center justify-between bg-black/20">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-xl bg-white p-1 border border-amber-400/50 shadow-md flex items-center justify-center">
+                                    <img src="/SapthagiriLogo.jpg" alt="Logo" className="w-full h-full object-contain rounded-lg" />
+                                </div>
+                                <div>
+                                    <h2 className="text-sm font-black uppercase tracking-tight text-white leading-none">Sapthagiri PU College</h2>
+                                    <span className="text-[10px] text-amber-400 font-extrabold uppercase tracking-widest mt-1 block">Faculty Dashboard Menu</span>
+                                </div>
+                            </div>
+                            <button 
+                                onClick={() => setIsSideboxOpen(false)}
+                                className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white flex items-center justify-center text-sm font-bold transition cursor-pointer"
+                                title="Close Menu"
+                            >
+                                ✕
+                            </button>
+                        </div>
+
+                        {/* Navigation Options List */}
+                        <div className="p-4 space-y-5 overflow-y-auto max-h-[calc(100vh-180px)]">
+                            {navItems.map((group, gIdx) => (
+                                <div key={gIdx}>
+                                    <span className="text-[10px] font-black uppercase tracking-[0.2em] text-amber-400/70 px-3 block mb-2">
+                                        {group.group}
+                                    </span>
+                                    <div className="space-y-1">
+                                        {group.items.map((item, iIdx) => {
+                                            const isActive = location.pathname.includes(item.path.split('/').pop());
+
+                                            return (
+                                                <button
+                                                    key={iIdx}
+                                                    onClick={() => {
+                                                        navigate(item.path);
+                                                        setIsSideboxOpen(false);
+                                                    }}
+                                                    className={`w-full flex items-center gap-3.5 px-3.5 py-2.5 rounded-xl text-left transition cursor-pointer ${
+                                                        isActive
+                                                            ? 'bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 font-black shadow-md'
+                                                            : 'text-slate-300 hover:bg-white/10 hover:text-white'
+                                                    }`}
+                                                >
+                                                    <span className="text-lg leading-none">{item.icon}</span>
+                                                    <div className="min-w-0 flex-1">
+                                                        <div className={`text-xs font-bold leading-tight ${isActive ? 'text-slate-950' : 'text-white'}`}>
+                                                            {item.title}
+                                                        </div>
+                                                        <div className={`text-[10px] truncate mt-0.5 ${isActive ? 'text-slate-900/80 font-semibold' : 'text-slate-400'}`}>
+                                                            {item.desc}
+                                                        </div>
+                                                    </div>
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            ))}
+
+                            {/* Template Cart Trigger */}
+                            <div>
+                                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-amber-400/70 px-3 block mb-2">
+                                    Templates
+                                </span>
+                                <button
+                                    onClick={() => {
+                                        setIsSideboxOpen(false);
+                                        setShowTemplateCart(true);
+                                    }}
+                                    className="w-full flex items-center gap-3.5 px-3.5 py-2.5 rounded-xl text-left transition cursor-pointer text-slate-300 hover:bg-white/10 hover:text-white"
+                                >
+                                    <span className="text-lg leading-none">🖼️</span>
+                                    <div className="min-w-0 flex-1">
+                                        <div className="text-xs font-bold leading-tight text-white">
+                                            Institutional Templates
+                                        </div>
+                                        <div className="text-[10px] truncate mt-0.5 text-slate-400">
+                                            Browse approved header template graphics
+                                        </div>
+                                    </div>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Sidebox Bottom User & Logout */}
+                    <div className="p-4 border-t border-white/10 bg-black/30 flex items-center justify-between">
+                        <div className="flex items-center gap-2.5">
+                            <div className="w-8 h-8 rounded-full bg-amber-400 text-slate-950 font-black text-xs flex items-center justify-center shadow">
+                                {user?.subject ? user.subject.substring(0, 2).toUpperCase() : 'FC'}
+                            </div>
+                            <div>
+                                <div className="text-xs font-black text-white leading-tight">{user?.name || 'Faculty Member'}</div>
+                                <div className="text-[10px] text-amber-400 font-mono">{user?.subject || 'PCMB'} Department</div>
+                            </div>
+                        </div>
+                        <button
+                            onClick={() => { logout(); navigate('/'); }}
+                            className="bg-rose-500/20 text-rose-400 hover:bg-rose-600 hover:text-white px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition cursor-pointer"
+                        >
+                            Logout
+                        </button>
+                    </div>
+                </aside>
+            </div>
+
             {/* Top Navigation Bar - Sapthagiri Navy & Gold */}
             <nav className="bg-[#081B3B] px-6 py-3.5 text-white flex justify-between items-center z-10 shadow-2xl border-b-4 border-amber-500">
-                <div className="flex items-center gap-3.5">
-                    {/* LEFT SIDE HAMBURGER MENU BUTTON */}
-                    <button
-                        id="teacher-template-cart-btn"
-                        onClick={() => setShowTemplateCart(true)}
-                        title="Browse Templates"
-                        className="relative bg-gold text-navy w-10 h-10 rounded-xl flex items-center justify-center font-black text-lg hover:scale-105 transition-all shadow-md cursor-pointer"
-                    >
-                        <span className="text-xl leading-none">☰</span>
-                        <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[8px] font-black w-4 h-4 rounded-full flex items-center justify-center leading-none">T</span>
-                    </button>
-
-                    <div
-                        className="flex items-center cursor-pointer hover:opacity-80 transition gap-3"
-                        onClick={() => navigate('/teacher/dashboard')}
-                    >
-                        <div className="w-10 h-10 flex items-center justify-center shadow-lg bg-white rounded-xl p-1 border-2 border-amber-400">
-                            <img src="/SapthagiriLogo.jpg" alt="Sapthagiri PU College" className="w-full h-full object-contain rounded-lg" />
-                        </div>
-                        <div className="flex flex-col">
-                            <h1 className="text-base font-black tracking-tight uppercase leading-tight text-white">
-                                Sapthagiri PU College
-                            </h1>
-                            <div className="flex items-center gap-2 mt-0.5">
-                                {user?.subject && logoMap[user.subject] && (
-                                    <img src={logoMap[user.subject]} alt={user.subject} className="w-4 h-4 object-contain rounded-sm" />
-                                )}
-                                <span className="text-[10px] font-black text-amber-400 uppercase tracking-widest">
-                                    Faculty Portal • {user?.subject || 'PCMB'}
-                                </span>
-                            </div>
+                <div
+                    className="flex items-center cursor-pointer hover:opacity-80 transition gap-3"
+                    onClick={() => navigate('/teacher/dashboard')}
+                >
+                    <div className="w-10 h-10 flex items-center justify-center shadow-lg bg-white rounded-xl p-1 border-2 border-amber-400">
+                        <img src="/SapthagiriLogo.jpg" alt="Sapthagiri PU College" className="w-full h-full object-contain rounded-lg" />
+                    </div>
+                    <div className="flex flex-col">
+                        <h1 className="text-base font-black tracking-tight uppercase leading-tight text-white">
+                            Sapthagiri PU College
+                        </h1>
+                        <div className="flex items-center gap-2 mt-0.5">
+                            {user?.subject && logoMap[user.subject] && (
+                                <img src={logoMap[user.subject]} alt={user.subject} className="w-4 h-4 object-contain rounded-sm" />
+                            )}
+                            <span className="text-[10px] font-black text-amber-400 uppercase tracking-widest">
+                                Faculty Portal • {user?.subject || 'PCMB'}
+                            </span>
                         </div>
                     </div>
                 </div>
@@ -501,7 +630,7 @@ const TeacherDashboard = () => {
                     </Link>
 
                     {/* Conditional OMR Tab */}
-                    {(user?.role === 'admin' || user?.omrAccess || user?.omr_access) && (
+                    {hasOmr && (
                         <Link
                             to="/teacher/dashboard/omr"
                             className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition flex items-center gap-1 ${
@@ -517,6 +646,18 @@ const TeacherDashboard = () => {
 
                     {/* Teacher Notification Bell */}
                     <TeacherNotificationBell />
+
+                    {/* RIGHT-SIDE HAMBURGER MENU BUTTON */}
+                    <button
+                        onClick={() => setIsSideboxOpen(true)}
+                        title="Open Faculty Dashboard Menu"
+                        className="relative bg-amber-400 text-slate-950 hover:bg-amber-300 w-10 h-10 rounded-xl flex items-center justify-center font-black text-lg hover:scale-105 transition shadow-lg cursor-pointer"
+                    >
+                        <span className="text-xl leading-none">☰</span>
+                        <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[8px] font-black w-4 h-4 rounded-full flex items-center justify-center leading-none">
+                            T
+                        </span>
+                    </button>
 
                     <div className="w-px h-7 bg-gold/20 mx-1"></div>
                     <button
