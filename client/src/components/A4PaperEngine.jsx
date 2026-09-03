@@ -178,28 +178,30 @@ export default function A4PaperEngine({
                 .a4-cover-page {
                     page-break-after: always;
                     break-after: page;
-                    margin-bottom: 32px;
+                    margin-bottom: 24px;
                 }
                 .a4-page-content {
                     padding: ${settings.marginTop || '10mm'} ${settings.marginRight || '12mm'} ${settings.marginBottom || '10mm'} ${settings.marginLeft || '12mm'};
                     box-sizing: border-box;
                     color: #000000;
+                    position: relative;
+                    z-index: 1;
                 }
                 .a4-subtle-running-header {
                     display: flex;
-                    justifyContent: space-between;
+                    justify-content: space-between;
                     align-items: center;
                     border-bottom: 1.5px solid #000;
                     padding-bottom: 4px;
-                    margin-bottom: 12px;
+                    margin-bottom: 10px;
                 }
                 .a4-page-bottom-marker {
-                    margin-top: 24px;
+                    margin-top: 16px;
                     display: flex;
-                    justifyContent: space-between;
+                    justify-content: space-between;
                     align-items: center;
                     border-top: 1.5px solid #000;
-                    padding-top: 5px;
+                    padding-top: 4px;
                     font-size: 11px;
                     color: #222;
                 }
@@ -207,20 +209,20 @@ export default function A4PaperEngine({
                     text-align: center;
                     font-weight: 700;
                     font-size: 12px;
-                    padding: 8px 0;
+                    padding: 6px 0;
                     border-top: 1px solid #bbb;
-                    margin-top: 16px;
+                    margin-top: 12px;
                     break-inside: avoid;
                     page-break-inside: avoid;
                 }
                 .question-print-item {
-                    display: inline-block !important;
+                    display: block !important;
                     width: 100% !important;
-                    break-inside: avoid !important;
-                    -webkit-column-break-inside: avoid !important;
-                    page-break-inside: avoid !important;
-                    vertical-align: top;
                     box-sizing: border-box;
+                    position: relative;
+                    z-index: 1;
+                    orphans: 2;
+                    widows: 2;
                 }
                 .math-renderer.inline-math {
                     display: inline !important;
@@ -232,10 +234,18 @@ export default function A4PaperEngine({
                 .resizable-diagram-wrap {
                     width: 100% !important;
                     text-align: center !important;
-                    margin: 4px 0 !important;
+                    margin: 2px 0 !important;
+                    break-inside: avoid !important;
+                    page-break-inside: avoid !important;
+                    position: relative;
+                    z-index: 2;
                 }
                 .resizable-diagram-wrap img {
                     max-width: 100% !important;
+                    height: auto !important;
+                    background-color: #ffffff !important;
+                    position: relative !important;
+                    z-index: 2 !important;
                 }
                 .diagram-resize-toolbar {
                     display: flex !important;
@@ -279,6 +289,8 @@ export default function A4PaperEngine({
                         -webkit-print-color-adjust: exact !important;
                         print-color-adjust: exact !important;
                     }
+
+                    /* Watermark in print: Fixed viewport background layer on every page */
                     body:not(.printing-answer-key):not(.printing-solution-key) .a4-watermark-wrapper,
                     body:not(.printing-answer-key):not(.printing-solution-key) .a4-watermark-wrapper * {
                         visibility: visible !important;
@@ -300,13 +312,15 @@ export default function A4PaperEngine({
                         print-color-adjust: exact !important;
                     }
                     body:not(.printing-answer-key):not(.printing-solution-key) .a4-watermark-logo {
-                        width: 360px !important;
-                        height: 360px !important;
+                        width: 340px !important;
+                        height: 340px !important;
                         object-fit: contain !important;
                         border-radius: 50% !important;
-                        opacity: 0.08 !important;
+                        opacity: 0.045 !important;
+                        filter: grayscale(100%) !important;
                         display: block !important;
                         visibility: visible !important;
+                        pointer-events: none !important;
                         -webkit-print-color-adjust: exact !important;
                         print-color-adjust: exact !important;
                     }
@@ -380,6 +394,7 @@ export default function A4PaperEngine({
                         padding: 0 !important;
                         width: 100% !important;
                         min-height: auto !important;
+                        height: auto !important;
                         overflow: visible !important;
                     }
                     .a4-questions-page {
@@ -392,21 +407,37 @@ export default function A4PaperEngine({
                     .a4-page-content {
                         padding: 0 !important;
                         overflow: visible !important;
+                        position: relative !important;
+                        z-index: 1 !important;
                     }
                     .no-print {
                         display: none !important;
                     }
                     .resizable-diagram-wrap {
                         margin: 2px auto !important;
+                        break-inside: avoid !important;
+                        page-break-inside: avoid !important;
                     }
                     .resizable-diagram-wrap img {
                         box-shadow: none !important;
                         outline: none !important;
                         border: none !important;
+                        background-color: #ffffff !important;
+                        position: relative !important;
+                        z-index: 2 !important;
                     }
                     .question-print-item {
-                        break-inside: avoid !important;
-                        page-break-inside: avoid !important;
+                        display: block !important;
+                        width: 100% !important;
+                        break-inside: auto !important;
+                        orphans: 2 !important;
+                        widows: 2 !important;
+                        position: relative !important;
+                        z-index: 1 !important;
+                    }
+                    .a4-questions-flow {
+                        orphans: 2 !important;
+                        widows: 2 !important;
                     }
                 }
             `}</style>
