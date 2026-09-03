@@ -1101,7 +1101,7 @@ const AdminDashboard = () => {
     return (
         <div className="min-h-screen bg-[#F8FAFC] flex flex-col font-sans">
 
-            {/* ── SLIDE-OVER SIDEBOX DRAWER ── */}
+            {/* ── RIGHT-SIDE SLIDE-OVER SIDEBOX DRAWER ── */}
             <div className={`fixed inset-0 z-50 transition-all duration-300 ${isSideboxOpen ? 'visible pointer-events-auto' : 'invisible pointer-events-none'}`}>
                 {/* Backdrop Overlay */}
                 <div 
@@ -1109,8 +1109,8 @@ const AdminDashboard = () => {
                     className={`absolute inset-0 bg-slate-950/60 backdrop-blur-sm transition-opacity duration-300 ${isSideboxOpen ? 'opacity-100' : 'opacity-0'}`}
                 />
 
-                {/* Sidebox Panel */}
-                <aside className={`absolute top-0 left-0 h-full w-84 max-w-[85vw] bg-[#071738] text-white shadow-2xl border-r border-amber-400/20 flex flex-col justify-between transition-transform duration-300 ease-out ${isSideboxOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+                {/* Sidebox Panel (Slides in from RIGHT) */}
+                <aside className={`absolute top-0 right-0 h-full w-88 max-w-[85vw] bg-[#071738] text-white shadow-2xl border-l-4 border-amber-400 flex flex-col justify-between transition-transform duration-300 ease-out ${isSideboxOpen ? 'translate-x-0' : 'translate-x-full'}`}>
                     <div>
                         {/* Sidebox Top Brand Bar */}
                         <div className="p-5 border-b border-white/10 flex items-center justify-between bg-black/20">
@@ -1120,13 +1120,13 @@ const AdminDashboard = () => {
                                 </div>
                                 <div>
                                     <h2 className="text-sm font-black uppercase tracking-tight text-white leading-none">Sapthagiri PU College</h2>
-                                    <span className="text-[10px] text-amber-400 font-extrabold uppercase tracking-widest mt-1 block">Navigation Sidebox</span>
+                                    <span className="text-[10px] text-amber-400 font-extrabold uppercase tracking-widest mt-1 block">Admin Console Menu</span>
                                 </div>
                             </div>
                             <button 
                                 onClick={() => setIsSideboxOpen(false)}
                                 className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white flex items-center justify-center text-sm font-bold transition cursor-pointer"
-                                title="Close Sidebox"
+                                title="Close Menu"
                             >
                                 ✕
                             </button>
@@ -1197,50 +1197,117 @@ const AdminDashboard = () => {
                 </aside>
             </div>
 
-            {/* ── TOP APP BAR — ULTRA CLEAN & MINIMALIST ── */}
-            <nav className="bg-gradient-to-r from-[#071738] via-[#081B3B] to-[#071738] px-6 py-3.5 text-white flex justify-between items-center z-40 sticky top-0 shadow-md border-b border-amber-400/20 backdrop-blur-md">
-                <div className="flex items-center gap-4">
-                    {/* SIDEBOX TOGGLE BUTTON */}
-                    <button
-                        onClick={() => setIsSideboxOpen(true)}
-                        className="flex items-center gap-2 bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider hover:scale-105 active:scale-95 transition-all shadow-md cursor-pointer"
-                        title="Open Menu Sidebox"
-                    >
-                        <span className="text-base leading-none">☰</span>
-                        <span>Menu</span>
-                    </button>
-
-                    <div 
-                        className="flex items-center cursor-pointer hover:opacity-90 transition gap-3"
-                        onClick={() => navigate('/admin/dashboard')}
-                    >
-                        <div className="w-9 h-9 flex items-center justify-center shadow-md bg-white rounded-xl p-1 border border-amber-400/50">
-                            <img src="/SapthagiriLogo.jpg" alt="Logo" className="w-full h-full object-contain rounded-lg" />
-                        </div>
-                        <div>
-                            <h1 className="text-sm font-black tracking-tight uppercase leading-tight text-white flex items-center gap-2">
-                                <span>Sapthagiri PU College</span>
-                                <span className="bg-white/10 text-amber-300 text-[9px] font-black px-2 py-0.5 rounded-md uppercase tracking-wider hidden sm:inline-block">
-                                    Admin
-                                </span>
-                            </h1>
-                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest hidden md:block">
-                                {getCurrentPageTitle()}
-                            </p>
-                        </div>
+            {/* ── TOP APP BAR — SAPTHAGIRI NAVY & GOLD WITH RIGHT-ALIGNED DASHBOARD CONTROLS ── */}
+            <nav className="bg-[#081B3B] px-6 py-3.5 text-white flex justify-between items-center z-40 sticky top-0 shadow-2xl border-b-4 border-amber-500 backdrop-blur-md">
+                {/* Left Brand Area */}
+                <div 
+                    className="flex items-center cursor-pointer hover:opacity-90 transition gap-3"
+                    onClick={() => navigate('/admin/dashboard')}
+                >
+                    <div className="w-10 h-10 flex items-center justify-center shadow-lg bg-white rounded-xl p-1 border-2 border-amber-400">
+                        <img src="/SapthagiriLogo.jpg" alt="Logo" className="w-full h-full object-contain rounded-lg" />
+                    </div>
+                    <div>
+                        <h1 className="text-base font-black tracking-tight uppercase leading-tight text-white flex items-center gap-2">
+                            <span>Sapthagiri PU College</span>
+                            <span className="bg-amber-500 text-slate-950 text-[9px] font-black px-2 py-0.5 rounded-md uppercase tracking-wider">
+                                Admin Portal
+                            </span>
+                        </h1>
+                        <p className="text-[10px] font-bold text-amber-400 uppercase tracking-widest">
+                            {getCurrentPageTitle()}
+                        </p>
                     </div>
                 </div>
 
-                {/* Right Controls */}
-                <div className="flex items-center gap-3">
-                    {/* Notification Bell */}
+                {/* Right Navigation & Dashboard Menu Controls */}
+                <div className="flex items-center gap-2.5">
+                    {location.pathname !== '/admin/dashboard' && location.pathname !== '/admin/dashboard/' && (
+                        <button
+                            onClick={() => navigate('/admin/dashboard')}
+                            className="bg-white/5 border border-amber-400/30 text-amber-400 px-3.5 py-1.5 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-white/10 transition flex items-center gap-1.5 cursor-pointer mr-1"
+                        >
+                            <span>←</span> Back
+                        </button>
+                    )}
+
+                    <Link
+                        to="/admin/dashboard/omr"
+                        className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition flex items-center gap-1 hidden md:flex ${
+                            location.pathname.includes('omr')
+                                ? 'bg-emerald-500 text-white shadow-md'
+                                : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 hover:bg-emerald-500/30'
+                        }`}
+                    >
+                        <span>📑</span>
+                        <span>OMR</span>
+                    </Link>
+
+                    <Link
+                        to="/admin/dashboard/cbt-exams"
+                        className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition hidden lg:inline-block ${
+                            location.pathname.includes('cbt-exams')
+                                ? 'bg-amber-400 text-slate-950 shadow-md font-black'
+                                : 'bg-white/5 text-amber-400 border border-amber-400/30 hover:bg-white/10'
+                        }`}
+                    >
+                        CBT Exams
+                    </Link>
+
+                    <Link
+                        to="/admin/dashboard/results"
+                        className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition hidden lg:inline-block ${
+                            location.pathname.includes('results')
+                                ? 'bg-amber-400 text-slate-950 shadow-md font-black'
+                                : 'bg-white/5 text-amber-400 border border-amber-400/30 hover:bg-white/10'
+                        }`}
+                    >
+                        Results
+                    </Link>
+
+                    <Link
+                        to="/admin/dashboard/grand-tests"
+                        className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition hidden sm:inline-block ${
+                            location.pathname.includes('grand-tests')
+                                ? 'bg-amber-400 text-slate-950 shadow-md font-black'
+                                : 'bg-white/5 text-amber-400 border border-amber-400/30 hover:bg-white/10'
+                        }`}
+                    >
+                        GT Papers
+                    </Link>
+
+                    <Link
+                        to="/admin/dashboard/previous-year-papers"
+                        className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition hidden sm:inline-block ${
+                            location.pathname.includes('previous-year-papers')
+                                ? 'bg-amber-400 text-slate-950 shadow-md font-black'
+                                : 'bg-white/5 text-amber-400 border border-amber-400/30 hover:bg-white/10'
+                        }`}
+                    >
+                        PYQs
+                    </Link>
+
+                    {/* Admin Notification Bell */}
                     <AdminNotificationBell />
 
-                    <div className="w-px h-6 bg-white/15"></div>
+                    {/* RIGHT-SIDE HAMBURGER MENU BUTTON */}
+                    <button
+                        onClick={() => setIsSideboxOpen(true)}
+                        className="relative bg-amber-400 text-slate-950 hover:bg-amber-300 w-10 h-10 rounded-xl flex items-center justify-center font-black text-lg hover:scale-105 transition shadow-lg cursor-pointer"
+                        title="Open Admin Dashboard Menu"
+                    >
+                        <span className="text-xl leading-none">☰</span>
+                        <span className="absolute -top-1 -right-1 bg-navy text-amber-400 text-[8px] font-black w-4 h-4 rounded-full flex items-center justify-center leading-none border border-amber-400">
+                            A
+                        </span>
+                    </button>
 
+                    <div className="w-px h-7 bg-amber-400/20 mx-1"></div>
+
+                    {/* Logout Button */}
                     <button 
                         onClick={() => { logout(); navigate('/'); }} 
-                        className="bg-rose-500/15 border border-rose-500/30 text-rose-300 hover:bg-rose-600 hover:text-white px-3.5 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition shadow-xs cursor-pointer"
+                        className="bg-red-500/10 border border-red-500/30 text-red-500 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-red-500 hover:text-white transition-all shadow-sm cursor-pointer"
                         title="Sign Out"
                     >
                         Logout
