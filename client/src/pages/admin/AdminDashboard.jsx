@@ -1101,7 +1101,7 @@ const AdminDashboard = () => {
     return (
         <div className="min-h-screen bg-[#F8FAFC] flex flex-col font-sans">
 
-            {/* ── RIGHT-SIDE SLIDE-OVER SIDEBOX DRAWER ── */}
+            {/* ── LEFT-SIDE SLIDE-OVER SIDEBOX DRAWER ── */}
             <div className={`fixed inset-0 z-50 transition-all duration-300 ${isSideboxOpen ? 'visible pointer-events-auto' : 'invisible pointer-events-none'}`}>
                 {/* Backdrop Overlay */}
                 <div 
@@ -1109,8 +1109,8 @@ const AdminDashboard = () => {
                     className={`absolute inset-0 bg-slate-950/60 backdrop-blur-sm transition-opacity duration-300 ${isSideboxOpen ? 'opacity-100' : 'opacity-0'}`}
                 />
 
-                {/* Sidebox Panel (Slides in from RIGHT) */}
-                <aside className={`absolute top-0 right-0 h-full w-88 max-w-[85vw] bg-[#071738] text-white shadow-2xl border-l-4 border-amber-400 flex flex-col justify-between transition-transform duration-300 ease-out ${isSideboxOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+                {/* Sidebox Panel (Slides in from LEFT) */}
+                <aside className={`absolute top-0 left-0 h-full w-88 max-w-[85vw] bg-[#071738] text-white shadow-2xl border-r-4 border-amber-400 flex flex-col justify-between transition-transform duration-300 ease-out ${isSideboxOpen ? 'translate-x-0' : '-translate-x-full'}`}>
                     <div>
                         {/* Sidebox Top Brand Bar */}
                         <div className="p-5 border-b border-white/10 flex items-center justify-between bg-black/20">
@@ -1197,26 +1197,40 @@ const AdminDashboard = () => {
                 </aside>
             </div>
 
-            {/* ── TOP APP BAR — SAPTHAGIRI NAVY & GOLD WITH RIGHT-ALIGNED DASHBOARD CONTROLS ── */}
+            {/* ── TOP APP BAR — SAPTHAGIRI NAVY & GOLD WITH LEFT-ALIGNED HAMBURGER MENU ── */}
             <nav className="bg-[#081B3B] px-6 py-3.5 text-white flex justify-between items-center z-40 sticky top-0 shadow-2xl border-b-4 border-amber-500 backdrop-blur-md">
-                {/* Left Brand Area */}
-                <div 
-                    className="flex items-center cursor-pointer hover:opacity-90 transition gap-3"
-                    onClick={() => navigate('/admin/dashboard')}
-                >
-                    <div className="w-10 h-10 flex items-center justify-center shadow-lg bg-white rounded-xl p-1 border-2 border-amber-400">
-                        <img src="/SapthagiriLogo.jpg" alt="Logo" className="w-full h-full object-contain rounded-lg" />
-                    </div>
-                    <div>
-                        <h1 className="text-base font-black tracking-tight uppercase leading-tight text-white flex items-center gap-2">
-                            <span>Sapthagiri PU College</span>
-                            <span className="bg-amber-500 text-slate-950 text-[9px] font-black px-2 py-0.5 rounded-md uppercase tracking-wider">
-                                Admin Portal
-                            </span>
-                        </h1>
-                        <p className="text-[10px] font-bold text-amber-400 uppercase tracking-widest">
-                            {getCurrentPageTitle()}
-                        </p>
+                {/* Left Brand Area with Hamburger Menu */}
+                <div className="flex items-center gap-3.5">
+                    {/* LEFT-SIDE HAMBURGER MENU BUTTON */}
+                    <button
+                        onClick={() => setIsSideboxOpen(true)}
+                        className="relative bg-amber-400 text-slate-950 hover:bg-amber-300 w-10 h-10 rounded-xl flex items-center justify-center font-black text-lg hover:scale-105 transition shadow-lg cursor-pointer"
+                        title="Open Admin Dashboard Menu"
+                    >
+                        <span className="text-xl leading-none">☰</span>
+                        <span className="absolute -top-1 -right-1 bg-navy text-amber-400 text-[8px] font-black w-4 h-4 rounded-full flex items-center justify-center leading-none border border-amber-400">
+                            A
+                        </span>
+                    </button>
+
+                    <div 
+                        className="flex items-center cursor-pointer hover:opacity-90 transition gap-3"
+                        onClick={() => navigate('/admin/dashboard')}
+                    >
+                        <div className="w-10 h-10 flex items-center justify-center shadow-lg bg-white rounded-xl p-1 border-2 border-amber-400">
+                            <img src="/SapthagiriLogo.jpg" alt="Logo" className="w-full h-full object-contain rounded-lg" />
+                        </div>
+                        <div>
+                            <h1 className="text-base font-black tracking-tight uppercase leading-tight text-white flex items-center gap-2">
+                                <span>Sapthagiri PU College</span>
+                                <span className="bg-amber-500 text-slate-950 text-[9px] font-black px-2 py-0.5 rounded-md uppercase tracking-wider">
+                                    Admin Portal
+                                </span>
+                            </h1>
+                            <p className="text-[10px] font-bold text-amber-400 uppercase tracking-widest">
+                                {getCurrentPageTitle()}
+                            </p>
+                        </div>
                     </div>
                 </div>
 
@@ -1289,18 +1303,6 @@ const AdminDashboard = () => {
 
                     {/* Admin Notification Bell */}
                     <AdminNotificationBell />
-
-                    {/* RIGHT-SIDE HAMBURGER MENU BUTTON */}
-                    <button
-                        onClick={() => setIsSideboxOpen(true)}
-                        className="relative bg-amber-400 text-slate-950 hover:bg-amber-300 w-10 h-10 rounded-xl flex items-center justify-center font-black text-lg hover:scale-105 transition shadow-lg cursor-pointer"
-                        title="Open Admin Dashboard Menu"
-                    >
-                        <span className="text-xl leading-none">☰</span>
-                        <span className="absolute -top-1 -right-1 bg-navy text-amber-400 text-[8px] font-black w-4 h-4 rounded-full flex items-center justify-center leading-none border border-amber-400">
-                            A
-                        </span>
-                    </button>
 
                     <div className="w-px h-7 bg-amber-400/20 mx-1"></div>
 

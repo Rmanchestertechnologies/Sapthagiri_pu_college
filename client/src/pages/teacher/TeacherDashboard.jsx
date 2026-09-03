@@ -430,24 +430,37 @@ const TeacherDashboard = () => {
         <div className="min-h-screen bg-background flex flex-col font-sans">
             {/* Top Navigation Bar - Sapthagiri Navy & Gold */}
             <nav className="bg-[#081B3B] px-6 py-3.5 text-white flex justify-between items-center z-10 shadow-2xl border-b-4 border-amber-500">
-                <div
-                    className="flex items-center cursor-pointer hover:opacity-80 transition gap-3"
-                    onClick={() => navigate('/teacher/dashboard')}
-                >
-                    <div className="w-10 h-10 flex items-center justify-center shadow-lg bg-white rounded-xl p-1 border-2 border-amber-400">
-                        <img src="/SapthagiriLogo.jpg" alt="Sapthagiri PU College" className="w-full h-full object-contain rounded-lg" />
-                    </div>
-                    <div className="flex flex-col">
-                        <h1 className="text-base font-black tracking-tight uppercase leading-tight text-white">
-                            Sapthagiri PU College
-                        </h1>
-                        <div className="flex items-center gap-2 mt-0.5">
-                            {user?.subject && logoMap[user.subject] && (
-                                <img src={logoMap[user.subject]} alt={user.subject} className="w-4 h-4 object-contain rounded-sm" />
-                            )}
-                            <span className="text-[10px] font-black text-amber-400 uppercase tracking-widest">
-                                Faculty Portal • {user?.subject || 'PCMB'}
-                            </span>
+                <div className="flex items-center gap-3.5">
+                    {/* LEFT SIDE HAMBURGER MENU BUTTON */}
+                    <button
+                        id="teacher-template-cart-btn"
+                        onClick={() => setShowTemplateCart(true)}
+                        title="Browse Templates"
+                        className="relative bg-gold text-navy w-10 h-10 rounded-xl flex items-center justify-center font-black text-lg hover:scale-105 transition-all shadow-md cursor-pointer"
+                    >
+                        <span className="text-xl leading-none">☰</span>
+                        <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[8px] font-black w-4 h-4 rounded-full flex items-center justify-center leading-none">T</span>
+                    </button>
+
+                    <div
+                        className="flex items-center cursor-pointer hover:opacity-80 transition gap-3"
+                        onClick={() => navigate('/teacher/dashboard')}
+                    >
+                        <div className="w-10 h-10 flex items-center justify-center shadow-lg bg-white rounded-xl p-1 border-2 border-amber-400">
+                            <img src="/SapthagiriLogo.jpg" alt="Sapthagiri PU College" className="w-full h-full object-contain rounded-lg" />
+                        </div>
+                        <div className="flex flex-col">
+                            <h1 className="text-base font-black tracking-tight uppercase leading-tight text-white">
+                                Sapthagiri PU College
+                            </h1>
+                            <div className="flex items-center gap-2 mt-0.5">
+                                {user?.subject && logoMap[user.subject] && (
+                                    <img src={logoMap[user.subject]} alt={user.subject} className="w-4 h-4 object-contain rounded-sm" />
+                                )}
+                                <span className="text-[10px] font-black text-amber-400 uppercase tracking-widest">
+                                    Faculty Portal • {user?.subject || 'PCMB'}
+                                </span>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -504,17 +517,6 @@ const TeacherDashboard = () => {
 
                     {/* Teacher Notification Bell */}
                     <TeacherNotificationBell />
-
-                    {/* Template Cart */}
-                    <button
-                        id="teacher-template-cart-btn"
-                        onClick={() => setShowTemplateCart(true)}
-                        title="Browse Templates"
-                        className="relative bg-gold text-navy w-10 h-10 rounded-xl flex items-center justify-center font-black text-lg hover:scale-105 transition-all shadow-md cursor-pointer"
-                    >
-                        <span className="text-xl leading-none">☰</span>
-                        <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[8px] font-black w-4 h-4 rounded-full flex items-center justify-center leading-none">T</span>
-                    </button>
 
                     <div className="w-px h-7 bg-gold/20 mx-1"></div>
                     <button
