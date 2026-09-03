@@ -28,33 +28,31 @@ function parsePx(val, fallback = 180) {
  * are immediately legible without manual intervention.
  */
 function computeSmartHeight(naturalWidth, naturalHeight, isOption = false) {
-    if (!naturalWidth || !naturalHeight) return isOption ? 80 : 190;
+    if (!naturalWidth || !naturalHeight) return isOption ? 60 : 160;
     const ar = naturalWidth / naturalHeight;
 
     if (isOption) {
-        // Option diagrams: compact yet clear, ideal for 4-in-a-row or 2x2 grid
-        if (ar > 1.5) return 75;
-        if (ar < 0.8) return 90;
-        return 80;
+        // Option diagrams (Q40, Q52): compact so all 4 options fit nicely in 2x2 or 4-across
+        if (ar > 1.5) return 55;
+        if (ar < 0.8) return 65;
+        return 60;
     }
 
     // Main Question Diagrams:
-    // Balanced sizing so markings and text are sharp and visible to naked eyes without huge blank spaces.
-    let target = 200;
+    // Balanced sizing: legible yet compact enough to prevent awkward column gaps
+    let target = 160;
     if (ar >= 2.0) {
-        target = 170; // Wide landscape diagrams (pyramids, circuits)
+        target = 135; // Wide landscape diagrams
     } else if (ar >= 1.2 && ar < 2.0) {
-        target = 210; // Standard graphs with axes (Q38, Q40)
+        target = 160; // Standard graphs with axes
     } else if (ar < 0.85) {
-        target = 240; // Tall vertical figures
+        target = 180; // Tall vertical figures
     } else {
-        target = 210; // Square or near-square
+        target = 160; // Square or near-square
     }
 
-    // Don't upscale naturally small illustrations into huge blurry items,
-    // but ensure at least 140px so small labels are clearly visible.
     if (naturalHeight < target) {
-        return Math.max(140, naturalHeight);
+        return Math.max(100, naturalHeight);
     }
     return target;
 }
@@ -71,7 +69,7 @@ export default function ResizableDiagram({
     maxWidth = '100%',
     extraStyle = {},
 }) {
-    const defaultFallbackHeight = isOption ? 80 : 260;
+    const defaultFallbackHeight = isOption ? 60 : 160;
     const initialParsed = initialHeight ? parsePx(initialHeight, defaultFallbackHeight) : null;
     const [height, setHeight] = useState(initialParsed || defaultFallbackHeight);
     const [smartHeight, setSmartHeight] = useState(initialParsed || defaultFallbackHeight);
@@ -90,8 +88,8 @@ export default function ResizableDiagram({
     }, [initialHeight, isManual, defaultFallbackHeight]);
 
     const step = isOption ? 10 : 20;
-    const minHeight = isOption ? 35 : 80;
-    const maxHeight = isOption ? 240 : 500;
+    const minHeight = isOption ? 30 : 70;
+    const maxHeight = isOption ? 200 : 450;
 
     const handleIncrease = useCallback((e) => {
         e.stopPropagation();
@@ -122,7 +120,6 @@ export default function ResizableDiagram({
     }, [smartHeight, defaultFallbackHeight, onSizeChange, diagramKey]);
 
     // Intelligent Image Dimension Analysis upon loading:
-    // If not manually customized by user, ALWAYS auto-scale to optimal clear size!
     const handleImageLoad = (e) => {
         const img = e.currentTarget;
         const nw = img.naturalWidth || 0;
@@ -142,13 +139,13 @@ export default function ResizableDiagram({
         <div
             ref={containerRef}
             className={`resizable-diagram-wrap relative select-none ${
-                isOption ? 'inline-block my-0.5 mx-1 align-middle' : 'block my-2 mx-auto text-center'
+                isOption ? 'inline-block my-0.5 mx-0.5 align-middle' : 'block my-1.5 mx-auto text-center'
             }`}
-            style={{ ...extraStyle }}
+            style={{ position: 'relative', zIndex: 2, ...extraStyle }}
         >
             {/* ── ALWAYS-VISIBLE RESIZE TOOLBAR (+ / −) ── */}
             <div
-                className="no-print diagram-resize-toolbar flex items-center justify-center mb-1 select-none"
+                className="no-print diagram-resize-toolbar flex items-center justify-center mb-0.5 select-none"
                 onClick={(e) => e.stopPropagation()}
             >
                 <div className="inline-flex items-center gap-1 bg-slate-900/90 text-white px-2 py-0.5 rounded-md shadow-md border border-slate-700 text-xs">
@@ -184,26 +181,28 @@ export default function ResizableDiagram({
                 </div>
             </div>
 
-            {/* ── THE DIAGRAM IMAGE ── */}
+            {/* ── THE DIAGRAM IMAGE (Opaque White Background, No Watermark Bleed) ── */}
             <img
                 src={src}
                 alt={alt}
                 onLoad={handleImageLoad}
                 style={{
                     maxHeight: `${height}px`,
-                    maxWidth: isOption ? '180px' : (maxWidth || '100%'),
+                    maxWidth: isOption ? '140px' : (maxWidth || '100%'),
                     width: isOption ? 'auto' : '100%',
-                    minWidth: isOption ? 'auto' : 'min(100%, 280px)',
+                    minWidth: isOption ? 'auto' : 'min(100%, 180px)',
                     height: 'auto',
                     objectFit: 'contain',
                     display: 'block',
                     margin: '0 auto',
                     borderRadius: '4px',
                     backgroundColor: '#ffffff',
+                    position: 'relative',
+                    zIndex: 2,
                     boxSizing: 'border-box',
                     transition: 'max-height 0.15s ease',
                 }}
-                className="border border-gray-200/80 rounded"
+                className="border border-gray-200/80 rounded shadow-2xs"
                 loading="eager"
                 onError={(e) => {
                     e.currentTarget.style.display = 'none';

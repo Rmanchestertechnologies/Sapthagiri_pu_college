@@ -467,7 +467,7 @@ function extractDiagramFromText(rawText, existingImageUrl) {
 /**
  * MCQ Body with Intelligent Diagram Placement & Resizing
  */
-function BodyMCQ({ q, classes, isTwoCol, diagramMaxHeight = '260px', onDiagramResize, displayNum }) {
+function BodyMCQ({ q, classes, isTwoCol, diagramMaxHeight = '180px', onDiagramResize, displayNum }) {
     const rawQText = cleanQuestionText(q.questionText || q.question || '');
     const { cleanText: qText, diagramUrl: imageUrl } = extractDiagramFromText(rawQText, q.imageUrl || q.image_url);
     const options = Array.isArray(q.options) ? q.options : [];
@@ -489,13 +489,13 @@ function BodyMCQ({ q, classes, isTwoCol, diagramMaxHeight = '260px', onDiagramRe
             <div
                 style={
                     forceSingle
-                        ? { display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: '2px 6px', marginTop: '3px' }
+                        ? { display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: '2px 6px', marginTop: '2px' }
                         : getDynamicOptGrid(options, isTwoCol)
                 }
             >
                 {options.map((opt, i) => {
                     const optText = typeof opt === 'object' ? (opt.text || opt.optionText || opt.value || opt.option || '') : String(opt || '');
-                    const optHeight = q.customDiagramSizes?.[`opt_${i}`] || q.customOptionDiagramHeight || '80px';
+                    const optHeight = q.customDiagramSizes?.[`opt_${i}`] || q.customOptionDiagramHeight || '60px';
 
                     return (
                         <div
@@ -602,7 +602,7 @@ function BodyMCQ({ q, classes, isTwoCol, diagramMaxHeight = '260px', onDiagramRe
 /**
  * Assertion & Reason Body
  */
-function BodyAssertionReason({ q, classes, isTwoCol, diagramMaxHeight = '260px', onDiagramResize, displayNum }) {
+function BodyAssertionReason({ q, classes, isTwoCol, diagramMaxHeight = '180px', onDiagramResize, displayNum }) {
     const { assertion, reason } = parseAssertionReason(q);
     const opts = q.options && q.options.length > 0 ? q.options : AR_OPTIONS;
     const rawQText = cleanQuestionText(q.questionText || q.question || '');
@@ -680,7 +680,7 @@ function BodyAssertionReason({ q, classes, isTwoCol, diagramMaxHeight = '260px',
 /**
  * Match the Following Body
  */
-function BodyMatchFollowing({ q, classes, isTwoCol, diagramMaxHeight = '260px', onDiagramResize, displayNum }) {
+function BodyMatchFollowing({ q, classes, isTwoCol, diagramMaxHeight = '180px', onDiagramResize, displayNum }) {
     const pairs = q.matchPairs || [];
     const opts = q.options || [];
     const rawQText = cleanQuestionText(q.questionText || q.question || '');
@@ -762,7 +762,7 @@ function BodyMatchFollowing({ q, classes, isTwoCol, diagramMaxHeight = '260px', 
 /**
  * Statement-Based Body
  */
-function BodyStatementBased({ q, classes, isTwoCol, diagramMaxHeight = '260px', onDiagramResize, displayNum }) {
+function BodyStatementBased({ q, classes, isTwoCol, diagramMaxHeight = '180px', onDiagramResize, displayNum }) {
     const statements = q.statements || [];
     const opts = q.options || [];
     const rawQText = cleanQuestionText(q.questionText || q.question || '');
@@ -838,7 +838,7 @@ export default function QuestionBlock({
     lineHeight = '1.45',
     formatMarks,
     extraStyle = {},
-    diagramMaxHeight = '260px',
+    diagramMaxHeight = '180px',
     onDiagramResize,
 }) {
     if (!q) return null;

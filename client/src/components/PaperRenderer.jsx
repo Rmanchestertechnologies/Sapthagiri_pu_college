@@ -49,7 +49,7 @@ const DEFAULT_SETTINGS = {
     fontSize: '13px',
     lineHeight: '1.42',
     columns: 1,
-    columnGap: '20px',
+    columnGap: '18px',
     showMarks: false,
     showAnswerKey: false,
     showDifficulty: false,
@@ -62,9 +62,9 @@ const DEFAULT_SETTINGS = {
     marginBottom: '10mm',
     marginLeft: '12mm',
     marginRight: '12mm',
-    questionSpacing: '10px',
-    optionSpacing: '3px',
-    diagramMaxHeight: '260px',
+    questionSpacing: '8px',
+    optionSpacing: '2px',
+    diagramMaxHeight: '180px',
 };
 
 // ─── Settings / Alignment Panel ───────────────────────────────────────────────
