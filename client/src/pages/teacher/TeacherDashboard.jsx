@@ -615,47 +615,8 @@ const TeacherDashboard = () => {
                             onClick={() => navigate('/teacher/dashboard')}
                             className="bg-white/5 border border-gold/30 text-gold px-3.5 py-1.5 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-white/10 transition flex items-center gap-1.5 cursor-pointer mr-1"
                         >
-                            <span>←</span> Back
+                            <span>←</span> Back to Dashboard
                         </button>
-                    )}
-                    <Link
-                        to="/teacher/dashboard/assignments"
-                        className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition ${
-                            location.pathname.includes('assignments') ? 'bg-gold text-navy shadow-md' : 'bg-white/5 text-gold border border-gold/30 hover:bg-white/10'
-                        }`}
-                    >
-                        Assignments
-                    </Link>
-                    <Link
-                        to="/teacher/dashboard/grand-tests"
-                        className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition ${
-                            location.pathname.includes('grand-tests') ? 'bg-gold text-navy shadow-md' : 'bg-white/5 text-gold border border-gold/30 hover:bg-white/10'
-                        }`}
-                    >
-                        GT Papers
-                    </Link>
-                    <Link
-                        to="/teacher/dashboard/previous-year-papers"
-                        className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition ${
-                            location.pathname.includes('previous-year-papers') ? 'bg-gold text-navy shadow-md' : 'bg-white/5 text-gold border border-gold/30 hover:bg-white/10'
-                        }`}
-                    >
-                        PYQs
-                    </Link>
-
-                    {/* Conditional OMR Tab */}
-                    {hasOmr && (
-                        <Link
-                            to="/teacher/dashboard/omr"
-                            className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition flex items-center gap-1 ${
-                                location.pathname.includes('omr')
-                                    ? 'bg-emerald-500 text-white shadow-md'
-                                    : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 hover:bg-emerald-500/30'
-                            }`}
-                        >
-                            <span>📑</span>
-                            <span>OMR</span>
-                        </Link>
                     )}
 
                     {/* Teacher Notification Bell */}

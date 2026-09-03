@@ -1241,65 +1241,9 @@ const AdminDashboard = () => {
                             onClick={() => navigate('/admin/dashboard')}
                             className="bg-white/5 border border-amber-400/30 text-amber-400 px-3.5 py-1.5 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-white/10 transition flex items-center gap-1.5 cursor-pointer mr-1"
                         >
-                            <span>←</span> Back
+                            <span>←</span> Back to Dashboard
                         </button>
                     )}
-
-                    <Link
-                        to="/admin/dashboard/omr"
-                        className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition flex items-center gap-1 hidden md:flex ${
-                            location.pathname.includes('omr')
-                                ? 'bg-emerald-500 text-white shadow-md'
-                                : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 hover:bg-emerald-500/30'
-                        }`}
-                    >
-                        <span>📑</span>
-                        <span>OMR</span>
-                    </Link>
-
-                    <Link
-                        to="/admin/dashboard/cbt-exams"
-                        className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition hidden lg:inline-block ${
-                            location.pathname.includes('cbt-exams')
-                                ? 'bg-amber-400 text-slate-950 shadow-md font-black'
-                                : 'bg-white/5 text-amber-400 border border-amber-400/30 hover:bg-white/10'
-                        }`}
-                    >
-                        CBT Exams
-                    </Link>
-
-                    <Link
-                        to="/admin/dashboard/results"
-                        className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition hidden lg:inline-block ${
-                            location.pathname.includes('results')
-                                ? 'bg-amber-400 text-slate-950 shadow-md font-black'
-                                : 'bg-white/5 text-amber-400 border border-amber-400/30 hover:bg-white/10'
-                        }`}
-                    >
-                        Results
-                    </Link>
-
-                    <Link
-                        to="/admin/dashboard/grand-tests"
-                        className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition hidden sm:inline-block ${
-                            location.pathname.includes('grand-tests')
-                                ? 'bg-amber-400 text-slate-950 shadow-md font-black'
-                                : 'bg-white/5 text-amber-400 border border-amber-400/30 hover:bg-white/10'
-                        }`}
-                    >
-                        GT Papers
-                    </Link>
-
-                    <Link
-                        to="/admin/dashboard/previous-year-papers"
-                        className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition hidden sm:inline-block ${
-                            location.pathname.includes('previous-year-papers')
-                                ? 'bg-amber-400 text-slate-950 shadow-md font-black'
-                                : 'bg-white/5 text-amber-400 border border-amber-400/30 hover:bg-white/10'
-                        }`}
-                    >
-                        PYQs
-                    </Link>
 
                     {/* Admin Notification Bell */}
                     <AdminNotificationBell />
