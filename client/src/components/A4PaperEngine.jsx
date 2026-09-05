@@ -60,7 +60,7 @@ export default function A4PaperEngine({
             >
                 {/* ── Single Unified Question Paper Sheet ── */}
                 <div className="a4-sheet-page a4-questions-page" style={{ position: 'relative' }}>
-                    {/* Official Sapthagiri PU College Crest Watermark - Fixed across all pages in print and screen */}
+                    {/* Official Sapthagiri PU College Campus Watermark - Fixed across all pages in print and screen */}
                     <div 
                         className="a4-watermark-wrapper"
                         style={{
@@ -77,15 +77,15 @@ export default function A4PaperEngine({
                         }}
                     >
                         <img 
-                            src="/SapthagiriLogo.jpg" 
-                            alt="College Crest Watermark" 
+                            src="/SapthagiriCampus.webp" 
+                            alt="Sapthagiri PU College Campus Watermark" 
                             className="a4-watermark-logo"
                             style={{
-                                width: '360px',
-                                height: '360px',
+                                width: '520px',
+                                height: '420px',
                                 objectFit: 'contain',
-                                borderRadius: '50%',
-                                opacity: 0.08,
+                                opacity: 0.10,
+                                filter: 'grayscale(100%) contrast(110%)',
                                 display: 'block',
                                 pointerEvents: 'none',
                             }}
@@ -111,6 +111,7 @@ export default function A4PaperEngine({
                                 totalMarks={totalMarks}
                                 templateUrl={activeTemplate?.fileUrl}
                                 isAssignment={isAssignment}
+                                setName={paper?.setName || 'P'}
                             />
                         </div>
 

@@ -14,6 +14,7 @@ import React, { useState, useMemo } from 'react';
 import A4PaperEngine from './A4PaperEngine';
 import QuestionBlock from './QuestionBlock';
 import { optionLabel } from '../utils/sanitize';
+import { generatePaperSet } from '../utils/pqrsGenerator';
 
 // ─── Marks helpers ────────────────────────────────────────────────────────────
 export function formatMarks(type = '', classes = []) {
@@ -232,7 +233,7 @@ export function InstructionCoverPage({ paper, questions = [], duration, totalMar
 }
 
 // ─── Paper Header ─────────────────────────────────────────────────────────────
-export function PaperHeader({ title, subject, classes, duration, totalMarks, templateUrl, isAssignment = false }) {
+export function PaperHeader({ title, subject, classes, duration, totalMarks, templateUrl, isAssignment = false, setName = 'P' }) {
     // Clean assignment title
     let displayTitle = title;
     if (isAssignment) {
@@ -246,6 +247,8 @@ export function PaperHeader({ title, subject, classes, duration, totalMarks, tem
             }
         }
     }
+
+    const currentSet = (setName || 'P').toUpperCase();
 
     return (
         <div style={{ marginBottom: '14px', borderBottom: '2px solid #000', paddingBottom: '6px' }}>
@@ -279,10 +282,12 @@ export function PaperHeader({ title, subject, classes, duration, totalMarks, tem
                             {displayTitle || (isAssignment ? `${subject} ASSIGNMENT` : (title || `${subject} Examination`))}
                         </div>
                     </div>
-                    <div style={{ width: '68px', height: '68px', flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', border: '1.5px solid #000', borderRadius: '4px', padding: '2px' }}>
-                        <span style={{ fontSize: '9px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>SET</span>
-                        <span style={{ fontSize: '20px', fontWeight: 900, lineHeight: 1 }}>A</span>
-                    </div>
+                    {!isAssignment && (
+                        <div style={{ width: '68px', height: '68px', flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', border: '1.5px solid #000', borderRadius: '4px', padding: '2px' }}>
+                            <span style={{ fontSize: '9px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>SET</span>
+                            <span style={{ fontSize: '22px', fontWeight: 900, lineHeight: 1 }}>{currentSet}</span>
+                        </div>
+                    )}
                 </div>
             )}
 
@@ -324,11 +329,19 @@ export default function PaperRenderer({
     const settings = externalSettings || internalSettings;
     const setSettings = externalSetSettings || setInternalSettings;
 
+    // 4 Sets State (P, Q, R, S)
+    const [activeSet, setActiveSet] = useState(paper?.setName || 'P');
+
     // Preview Controls state
     const [zoom, setZoom] = useState(100);
 
-    const questions = useMemo(() => paper?.questions || [], [paper]);
-    const showCover = !isAssignment && settings.showCoverPage !== false;
+    // Generate active set paper with synchronized shuffled options/questions & answers
+    const activePaper = useMemo(() => {
+        if (isAssignment || !paper) return paper;
+        return generatePaperSet(paper, activeSet);
+    }, [paper, activeSet, isAssignment]);
+
+    const questions = useMemo(() => activePaper?.questions || [], [activePaper]);
 
     const handlePrint = () => {
         window.print();
@@ -339,6 +352,33 @@ export default function PaperRenderer({
             
             {/* ── PREVIEW TOOLBAR ── */}
             <div className="sticky top-4 z-40 bg-white/95 backdrop-blur-md px-6 py-3.5 rounded-2xl shadow-xl border-2 border-navy/20 flex flex-wrap items-center justify-between gap-4 mb-6 w-full max-w-5xl no-print">
+                {/* 4-Sets Selector (P, Q, R, S) */}
+                {!isAssignment && (
+                    <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl border border-slate-300">
+                        <span className="text-[10px] font-black text-navy uppercase tracking-wider px-2">Set:</span>
+                        {['P', 'Q', 'R', 'S'].map((s) => (
+                            <button
+                                key={s}
+                                type="button"
+                                onClick={() => setActiveSet(s)}
+                                className={`px-3 py-1 rounded-lg text-xs font-black transition cursor-pointer ${
+                                    activeSet === s
+                                        ? 'bg-navy text-gold shadow-sm scale-105'
+                                        : 'bg-white text-slate-700 hover:bg-slate-200'
+                                }`}
+                                title={
+                                    s === 'P' ? 'Set P: Original Order' :
+                                    s === 'Q' ? 'Set Q: Questions Shuffled' :
+                                    s === 'R' ? 'Set R: Options Shuffled' :
+                                    'Set S: Both Questions & Options Shuffled'
+                                }
+                            >
+                                Set {s}
+                            </button>
+                        ))}
+                    </div>
+                )}
+
                 {/* Mode & Columns Switcher */}
                 <div className="flex items-center gap-2">
                     <button
@@ -383,7 +423,7 @@ export default function PaperRenderer({
                         onClick={handlePrint}
                         className="bg-gold text-navy hover:bg-navy hover:text-gold px-5 py-2 rounded-xl font-black text-xs uppercase tracking-wider transition shadow cursor-pointer flex items-center gap-1.5"
                     >
-                        <span>🖨</span> Print / Save PDF
+                        <span>🖨</span> Print Set {activeSet}
                     </button>
                 </div>
 
@@ -417,7 +457,7 @@ export default function PaperRenderer({
 
             {/* ── TRUE A4 ENGINE RENDERING ── */}
             <A4PaperEngine
-                paper={paper}
+                paper={activePaper}
                 activeTemplate={activeTemplate}
                 isAssignment={isAssignment}
                 settings={settings}

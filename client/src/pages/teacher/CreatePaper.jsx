@@ -910,13 +910,59 @@ export default function CreatePaper() {
                             {/* Subject */}
                             <div>
                                 <label className="block text-xs font-black text-navy uppercase tracking-wider mb-2">Academic Subject</label>
-                                <input
-                                    type="text"
-                                    value={subject}
-                                    disabled={user?.role === 'teacher'}
-                                    onChange={e => setSubject(e.target.value)}
-                                    className="w-full border-2 border-gray-200 rounded-2xl px-4 py-3 text-sm font-bold text-navy bg-gray-100"
-                                />
+                                {user?.role === 'teacher' && !['biology', 'botany', 'zoology'].includes((user?.subject || '').toLowerCase()) ? (
+                                    <input
+                                        type="text"
+                                        value={subject}
+                                        disabled
+                                        className="w-full border-2 border-gray-200 rounded-2xl px-4 py-3 text-sm font-bold text-navy bg-gray-100"
+                                    />
+                                ) : (
+                                    <select
+                                        value={subject}
+                                        onChange={e => {
+                                            setSubject(e.target.value);
+                                            setSelectedChapters([]);
+                                            setSelectedConcepts([]);
+                                        }}
+                                        className="w-full border-2 border-gray-200 focus:border-navy rounded-2xl px-4 py-3 text-sm font-bold text-navy outline-none bg-white cursor-pointer"
+                                    >
+                                        {user?.role === 'teacher' ? (
+                                            examType === 'NEET' ? (
+                                                <>
+                                                    <option value="Botany">Botany (NEET)</option>
+                                                    <option value="Zoology">Zoology (NEET)</option>
+                                                    <option value="Biology">Biology (All Chapters)</option>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <option value="Biology">Biology (CET / General)</option>
+                                                    <option value="Botany">Botany</option>
+                                                    <option value="Zoology">Zoology</option>
+                                                </>
+                                            )
+                                        ) : (
+                                            <>
+                                                <option value="Physics">Physics</option>
+                                                <option value="Chemistry">Chemistry</option>
+                                                <option value="Mathematics">Mathematics</option>
+                                                {examType === 'NEET' ? (
+                                                    <>
+                                                        <option value="Botany">Botany (NEET)</option>
+                                                        <option value="Zoology">Zoology (NEET)</option>
+                                                        <option value="Biology">Biology (All Chapters)</option>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <option value="Biology">Biology</option>
+                                                        <option value="Botany">Botany</option>
+                                                        <option value="Zoology">Zoology</option>
+                                                    </>
+                                                )}
+                                            </>
+                                        )}
+                                    </select>
+                                )}
                             </div>
 
                             {/* Duration (Manual Input Only) */}

@@ -602,6 +602,9 @@ function BodyMCQ({ q, classes, isTwoCol, diagramMaxHeight = '180px', onDiagramRe
 /**
  * Assertion & Reason Body
  */
+/**
+ * Assertion & Reason Body
+ */
 function BodyAssertionReason({ q, classes, isTwoCol, diagramMaxHeight = '180px', onDiagramResize, displayNum }) {
     const { assertion, reason } = parseAssertionReason(q);
     const opts = q.options && q.options.length > 0 ? q.options : AR_OPTIONS;
@@ -616,7 +619,6 @@ function BodyAssertionReason({ q, classes, isTwoCol, diagramMaxHeight = '180px',
     const introMatch = qText.match(/^([\s\S]*?)(?=Assertion\s*(?:\(A\))?[:\-])/i);
     if (introMatch && introMatch[1].trim().length > 0) {
         const candidate = introMatch[1].trim();
-        // Only show if it is an actual intro/direction and not a duplicated sentence
         if (!/Amniocentesis|is one of the/i.test(candidate)) {
             introText = candidate;
         }
@@ -625,7 +627,7 @@ function BodyAssertionReason({ q, classes, isTwoCol, diagramMaxHeight = '180px',
     return (
         <>
             {introText && (
-                <div style={{ ...Q.qTextBold, marginBottom: '4px', display: 'block' }}>
+                <div style={{ ...Q.qTextBold, marginBottom: '2px', display: 'block' }}>
                     <MathRenderer
                         inline
                         text={introText}
@@ -635,22 +637,20 @@ function BodyAssertionReason({ q, classes, isTwoCol, diagramMaxHeight = '180px',
                     />
                 </div>
             )}
-            <div style={Q.assertRow}>
-                <span style={Q.assertLabel}>Assertion (A):</span>
-                <span style={Q.assertText}>
+            <div style={{ marginBottom: '3px' }}>
+                <div style={{ marginBottom: '2px', lineHeight: '1.42' }}>
+                    <strong style={{ color: '#000', marginRight: '6px' }}>Assertion (A):</strong>
                     <MathRenderer inline text={assertion} />
-                </span>
-            </div>
-            {reason && (
-                <div style={Q.assertRow}>
-                    <span style={Q.assertLabel}>Reason (R):</span>
-                    <span style={Q.assertText}>
-                        <MathRenderer inline text={reason} />
-                    </span>
                 </div>
-            )}
+                {reason && (
+                    <div style={{ marginBottom: '2px', lineHeight: '1.42' }}>
+                        <strong style={{ color: '#000', marginRight: '6px' }}>Reason (R):</strong>
+                        <MathRenderer inline text={reason} />
+                    </div>
+                )}
+            </div>
             {imageUrl && (
-                <div style={{ textAlign: 'center', margin: '4px auto 6px', clear: 'both' }}>
+                <div style={{ textAlign: 'center', margin: '3px auto 5px', clear: 'both' }}>
                     <ResizableDiagram
                         src={imageUrl}
                         alt="Diagram"
@@ -663,9 +663,9 @@ function BodyAssertionReason({ q, classes, isTwoCol, diagramMaxHeight = '180px',
                     />
                 </div>
             )}
-            <div style={{ marginTop: '5px', ...getDynamicOptGrid(opts, isTwoCol) }}>
+            <div style={{ marginTop: '3px', ...getDynamicOptGrid(opts, isTwoCol) }}>
                 {opts.map((opt, i) => (
-                    <div key={i} style={{ ...Q.optRow, marginBottom: '2px' }}>
+                    <div key={i} style={Q.optRow}>
                         <span style={Q.optLbl}>({optionLabel(i, classes)})</span>
                         <span style={{ flex: 1, minWidth: 0, maxWidth: '100%', fontWeight: 400 }}>
                             <MathRenderer inline text={typeof opt === 'object' ? (opt.text || opt.option || '') : opt} />
@@ -685,10 +685,21 @@ function parseMatchFromText(q) {
     if (Array.isArray(q.matchPairs) && q.matchPairs.length > 0) {
         return { introText: q.questionText || q.question || '', pairs: q.matchPairs };
     }
+    if (Array.isArray(q.column_a) && q.column_a.length > 0 && Array.isArray(q.column_b) && q.column_b.length > 0) {
+        const maxL = Math.max(q.column_a.length, q.column_b.length);
+        const pairs = [];
+        for (let i = 0; i < maxL; i++) {
+            pairs.push({
+                left: q.column_a[i] || '',
+                right: q.column_b[i] || ''
+            });
+        }
+        return { introText: q.questionText || q.question || '', pairs };
+    }
     const txt = q.questionText || q.question || '';
     
     // Check if question text has Column I / Column II or List I / List II
-    const colRegex = /(?:\*\*|__)?(?:Column|List)\s*I(?:\*\*|__)?([\s\S]*?)(?:\*\*|__)?(?:Column|List)\s*II(?:\*\*|__)?([\s\S]*?)(?=Choose the correct|Select the correct|Options:|$)/i;
+    const colRegex = /(?:\*\*|__)?(?:Column|List)\s*(?:I|A)(?:\*\*|__)?([\s\S]*?)(?:\*\*|__)?(?:Column|List)\s*(?:II|B)(?:\*\*|__)?([\s\S]*?)(?=Choose the correct|Select the correct|Options:|\(a\)|\(A\)|[A-D]\s*[:\-\)]|$)/i;
     const match = txt.match(colRegex);
     if (match) {
         const introText = txt.substring(0, match.index).trim();
@@ -696,7 +707,7 @@ function parseMatchFromText(q) {
         const rawCol2 = match[2].trim();
 
         const splitItems = (str) => {
-            let items = str.split(/(?:\([A-Da-d1-4ivx]+\)|[A-Da-d1-4ivx]\.|\b[A-D]\b)/g)
+            let items = str.split(/(?:\([A-Da-d1-4ivx]+\)|[A-Da-d1-4ivx]\.|\b[A-D]\b|\b[1-4]\b)/g)
                 .map(s => s.trim().replace(/^[:\-]\s*/, ''))
                 .filter(Boolean);
             if (items.length >= 2) return items;
@@ -727,7 +738,7 @@ function parseStatementsFromText(q) {
     }
     const txt = q.questionText || q.question || '';
     const stmts = [];
-    const regex = /Statement\s*([I|V|X|0-9]+)\s*[:\-]\s*([\s\S]*?)(?=Statement\s*[I|V|X|0-9]+\s*[:\-]|$)/gi;
+    const regex = /Statement\s*([I|V|X|0-9|A-D]+)\s*[:\-]?\s*([\s\S]*?)(?=Statement\s*[I|V|X|0-9|A-D]+\s*[:\-]|Choose the correct|Select the correct|Options:|$)/gi;
     let m;
     let firstIndex = -1;
     while ((m = regex.exec(txt)) !== null) {
@@ -852,10 +863,11 @@ function BodyStatementBased({ q, classes, isTwoCol, diagramMaxHeight = '180px', 
                 </div>
             )}
             {statements.length > 0 && (
-                <div style={{ borderLeft: '2px solid #666', paddingLeft: '6px', margin: '2px 0 3px' }}>
+                <div style={{ margin: '3px 0 4px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
                     {statements.map((stmt, si) => (
-                        <div key={si} style={{ marginBottom: '1px', fontWeight: 400 }}>
-                            <span style={{ fontWeight: 600 }}>Statement {si + 1}:</span> <MathRenderer inline text={stmt} />
+                        <div key={si} style={{ lineHeight: '1.42', fontWeight: 400 }}>
+                            <strong style={{ color: '#000', marginRight: '6px' }}>Statement {si + 1}:</strong>
+                            <MathRenderer inline text={stmt} />
                         </div>
                     ))}
                 </div>

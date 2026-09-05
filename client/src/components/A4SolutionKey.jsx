@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import MathRenderer from './MathRenderer';
 import { getResolvedAnswerLabel, getQuestionOptionLabels, isOptionCorrect } from '../utils/sanitize';
+import { generatePaperSet } from '../utils/pqrsGenerator';
 
 export default function A4SolutionKey({
     paper = {},
@@ -9,8 +10,19 @@ export default function A4SolutionKey({
     setName = 'P',
     onClose,
 }) {
-    const paperTitle = paper.title || `${paper.subject || 'Academic'} Assessment`;
-    const resolvedQuestions = questions.length > 0 ? questions : (paper.questions || []);
+    const [activeSet, setActiveSet] = useState(setName || paper?.setName || 'P');
+
+    const activePaper = useMemo(() => {
+        if (!paper || !paper.questions) return paper;
+        return generatePaperSet(paper, activeSet);
+    }, [paper, activeSet]);
+
+    const resolvedQuestions = useMemo(() => {
+        if (activePaper?.questions && activePaper.questions.length > 0) return activePaper.questions;
+        return questions.length > 0 ? questions : (paper.questions || []);
+    }, [activePaper, questions, paper]);
+
+    const paperTitle = activePaper?.title || paper.title || `${paper.subject || 'Academic'} Assessment`;
 
     const handlePrint = () => {
         document.body.classList.add('printing-solution-key');
@@ -27,25 +39,42 @@ export default function A4SolutionKey({
             <div className="a4-solution-key-card bg-slate-100 rounded-3xl shadow-2xl w-full max-w-5xl max-h-[92vh] flex flex-col overflow-hidden my-auto border border-slate-200 animate-fade-in">
                 
                 {/* ── Action Toolbar (Hidden during print) ── */}
-                <div className="flex justify-between items-center px-6 py-4 bg-white border-b border-gray-200 no-print">
+                <div className="flex flex-wrap justify-between items-center px-6 py-4 bg-white border-b border-gray-200 gap-3 no-print">
                     <div className="flex items-center gap-3">
                         <span className="text-xs font-black text-gold uppercase tracking-widest bg-navy px-3 py-1 rounded-full">
                             A4 Print & Export View
                         </span>
-                        <h3 className="text-base font-black text-navy uppercase tracking-tight">
-                            Detailed Solutions & Explanations ({resolvedQuestions.length} Questions)
+                        <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-300">
+                            <span className="text-[10px] font-black text-navy uppercase px-1.5">Set:</span>
+                            {['P', 'Q', 'R', 'S'].map((s) => (
+                                <button
+                                    key={s}
+                                    type="button"
+                                    onClick={() => setActiveSet(s)}
+                                    className={`px-2.5 py-0.5 rounded-lg text-xs font-black transition cursor-pointer ${
+                                        activeSet === s
+                                            ? 'bg-navy text-gold shadow-sm'
+                                            : 'bg-white text-slate-700 hover:bg-slate-200'
+                                    }`}
+                                >
+                                    {s}
+                                </button>
+                            ))}
+                        </div>
+                        <h3 className="text-sm font-black text-navy uppercase tracking-tight">
+                            SET {activeSet} Detailed Solutions ({resolvedQuestions.length} Qs)
                         </h3>
                     </div>
                     <div className="flex items-center gap-2">
                         <button
                             onClick={handlePrint}
-                            className="bg-navy text-gold hover:bg-gold hover:text-navy px-5 py-2 rounded-xl font-black text-xs uppercase tracking-wider transition shadow cursor-pointer flex items-center gap-1.5"
+                            className="bg-navy text-gold hover:bg-gold hover:text-navy px-4 py-2 rounded-xl font-black text-xs uppercase tracking-wider transition shadow cursor-pointer flex items-center gap-1.5"
                         >
-                            <span>🖨️</span> Print Solutions (A4)
+                            <span>🖨️</span> Print Set {activeSet} Solutions
                         </button>
                         <button
                             onClick={handlePrint}
-                            className="bg-emerald-600 text-white hover:bg-emerald-700 px-5 py-2 rounded-xl font-black text-xs uppercase tracking-wider transition shadow cursor-pointer flex items-center gap-1.5"
+                            className="bg-emerald-600 text-white hover:bg-emerald-700 px-4 py-2 rounded-xl font-black text-xs uppercase tracking-wider transition shadow cursor-pointer flex items-center gap-1.5"
                             title="Open print dialog and choose Save as PDF"
                         >
                             <span>📥</span> Download PDF

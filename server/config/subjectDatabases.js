@@ -104,12 +104,52 @@ for (const [key, cfg] of Object.entries(DB_CONFIGS)) {
     });
 }
 
+const BOTANY_CHAPTERS = [
+    'The Living World',
+    'Biological Classification',
+    'Plant Kingdom',
+    'Morphology of Flowering Plants',
+    'Anatomy of Flowering Plants',
+    'Cell: The Unit of Life',
+    'Cell Cycle and Cell Division',
+    'Photosynthesis in Higher Plants',
+    'Respiration in Plants',
+    'Plant Growth and Development',
+    'Sexual Reproduction in Flowering Plants',
+    'Principles of Inheritance and Variation',
+    'Molecular Basis of Inheritance',
+    'Microbes in Human Welfare',
+    'Biotechnology: Principles and Processes',
+    'Biotechnology and its Applications',
+    'Organisms and Populations',
+    'Biodiversity and Conservation'
+];
+
+const ZOOLOGY_CHAPTERS = [
+    'Animal Kingdom',
+    'Structural Organisation in Animals',
+    'Biomolecules',
+    'Breathing and Exchange of Gases',
+    'Body Fluids and Circulation',
+    'Excretory Products and their Elimination',
+    'Excretory Products and Their Elimination',
+    'Locomotion and Movement',
+    'Neural Control and Coordination',
+    'Chemical Coordination and Integration',
+    'Human Reproduction',
+    'Reproductive Health',
+    'Evolution',
+    'Human Health and Disease'
+];
+
 function normalizeSubject(sub) {
     if (!sub || typeof sub !== 'string') return null;
     const clean = sub.trim().toLowerCase();
     if (clean.includes('math')) return 'Mathematics';
     if (clean.includes('physic')) return 'Physics';
     if (clean.includes('chem')) return 'Chemistry';
+    if (clean.includes('botany')) return 'Botany';
+    if (clean.includes('zoology')) return 'Zoology';
     if (clean.includes('bio')) return 'Biology';
     return sub.trim();
 }
@@ -139,7 +179,7 @@ function getPoolForTarget(subject, klass = '12') {
     let prefix = 'phy';
     if (normSub === 'Mathematics') prefix = 'math';
     else if (normSub === 'Chemistry') prefix = 'chem';
-    else if (normSub === 'Biology') prefix = 'bio';
+    else if (normSub === 'Biology' || normSub === 'Botany' || normSub === 'Zoology') prefix = 'bio';
     else if (normSub === 'Physics') prefix = 'phy';
 
     const key = `${prefix}_${effectiveKlass}`;
@@ -155,7 +195,11 @@ function getPoolsForQuery(subject, klass) {
     let filtered = all;
 
     if (normSub) {
-        filtered = filtered.filter(p => p.subject.toLowerCase() === normSub.toLowerCase());
+        if (normSub === 'Botany' || normSub === 'Zoology' || normSub === 'Biology') {
+            filtered = filtered.filter(p => p.subject.toLowerCase() === 'biology');
+        } else {
+            filtered = filtered.filter(p => p.subject.toLowerCase() === normSub.toLowerCase());
+        }
     }
 
     if (normKlass && normKlass !== 'both') {
@@ -172,6 +216,8 @@ function getAllPools() {
 module.exports = {
     DB_CONFIGS,
     pools,
+    BOTANY_CHAPTERS,
+    ZOOLOGY_CHAPTERS,
     normalizeSubject,
     normalizeClass,
     getPoolForTarget,

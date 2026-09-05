@@ -181,7 +181,7 @@ export default function ResizableDiagram({
                 </div>
             </div>
 
-            {/* ── THE DIAGRAM IMAGE (Opaque White Background, No Watermark Bleed) ── */}
+            {/* ── THE DIAGRAM IMAGE (Transparent Background & Watermark Blend) ── */}
             <img
                 src={src}
                 alt={alt}
@@ -196,13 +196,14 @@ export default function ResizableDiagram({
                     display: 'block',
                     margin: '0 auto',
                     borderRadius: '4px',
-                    backgroundColor: '#ffffff',
+                    backgroundColor: 'transparent',
+                    mixBlendMode: 'multiply',
                     position: 'relative',
                     zIndex: 2,
                     boxSizing: 'border-box',
                     transition: 'max-height 0.15s ease',
                 }}
-                className="border border-gray-200/80 rounded shadow-2xs"
+                className="rounded"
                 loading="eager"
                 onError={(e) => {
                     e.currentTarget.style.display = 'none';

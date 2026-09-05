@@ -2,6 +2,8 @@ const primaryPool = require('../config/postgres');
 const {
     DB_CONFIGS,
     pools,
+    BOTANY_CHAPTERS,
+    ZOOLOGY_CHAPTERS,
     normalizeSubject,
     normalizeClass,
     getPoolForTarget,
@@ -68,18 +70,14 @@ function isUuid(str) {
 function mapSupabaseToQuestion(row, usageMap = null) {
     if (!row) return null;
 
-    let type = 'MCQ';
+    const rawQuestion = row.question || '';
+    const rawAssertion = row.assertion || '';
+    const rawReason = row.reason || '';
     const qTypeLower = (row.q_type || '').toLowerCase();
-    if (qTypeLower.includes('numerical')) {
-        type = 'NUMERICAL';
-    } else if (qTypeLower.includes('assertion')) {
-        type = 'ASSERTION_REASON';
-    } else if (qTypeLower.includes('match')) {
-        type = 'MATCH_FOLLOWING';
-    } else if (qTypeLower.includes('statement')) {
-        type = 'STATEMENT_BASED';
-    } else if (qTypeLower.includes('true') || qTypeLower.includes('false')) {
-        type = 'TRUE_FALSE';
+
+    // Skip true/false questions completely
+    if (qTypeLower.includes('true') || qTypeLower.includes('false')) {
+        return null;
     }
 
     const rawOptions = [];
@@ -114,6 +112,44 @@ function mapSupabaseToQuestion(row, usageMap = null) {
     }
 
     const options = rawOptions.map(cleanDifficultyTags).filter(Boolean);
+
+    // Smart Question Type Auto-Classification
+    let type = 'MCQ';
+    const isAR = (
+        qTypeLower.includes('assertion') || 
+        Boolean(rawAssertion && rawReason) || 
+        (/Assertion\s*(?:\(A\))?/i.test(rawQuestion) && /Reason\s*(?:\(R\))?/i.test(rawQuestion))
+    );
+    const isStatement = (
+        qTypeLower.includes('statement') || 
+        (/Statement\s*(?:I|1)\s*[:\-]/i.test(rawQuestion) && /Statement\s*(?:II|2)\s*[:\-]/i.test(rawQuestion))
+    );
+    const isMatch = (
+        qTypeLower.includes('match') || 
+        Boolean(row.column_a && row.column_a.length > 0) || 
+        /(?:Column|List)\s*I[\s\S]*(?:Column|List)\s*II/i.test(rawQuestion) ||
+        /Match (?:List|the following|Column)/i.test(rawQuestion)
+    );
+    const isNumeric = (
+        qTypeLower.includes('numerical') || 
+        (!options.length && Boolean(row.num_answer || row.correct_option))
+    );
+    const hasOptImages = options.length > 0 && options.every(opt => /\{\{IMG::|!\[|\[DIAGRAM:|<img|https?:\/\/.*?\.(png|jpg|jpeg|webp|svg|gif)|data:image\//i.test(String(opt)));
+    const hasDiag = Boolean(row.image_url || row.imageUrl || /\{\{IMG::|!\[/i.test(rawQuestion) || hasOptImages);
+
+    if (isAR) {
+        type = 'ASSERTION_REASON';
+    } else if (isStatement) {
+        type = 'STATEMENT_BASED';
+    } else if (isMatch) {
+        type = 'MATCH_FOLLOWING';
+    } else if (isNumeric) {
+        type = 'NUMERICAL';
+    } else if (hasDiag || qTypeLower.includes('diagram') || qTypeLower.includes('image')) {
+        type = 'DIAGRAM_BASED';
+    } else {
+        type = 'MCQ';
+    }
 
     let answer = row.correct_option || row.num_answer || '';
     if (row.correct_option && options.length > 0) {
@@ -298,8 +334,35 @@ function buildQueryFilters(filters) {
     const values = [];
     let paramIndex = 1;
 
-    // Chapter filter
-    if (filters.chapter) {
+    // Exclude True/False questions completely
+    whereClauses.push("(q.q_type IS NULL OR (q.q_type NOT ILIKE '%true%' AND q.q_type NOT ILIKE '%false%'))");
+
+    // Subject specific chapter isolation for Botany vs Zoology
+    const normSub = normalizeSubject(filters.subject);
+    if (normSub === 'Botany') {
+        if (filters.chapter) {
+            const rawChapters = Array.isArray(filters.chapter) ? filters.chapter : filters.chapter.split(',').map(c => c.trim()).filter(Boolean);
+            const validBotany = rawChapters.filter(ch => BOTANY_CHAPTERS.includes(ch));
+            const chaptersToUse = validBotany.length > 0 ? validBotany : BOTANY_CHAPTERS;
+            whereClauses.push(`q.chapter = ANY($${paramIndex++}::text[])`);
+            values.push(chaptersToUse);
+        } else {
+            whereClauses.push(`q.chapter = ANY($${paramIndex++}::text[])`);
+            values.push(BOTANY_CHAPTERS);
+        }
+    } else if (normSub === 'Zoology') {
+        if (filters.chapter) {
+            const rawChapters = Array.isArray(filters.chapter) ? filters.chapter : filters.chapter.split(',').map(c => c.trim()).filter(Boolean);
+            const validZoology = rawChapters.filter(ch => ZOOLOGY_CHAPTERS.includes(ch));
+            const chaptersToUse = validZoology.length > 0 ? validZoology : ZOOLOGY_CHAPTERS;
+            whereClauses.push(`q.chapter = ANY($${paramIndex++}::text[])`);
+            values.push(chaptersToUse);
+        } else {
+            whereClauses.push(`q.chapter = ANY($${paramIndex++}::text[])`);
+            values.push(ZOOLOGY_CHAPTERS);
+        }
+    } else if (filters.chapter) {
+        // Standard chapter filter for Physics, Chemistry, Maths, Biology
         const chapters = Array.isArray(filters.chapter) ? filters.chapter : filters.chapter.split(',').map(c => c.trim()).filter(Boolean);
         if (chapters.length > 0) {
             whereClauses.push(`q.chapter = ANY($${paramIndex++}::text[])`);
@@ -324,6 +387,8 @@ function buildQueryFilters(filters) {
             if (t.includes('numerical')) qTypes.push('numerical');
             else if (t.includes('assertion')) qTypes.push('assertion_reason', 'assertion');
             else if (t.includes('match')) qTypes.push('match', 'match_following');
+            else if (t.includes('statement')) qTypes.push('statement_based', 'statement');
+            else if (t.includes('diagram') || t.includes('image')) qTypes.push('diagram_based', 'image_based');
             else if (t.includes('mcq')) qTypes.push('mcq_single', 'mcq', 'mcq_multiple');
         });
         if (qTypes.length > 0) {
@@ -525,7 +590,15 @@ async function getSubjectMetadata(subject = '', klass = null) {
 
         for (const r of results) {
             total += r.total;
-            r.chapters.forEach(ch => chaptersSet.add(ch));
+            r.chapters.forEach(ch => {
+                if (normSub === 'Botany') {
+                    if (BOTANY_CHAPTERS.includes(ch)) chaptersSet.add(ch);
+                } else if (normSub === 'Zoology') {
+                    if (ZOOLOGY_CHAPTERS.includes(ch)) chaptersSet.add(ch);
+                } else {
+                    chaptersSet.add(ch);
+                }
+            });
             conceptsList.push(...r.concepts);
         }
 
@@ -533,6 +606,8 @@ async function getSubjectMetadata(subject = '', klass = null) {
         const conceptSeen = new Set();
         const distinctConcepts = [];
         for (const c of conceptsList) {
+            if (normSub === 'Botany' && !BOTANY_CHAPTERS.includes(c.chapter)) continue;
+            if (normSub === 'Zoology' && !ZOOLOGY_CHAPTERS.includes(c.chapter)) continue;
             const key = `${c.chapter}:::${c.name}`;
             if (!conceptSeen.has(key)) {
                 conceptSeen.add(key);

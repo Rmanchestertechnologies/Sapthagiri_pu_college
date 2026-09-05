@@ -148,29 +148,25 @@ export function generatePaperSet(paper, setName = 'P') {
             break;
 
         case 'R':
-            // R Set: Shuffle questions AND shuffle options inside each question (recalculate answers)
+            // R Set: Options shuffle only (questions remain in original order, answers recalculated)
+            processedQuestions = baseQuestions.map((q, idx) => {
+                const qWithShuffledOpts = shuffleQuestionOptions(q, random);
+                return {
+                    ...qWithShuffledOpts,
+                    setQNo: idx + 1,
+                    originalQNo: idx + 1,
+                };
+            });
+            break;
+
+        case 'S':
+        default:
+            // S Set: Both questions shuffled AND options shuffled (answers recalculated)
             {
                 const indexed = baseQuestions.map((q, idx) => ({ ...q, originalQNo: idx + 1 }));
                 const shuffledQs = shuffleArray(indexed, random);
                 processedQuestions = shuffledQs.map((q, idx) => {
                     const qWithShuffledOpts = shuffleQuestionOptions(q, random);
-                    return {
-                        ...qWithShuffledOpts,
-                        setQNo: idx + 1,
-                    };
-                });
-            }
-            break;
-
-        case 'S':
-        default:
-            // S Set: Maximum shuffle (second pass random seed)
-            {
-                const sRandom = createSeededRandom(`${seed}-max-shuffle`);
-                const indexed = baseQuestions.map((q, idx) => ({ ...q, originalQNo: idx + 1 }));
-                const shuffledQs = shuffleArray(indexed, sRandom);
-                processedQuestions = shuffledQs.map((q, idx) => {
-                    const qWithShuffledOpts = shuffleQuestionOptions(q, sRandom);
                     return {
                         ...qWithShuffledOpts,
                         setQNo: idx + 1,
