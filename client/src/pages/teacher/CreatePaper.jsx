@@ -317,10 +317,73 @@ export default function CreatePaper() {
         }
     }, [subject, selectedClass]);
 
+    // Canonicalize biology & assessment chapter names
+    const canonicalizeChapterName = (name) => {
+        if (!name || typeof name !== 'string') return '';
+        const clean = name.trim();
+        const lower = clean.toLowerCase().replace(/[^a-z0-9]/g, '');
+        const CANONICAL_LIST = [
+            'The Living World',
+            'Biological Classification',
+            'Plant Kingdom',
+            'Morphology of Flowering Plants',
+            'Anatomy of Flowering Plants',
+            'Cell: The Unit of Life',
+            'Cell Cycle and Cell Division',
+            'Photosynthesis in Higher Plants',
+            'Respiration in Plants',
+            'Plant Growth and Development',
+            'Animal Kingdom',
+            'Structural Organisation in Animals',
+            'Biomolecules',
+            'Breathing and Exchange of Gases',
+            'Body Fluids and Circulation',
+            'Excretory Products and Their Elimination',
+            'Locomotion and Movement',
+            'Neural Control and Coordination',
+            'Chemical Coordination and Integration',
+            'Sexual Reproduction in Flowering Plants',
+            'Principles of Inheritance and Variation',
+            'Molecular Basis of Inheritance',
+            'Microbes in Human Welfare',
+            'Biotechnology: Principles and Processes',
+            'Biotechnology and Its Applications',
+            'Organisms and Populations',
+            'Ecosystem',
+            'Biodiversity and Conservation',
+            'Human Reproduction',
+            'Reproductive Health',
+            'Evolution',
+            'Human Health and Disease'
+        ];
+        for (const c of CANONICAL_LIST) {
+            if (c.toLowerCase().replace(/[^a-z0-9]/g, '') === lower) {
+                return c;
+            }
+        }
+        return clean;
+    };
+
     // Distinct chapters and concepts map (Scoped strictly to selected class)
     const { distinctChapters, chapterConceptsMap } = useMemo(() => {
-        const chaptersSet = new Set((metaData.chapters || []).filter(Boolean));
+        const canonicalMetaChapters = (metaData.chapters || []).map(canonicalizeChapterName).filter(Boolean);
+        const chaptersSet = new Set(canonicalMetaChapters);
         const map = {};
+
+        // Pre-populate map keys for metadata chapters
+        canonicalMetaChapters.forEach(ch => {
+            if (!map[ch]) map[ch] = new Set();
+        });
+
+        // Add meta concepts first
+        (metaData.concepts || []).forEach(c => {
+            if (c && typeof c === 'object' && c.chapter && c.name) {
+                const canonCh = canonicalizeChapterName(c.chapter);
+                chaptersSet.add(canonCh);
+                if (!map[canonCh]) map[canonCh] = new Set();
+                map[canonCh].add(c.name.trim());
+            }
+        });
 
         // Also add from available questions matching this class
         availableQuestions.forEach(q => {
@@ -333,9 +396,10 @@ export default function CreatePaper() {
                 if (!matches) return;
             }
 
-            const ch = q.chapter || 'General';
-            // Only include chapters in current class syllabus
-            if (metaData.chapters && metaData.chapters.length > 0 && !metaData.chapters.includes(ch) && ch !== 'General') {
+            const rawCh = q.chapter || 'General';
+            const ch = canonicalizeChapterName(rawCh);
+            // Only include chapters in current class syllabus if metadata exists
+            if (canonicalMetaChapters.length > 0 && !canonicalMetaChapters.includes(ch) && ch !== 'General') {
                 return;
             }
 
@@ -343,16 +407,7 @@ export default function CreatePaper() {
             if (!map[ch]) map[ch] = new Set();
             const cpt = q.concept || q.topic;
             if (cpt && cpt !== 'General' && cpt !== ch) {
-                map[ch].add(cpt);
-            }
-        });
-
-        // Add meta concepts
-        (metaData.concepts || []).forEach(c => {
-            if (c && typeof c === 'object' && c.chapter && c.name) {
-                chaptersSet.add(c.chapter);
-                if (!map[c.chapter]) map[c.chapter] = new Set();
-                map[c.chapter].add(c.name);
+                map[ch].add(cpt.trim());
             }
         });
 

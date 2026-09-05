@@ -2,8 +2,14 @@ const primaryPool = require('../config/postgres');
 const {
     DB_CONFIGS,
     pools,
+    CLASS_11_BOTANY_CHAPTERS,
+    CLASS_11_ZOOLOGY_CHAPTERS,
+    CLASS_12_BOTANY_CHAPTERS,
+    CLASS_12_ZOOLOGY_CHAPTERS,
     BOTANY_CHAPTERS,
     ZOOLOGY_CHAPTERS,
+    BIOLOGY_SYLLABUS,
+    canonicalizeChapter,
     normalizeSubject,
     normalizeClass,
     getPoolForTarget,
@@ -186,7 +192,7 @@ function mapSupabaseToQuestion(row, usageMap = null) {
         questionId: row.id,
         subject: row.subject || 'Physics',
         classes: classesList,
-        chapter: row.chapter || 'General',
+        chapter: canonicalizeChapter(row.chapter || 'General'),
         concept: row.topic || row.chapter || 'General',
         subConcept: '',
         level: level,
@@ -344,34 +350,46 @@ function buildQueryFilters(filters) {
 
     // Subject specific chapter isolation for Botany vs Zoology
     const normSub = normalizeSubject(filters.subject);
+    const filterClass = normalizeClass(filters.classes || filters.class);
+    let allowedBotanyChapters = BOTANY_CHAPTERS;
+    let allowedZoologyChapters = ZOOLOGY_CHAPTERS;
+    if (filterClass === '11') {
+        allowedBotanyChapters = CLASS_11_BOTANY_CHAPTERS;
+        allowedZoologyChapters = CLASS_11_ZOOLOGY_CHAPTERS;
+    } else if (filterClass === '12') {
+        allowedBotanyChapters = CLASS_12_BOTANY_CHAPTERS;
+        allowedZoologyChapters = CLASS_12_ZOOLOGY_CHAPTERS;
+    }
+
     if (normSub === 'Botany') {
         if (filters.chapter) {
             const rawChapters = Array.isArray(filters.chapter) ? filters.chapter : filters.chapter.split(',').map(c => c.trim()).filter(Boolean);
-            const validBotany = rawChapters.filter(ch => BOTANY_CHAPTERS.includes(ch));
-            const chaptersToUse = validBotany.length > 0 ? validBotany : BOTANY_CHAPTERS;
+            const canonicalList = rawChapters.map(canonicalizeChapter).filter(ch => allowedBotanyChapters.includes(ch));
+            const chaptersToUse = canonicalList.length > 0 ? canonicalList : allowedBotanyChapters;
             whereClauses.push(`q.chapter = ANY($${paramIndex++}::text[])`);
             values.push(chaptersToUse);
         } else {
             whereClauses.push(`q.chapter = ANY($${paramIndex++}::text[])`);
-            values.push(BOTANY_CHAPTERS);
+            values.push(allowedBotanyChapters);
         }
     } else if (normSub === 'Zoology') {
         if (filters.chapter) {
             const rawChapters = Array.isArray(filters.chapter) ? filters.chapter : filters.chapter.split(',').map(c => c.trim()).filter(Boolean);
-            const validZoology = rawChapters.filter(ch => ZOOLOGY_CHAPTERS.includes(ch));
-            const chaptersToUse = validZoology.length > 0 ? validZoology : ZOOLOGY_CHAPTERS;
+            const canonicalList = rawChapters.map(canonicalizeChapter).filter(ch => allowedZoologyChapters.includes(ch));
+            const chaptersToUse = canonicalList.length > 0 ? canonicalList : allowedZoologyChapters;
             whereClauses.push(`q.chapter = ANY($${paramIndex++}::text[])`);
             values.push(chaptersToUse);
         } else {
             whereClauses.push(`q.chapter = ANY($${paramIndex++}::text[])`);
-            values.push(ZOOLOGY_CHAPTERS);
+            values.push(allowedZoologyChapters);
         }
     } else if (filters.chapter) {
         // Standard chapter filter for Physics, Chemistry, Maths, Biology
         const chapters = Array.isArray(filters.chapter) ? filters.chapter : filters.chapter.split(',').map(c => c.trim()).filter(Boolean);
-        if (chapters.length > 0) {
+        const canonicalList = chapters.map(canonicalizeChapter);
+        if (canonicalList.length > 0) {
             whereClauses.push(`q.chapter = ANY($${paramIndex++}::text[])`);
-            values.push(chapters);
+            values.push(canonicalList);
         }
     }
 
@@ -598,30 +616,70 @@ async function getSubjectMetadata(subject = '', klass = null) {
         const chaptersSet = new Set();
         const conceptsList = [];
 
+        // Pre-seed taxonomy chapters & concepts from BIOLOGY_SYLLABUS
+        const isBioRelated = ['Botany', 'Zoology', 'Biology'].includes(normSub);
+        if (isBioRelated) {
+            const classesToInclude = normKlass === '11' ? ['class_11'] : normKlass === '12' ? ['class_12'] : ['class_11', 'class_12'];
+            const subTracks = normSub === 'Botany' ? ['botany'] : normSub === 'Zoology' ? ['zoology'] : ['botany', 'zoology'];
+
+            for (const cls of classesToInclude) {
+                const classData = BIOLOGY_SYLLABUS[cls];
+                if (!classData) continue;
+                for (const track of subTracks) {
+                    const chList = classData[track] || [];
+                    for (const item of chList) {
+                        const canonCh = canonicalizeChapter(item.chapter);
+                        chaptersSet.add(canonCh);
+                        if (Array.isArray(item.concepts)) {
+                            for (const cpt of item.concepts) {
+                                conceptsList.push({ chapter: canonCh, name: cpt });
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Allowed chapters filter for database results
+        let allowedChapters = null;
+        if (normSub === 'Botany') {
+            allowedChapters = normKlass === '11' ? CLASS_11_BOTANY_CHAPTERS : normKlass === '12' ? CLASS_12_BOTANY_CHAPTERS : BOTANY_CHAPTERS;
+        } else if (normSub === 'Zoology') {
+            allowedChapters = normKlass === '11' ? CLASS_11_ZOOLOGY_CHAPTERS : normKlass === '12' ? CLASS_12_ZOOLOGY_CHAPTERS : ZOOLOGY_CHAPTERS;
+        } else if (normSub === 'Biology') {
+            allowedChapters = normKlass === '11' 
+                ? [...CLASS_11_BOTANY_CHAPTERS, ...CLASS_11_ZOOLOGY_CHAPTERS]
+                : normKlass === '12'
+                    ? [...CLASS_12_BOTANY_CHAPTERS, ...CLASS_12_ZOOLOGY_CHAPTERS]
+                    : [...BOTANY_CHAPTERS, ...ZOOLOGY_CHAPTERS];
+        }
+
         for (const r of results) {
             total += r.total;
             r.chapters.forEach(ch => {
-                if (normSub === 'Botany') {
-                    if (BOTANY_CHAPTERS.includes(ch)) chaptersSet.add(ch);
-                } else if (normSub === 'Zoology') {
-                    if (ZOOLOGY_CHAPTERS.includes(ch)) chaptersSet.add(ch);
-                } else {
-                    chaptersSet.add(ch);
+                const canonCh = canonicalizeChapter(ch);
+                if (!allowedChapters || allowedChapters.includes(canonCh)) {
+                    chaptersSet.add(canonCh);
                 }
             });
-            conceptsList.push(...r.concepts);
+            r.concepts.forEach(c => {
+                const canonCh = canonicalizeChapter(c.chapter);
+                if (!allowedChapters || allowedChapters.includes(canonCh)) {
+                    conceptsList.push({ chapter: canonCh, name: c.name });
+                }
+            });
         }
 
         // Deduplicate concepts by chapter + name
         const conceptSeen = new Set();
         const distinctConcepts = [];
         for (const c of conceptsList) {
-            if (normSub === 'Botany' && !BOTANY_CHAPTERS.includes(c.chapter)) continue;
-            if (normSub === 'Zoology' && !ZOOLOGY_CHAPTERS.includes(c.chapter)) continue;
-            const key = `${c.chapter}:::${c.name}`;
+            const canonCh = canonicalizeChapter(c.chapter);
+            if (allowedChapters && !allowedChapters.includes(canonCh)) continue;
+            const key = `${canonCh}:::${c.name.trim()}`;
             if (!conceptSeen.has(key)) {
                 conceptSeen.add(key);
-                distinctConcepts.push(c);
+                distinctConcepts.push({ chapter: canonCh, name: c.name.trim() });
             }
         }
 

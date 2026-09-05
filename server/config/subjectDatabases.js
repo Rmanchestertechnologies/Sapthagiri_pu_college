@@ -104,7 +104,7 @@ for (const [key, cfg] of Object.entries(DB_CONFIGS)) {
     });
 }
 
-const BOTANY_CHAPTERS = [
+const CLASS_11_BOTANY_CHAPTERS = [
     'The Living World',
     'Biological Classification',
     'Plant Kingdom',
@@ -114,33 +114,427 @@ const BOTANY_CHAPTERS = [
     'Cell Cycle and Cell Division',
     'Photosynthesis in Higher Plants',
     'Respiration in Plants',
-    'Plant Growth and Development',
-    'Sexual Reproduction in Flowering Plants',
-    'Principles of Inheritance and Variation',
-    'Molecular Basis of Inheritance',
-    'Microbes in Human Welfare',
-    'Biotechnology: Principles and Processes',
-    'Biotechnology and its Applications',
-    'Organisms and Populations',
-    'Biodiversity and Conservation'
+    'Plant Growth and Development'
 ];
 
-const ZOOLOGY_CHAPTERS = [
+const CLASS_11_ZOOLOGY_CHAPTERS = [
     'Animal Kingdom',
     'Structural Organisation in Animals',
     'Biomolecules',
     'Breathing and Exchange of Gases',
     'Body Fluids and Circulation',
-    'Excretory Products and their Elimination',
     'Excretory Products and Their Elimination',
     'Locomotion and Movement',
     'Neural Control and Coordination',
-    'Chemical Coordination and Integration',
+    'Chemical Coordination and Integration'
+];
+
+const CLASS_12_BOTANY_CHAPTERS = [
+    'Sexual Reproduction in Flowering Plants',
+    'Principles of Inheritance and Variation',
+    'Molecular Basis of Inheritance',
+    'Microbes in Human Welfare',
+    'Biotechnology: Principles and Processes',
+    'Biotechnology and Its Applications',
+    'Organisms and Populations',
+    'Ecosystem',
+    'Biodiversity and Conservation'
+];
+
+const CLASS_12_ZOOLOGY_CHAPTERS = [
     'Human Reproduction',
     'Reproductive Health',
     'Evolution',
-    'Human Health and Disease'
+    'Human Health and Disease',
+    'Biotechnology: Principles and Processes',
+    'Biotechnology and Its Applications'
 ];
+
+const BOTANY_CHAPTERS = [
+    ...CLASS_11_BOTANY_CHAPTERS,
+    ...CLASS_12_BOTANY_CHAPTERS
+];
+
+const ZOOLOGY_CHAPTERS = [
+    ...CLASS_11_ZOOLOGY_CHAPTERS,
+    ...CLASS_12_ZOOLOGY_CHAPTERS
+];
+
+const BIOLOGY_SYLLABUS = {
+    class_11: {
+        botany: [
+            {
+                chapter: 'The Living World',
+                concepts: [
+                    'Diversity in the Living World',
+                    'Taxonomic Categories'
+                ]
+            },
+            {
+                chapter: 'Biological Classification',
+                concepts: [
+                    'Kingdom Monera',
+                    'Kingdom Protista',
+                    'Kingdom Fungi',
+                    'Kingdom Plantae',
+                    'Kingdom Animalia',
+                    'Viruses, Viroids, Prions and Lichens'
+                ]
+            },
+            {
+                chapter: 'Plant Kingdom',
+                concepts: [
+                    'Algae',
+                    'Bryophytes',
+                    'Pteridophytes',
+                    'Gymnosperms',
+                    'Angiosperms'
+                ]
+            },
+            {
+                chapter: 'Morphology of Flowering Plants',
+                concepts: [
+                    'The Root',
+                    'The Stem',
+                    'The Leaf',
+                    'The Inflorescence',
+                    'The Flower',
+                    'The Fruit',
+                    'The Seed',
+                    'Semi-technical Description of a Typical Flowering Plant',
+                    'Description of Some Important Families'
+                ]
+            },
+            {
+                chapter: 'Anatomy of Flowering Plants',
+                concepts: [
+                    'The Tissue System',
+                    'Anatomy of Dicotyledonous and Monocotyledonous Plants'
+                ]
+            },
+            {
+                chapter: 'Cell: The Unit of Life',
+                concepts: [
+                    'What is a Cell?',
+                    'Cell Theory',
+                    'An Overview of Cell',
+                    'Prokaryotic Cells',
+                    'Eukaryotic Cells'
+                ]
+            },
+            {
+                chapter: 'Cell Cycle and Cell Division',
+                concepts: [
+                    'Cell Cycle',
+                    'M Phase',
+                    'Significance of Mitosis',
+                    'Meiosis',
+                    'Significance of Meiosis'
+                ]
+            },
+            {
+                chapter: 'Photosynthesis in Higher Plants',
+                concepts: [
+                    'What do we Know?',
+                    'Early Experiments',
+                    'Where does Photosynthesis take place?',
+                    'How many Pigments are involved in Photosynthesis?',
+                    'What is Light Reaction?',
+                    'The Electron Transport',
+                    'Where are the ATP and NADPH Used?',
+                    'The C4 Pathway',
+                    'Photorespiration',
+                    'Factors affecting Photosynthesis'
+                ]
+            },
+            {
+                chapter: 'Respiration in Plants',
+                concepts: [
+                    'Do Plants Breathe?',
+                    'Glycolysis',
+                    'Fermentation',
+                    'Aerobic Respiration',
+                    'The Respiratory Balance Sheet',
+                    'Amphibolic Pathway',
+                    'Respiratory Quotient'
+                ]
+            },
+            {
+                chapter: 'Plant Growth and Development',
+                concepts: [
+                    'Growth',
+                    'Differentiation, Dedifferentiation and Redifferentiation',
+                    'Development',
+                    'Plant Growth Regulators'
+                ]
+            }
+        ],
+        zoology: [
+            {
+                chapter: 'Animal Kingdom',
+                concepts: [
+                    'Basis of Classification',
+                    'Classification of Animals'
+                ]
+            },
+            {
+                chapter: 'Structural Organisation in Animals',
+                concepts: [
+                    'Organ and Organ System',
+                    'Frogs'
+                ]
+            },
+            {
+                chapter: 'Biomolecules',
+                concepts: [
+                    'How to Analyse Chemical Composition?',
+                    'Primary and Secondary Metabolites',
+                    'Biomacromolecules',
+                    'Proteins',
+                    'Polysaccharides',
+                    'Nucleic Acids',
+                    'Structure of Proteins',
+                    'Enzymes'
+                ]
+            },
+            {
+                chapter: 'Breathing and Exchange of Gases',
+                concepts: [
+                    'Respiratory Organs',
+                    'Mechanism of Breathing',
+                    'Exchange of Gases',
+                    'Transport of Gases',
+                    'Regulation of Respiration',
+                    'Disorders of Respiratory System'
+                ]
+            },
+            {
+                chapter: 'Body Fluids and Circulation',
+                concepts: [
+                    'Blood',
+                    'Lymph (Tissue Fluid)',
+                    'Circulatory Pathways',
+                    'Double Circulation',
+                    'Regulation of Cardiac Activity',
+                    'Disorders of Circulatory System'
+                ]
+            },
+            {
+                chapter: 'Excretory Products and Their Elimination',
+                concepts: [
+                    'Human Excretory System',
+                    'Urine Formation',
+                    'Function of the Tubules',
+                    'Mechanism of Concentration of the Filtrate',
+                    'Regulation of Kidney Function',
+                    'Micturition',
+                    'Role of Other Organs in Excretion',
+                    'Disorders of the Excretory System'
+                ]
+            },
+            {
+                chapter: 'Locomotion and Movement',
+                concepts: [
+                    'Types of Movement',
+                    'Muscle',
+                    'Skeletal System',
+                    'Joints',
+                    'Disorders of Muscular and Skeletal System'
+                ]
+            },
+            {
+                chapter: 'Neural Control and Coordination',
+                concepts: [
+                    'Neural System',
+                    'Human Neural System',
+                    'Neuron as Structural and Functional Unit of Neural System',
+                    'Central Neural System'
+                ]
+            },
+            {
+                chapter: 'Chemical Coordination and Integration',
+                concepts: [
+                    'Endocrine Glands and Hormones',
+                    'Human Endocrine System',
+                    'Hormones of Heart, Kidney and Gastrointestinal Tract',
+                    'Mechanism of Hormone Action'
+                ]
+            }
+        ]
+    },
+    class_12: {
+        botany: [
+            {
+                chapter: 'Sexual Reproduction in Flowering Plants',
+                concepts: [
+                    'Flower – A Fascinating Organ of Angiosperms',
+                    'Pre-fertilisation: Structures and Events',
+                    'Double Fertilisation',
+                    'Post-fertilisation: Structures and Events',
+                    'Apomixis and Polyembryony'
+                ]
+            },
+            {
+                chapter: 'Principles of Inheritance and Variation',
+                concepts: [
+                    "Mendel's Laws of Inheritance",
+                    'Inheritance of One Gene',
+                    'Inheritance of Two Genes',
+                    'Polygenic Inheritance',
+                    'Pleiotropy',
+                    'Sex Determination',
+                    'Mutation',
+                    'Genetic Disorders'
+                ]
+            },
+            {
+                chapter: 'Molecular Basis of Inheritance',
+                concepts: [
+                    'The DNA',
+                    'The Search for Genetic Material',
+                    'RNA World',
+                    'Replication',
+                    'Transcription',
+                    'Genetic Code',
+                    'Translation',
+                    'Regulation of Gene Expression',
+                    'Human Genome Project',
+                    'DNA Fingerprinting'
+                ]
+            },
+            {
+                chapter: 'Microbes in Human Welfare',
+                concepts: [
+                    'Microbes in Household Products',
+                    'Microbes in Industrial Products',
+                    'Microbes in Sewage Treatment',
+                    'Microbes in Production of Biogas',
+                    'Microbes as Biocontrol Agents',
+                    'Microbes as Biofertilisers'
+                ]
+            },
+            {
+                chapter: 'Biotechnology: Principles and Processes',
+                concepts: [
+                    'Principles of Biotechnology',
+                    'Tools of Recombinant DNA Technology',
+                    'Processes of Recombinant DNA Technology'
+                ]
+            },
+            {
+                chapter: 'Biotechnology and Its Applications',
+                concepts: [
+                    'Biotechnological Applications in Agriculture',
+                    'Biotechnological Applications in Medicine',
+                    'Transgenic Animals',
+                    'Ethical Issues'
+                ]
+            },
+            {
+                chapter: 'Organisms and Populations',
+                concepts: [
+                    'Populations'
+                ]
+            },
+            {
+                chapter: 'Ecosystem',
+                concepts: [
+                    'Ecosystem – Structure and Function',
+                    'Productivity',
+                    'Decomposition',
+                    'Energy Flow',
+                    'Ecological Pyramids'
+                ]
+            },
+            {
+                chapter: 'Biodiversity and Conservation',
+                concepts: [
+                    'Biodiversity',
+                    'Biodiversity Conservation'
+                ]
+            }
+        ],
+        zoology: [
+            {
+                chapter: 'Human Reproduction',
+                concepts: [
+                    'The Male Reproductive System',
+                    'The Female Reproductive System',
+                    'Gametogenesis',
+                    'Menstrual Cycle',
+                    'Fertilisation and Implantation',
+                    'Pregnancy and Embryonic Development',
+                    'Parturition and Lactation'
+                ]
+            },
+            {
+                chapter: 'Reproductive Health',
+                concepts: [
+                    'Reproductive Health – Problems and Strategies',
+                    'Population Explosion and Birth Control',
+                    'Medical Termination of Pregnancy (MTP)',
+                    'Sexually Transmitted Infections (STIs)',
+                    'Infertility'
+                ]
+            },
+            {
+                chapter: 'Evolution',
+                concepts: [
+                    'Origin of Life',
+                    'Evolution of Life Forms – A Theory',
+                    'What are the Evidences for Evolution?',
+                    'What is Adaptive Radiation?',
+                    'Biological Evolution',
+                    'Mechanism of Evolution',
+                    'Hardy-Weinberg Principle',
+                    'A Brief Account of Evolution',
+                    'Origin and Evolution of Man'
+                ]
+            },
+            {
+                chapter: 'Human Health and Disease',
+                concepts: [
+                    'Common Diseases in Humans',
+                    'Immunity',
+                    'AIDS',
+                    'Cancer',
+                    'Drugs and Alcohol Abuse'
+                ]
+            },
+            {
+                chapter: 'Biotechnology: Principles and Processes',
+                concepts: [
+                    'Principles of Biotechnology',
+                    'Tools of Recombinant DNA Technology',
+                    'Processes of Recombinant DNA Technology'
+                ]
+            },
+            {
+                chapter: 'Biotechnology and Its Applications',
+                concepts: [
+                    'Biotechnological Applications in Agriculture',
+                    'Biotechnological Applications in Medicine',
+                    'Transgenic Animals',
+                    'Ethical Issues'
+                ]
+            }
+        ]
+    }
+};
+
+function canonicalizeChapter(name) {
+    if (!name || typeof name !== 'string') return '';
+    const clean = name.trim();
+    const lower = clean.toLowerCase().replace(/[^a-z0-9]/g, '');
+    
+    // Check all syllabus chapters
+    for (const ch of [...BOTANY_CHAPTERS, ...ZOOLOGY_CHAPTERS]) {
+        if (ch.toLowerCase().replace(/[^a-z0-9]/g, '') === lower) {
+            return ch;
+        }
+    }
+    return clean;
+}
 
 function normalizeSubject(sub) {
     if (!sub || typeof sub !== 'string') return null;
@@ -216,8 +610,14 @@ function getAllPools() {
 module.exports = {
     DB_CONFIGS,
     pools,
+    CLASS_11_BOTANY_CHAPTERS,
+    CLASS_11_ZOOLOGY_CHAPTERS,
+    CLASS_12_BOTANY_CHAPTERS,
+    CLASS_12_ZOOLOGY_CHAPTERS,
     BOTANY_CHAPTERS,
     ZOOLOGY_CHAPTERS,
+    BIOLOGY_SYLLABUS,
+    canonicalizeChapter,
     normalizeSubject,
     normalizeClass,
     getPoolForTarget,
