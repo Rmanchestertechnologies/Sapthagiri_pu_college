@@ -683,7 +683,7 @@ function BodyAssertionReason({ q, classes, isTwoCol, diagramMaxHeight = '180px',
 /** Parse match the following from text when matchPairs array is empty */
 function parseMatchFromText(q) {
     if (Array.isArray(q.matchPairs) && q.matchPairs.length > 0) {
-        return { introText: q.questionText || q.question || '', pairs: q.matchPairs };
+        return { introText: cleanQuestionText(q.questionText || q.question || ''), pairs: q.matchPairs };
     }
     if (Array.isArray(q.column_a) && q.column_a.length > 0 && Array.isArray(q.column_b) && q.column_b.length > 0) {
         const maxL = Math.max(q.column_a.length, q.column_b.length);
@@ -694,62 +694,158 @@ function parseMatchFromText(q) {
                 right: q.column_b[i] || ''
             });
         }
-        return { introText: q.questionText || q.question || '', pairs };
+        return { introText: cleanQuestionText(q.questionText || q.question || ''), pairs };
     }
-    const txt = q.questionText || q.question || '';
-    
-    // Check if question text has Column I / Column II or List I / List II
-    const colRegex = /(?:\*\*|__)?(?:Column|List)\s*(?:I|A)(?:\*\*|__)?([\s\S]*?)(?:\*\*|__)?(?:Column|List)\s*(?:II|B)(?:\*\*|__)?([\s\S]*?)(?=Choose the correct|Select the correct|Options:|\(a\)|\(A\)|[A-D]\s*[:\-\)]|$)/i;
-    const match = txt.match(colRegex);
-    if (match) {
-        const introText = txt.substring(0, match.index).trim();
-        const rawCol1 = match[1].trim();
-        const rawCol2 = match[2].trim();
+    let txt = cleanQuestionText(q.questionText || q.question || '');
+    if (!txt) return { introText: '', pairs: [] };
 
-        const splitItems = (str) => {
-            let items = str.split(/(?:\([A-Da-d1-4ivx]+\)|[A-Da-d1-4ivx]\.|\b[A-D]\b|\b[1-4]\b)/g)
-                .map(s => s.trim().replace(/^[:\-]\s*/, ''))
-                .filter(Boolean);
-            if (items.length >= 2) return items;
-            return str.split(/[\n,;]+/).map(s => s.trim()).filter(Boolean);
+    // Clean up bold asterisks around headers e.g. **Column I** -> Column I
+    txt = txt.replace(/\*\*(Column|List)\s*(I|II|A|B)\*\*/gi, '$1 $2');
+
+    // Regex to detect Column I / Column II or List I / List II
+    const colSplitRegex = /(?:Column|List)\s*(?:I|A)\b([\s\S]*?)(?:Column|List)\s*(?:II|B)\b([\s\S]*?)(?=Choose the correct|Select the correct|Options:|\([a-d1-4]\)\s*[A-D]|$)/i;
+    const match = txt.match(colSplitRegex);
+
+    if (match) {
+        let introText = txt.substring(0, match.index).trim();
+        introText = introText.replace(/\b(?:Match(?:\s+the\s+following)?(?:\s+items\s+in)?(?:\s+List[-\s]*I\s+with\s+List[-\s]*II)?[:\-]?)\s*$/i, '').trim();
+
+        let rawCol1 = match[1].trim();
+        let rawCol2 = match[2].trim();
+
+        // Clean out leading "with", ":", "-"
+        rawCol1 = rawCol1.replace(/^(?:with|:|-|\.)\s*/i, '').trim();
+        rawCol2 = rawCol2.replace(/^(?:with|:|-|\.)\s*/i, '').trim();
+
+        const extractItems = (colStr, isLeft = true) => {
+            const items = [];
+            const itemRegex = isLeft
+                ? /(?:^|\s)(?:\(([A-Da-d])\)|([A-Da-d])[\.:])\s*([\s\S]*?)(?=(?:\s(?:\([A-Da-d]\)|[A-Da-d][\.:]))|$)/g
+                : /(?:^|\s)(?:\(([0-9ivxIVX]+)\)|([0-9ivxIVX]+)[\.:])\s*([\s\S]*?)(?=(?:\s(?:\([0-9ivxIVX]+\)|[0-9ivxIVX]+[\.:]))|$)/g;
+
+            let im;
+            while ((im = itemRegex.exec(colStr)) !== null) {
+                const label = (im[1] || im[2] || '').trim();
+                const content = cleanStatementText(im[3]);
+                if (content && !/^(?:with|Column|List)$/i.test(content)) {
+                    items.push({ label, text: content });
+                }
+            }
+
+            if (items.length >= 2) return items.map(it => it.text);
+
+            // Fallback: split by newlines if structured as lines
+            const lines = colStr.split(/\n+/).map(s => cleanStatementText(s.replace(/^[\(\[]?[A-Da-d0-9ivxIVX]+[\)\]\.:\-]\s*/, ''))).filter(s => s && !/^(?:with|Column|List)$/i.test(s));
+            if (lines.length >= 2) return lines;
+
+            return [];
         };
 
-        const col1Items = splitItems(rawCol1);
-        const col2Items = splitItems(rawCol2);
-        const maxLen = Math.max(col1Items.length, col2Items.length);
-        const pairs = [];
-        for (let i = 0; i < maxLen; i++) {
-            pairs.push({
-                left: col1Items[i] || '',
-                right: col2Items[i] || ''
-            });
-        }
-        if (pairs.length > 0) {
-            return { introText, pairs };
+        const leftItems = extractItems(rawCol1, true);
+        const rightItems = extractItems(rawCol2, false);
+
+        if (leftItems.length >= 2 && rightItems.length >= 2) {
+            const maxLen = Math.max(leftItems.length, rightItems.length);
+            const pairs = [];
+            for (let i = 0; i < maxLen; i++) {
+                pairs.push({
+                    left: leftItems[i] || '',
+                    right: rightItems[i] || ''
+                });
+            }
+            return { introText: introText || 'Match Column I with Column II:', pairs };
         }
     }
+
     return { introText: txt, pairs: [] };
 }
 
 /** Parse statement-based questions from text */
 function parseStatementsFromText(q) {
     if (Array.isArray(q.statements) && q.statements.length > 0) {
-        return { introText: '', statements: q.statements };
+        return { 
+            introText: cleanQuestionText(q.questionText || q.question || ''), 
+            statements: q.statements.map((s, idx) => ({ label: `Statement ${idx + 1}`, text: cleanStatementText(typeof s === 'object' ? (s.text || s.statement || '') : s) })),
+            outroText: '' 
+        };
     }
-    const txt = q.questionText || q.question || '';
-    const stmts = [];
-    const regex = /Statement\s*([I|V|X|0-9|A-D]+)\s*[:\-]?\s*([\s\S]*?)(?=Statement\s*[I|V|X|0-9|A-D]+\s*[:\-]|Choose the correct|Select the correct|Options:|$)/gi;
+    const rawTxt = cleanQuestionText(q.questionText || q.question || '');
+    if (!rawTxt) return { introText: '', statements: [], outroText: '' };
+
+    // Common outro phrases at the end of statement questions
+    const outroPattern = /(?:In the light of the above statements|Choose the correct (?:answer|option|statement)|Select the (?:correct|incorrect) (?:statement|statements|option)|Which of the (?:above )?statements? (?:is|are) (?:correct|incorrect|true|false)|How many (?:of the above )?statements? are (?:correct|incorrect|true|false))\??[\s\S]*$/i;
+    let outroText = '';
+    let bodyTxt = rawTxt;
+    const outroMatch = rawTxt.match(outroPattern);
+    if (outroMatch && outroMatch.index > 15) {
+        outroText = outroMatch[0].trim();
+        bodyTxt = rawTxt.substring(0, outroMatch.index).trim();
+    }
+
+    // Pattern A: Statement I: ... Statement II: ... or Statement 1: ... Statement 2: ...
+    const stmtRegex = /Statement\s*([I|V|X|0-9|A-D]+)\s*[:\-]?\s*([\s\S]*?)(?=Statement\s*[I|V|X|0-9|A-D]+\s*[:\-]|$)/gi;
+    let matches = [];
     let m;
-    let firstIndex = -1;
-    while ((m = regex.exec(txt)) !== null) {
-        if (firstIndex === -1) firstIndex = m.index;
-        stmts.push(cleanStatementText(m[2]));
+    let firstIdx = -1;
+    while ((m = stmtRegex.exec(bodyTxt)) !== null) {
+        if (firstIdx === -1) firstIdx = m.index;
+        matches.push({
+            label: `Statement ${m[1]}:`,
+            text: cleanStatementText(m[2])
+        });
     }
-    if (stmts.length > 0) {
-        const introText = txt.substring(0, firstIndex).trim();
-        return { introText, statements: stmts };
+    if (matches.length >= 2) {
+        const introText = bodyTxt.substring(0, firstIdx).trim();
+        return { introText, statements: matches, outroText };
     }
-    return { introText: txt, statements: [] };
+
+    // Pattern B: Lettered statements: A. ... B. ... C. ... D. ... or (A) ... (B) ... (C) ... (D) ...
+    // e.g. "Consider an ideal transformer. A. It operates... B. Vs/Vp=... C. ... D. ... E. ... F. ..."
+    const letterRegex = /(?:^|\s)(?:\(([A-Ha-h])\)|([A-Ha-h])[\.:])\s+([\s\S]*?)(?=(?:\s(?:\([A-Ha-h]\)|[A-Ha-h][\.:])\s+)|$)/g;
+    let letterMatches = [];
+    let lMatch;
+    let firstLetterIdx = -1;
+    while ((lMatch = letterRegex.exec(bodyTxt)) !== null) {
+        if (firstLetterIdx === -1) firstLetterIdx = lMatch.index;
+        const letter = (lMatch[1] || lMatch[2] || '').toUpperCase();
+        const text = cleanStatementText(lMatch[3]);
+        if (text) {
+            letterMatches.push({
+                label: `(${letter})`,
+                text
+            });
+        }
+    }
+    if (letterMatches.length >= 2) {
+        const isSequential = letterMatches[0].label.includes('A') && letterMatches[1].label.includes('B');
+        if (isSequential) {
+            const introText = bodyTxt.substring(0, firstLetterIdx).trim();
+            return { introText, statements: letterMatches, outroText };
+        }
+    }
+
+    // Pattern C: Roman numerals: (i) ... (ii) ... (iii) ... (iv) ... or I. ... II. ... III. ...
+    const romanRegex = /(?:^|\s)(?:\(([ivx]+)\)|([ivx]+)[\.:])\s+([\s\S]*?)(?=(?:\s(?:\([ivx]+\)|[ivx]+[\.:])\s+)|$)/gi;
+    let romanMatches = [];
+    let rMatch;
+    let firstRomanIdx = -1;
+    while ((rMatch = romanRegex.exec(bodyTxt)) !== null) {
+        if (firstRomanIdx === -1) firstRomanIdx = rMatch.index;
+        const roman = (rMatch[1] || rMatch[2] || '').toLowerCase();
+        const text = cleanStatementText(rMatch[3]);
+        if (text) {
+            romanMatches.push({
+                label: `(${roman})`,
+                text
+            });
+        }
+    }
+    if (romanMatches.length >= 2) {
+        const introText = bodyTxt.substring(0, firstRomanIdx).trim();
+        return { introText, statements: romanMatches, outroText };
+    }
+
+    return { introText: rawTxt, statements: [], outroText: '' };
 }
 
 /**
@@ -768,7 +864,7 @@ function BodyMatchFollowing({ q, classes, isTwoCol, diagramMaxHeight = '180px', 
     return (
         <>
             {qText && (
-                <div style={{ ...Q.qTextBold, marginBottom: '2px' }}>
+                <div style={{ ...Q.qTextBold, marginBottom: '2px', display: 'block' }}>
                     <MathRenderer
                         inline
                         text={qText}
@@ -804,11 +900,11 @@ function BodyMatchFollowing({ q, classes, isTwoCol, diagramMaxHeight = '180px', 
                         {pairs.map((pair, pi) => (
                             <tr key={pi}>
                                 <td style={Q.matchTd}>
-                                    <strong>({String.fromCharCode(65 + pi)})</strong>{' '}
+                                    <strong style={{ marginRight: '4px' }}>({String.fromCharCode(65 + pi)})</strong>
                                     <MathRenderer inline text={pair.left || ''} />
                                 </td>
                                 <td style={Q.matchTd}>
-                                    <strong>({pi + 1})</strong>{' '}
+                                    <strong style={{ marginRight: '4px' }}>({pi + 1})</strong>
                                     <MathRenderer inline text={pair.right || ''} />
                                 </td>
                             </tr>
@@ -824,7 +920,7 @@ function BodyMatchFollowing({ q, classes, isTwoCol, diagramMaxHeight = '180px', 
                             <div key={i} style={Q.optRow}>
                                 <span style={Q.optLbl}>({labels[i] || optionLabel(i, classes)})</span>
                                 <span style={{ flex: 1, minWidth: 0, maxWidth: '100%', fontWeight: 400 }}>
-                                    <MathRenderer inline text={opt} />
+                                    <MathRenderer inline text={typeof opt === 'object' ? (opt.text || opt.option || '') : opt} />
                                 </span>
                             </div>
                         );
@@ -839,10 +935,12 @@ function BodyMatchFollowing({ q, classes, isTwoCol, diagramMaxHeight = '180px', 
  * Statement-Based Body
  */
 function BodyStatementBased({ q, classes, isTwoCol, diagramMaxHeight = '180px', onDiagramResize, displayNum }) {
-    const { introText, statements: parsedStmts } = parseStatementsFromText(q);
-    const statements = (Array.isArray(q.statements) && q.statements.length > 0) ? q.statements : parsedStmts;
+    const { introText, statements: parsedStmts, outroText } = parseStatementsFromText(q);
+    const statements = (Array.isArray(q.statements) && q.statements.length > 0) 
+        ? q.statements.map((s, idx) => ({ label: `Statement ${idx + 1}:`, text: typeof s === 'object' ? (s.text || '') : String(s) }))
+        : parsedStmts;
     const opts = q.options || [];
-    const rawQText = cleanQuestionText(statements.length > 0 ? introText : (q.questionText || q.question || ''));
+    const rawQText = cleanQuestionText(introText || q.questionText || q.question || '');
     const { cleanText: qText, diagramUrl: imageUrl } = extractDiagramFromText(rawQText, q.imageUrl || q.image_url);
     const labels = getQuestionOptionLabels(q);
     const qId = q._id || q.id || displayNum;
@@ -852,7 +950,7 @@ function BodyStatementBased({ q, classes, isTwoCol, diagramMaxHeight = '180px', 
     return (
         <>
             {qText && (
-                <div style={{ ...Q.qTextBold, marginBottom: '2px' }}>
+                <div style={{ ...Q.qTextBold, marginBottom: '2px', display: 'block' }}>
                     <MathRenderer
                         inline
                         text={qText}
@@ -865,11 +963,20 @@ function BodyStatementBased({ q, classes, isTwoCol, diagramMaxHeight = '180px', 
             {statements.length > 0 && (
                 <div style={{ margin: '3px 0 4px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
                     {statements.map((stmt, si) => (
-                        <div key={si} style={{ lineHeight: '1.42', fontWeight: 400 }}>
-                            <strong style={{ color: '#000', marginRight: '6px' }}>Statement {si + 1}:</strong>
-                            <MathRenderer inline text={stmt} />
+                        <div key={si} style={{ lineHeight: '1.42', fontWeight: 400, display: 'flex', alignItems: 'baseline', gap: '6px' }}>
+                            <strong style={{ color: '#000', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                                {stmt.label || `(${String.fromCharCode(65 + si)})`}
+                            </strong>
+                            <span style={{ flex: 1, minWidth: 0 }}>
+                                <MathRenderer inline text={stmt.text || (typeof stmt === 'string' ? stmt : '')} />
+                            </span>
                         </div>
                     ))}
+                </div>
+            )}
+            {outroText && (
+                <div style={{ ...Q.qTextBold, marginTop: '2px', marginBottom: '3px', display: 'block' }}>
+                    <MathRenderer inline text={outroText} />
                 </div>
             )}
             {imageUrl && (
@@ -892,7 +999,7 @@ function BodyStatementBased({ q, classes, isTwoCol, diagramMaxHeight = '180px', 
                         <div key={i} style={Q.optRow}>
                             <span style={Q.optLbl}>({labels[i] || optionLabel(i, classes)})</span>
                             <span style={{ flex: 1, minWidth: 0, maxWidth: '100%', fontWeight: 400 }}>
-                                <MathRenderer inline text={opt} />
+                                <MathRenderer inline text={typeof opt === 'object' ? (opt.text || opt.option || '') : opt} />
                             </span>
                         </div>
                     ))}
@@ -926,9 +1033,15 @@ export default function QuestionBlock({
     const qTextRaw = q.questionText || q.question || '';
     const effectiveIsTwoCol = Boolean(isTwoCol);
 
-    const isMatch = qType.includes('MATCH') || /(?:Column|List)\s*I[\s\S]*(?:Column|List)\s*II/i.test(qTextRaw) || /Match (?:List|the following|Column)/i.test(qTextRaw);
+    const matchData = parseMatchFromText(q);
+    const hasMatchPairs = (Array.isArray(q.matchPairs) && q.matchPairs.length > 0) || (matchData.pairs && matchData.pairs.length >= 2);
+    const isMatch = qType.includes('MATCH') || hasMatchPairs;
+
     const isAssertion = qType.includes('ASSERTION') || (/Assertion\s*(?:\(A\))?/i.test(qTextRaw) && /Reason\s*(?:\(R\))?/i.test(qTextRaw));
-    const isStatement = qType.includes('STATEMENT') || (/Statement\s*(?:I|1)\s*[:\-]/i.test(qTextRaw) && /Statement\s*(?:II|2)\s*[:\-]/i.test(qTextRaw));
+
+    const stmtData = parseStatementsFromText(q);
+    const hasStatements = (Array.isArray(q.statements) && q.statements.length > 0) || (stmtData.statements && stmtData.statements.length >= 2);
+    const isStatement = qType.includes('STATEMENT') || hasStatements;
 
     const renderBody = () => {
         if (isAssertion) {
@@ -943,7 +1056,7 @@ export default function QuestionBlock({
                 />
             );
         }
-        if (isMatch) {
+        if (isMatch && hasMatchPairs) {
             return (
                 <BodyMatchFollowing
                     q={q}
@@ -955,7 +1068,7 @@ export default function QuestionBlock({
                 />
             );
         }
-        if (isStatement) {
+        if (isStatement && hasStatements) {
             return (
                 <BodyStatementBased
                     q={q}

@@ -60,7 +60,7 @@ export default function A4PaperEngine({
             >
                 {/* ── Single Unified Question Paper Sheet ── */}
                 <div className="a4-sheet-page a4-questions-page" style={{ position: 'relative' }}>
-                    {/* Official Sapthagiri PU College Campus Watermark - Fixed across all pages in print and screen */}
+                    {/* Official Sapthagiri PU College Circular Emblem Watermark - Fixed across all pages */}
                     <div 
                         className="a4-watermark-wrapper"
                         style={{
@@ -77,15 +77,16 @@ export default function A4PaperEngine({
                         }}
                     >
                         <img 
-                            src="/SapthagiriCampus.webp" 
-                            alt="Sapthagiri PU College Campus Watermark" 
+                            src="/SapthagiriLogo.jpg" 
+                            alt="Sapthagiri PU College Crest Watermark" 
                             className="a4-watermark-logo"
                             style={{
-                                width: '520px',
-                                height: '420px',
+                                width: '380px',
+                                height: '380px',
                                 objectFit: 'contain',
-                                opacity: 0.10,
-                                filter: 'grayscale(100%) contrast(110%)',
+                                borderRadius: '50%',
+                                opacity: 0.055,
+                                filter: 'grayscale(100%)',
                                 display: 'block',
                                 pointerEvents: 'none',
                             }}
