@@ -125,11 +125,11 @@ const DashboardHome = () => {
             if (commissionForm.examType === 'NEET') {
                 subjectsNeeded = ['Physics', 'Chemistry', 'Botany', 'Zoology'];
             } else if (commissionForm.examType === 'CET') {
-                subjectsNeeded = ['Physics', 'Chemistry', 'Mathematics', 'Biology'];
+                subjectsNeeded = ['Physics', 'Chemistry', 'Mathematics', 'Botany', 'Zoology'];
             } else if (commissionForm.examType === 'JEE') {
                 subjectsNeeded = ['Physics', 'Chemistry', 'Mathematics'];
             } else {
-                subjectsNeeded = ['Physics', 'Chemistry', 'Mathematics', 'Biology'];
+                subjectsNeeded = ['Physics', 'Chemistry', 'Mathematics', 'Botany', 'Zoology'];
             }
 
             const isSubMatch = (tSub, sName) => {
@@ -738,7 +738,7 @@ const DashboardHome = () => {
                                     let subs = [];
                                     if (commissionForm.examType === 'NEET') subs = ['Physics', 'Chemistry', 'Botany', 'Zoology'];
                                     else if (commissionForm.examType === 'JEE') subs = ['Physics', 'Chemistry', 'Mathematics'];
-                                    else subs = ['Physics', 'Chemistry', 'Mathematics', 'Biology'];
+                                    else subs = ['Physics', 'Chemistry', 'Mathematics', 'Botany', 'Zoology'];
 
                                     return subs.map(subName => {
                                         const subTeachers = allTeachers.filter(t => {

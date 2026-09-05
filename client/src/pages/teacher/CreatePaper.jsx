@@ -936,37 +936,19 @@ export default function CreatePaper() {
                                         className="w-full border-2 border-gray-200 focus:border-navy rounded-2xl px-4 py-3 text-sm font-bold text-navy outline-none bg-white cursor-pointer"
                                     >
                                         {user?.role === 'teacher' ? (
-                                            examType === 'NEET' ? (
-                                                <>
-                                                    <option value="Botany">Botany (NEET)</option>
-                                                    <option value="Zoology">Zoology (NEET)</option>
-                                                    <option value="Biology">Biology (All Chapters)</option>
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <option value="Biology">Biology (CET / General)</option>
-                                                    <option value="Botany">Botany</option>
-                                                    <option value="Zoology">Zoology</option>
-                                                </>
-                                            )
+                                            <>
+                                                <option value="Botany">Botany</option>
+                                                <option value="Zoology">Zoology</option>
+                                                <option value="Biology">Biology (Combined Botany + Zoology)</option>
+                                            </>
                                         ) : (
                                             <>
                                                 <option value="Physics">Physics</option>
                                                 <option value="Chemistry">Chemistry</option>
                                                 <option value="Mathematics">Mathematics</option>
-                                                {examType === 'NEET' ? (
-                                                    <>
-                                                        <option value="Botany">Botany (NEET)</option>
-                                                        <option value="Zoology">Zoology (NEET)</option>
-                                                        <option value="Biology">Biology (All Chapters)</option>
-                                                    </>
-                                                ) : (
-                                                    <>
-                                                        <option value="Biology">Biology</option>
-                                                        <option value="Botany">Botany</option>
-                                                        <option value="Zoology">Zoology</option>
-                                                    </>
-                                                )}
+                                                <option value="Botany">Botany</option>
+                                                <option value="Zoology">Zoology</option>
+                                                <option value="Biology">Biology (Combined)</option>
                                             </>
                                         )}
                                     </select>

@@ -98,7 +98,7 @@ const SubjectDetails = () => {
             if (commissionForm.examType === 'NEET') {
                 subjectsNeeded = ['Physics', 'Chemistry', 'Botany', 'Zoology'];
             } else if (commissionForm.examType === 'CET') {
-                subjectsNeeded = ['Physics', 'Chemistry', 'Mathematics', 'Biology'];
+                subjectsNeeded = ['Physics', 'Chemistry', 'Mathematics', 'Botany', 'Zoology'];
             } else if (commissionForm.examType === 'JEE') {
                 subjectsNeeded = ['Physics', 'Chemistry', 'Mathematics'];
             } else {
