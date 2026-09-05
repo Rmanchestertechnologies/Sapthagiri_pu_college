@@ -737,14 +737,12 @@ export default function ExamManagement() {
     const togglePaper = (id) => {
         setMergeForm(f => {
             if (f.paperIds.includes(id)) return { ...f, paperIds: f.paperIds.filter(p => p !== id) };
-            const reqCount = f.examType === 'JEE' ? 3 : 4;
-            if (f.paperIds.length >= reqCount) return f;
             return { ...f, paperIds: [...f.paperIds, id] };
         });
     };
 
     const handleMerge = async () => {
-        if (mergeForm.paperIds.length === 0) return setMsg(`Select at least 1 paper.`);
+        if (mergeForm.paperIds.length === 0) return setMsg(`Select at least 1 paper to merge.`);
         setLoading(true);
         try {
             const payload = {
@@ -753,8 +751,8 @@ export default function ExamManagement() {
                 end_time: localToUtcIso(mergeForm.end_time),
                 allowedStudents: mergeForm.allowedStudents ? mergeForm.allowedStudents.split(',').map(s => s.trim()).filter(Boolean) : []
             };
-            await api.post('/api/exams/merge', payload);
-            setMsg('✅ Exam created successfully!');
+            const res = await api.post('/api/exams/merge', payload);
+            setMsg('✅ Composite Exam & Master Question Paper created successfully!');
             setShowMergeModal(false);
             setMergeForm({ title: '', examType: 'NEET', paperIds: [], instructions: '', start_time: '', end_time: '', duration_minutes: 180, allowedStudents: '', shuffleQuestions: false });
             fetchExams();
@@ -1121,10 +1119,8 @@ export default function ExamManagement() {
                             <label style={styles.label}>
                                 Select Papers ({mergeForm.paperIds.length} selected)
                             </label>
-                            <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 8 }}>
-                                {mergeForm.examType === 'NEET' && 'Required: Physics, Chemistry, Botany, Zoology (50 Qs each)'}
-                                {mergeForm.examType === 'JEE' && 'Required: Physics, Chemistry, Mathematics (25 Qs each: 20 MCQs + 5 Numerical)'}
-                                {mergeForm.examType === 'CET' && 'Required: Physics, Chemistry, Mathematics, Biology (60 Qs each)'}
+                            <div style={{ fontSize: 12, color: '#4b5563', marginBottom: 8, fontWeight: 500 }}>
+                                Merge any 2, 3, 4 or more subject papers into a single Grand Composite Exam & A4 Question Paper with continuous/section numbering and PQRS sets support (e.g. NEET: Physics, Chemistry, Botany, Zoology | CET: Physics, Chemistry, Maths, Biology | JEE: Physics, Chemistry, Maths).
                             </div>
 
                             {/* Grand Test Papers Section */}

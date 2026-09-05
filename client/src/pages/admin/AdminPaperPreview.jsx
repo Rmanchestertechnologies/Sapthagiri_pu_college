@@ -295,10 +295,13 @@ const AdminPaperPreview = () => {
             {showAnswerKeyModal && (
                 <A4AnswerKey
                     paper={selectedPaper}
-                    questions={currentPaperSet?.questions || selectedPaper?.questions || []}
+                    questions={selectedPaper?.questions || []}
                     startQNo={settings?.startQNo || 1}
                     setName={activeSet}
                     onClose={() => setShowAnswerKeyModal(false)}
+                    onQuestionsUpdated={(updatedQs) => {
+                        setSelectedPaper(prev => prev ? ({ ...prev, questions: updatedQs }) : prev);
+                    }}
                 />
             )}
 

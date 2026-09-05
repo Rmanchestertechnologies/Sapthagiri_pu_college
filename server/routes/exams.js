@@ -197,12 +197,8 @@ router.post('/merge', [auth, checkRole(['admin'])], async (req, res) => {
     try {
         const { title, examType, paperIds, instructions, start_time, end_time, duration_minutes, allowedStudents } = req.body;
 
-        if (!['JEE', 'NEET', 'CET'].includes(examType)) {
-            return res.status(400).json({ msg: 'Invalid exam type. Must be JEE, NEET, or CET.' });
-        }
-
         if (!paperIds || paperIds.length === 0) {
-            return res.status(400).json({ msg: `At least 1 paper must be selected.` });
+            return res.status(400).json({ msg: `At least 1 paper must be selected to merge.` });
         }
 
         const allPapers = await storage.getPapers();
@@ -212,7 +208,7 @@ router.post('/merge', [auth, checkRole(['admin'])], async (req, res) => {
             return res.status(404).json({ msg: `One or more papers not found. Expected ${paperIds.length}, found ${papers.length}.` });
         }
 
-        // Merge questions from all papers
+        // Merge questions from all papers preserving subject sections
         const seen = new Set();
         const mergedQuestions = [];
         const sectionsMap = {};
@@ -227,12 +223,12 @@ router.post('/merge', [auth, checkRole(['admin'])], async (req, res) => {
                 }
             }
 
-            const defSecName = `${paper.subject} - Section A`;
+            const defSecName = `${paper.subject || 'Subject'} - Section A`;
             if (!sectionsMap[defSecName]) {
                 sectionsMap[defSecName] = {
                     sectionName: defSecName,
                     numQuestions: availableQuestions.length,
-                    allowedToAnswer: 0,
+                    allowedToAnswer: availableQuestions.length,
                     markingRules: { correct: 4, incorrect: -1, unattempted: 0 }
                 };
             }
@@ -242,15 +238,18 @@ router.post('/merge', [auth, checkRole(['admin'])], async (req, res) => {
                 if (!seen.has(qid)) {
                     seen.add(qid);
                     mergedQuestions.push({
+                        ...q,
                         questionId: qid,
-                        subject: q.subject || paper.subject,
+                        _id: qid,
+                        subject: q.subject || paper.subject || 'General',
                         chapter: q.chapter || '',
                         concept: q.concept || '',
                         questionText: q.questionText || q.question || '',
                         options: q.options || [],
                         answer: q.answer || '',
-                        imageUrl: q.imageUrl || null,
-                        marks: 4,
+                        solution: q.solution || q.explanation || '',
+                        imageUrl: q.imageUrl || q.diagramUrl || null,
+                        marks: q.marks || 4,
                         type: q.type || 'MCQ',
                         sectionName: defSecName,
                         questionTextTranslation: q.questionTextTranslation || '',
@@ -260,15 +259,17 @@ router.post('/merge', [auth, checkRole(['admin'])], async (req, res) => {
             }
         }
 
-        const getDefaultInstructions = (type) => `This is a ${type} Examination. Read each question carefully before answering.`;
+        const effectiveExamType = examType || 'CET';
+        const getDefaultInstructions = (type) => `This is a composite ${type} Examination containing ${papers.length} merged subject sections (${mergedQuestions.length} total questions). Read each question carefully before answering.`;
 
+        // 1. Create Merged Online Exam
         const exam = await storage.createExam({
-            title: title || `Merged ${examType} Exam`,
-            examType,
+            title: title || `Merged ${effectiveExamType} Grand Exam`,
+            examType: effectiveExamType,
             sourcePapers: paperIds,
             questions: mergedQuestions,
             sections: Object.values(sectionsMap),
-            instructions: instructions || getDefaultInstructions(examType),
+            instructions: instructions || getDefaultInstructions(effectiveExamType),
             start_time: start_time || null,
             end_time: end_time || null,
             duration_minutes: duration_minutes || 180,
@@ -279,7 +280,33 @@ router.post('/merge', [auth, checkRole(['admin'])], async (req, res) => {
             createdBy: req.user.id
         });
 
-        res.status(201).json({ msg: 'Exam created successfully', exam });
+        // 2. Create Merged Question Paper (Printable A4 QP with PQRS & Answer Key support)
+        const mergedSubjectTitle = papers.map(p => p.subject).filter(Boolean).join(' • ') || 'Multi-Subject Composite';
+        const mergedPaper = await storage.savePaper({
+            title: title || `Merged ${effectiveExamType} Grand Assessment`,
+            subject: mergedSubjectTitle,
+            examType: effectiveExamType,
+            classLevel: papers[0]?.classLevel || papers[0]?.class_level || '12',
+            classes: papers[0]?.classes || ['12'],
+            durationMinutes: duration_minutes || 180,
+            duration: `${duration_minutes || 180} Minutes`,
+            totalMarks: mergedQuestions.length * 4,
+            questions: mergedQuestions,
+            questionObjects: mergedQuestions,
+            instructions: instructions || getDefaultInstructions(effectiveExamType),
+            status: 'Approved',
+            isMerged: true,
+            sourcePapers: paperIds,
+            examId: exam?._id || exam?.id || null,
+            teacherId: req.user.id,
+            createdBy: req.user.id
+        });
+
+        res.status(201).json({ 
+            msg: 'Exam and Merged Question Paper created successfully!', 
+            exam, 
+            paper: mergedPaper 
+        });
     } catch (err) {
         console.error('Merge error:', err.message);
         res.status(500).json({ msg: 'Server Error: ' + err.message });

@@ -1,4 +1,6 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
+import api from '../api';
+import MathRenderer from './MathRenderer';
 import { getResolvedAnswerLabel } from '../utils/sanitize';
 import { generatePaperSet } from '../utils/pqrsGenerator';
 
@@ -8,20 +10,79 @@ export default function A4AnswerKey({
     startQNo = 1,
     setName = 'P',
     onClose,
+    onQuestionsUpdated,
 }) {
     const [activeSet, setActiveSet] = useState(setName || paper?.setName || 'P');
+    const [isEditing, setIsEditing] = useState(false);
+    const [localQuestions, setLocalQuestions] = useState([]);
+    const [saving, setSaving] = useState(false);
+    const [saveStatus, setSaveStatus] = useState({ type: '', msg: '' });
+
+    // Initialize localQuestions with questions passed or paper questions
+    useEffect(() => {
+        const baseQs = (questions && questions.length > 0) ? questions : (paper?.questions || []);
+        setLocalQuestions(JSON.parse(JSON.stringify(baseQs)));
+    }, [paper, questions]);
 
     const activePaper = useMemo(() => {
-        if (!paper || !paper.questions) return paper;
-        return generatePaperSet(paper, activeSet);
-    }, [paper, activeSet]);
+        const effectivePaper = { ...paper, questions: localQuestions };
+        if (!effectivePaper.questions || effectivePaper.questions.length === 0) return effectivePaper;
+        return generatePaperSet(effectivePaper, activeSet);
+    }, [paper, localQuestions, activeSet]);
 
     const resolvedQuestions = useMemo(() => {
         if (activePaper?.questions && activePaper.questions.length > 0) return activePaper.questions;
-        return questions.length > 0 ? questions : (paper.questions || []);
-    }, [activePaper, questions, paper]);
+        return localQuestions.length > 0 ? localQuestions : (paper.questions || []);
+    }, [activePaper, localQuestions, paper]);
 
     const paperTitle = activePaper?.title || paper.title || `${paper.subject || 'Academic'} Assessment`;
+
+    // Handle editing a specific question's answer in localQuestions
+    const handleAnswerChange = (qIndex, newAnswer) => {
+        setLocalQuestions(prev => {
+            const copy = [...prev];
+            const target = copy[qIndex];
+            if (target) {
+                copy[qIndex] = {
+                    ...target,
+                    answer: newAnswer,
+                    correctAnswer: newAnswer,
+                };
+            }
+            return copy;
+        });
+        setSaveStatus({ type: 'info', msg: 'Unsaved edits. Click "Save Changes" when finished.' });
+    };
+
+    // Save edited answer key to database
+    const handleSaveKey = async () => {
+        const paperId = paper?._id || paper?.id;
+        if (!paperId) {
+            setSaveStatus({ type: 'error', msg: 'No paper ID found to save.' });
+            return;
+        }
+
+        setSaving(true);
+        setSaveStatus({ type: 'info', msg: 'Saving updated answer key...' });
+        try {
+            await api.put(`/api/papers/${paperId}`, {
+                questions: localQuestions,
+            });
+            setSaveStatus({ type: 'success', msg: '✅ Answer key saved successfully!' });
+            setIsEditing(false);
+            if (onQuestionsUpdated) {
+                onQuestionsUpdated(localQuestions);
+            }
+            setTimeout(() => {
+                setSaveStatus({ type: '', msg: '' });
+            }, 3000);
+        } catch (err) {
+            console.error('Error saving answer key:', err);
+            setSaveStatus({ type: 'error', msg: '❌ Failed to save: ' + (err.response?.data?.msg || err.message) });
+        } finally {
+            setSaving(false);
+        }
+    };
 
     const handlePrint = () => {
         document.body.classList.add('printing-answer-key');
@@ -33,15 +94,28 @@ export default function A4AnswerKey({
         }, 150);
     };
 
+    // Determine if question has a multi-line or descriptive answer
+    const isDescriptiveAnswer = (answerText) => {
+        if (!answerText) return false;
+        const str = String(answerText).trim();
+        return str.length > 5 || str.includes('\n') || str.includes(' ');
+    };
+
+    const descriptiveQuestions = useMemo(() => {
+        return resolvedQuestions
+            .map((q, idx) => ({ q, idx, qNo: q.setQNo || (startQNo + idx) }))
+            .filter(item => isDescriptiveAnswer(item.q.answer || getResolvedAnswerLabel(item.q)));
+    }, [resolvedQuestions, startQNo]);
+
     return (
         <div className="a4-answer-key-modal fixed inset-0 bg-black/60 flex items-center justify-center z-50 backdrop-blur-sm p-4 overflow-y-auto">
-            <div className="a4-answer-key-card bg-slate-100 rounded-3xl shadow-2xl w-full max-w-4xl max-h-[92vh] flex flex-col overflow-hidden my-auto border border-slate-200 animate-fade-in">
+            <div className="a4-answer-key-card bg-slate-100 rounded-3xl shadow-2xl w-full max-w-5xl max-h-[94vh] flex flex-col overflow-hidden my-auto border border-slate-200 animate-fade-in">
                 
                 {/* ── Action Toolbar (Hidden during print) ── */}
                 <div className="flex flex-wrap justify-between items-center px-6 py-4 bg-white border-b border-gray-200 gap-3 no-print">
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-3 flex-wrap">
                         <span className="text-xs font-black text-gold uppercase tracking-widest bg-navy px-3 py-1 rounded-full">
-                            A4 Print & Export View
+                            Official Answer Key
                         </span>
                         <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-300">
                             <span className="text-[10px] font-black text-navy uppercase px-1.5">Set:</span>
@@ -52,7 +126,7 @@ export default function A4AnswerKey({
                                     onClick={() => setActiveSet(s)}
                                     className={`px-2.5 py-0.5 rounded-lg text-xs font-black transition cursor-pointer ${
                                         activeSet === s
-                                            ? 'bg-navy text-gold shadow-sm'
+                                            ? 'bg-navy text-gold shadow-sm scale-105'
                                             : 'bg-white text-slate-700 hover:bg-slate-200'
                                     }`}
                                 >
@@ -61,22 +135,54 @@ export default function A4AnswerKey({
                             ))}
                         </div>
                         <h3 className="text-sm font-black text-navy uppercase tracking-tight">
-                            SET {activeSet} Answer Key ({resolvedQuestions.length} Qs)
+                            SET {activeSet} ({resolvedQuestions.length} Questions)
                         </h3>
                     </div>
-                    <div className="flex items-center gap-2">
+
+                    <div className="flex items-center gap-2 flex-wrap">
+                        {/* Edit Mode Toggle */}
+                        {isEditing ? (
+                            <>
+                                <button
+                                    onClick={handleSaveKey}
+                                    disabled={saving}
+                                    className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl font-black text-xs uppercase tracking-wider transition shadow cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+                                >
+                                    <span>💾</span> {saving ? 'Saving...' : 'Save Changes'}
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        setIsEditing(false);
+                                        setLocalQuestions(JSON.parse(JSON.stringify(questions || paper?.questions || [])));
+                                        setSaveStatus({ type: '', msg: '' });
+                                    }}
+                                    className="bg-gray-200 hover:bg-gray-300 text-slate-700 px-3 py-2 rounded-xl font-bold text-xs uppercase transition cursor-pointer"
+                                >
+                                    Cancel
+                                </button>
+                            </>
+                        ) : (
+                            <button
+                                onClick={() => setIsEditing(true)}
+                                className="bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-xl font-black text-xs uppercase tracking-wider transition shadow cursor-pointer flex items-center gap-1.5"
+                                title="Edit wrong answers or customize 1-2 line answers"
+                            >
+                                <span>✏️</span> Edit Answer Key
+                            </button>
+                        )}
+
                         <button
                             onClick={handlePrint}
                             className="bg-navy text-gold hover:bg-gold hover:text-navy px-4 py-2 rounded-xl font-black text-xs uppercase tracking-wider transition shadow cursor-pointer flex items-center gap-1.5"
                         >
-                            <span>🖨️</span> Print Set {activeSet} Key
+                            <span>🖨️</span> Print Key
                         </button>
                         <button
                             onClick={handlePrint}
-                            className="bg-emerald-600 text-white hover:bg-emerald-700 px-4 py-2 rounded-xl font-black text-xs uppercase tracking-wider transition shadow cursor-pointer flex items-center gap-1.5"
+                            className="bg-slate-800 text-white hover:bg-black px-4 py-2 rounded-xl font-black text-xs uppercase tracking-wider transition shadow cursor-pointer flex items-center gap-1.5"
                             title="Open print dialog and choose Save as PDF"
                         >
-                            <span>📥</span> Download PDF
+                            <span>📥</span> PDF
                         </button>
                         {onClose && (
                             <button
@@ -88,6 +194,20 @@ export default function A4AnswerKey({
                         )}
                     </div>
                 </div>
+
+                {/* Status Bar */}
+                {saveStatus.msg && (
+                    <div className={`px-6 py-2 text-xs font-bold flex items-center justify-between no-print ${
+                        saveStatus.type === 'success' ? 'bg-emerald-100 text-emerald-900 border-b border-emerald-200' :
+                        saveStatus.type === 'error' ? 'bg-red-100 text-red-900 border-b border-red-200' :
+                        'bg-blue-50 text-blue-900 border-b border-blue-200'
+                    }`}>
+                        <span>{saveStatus.msg}</span>
+                        {saveStatus.type === 'info' && isEditing && (
+                            <button onClick={handleSaveKey} className="underline font-black cursor-pointer">Save Now</button>
+                        )}
+                    </div>
+                )}
 
                 {/* ── A4 Sheet Preview Area ── */}
                 <div className="a4-answer-key-body flex-1 overflow-y-auto p-4 sm:p-8 bg-slate-300/80 min-h-0">
@@ -156,7 +276,7 @@ export default function A4AnswerKey({
 
                                     <div className="mt-3 pt-2 border-t border-slate-200 flex flex-wrap justify-between items-center text-xs font-semibold text-slate-700">
                                         <span className="font-bold text-navy">{paperTitle}</span>
-                                        {setName && <span>SET: <strong>{setName}</strong></span>}
+                                        <span>SET: <strong>{activeSet}</strong></span>
                                         {paper.subject && <span>Subject: <strong>{paper.subject}</strong></span>}
                                         <span>Total Qs: <strong>{resolvedQuestions.length}</strong></span>
                                     </div>
@@ -167,32 +287,131 @@ export default function A4AnswerKey({
                                     </div>
                                 </div>
 
-                                {/* ── Answer Key Grid (5 columns on desktop, clean spacing) ── */}
-                                <div className="grid grid-cols-4 sm:grid-cols-5 gap-2.5 sm:gap-3 text-xs">
+                                {/* ── Edit Instructions Banner (when editing) ── */}
+                                {isEditing && (
+                                    <div className="bg-amber-50 border border-amber-300 p-3 rounded-xl mb-4 text-xs text-amber-900 font-semibold no-print">
+                                        ✏️ <strong>Edit Mode Active:</strong> Click the option (A, B, C, D) or type custom 1-2 line answers below for any question. When finished, click <strong>"Save Changes"</strong> on the top right.
+                                    </div>
+                                )}
+
+                                {/* ── Primary Answer Key Grid (5 columns on desktop, clean balanced cards) ── */}
+                                <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 gap-2.5 sm:gap-3 text-xs">
                                     {resolvedQuestions.map((q, idx) => {
                                         const currentQNo = q.setQNo || (startQNo + idx);
                                         const answerLabel = getResolvedAnswerLabel(q);
+                                        const isLong = isDescriptiveAnswer(q.answer || answerLabel);
+
                                         return (
                                             <div
                                                 key={idx}
-                                                className="border border-slate-300 rounded-lg p-2.5 flex items-center justify-between bg-slate-50/50 hover:bg-slate-100 transition"
+                                                className={`border rounded-xl p-2.5 flex flex-col justify-between transition ${
+                                                    isEditing 
+                                                        ? 'bg-amber-50/40 border-amber-300 shadow-xs' 
+                                                        : 'border-slate-300 bg-slate-50/50 hover:bg-slate-100'
+                                                }`}
                                                 style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}
                                             >
-                                                <span className="font-semibold text-slate-600 text-xs">
-                                                    Q.{currentQNo}
-                                                </span>
-                                                <span className="bg-navy text-amber-400 font-bold px-2.5 py-0.5 rounded text-xs min-w-[24px] text-center shadow-xs">
-                                                    {answerLabel}
-                                                </span>
+                                                <div className="flex items-center justify-between gap-1 mb-1.5">
+                                                    <span className="font-black text-slate-700 text-xs">
+                                                        Q.{currentQNo}
+                                                    </span>
+                                                    {!isEditing && (
+                                                        <span className={`font-black px-2.5 py-0.5 rounded text-xs text-center shadow-2xs ${
+                                                            isLong
+                                                                ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                                                                : 'bg-navy text-amber-400 min-w-[26px]'
+                                                        }`}>
+                                                            {isLong ? 'See Below' : answerLabel}
+                                                        </span>
+                                                    )}
+                                                </div>
+
+                                                {/* Edit Mode Controls */}
+                                                {isEditing ? (
+                                                    <div className="space-y-1.5 pt-1">
+                                                        {/* Quick option pills for MCQ */}
+                                                        <div className="flex items-center gap-1 justify-between">
+                                                            {['A', 'B', 'C', 'D'].map(optKey => (
+                                                                <button
+                                                                    key={optKey}
+                                                                    type="button"
+                                                                    onClick={() => handleAnswerChange(idx, optKey)}
+                                                                    className={`flex-1 py-1 rounded text-[11px] font-black transition cursor-pointer ${
+                                                                        answerLabel === optKey
+                                                                            ? 'bg-navy text-gold shadow-sm ring-1 ring-gold'
+                                                                            : 'bg-white text-slate-600 hover:bg-slate-200 border border-slate-300'
+                                                                    }`}
+                                                                >
+                                                                    {optKey}
+                                                                </button>
+                                                            ))}
+                                                        </div>
+                                                        {/* Custom answer text input for numerical or 1-line answer */}
+                                                        <input
+                                                            type="text"
+                                                            value={q.answer || ''}
+                                                            onChange={e => handleAnswerChange(idx, e.target.value)}
+                                                            placeholder="Or type answer..."
+                                                            className="w-full text-[11px] font-bold px-2 py-1 border border-slate-300 rounded bg-white text-navy outline-none focus:border-navy"
+                                                        />
+                                                    </div>
+                                                ) : (
+                                                    // In view mode, show small preview if it's a short text answer
+                                                    !isLong && q.answer && q.answer !== answerLabel && (
+                                                        <div className="text-[10px] text-slate-500 truncate mt-0.5">
+                                                            {String(q.answer).slice(0, 20)}
+                                                        </div>
+                                                    )
+                                                )}
                                             </div>
                                         );
                                     })}
                                 </div>
 
+                                {/* ── Descriptive / 1-Line / 2-Line Formatted Answers Section (If Any) ── */}
+                                {descriptiveQuestions.length > 0 && (
+                                    <div className="mt-8 pt-6 border-t-2 border-slate-300">
+                                        <div className="flex items-center gap-2 mb-3">
+                                            <span className="bg-navy text-gold text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full">
+                                                Section B
+                                            </span>
+                                            <h4 className="text-xs font-black text-navy uppercase tracking-wider">
+                                                Descriptive & Numerical Answer Explanations
+                                            </h4>
+                                        </div>
+
+                                        <div className="space-y-3">
+                                            {descriptiveQuestions.map(({ q, qNo, idx }) => (
+                                                <div 
+                                                    key={idx}
+                                                    className="p-3 rounded-xl border border-slate-200 bg-slate-50/80 flex flex-col sm:flex-row sm:items-start gap-3"
+                                                    style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}
+                                                >
+                                                    <div className="flex items-center gap-2 sm:min-w-[70px]">
+                                                        <span className="font-black text-navy text-xs">Q.{qNo}:</span>
+                                                        <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-1.5 py-0.5 rounded">
+                                                            Answer
+                                                        </span>
+                                                    </div>
+                                                    <div className="flex-1 text-xs text-slate-800 leading-relaxed font-medium">
+                                                        <MathRenderer inline text={String(q.answer || getResolvedAnswerLabel(q))} />
+                                                        {q.solution && (
+                                                            <div className="text-[11px] text-slate-500 mt-1 pt-1 border-t border-slate-200">
+                                                                <span className="font-bold text-slate-700">Note: </span>
+                                                                <MathRenderer inline text={q.solution} />
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
                                 {/* ── Document Footer ── */}
                                 <div className="mt-12 pt-4 border-t border-slate-300 text-center text-[11px] text-slate-500 flex justify-between items-center">
                                     <span>Sapthagiri PU College Examination Authority</span>
-                                    <span>Official Answer Key</span>
+                                    <span>Official Answer Key • Set {activeSet}</span>
                                 </div>
                             </div>
                         </div>
@@ -218,7 +437,6 @@ export default function A4AnswerKey({
                         .no-print, nav, header, button, .diagram-resize-toolbar {
                             display: none !important;
                         }
-                        /* ── CRITICAL: Completely hide background question paper so it creates 0 extra pages ── */
                         .a4-engine-wrapper,
                         .a4-print-document,
                         .paper-renderer-wrapper,
@@ -233,7 +451,6 @@ export default function A4AnswerKey({
                         body * {
                             visibility: hidden !important;
                         }
-                        /* ── Make modal wrappers static so they NEVER repeat as fixed page elements ── */
                         .a4-answer-key-modal,
                         body.printing-answer-key .a4-answer-key-modal {
                             position: static !important;
@@ -269,7 +486,6 @@ export default function A4AnswerKey({
                             margin: 0 !important;
                             overflow: visible !important;
                         }
-                        /* Watermark in print: Fixed viewport background layer on every page */
                         body.printing-answer-key .a4-watermark-wrapper,
                         body.printing-answer-key .a4-watermark-wrapper * {
                             visibility: visible !important;
@@ -327,23 +543,13 @@ export default function A4AnswerKey({
                             position: relative !important;
                             z-index: 1 !important;
                         }
-                        body.printing-answer-key #print-target-answer-key .grid > div {
-                            padding: 2.5px 5px !important;
-                            font-size: 11px !important;
-                            background: #f8fafc !important;
-                            border: 1px solid #cbd5e1 !important;
-                            break-inside: avoid !important;
-                            page-break-inside: avoid !important;
-                            position: relative !important;
-                            z-index: 1 !important;
-                        }
                     }
                 `}</style>
 
                 {/* ── Bottom Modal Footer (Hidden during print) ── */}
                 <div className="p-4 bg-white border-t border-gray-200 flex justify-between items-center no-print">
                     <p className="text-xs text-slate-500 font-medium">
-                        Standard A4 printable format. Answer labels strictly reflect each question's actual option format.
+                        Standard A4 printable format. Click "Edit Answer Key" to override incorrect answers.
                     </p>
                     <button
                         onClick={onClose}

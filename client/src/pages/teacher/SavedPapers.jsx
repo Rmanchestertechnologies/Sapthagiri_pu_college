@@ -247,12 +247,17 @@ const toDateStr = (date) => {
 /* ═══════════════════════════════════════════════════════════════════════════ */
 /*  PAPER VIEW — uses PaperRenderer engine + Analysis & Key modals             */
 /* ═══════════════════════════════════════════════════════════════════════════ */
-const PaperView = ({ paper, activeTemplate, onBack }) => {
+const PaperView = ({ paper: initialPaper, activeTemplate, onBack }) => {
     const navigate = useNavigate();
+    const [paper, setPaper] = useState(initialPaper);
     const [showSettings, setShowSettings] = useState(false);
     const [showAnalysisModal, setShowAnalysisModal] = useState(false);
     const [showAnswerKeyModal, setShowAnswerKeyModal] = useState(false);
     const [showSolutionsModal, setShowSolutionsModal] = useState(false);
+
+    useEffect(() => {
+        setPaper(initialPaper);
+    }, [initialPaper]);
 
     const [settings, setSettings] = useState({
         ...DEFAULT_SETTINGS,
@@ -343,6 +348,9 @@ const PaperView = ({ paper, activeTemplate, onBack }) => {
                     startQNo={startQNo}
                     setName={paper.setName || 'P'}
                     onClose={() => setShowAnswerKeyModal(false)}
+                    onQuestionsUpdated={(updatedQs) => {
+                        setPaper(p => ({ ...p, questions: updatedQs }));
+                    }}
                 />
             )}
 

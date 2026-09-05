@@ -2039,10 +2039,13 @@ export default function CreatePaper() {
                 {/* ── MODAL: ANSWER KEY (TRUE A4 VIEW, DYNAMIC LABELS, INDEPENDENT PRINT & DOWNLOAD) ── */}
                 {showAnswerKeyModal && (
                     <A4AnswerKey
-                        paper={{ title, subject, classes: [selectedClass, examType] }}
+                        paper={{ title, subject, classes: [selectedClass, examType], _id: paperId }}
                         questions={selectedQuestions}
                         startQNo={startQNo}
                         onClose={() => setShowAnswerKeyModal(false)}
+                        onQuestionsUpdated={(updatedQs) => {
+                            setSelectedQuestions(updatedQs);
+                        }}
                     />
                 )}
 

@@ -318,6 +318,7 @@ export default function PaperRenderer({
     paper,
     activeTemplate,
     isAssignment = false,
+    enableSets = false,
     settings: externalSettings,
     setSettings: externalSetSettings,
     showSettingsPanel = false,
@@ -329,17 +330,19 @@ export default function PaperRenderer({
     const settings = externalSettings || internalSettings;
     const setSettings = externalSetSettings || setInternalSettings;
 
-    // 4 Sets State (P, Q, R, S)
+    // 4 Sets State (P, Q, R, S) - Opt-in / Admin toggleable
+    const [setsActive, setSetsActive] = useState(enableSets || paper?.enableSets || false);
     const [activeSet, setActiveSet] = useState(paper?.setName || 'P');
 
     // Preview Controls state
     const [zoom, setZoom] = useState(100);
 
-    // Generate active set paper with synchronized shuffled options/questions & answers
+    // Generate active set paper only when sets are active, otherwise return master paper
     const activePaper = useMemo(() => {
         if (isAssignment || !paper) return paper;
+        if (!setsActive || activeSet === 'P') return { ...paper, setName: setsActive ? 'P' : '' };
         return generatePaperSet(paper, activeSet);
-    }, [paper, activeSet, isAssignment]);
+    }, [paper, activeSet, isAssignment, setsActive]);
 
     const questions = useMemo(() => activePaper?.questions || [], [activePaper]);
 
@@ -352,30 +355,52 @@ export default function PaperRenderer({
             
             {/* ── PREVIEW TOOLBAR ── */}
             <div className="sticky top-4 z-40 bg-white/95 backdrop-blur-md px-6 py-3.5 rounded-2xl shadow-xl border-2 border-navy/20 flex flex-wrap items-center justify-between gap-4 mb-6 w-full max-w-5xl no-print">
-                {/* 4-Sets Selector (P, Q, R, S) */}
+                {/* 4-Sets Control (P, Q, R, S) */}
                 {!isAssignment && (
-                    <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl border border-slate-300">
-                        <span className="text-[10px] font-black text-navy uppercase tracking-wider px-2">Set:</span>
-                        {['P', 'Q', 'R', 'S'].map((s) => (
+                    <div className="flex items-center gap-2">
+                        {setsActive ? (
+                            <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl border border-slate-300">
+                                <span className="text-[10px] font-black text-navy uppercase tracking-wider px-2">Set:</span>
+                                {['P', 'Q', 'R', 'S'].map((s) => (
+                                    <button
+                                        key={s}
+                                        type="button"
+                                        onClick={() => setActiveSet(s)}
+                                        className={`px-3 py-1 rounded-lg text-xs font-black transition cursor-pointer ${
+                                            activeSet === s
+                                                ? 'bg-navy text-gold shadow-sm scale-105'
+                                                : 'bg-white text-slate-700 hover:bg-slate-200'
+                                        }`}
+                                        title={
+                                            s === 'P' ? 'Set P: Original Order' :
+                                            s === 'Q' ? 'Set Q: Questions Shuffled' :
+                                            s === 'R' ? 'Set R: Options Shuffled' :
+                                            'Set S: Both Questions & Options Shuffled'
+                                        }
+                                    >
+                                        Set {s}
+                                    </button>
+                                ))}
+                                <button
+                                    type="button"
+                                    onClick={() => setSetsActive(false)}
+                                    className="text-slate-400 hover:text-red-500 text-xs px-1.5 py-0.5 rounded cursor-pointer ml-1"
+                                    title="Disable 4-Sets & Return to Standard Paper"
+                                >
+                                    ✕
+                                </button>
+                            </div>
+                        ) : (
                             <button
-                                key={s}
                                 type="button"
-                                onClick={() => setActiveSet(s)}
-                                className={`px-3 py-1 rounded-lg text-xs font-black transition cursor-pointer ${
-                                    activeSet === s
-                                        ? 'bg-navy text-gold shadow-sm scale-105'
-                                        : 'bg-white text-slate-700 hover:bg-slate-200'
-                                }`}
-                                title={
-                                    s === 'P' ? 'Set P: Original Order' :
-                                    s === 'Q' ? 'Set Q: Questions Shuffled' :
-                                    s === 'R' ? 'Set R: Options Shuffled' :
-                                    'Set S: Both Questions & Options Shuffled'
-                                }
+                                onClick={() => { setSetsActive(true); setActiveSet('P'); }}
+                                className="bg-slate-100 hover:bg-slate-200 text-navy px-3 py-1.5 rounded-xl font-black text-xs border border-slate-300 transition cursor-pointer flex items-center gap-1.5"
+                                title="Click to generate 4 randomized examination sets (P, Q, R, S)"
                             >
-                                Set {s}
+                                <span>🎲</span>
+                                <span>Generate 4-Sets (P, Q, R, S)</span>
                             </button>
-                        ))}
+                        )}
                     </div>
                 )}
 
