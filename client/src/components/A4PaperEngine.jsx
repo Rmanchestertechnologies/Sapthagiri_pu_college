@@ -82,10 +82,10 @@ export default function A4PaperEngine({
                             className="a4-watermark-logo"
                             style={{
                                 width: '380px',
-                                height: '380px',
+                                height: 'auto',
+                                maxHeight: '380px',
                                 objectFit: 'contain',
-                                borderRadius: '50%',
-                                opacity: 0.055,
+                                opacity: 0.08,
                                 filter: 'grayscale(100%)',
                                 display: 'block',
                                 pointerEvents: 'none',
@@ -315,11 +315,11 @@ export default function A4PaperEngine({
                         print-color-adjust: exact !important;
                     }
                     body:not(.printing-answer-key):not(.printing-solution-key) .a4-watermark-logo {
-                        width: 340px !important;
-                        height: 340px !important;
+                        width: 360px !important;
+                        height: auto !important;
+                        max-height: 360px !important;
                         object-fit: contain !important;
-                        border-radius: 50% !important;
-                        opacity: 0.045 !important;
+                        opacity: 0.075 !important;
                         filter: grayscale(100%) !important;
                         display: block !important;
                         visibility: visible !important;

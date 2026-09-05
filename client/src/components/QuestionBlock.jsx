@@ -700,43 +700,71 @@ function parseMatchFromText(q) {
     if (!txt) return { introText: '', pairs: [] };
 
     // Clean up bold asterisks around headers e.g. **Column I** -> Column I
-    txt = txt.replace(/\*\*(Column|List)\s*(I|II|A|B)\*\*/gi, '$1 $2');
+    txt = txt.replace(/\*\*(Column|List)\s*[-:]?\s*(I|II|1|2|A|B)\*\*/gi, '$1 $2');
 
     // Regex to detect Column I / Column II or List I / List II
-    const colSplitRegex = /(?:Column|List)\s*(?:I|A)\b([\s\S]*?)(?:Column|List)\s*(?:II|B)\b([\s\S]*?)(?=Choose the correct|Select the correct|Options:|\([a-d1-4]\)\s*[A-D]|$)/i;
+    const colSplitRegex = /(?:Column|List)\s*[-:]?\s*(?:I|1|A)\b([\s\S]*?)(?:Column|List)\s*[-:]?\s*(?:II|2|B)\b([\s\S]*?)(?=(?:Choose\s+the\s+correct|Select\s+the\s+correct|Options:?|\([a-d1-4]\)\s*[A-D]|\([A-D]\)\s*\(?[A-D0-9]|Codes\s*:?|$))/i;
     const match = txt.match(colSplitRegex);
 
     if (match) {
         let introText = txt.substring(0, match.index).trim();
-        introText = introText.replace(/\b(?:Match(?:\s+the\s+following)?(?:\s+items\s+in)?(?:\s+List[-\s]*I\s+with\s+List[-\s]*II)?[:\-]?)\s*$/i, '').trim();
+        introText = introText.replace(/\b(?:Match(?:\s+the\s+following)?(?:\s+items\s+in)?(?:\s+(?:Column|List)[-\s]*(?:I|1|A)\s+with\s+(?:Column|List)[-\s]*(?:II|2|B))?[:\-]?)\s*$/i, '').trim();
 
         let rawCol1 = match[1].trim();
         let rawCol2 = match[2].trim();
 
-        // Clean out leading "with", ":", "-"
+        // Clean out leading "with", ":", "-", "."
         rawCol1 = rawCol1.replace(/^(?:with|:|-|\.)\s*/i, '').trim();
         rawCol2 = rawCol2.replace(/^(?:with|:|-|\.)\s*/i, '').trim();
 
-        const extractItems = (colStr, isLeft = true) => {
-            const items = [];
-            const itemRegex = isLeft
-                ? /(?:^|\s)(?:\(([A-Da-d])\)|([A-Da-d])[\.:])\s*([\s\S]*?)(?=(?:\s(?:\([A-Da-d]\)|[A-Da-d][\.:]))|$)/g
-                : /(?:^|\s)(?:\(([0-9ivxIVX]+)\)|([0-9ivxIVX]+)[\.:])\s*([\s\S]*?)(?=(?:\s(?:\([0-9ivxIVX]+\)|[0-9ivxIVX]+[\.:]))|$)/g;
+        const cleanItem = (s) => {
+            if (!s) return '';
+            return cleanStatementText(s)
+                .replace(/^[\(\[]?[A-Za-z0-9ivxIVX]+[\)\]\.:\-]\s*/, '')
+                .replace(/^\*+\s*/, '')
+                .replace(/\*+$/, '')
+                .replace(/^(?:with|Column|List|I|II|A|B|1|2)\s*/i, '')
+                .replace(/[:\-]$/, '')
+                .trim();
+        };
 
+        const extractItems = (colStr, isLeft = true) => {
+            if (!colStr) return [];
+
+            // Strategy 1: Explicit markers (e.g. (A), (B), (i), (ii), 1., 2., a), b), etc.)
+            const markerRegex = /(?:^|\s)(?:\(([a-zA-Z0-9ivxIVX]+)\)|([a-zA-Z0-9ivxIVX]+)[\.:\-\)])\s*([\s\S]*?)(?=(?:\s(?:\([a-zA-Z0-9ivxIVX]+\)|[a-zA-Z0-9ivxIVX]+[\.:\-\)]))|$)/g;
+            const markerItems = [];
             let im;
-            while ((im = itemRegex.exec(colStr)) !== null) {
-                const label = (im[1] || im[2] || '').trim();
-                const content = cleanStatementText(im[3]);
-                if (content && !/^(?:with|Column|List)$/i.test(content)) {
-                    items.push({ label, text: content });
+            while ((im = markerRegex.exec(colStr)) !== null) {
+                const content = cleanItem(im[3]);
+                if (content && !/^(?:with|Column|List|I|II|A|B|1|2)$/i.test(content)) {
+                    markerItems.push(content);
                 }
             }
+            if (markerItems.length >= 2) return markerItems;
 
-            if (items.length >= 2) return items.map(it => it.text);
-
-            // Fallback: split by newlines if structured as lines
-            const lines = colStr.split(/\n+/).map(s => cleanStatementText(s.replace(/^[\(\[]?[A-Da-d0-9ivxIVX]+[\)\]\.:\-]\s*/, ''))).filter(s => s && !/^(?:with|Column|List)$/i.test(s));
+            // Strategy 2: Split by newlines or HTML breaks
+            const lines = colStr
+                .split(/\r?\n+|<br\s*\/?>/i)
+                .map(s => cleanItem(s))
+                .filter(s => s && !/^(?:with|Column|List|I|II|A|B|1|2)$/i.test(s));
             if (lines.length >= 2) return lines;
+
+            // Strategy 3: Split by semicolon or bullet points
+            if (/[;•]/.test(colStr)) {
+                const semiItems = colStr
+                    .split(/[;•]+/)
+                    .map(s => cleanItem(s))
+                    .filter(s => s && !/^(?:with|Column|List|I|II|A|B|1|2)$/i.test(s));
+                if (semiItems.length >= 2) return semiItems;
+            }
+
+            // Strategy 4: Fallback split by capital letter boundaries (e.g. "Root hair Trichome Cuticle Stomatal apparatus")
+            const capitalizedPhrases = colStr
+                .split(/(?<=[a-z0-9\)])\s+(?=[A-Z])/g)
+                .map(s => cleanItem(s))
+                .filter(s => s && !/^(?:with|Column|List|I|II|A|B|1|2)$/i.test(s));
+            if (capitalizedPhrases.length >= 2) return capitalizedPhrases;
 
             return [];
         };
@@ -861,6 +889,9 @@ function BodyMatchFollowing({ q, classes, isTwoCol, diagramMaxHeight = '180px', 
     const currentDiagramHeight = q.customDiagramSizes?.['main'] || q.customDiagramHeight || diagramMaxHeight;
     const isMainManual = Boolean(q.customDiagramSizes?.['main'] || q.customDiagramHeight);
 
+    const romanLabels = ['i', 'ii', 'iii', 'iv', 'v', 'vi', 'vii', 'viii'];
+    const hasRomanOpts = opts.some(o => /[\-\s\(](?:i|ii|iii|iv|v|vi)\b/i.test(typeof o === 'object' ? (o.text || '') : String(o)));
+
     return (
         <>
             {qText && (
@@ -904,7 +935,7 @@ function BodyMatchFollowing({ q, classes, isTwoCol, diagramMaxHeight = '180px', 
                                     <MathRenderer inline text={pair.left || ''} />
                                 </td>
                                 <td style={Q.matchTd}>
-                                    <strong style={{ marginRight: '4px' }}>({pi + 1})</strong>
+                                    <strong style={{ marginRight: '4px' }}>({hasRomanOpts ? (romanLabels[pi] || (pi + 1)) : (pi + 1)})</strong>
                                     <MathRenderer inline text={pair.right || ''} />
                                 </td>
                             </tr>
