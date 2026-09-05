@@ -145,9 +145,7 @@ const CLASS_12_ZOOLOGY_CHAPTERS = [
     'Human Reproduction',
     'Reproductive Health',
     'Evolution',
-    'Human Health and Disease',
-    'Biotechnology: Principles and Processes',
-    'Biotechnology and Its Applications'
+    'Human Health and Disease'
 ];
 
 const BOTANY_CHAPTERS = [
@@ -499,23 +497,6 @@ const BIOLOGY_SYLLABUS = {
                     'AIDS',
                     'Cancer',
                     'Drugs and Alcohol Abuse'
-                ]
-            },
-            {
-                chapter: 'Biotechnology: Principles and Processes',
-                concepts: [
-                    'Principles of Biotechnology',
-                    'Tools of Recombinant DNA Technology',
-                    'Processes of Recombinant DNA Technology'
-                ]
-            },
-            {
-                chapter: 'Biotechnology and Its Applications',
-                concepts: [
-                    'Biotechnological Applications in Agriculture',
-                    'Biotechnological Applications in Medicine',
-                    'Transgenic Animals',
-                    'Ethical Issues'
                 ]
             }
         ]
