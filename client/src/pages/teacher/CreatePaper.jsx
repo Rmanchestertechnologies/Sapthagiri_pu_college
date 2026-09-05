@@ -292,7 +292,15 @@ export default function CreatePaper() {
                 url += `&classes=${encodeURIComponent(cleanClass)}`;
             }
             const res = await api.get(url);
-            const qs = Array.isArray(res.data) ? res.data : (res.data?.questions || []);
+            const rawQs = Array.isArray(res.data) ? res.data : (res.data?.questions || []);
+            const qs = rawQs.filter(q => {
+                if (!q) return false;
+                const typeStr = (q.type || q.q_type || '').toLowerCase();
+                if (typeStr.includes('true') || typeStr.includes('false') || typeStr.includes('tf')) return false;
+                const opts = Array.isArray(q.options) ? q.options : [];
+                if (opts.length <= 2 && opts.some(o => /^(true|false)$/i.test(String(typeof o === 'object' ? (o.text || o.option || '') : o).trim()))) return false;
+                return true;
+            });
             questionsCache.current[cacheKey] = qs;
             setAvailableQuestions(qs);
         } catch (err) {

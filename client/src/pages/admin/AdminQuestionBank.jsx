@@ -236,7 +236,7 @@ const AdminQuestionBank = () => {
 
                 <MultiSelectCheckbox 
                     label="All Types" 
-                    options={["MCQ", "ASSERTION_REASON", "STATEMENT_BASED", "TRUE_FALSE", "MATCH_FOLLOWING", "DIAGRAM_BASED", "NUMERICAL"]} 
+                    options={["MCQ", "ASSERTION_REASON", "STATEMENT_BASED", "MATCH_FOLLOWING", "DIAGRAM_BASED", "NUMERICAL"]} 
                     selectedValues={filters.type} 
                     onChange={vals => setFilters(f => ({ ...f, type: vals }))} 
                 />

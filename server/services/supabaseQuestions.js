@@ -75,11 +75,6 @@ function mapSupabaseToQuestion(row, usageMap = null) {
     const rawReason = row.reason || '';
     const qTypeLower = (row.q_type || '').toLowerCase();
 
-    // Skip true/false questions completely
-    if (qTypeLower.includes('true') || qTypeLower.includes('false')) {
-        return null;
-    }
-
     const rawOptions = [];
     if (row.opt_a) rawOptions.push(row.opt_a);
     if (row.opt_b) rawOptions.push(row.opt_b);
@@ -112,6 +107,16 @@ function mapSupabaseToQuestion(row, usageMap = null) {
     }
 
     const options = rawOptions.map(cleanDifficultyTags).filter(Boolean);
+
+    // Skip true/false questions completely (by type, option values, or columns)
+    const isTF = (
+        qTypeLower.includes('true') || 
+        qTypeLower.includes('false') || 
+        qTypeLower.includes('tf') ||
+        (options.length <= 2 && options.some(o => /^(true|false)$/i.test(String(o).trim()))) ||
+        (/^(true|false)$/i.test(String(row.opt_a || '').trim()) && /^(true|false)$/i.test(String(row.opt_b || '').trim()))
+    );
+    if (isTF) return null;
 
     // Smart Question Type Auto-Classification
     let type = 'MCQ';
@@ -416,6 +421,11 @@ function buildQueryFilters(filters) {
         whereClauses.push(`(q.question ILIKE $${paramIndex} OR q.chapter ILIKE $${paramIndex} OR q.topic ILIKE $${paramIndex++})`);
         values.push(`%${searchStr}%`);
     }
+
+    // Exclude True/False questions explicitly from all queries
+    whereClauses.push("(q.q_type IS NULL OR (q.q_type NOT ILIKE '%true%' AND q.q_type NOT ILIKE '%false%' AND q.q_type NOT ILIKE '%tf%'))");
+    whereClauses.push("NOT (q.opt_a ILIKE 'true' AND q.opt_b ILIKE 'false')");
+    whereClauses.push("NOT (q.opt_a ILIKE 'false' AND q.opt_b ILIKE 'true')");
 
     return { whereClauses, values };
 }

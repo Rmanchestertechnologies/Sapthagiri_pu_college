@@ -346,7 +346,6 @@ const AddQuestion = () => {
                                     <option value="MCQ">MCQ</option>
                                     <option value="ASSERTION_REASON">Assertion & Reason</option>
                                     <option value="STATEMENT_BASED">Statement-Based</option>
-                                    <option value="TRUE_FALSE">True or False</option>
                                     <option value="MATCH_FOLLOWING">Match the Following</option>
                                     <option value="DIAGRAM_BASED">Diagram-Oriented</option>
                                     <option value="NUMERICAL">Numerical Answer Type</option>
@@ -549,17 +548,6 @@ const AddQuestion = () => {
                                         ))}
                                     </div>
                                 </div>
-                            </div>
-                        )}
-
-                        {formData.type === 'TRUE_FALSE' && (
-                            <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm space-y-3">
-                                <label className="block text-xs font-bold text-gray-700">Correct Answer Choice:</label>
-                                <select className="w-full border-2 border-gray-100 p-3 rounded-xl bg-white font-bold text-navy outline-none" value={formData.answer} onChange={e=>setFormData({...formData, answer: e.target.value})}>
-                                    <option value="">-- Choose Answer --</option>
-                                    <option value="True">True</option>
-                                    <option value="False">False</option>
-                                </select>
                             </div>
                         )}
 

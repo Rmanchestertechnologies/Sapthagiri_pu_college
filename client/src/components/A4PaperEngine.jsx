@@ -245,7 +245,8 @@ export default function A4PaperEngine({
                 .resizable-diagram-wrap img {
                     max-width: 100% !important;
                     height: auto !important;
-                    background-color: #ffffff !important;
+                    background-color: transparent !important;
+                    mix-blend-mode: multiply !important;
                     position: relative !important;
                     z-index: 2 !important;
                 }
@@ -424,7 +425,8 @@ export default function A4PaperEngine({
                         box-shadow: none !important;
                         outline: none !important;
                         border: none !important;
-                        background-color: #ffffff !important;
+                        background-color: transparent !important;
+                        mix-blend-mode: multiply !important;
                         position: relative !important;
                         z-index: 2 !important;
                     }

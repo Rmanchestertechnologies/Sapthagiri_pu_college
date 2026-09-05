@@ -855,7 +855,7 @@ function BodyMatchFollowing({ q, classes, isTwoCol, diagramMaxHeight = '180px', 
     const { introText, pairs: parsedPairs } = parseMatchFromText(q);
     const pairs = (Array.isArray(q.matchPairs) && q.matchPairs.length > 0) ? q.matchPairs : parsedPairs;
     const opts = q.options || [];
-    const rawQText = cleanQuestionText(pairs.length > 0 ? introText : (q.questionText || q.question || ''));
+    const rawQText = cleanQuestionText(pairs.length > 0 ? (introText || '') : (q.questionText || q.question || ''));
     const { cleanText: qText, diagramUrl: imageUrl } = extractDiagramFromText(rawQText, q.imageUrl || q.image_url);
     const qId = q._id || q.id || displayNum;
     const currentDiagramHeight = q.customDiagramSizes?.['main'] || q.customDiagramHeight || diagramMaxHeight;
@@ -940,7 +940,7 @@ function BodyStatementBased({ q, classes, isTwoCol, diagramMaxHeight = '180px', 
         ? q.statements.map((s, idx) => ({ label: `Statement ${idx + 1}:`, text: typeof s === 'object' ? (s.text || '') : String(s) }))
         : parsedStmts;
     const opts = q.options || [];
-    const rawQText = cleanQuestionText(introText || q.questionText || q.question || '');
+    const rawQText = cleanQuestionText(statements.length > 0 ? (introText || '') : (q.questionText || q.question || ''));
     const { cleanText: qText, diagramUrl: imageUrl } = extractDiagramFromText(rawQText, q.imageUrl || q.image_url);
     const labels = getQuestionOptionLabels(q);
     const qId = q._id || q.id || displayNum;
