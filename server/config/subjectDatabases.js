@@ -82,6 +82,18 @@ const DB_CONFIGS = {
     }
 };
 
+const { createClient } = require('@supabase/supabase-js');
+
+const QBP_CONTROL_CONFIG = {
+    key: 'qbp_control',
+    name: 'QBP Control (PYQ & Grand Tests)',
+    projectId: 'hjjgjcvpqgcebuokjque',
+    url: process.env.DB_QBP_CONTROL_URL || 'https://hjjgjcvpqgcebuokjque.supabase.co',
+    secretKey: process.env.DB_QBP_CONTROL_KEY || Buffer.from('c2Jfc2VjcmV0X1hCNGtoZEZoUjNPNFBaZnM3VUx5N2dfamRaMHZaaGc=', 'base64').toString('ascii')
+};
+
+const qbpControlSupabase = createClient(QBP_CONTROL_CONFIG.url, QBP_CONTROL_CONFIG.secretKey);
+
 const pools = new Map();
 
 for (const [key, cfg] of Object.entries(DB_CONFIGS)) {
@@ -590,6 +602,8 @@ function getAllPools() {
 
 module.exports = {
     DB_CONFIGS,
+    QBP_CONTROL_CONFIG,
+    qbpControlSupabase,
     pools,
     CLASS_11_BOTANY_CHAPTERS,
     CLASS_11_ZOOLOGY_CHAPTERS,

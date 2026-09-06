@@ -102,6 +102,12 @@ export default function CreatePaper() {
     const [selectedChapters, setSelectedChapters] = useState([]);
     const [selectedConcepts, setSelectedConcepts] = useState([]);
 
+    // Chapter-wise Question Quotas (e.g. { "Electric Charges and Fields": 20, "Current Electricity": 20 })
+    const [chapterQuotas, setChapterQuotas] = useState({});
+
+    // Question Source Repositories (Subject Database vs PYQ/Grand Tests qbp-control)
+    const [selectedSources, setSelectedSources] = useState(['subject', 'qbp_control']);
+
     // Fast Meta state (loaded in < 50ms)
     const [metaData, setMetaData] = useState({ total: 0, chapters: [], concepts: [] });
     const [loadingMeta, setLoadingMeta] = useState(false);
@@ -275,11 +281,12 @@ export default function CreatePaper() {
     }, [paperId]);
 
     // ── 2. HIGH-SPEED QUESTIONS POOL FETCH WITH IN-MEMORY CACHE ──
-    const fetchQuestionsPool = async (forceSubject = subject, forceClass = selectedClass) => {
+    const fetchQuestionsPool = async (forceSubject = subject, forceClass = selectedClass, forceSources = selectedSources) => {
         if (!forceSubject) return;
 
         const cleanClass = forceClass === 'Both' ? '' : forceClass;
-        const cacheKey = `${forceSubject.trim().toLowerCase()}_${cleanClass || 'all'}`;
+        const sourceKey = (forceSources || ['subject', 'qbp_control']).sort().join('_');
+        const cacheKey = `${forceSubject.trim().toLowerCase()}_${cleanClass || 'all'}_${sourceKey}`;
         if (questionsCache.current[cacheKey] && questionsCache.current[cacheKey].length > 0) {
             setAvailableQuestions(questionsCache.current[cacheKey]);
             return;
@@ -290,6 +297,9 @@ export default function CreatePaper() {
             let url = `/api/questions?subject=${encodeURIComponent(forceSubject)}&limit=20000`;
             if (cleanClass) {
                 url += `&classes=${encodeURIComponent(cleanClass)}`;
+            }
+            if (forceSources && forceSources.length > 0) {
+                url += `&source=${encodeURIComponent(forceSources.join(','))}`;
             }
             const res = await api.get(url);
             const rawQs = Array.isArray(res.data) ? res.data : (res.data?.questions || []);
@@ -310,12 +320,74 @@ export default function CreatePaper() {
         }
     };
 
-    // Fetch questions pool immediately when subject or selectedClass changes
+    // Fetch questions pool immediately when subject, selectedClass, or selectedSources changes
     useEffect(() => {
         if (subject) {
-            fetchQuestionsPool(subject, selectedClass);
+            fetchQuestionsPool(subject, selectedClass, selectedSources);
         }
-    }, [subject, selectedClass]);
+    }, [subject, selectedClass, selectedSources]);
+
+    // ── Chapter Quotas Auto-Sync & Helpers ──
+    useEffect(() => {
+        if (selectedChapters.length === 0) {
+            setChapterQuotas({});
+            return;
+        }
+        setChapterQuotas(prev => {
+            const next = {};
+            selectedChapters.forEach(ch => {
+                if (prev[ch] !== undefined && prev[ch] !== null) {
+                    next[ch] = prev[ch];
+                }
+            });
+
+            const missing = selectedChapters.filter(ch => next[ch] === undefined || next[ch] === null);
+            if (missing.length > 0) {
+                const currentAllocated = Object.values(next).reduce((s, v) => s + (parseInt(v, 10) || 0), 0);
+                const remaining = Math.max(0, targetLimit - currentAllocated);
+                const base = Math.floor(remaining / missing.length);
+                const rem = remaining % missing.length;
+                missing.forEach((ch, idx) => {
+                    next[ch] = base + (idx < rem ? 1 : 0);
+                });
+            }
+            return next;
+        });
+    }, [selectedChapters, targetLimit]);
+
+    const totalAllocatedQuota = useMemo(() => {
+        return Object.values(chapterQuotas).reduce((sum, v) => sum + (parseInt(v, 10) || 0), 0);
+    }, [chapterQuotas]);
+
+    const handleDistributeEvenly = () => {
+        if (selectedChapters.length === 0) return;
+        const base = Math.floor(targetLimit / selectedChapters.length);
+        const rem = targetLimit % selectedChapters.length;
+        const next = {};
+        selectedChapters.forEach((ch, idx) => {
+            next[ch] = base + (idx < rem ? 1 : 0);
+        });
+        setChapterQuotas(next);
+    };
+
+    const handleQuotaChange = (chapter, val) => {
+        const num = Math.max(0, parseInt(val, 10) || 0);
+        setChapterQuotas(prev => ({
+            ...prev,
+            [chapter]: num
+        }));
+    };
+
+    const toggleSource = (sourceKey) => {
+        setSelectedSources(prev => {
+            if (prev.includes(sourceKey)) {
+                if (prev.length === 1) return prev; // Keep at least one source
+                return prev.filter(s => s !== sourceKey);
+            } else {
+                return [...prev, sourceKey];
+            }
+        });
+    };
 
     // Canonicalize biology & assessment chapter names
     const canonicalizeChapterName = (name) => {
@@ -363,6 +435,16 @@ export default function CreatePaper() {
         }
         return clean;
     };
+
+    // Count of selected questions per canonical chapter
+    const selectedChapterCounts = useMemo(() => {
+        const counts = {};
+        selectedQuestions.forEach(q => {
+            const ch = canonicalizeChapterName(q.chapter || 'General');
+            counts[ch] = (counts[ch] || 0) + 1;
+        });
+        return counts;
+    }, [selectedQuestions]);
 
     // Distinct chapters and concepts map (Scoped strictly to selected class)
     const { distinctChapters, chapterConceptsMap } = useMemo(() => {
@@ -673,6 +755,50 @@ export default function CreatePaper() {
 
     // Auto Fetch Generator
     const handleGenerateAuto = () => {
+        // If specific chapter quotas are configured, generate strictly adhering to per-chapter allocations
+        if (selectedChapters.length > 0 && Object.keys(chapterQuotas).length > 0) {
+            const combined = [];
+            const shuffle = arr => [...arr].sort(() => Math.random() - 0.5);
+
+            for (const chName of selectedChapters) {
+                const qty = parseInt(chapterQuotas[chName], 10) || 0;
+                if (qty <= 0) continue;
+
+                const chPool = scopedQuestionPool.filter(q => q.chapter === chName);
+                if (chPool.length === 0) continue;
+
+                const easyTarget = Math.round(qty * (autoDist.easy / 100));
+                const medTarget = Math.round(qty * (autoDist.medium / 100));
+                const hardTarget = Math.max(0, qty - easyTarget - medTarget);
+
+                const easyPool = chPool.filter(q => (q.level || 'medium').toLowerCase() === 'easy');
+                const medPool = chPool.filter(q => (q.level || 'medium').toLowerCase() === 'medium');
+                const hardPool = chPool.filter(q => (q.level || 'medium').toLowerCase() === 'hard');
+
+                const pickedEasy = shuffle(easyPool).slice(0, easyTarget);
+                const pickedMed = shuffle(medPool).slice(0, medTarget);
+                const pickedHard = shuffle(hardPool).slice(0, hardTarget);
+
+                let chCombined = [...pickedEasy, ...pickedMed, ...pickedHard];
+                const usedIds = new Set(chCombined.map(q => q._id || q.id));
+
+                if (chCombined.length < qty) {
+                    const remainder = chPool.filter(q => !usedIds.has(q._id || q.id));
+                    chCombined.push(...shuffle(remainder).slice(0, qty - chCombined.length));
+                }
+                combined.push(...chCombined);
+            }
+
+            if (combined.length === 0) {
+                return alert('No questions found matching the selected syllabus chapters.');
+            }
+
+            setSelectedQuestions(combined);
+            setMethod('manual'); // automatically set method to manual so review shows questions
+            setCurrentStep(4); // Move to Preview
+            return;
+        }
+
         if (scopedQuestionPool.length === 0) {
             return alert('No questions found matching the selected syllabus chapters & concepts.');
         }
@@ -680,7 +806,7 @@ export default function CreatePaper() {
         const count = Math.min(targetLimit, scopedQuestionPool.length);
         const easyTarget = Math.round(count * (autoDist.easy / 100));
         const medTarget = Math.round(count * (autoDist.medium / 100));
-        const hardTarget = count - easyTarget - medTarget;
+        const hardTarget = Math.max(0, count - easyTarget - medTarget);
 
         const easyPool = scopedQuestionPool.filter(q => (q.level || 'medium').toLowerCase() === 'easy');
         const medPool = scopedQuestionPool.filter(q => (q.level || 'medium').toLowerCase() === 'medium');
@@ -904,6 +1030,65 @@ export default function CreatePaper() {
                             </div>
                         </div>
 
+                        {/* ── QUESTION REPOSITORIES & SOURCES SELECTION ── */}
+                        <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 space-y-2">
+                            <div className="flex items-center justify-between">
+                                <label className="block text-xs font-black text-navy uppercase tracking-wider">
+                                    <span>🗄️</span> Question Repositories & Database Sources
+                                </label>
+                                <span className="text-[10px] text-gray-500 font-bold">Select databases to draw questions from</span>
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                                <div
+                                    onClick={() => toggleSource('subject')}
+                                    className={`p-3.5 rounded-2xl border-2 cursor-pointer transition flex items-center gap-3 ${
+                                        selectedSources.includes('subject')
+                                            ? 'border-navy bg-white shadow-xs ring-1 ring-navy/10'
+                                            : 'border-gray-200 bg-white/60 hover:border-gray-300 opacity-60'
+                                    }`}
+                                >
+                                    <input
+                                        type="checkbox"
+                                        checked={selectedSources.includes('subject')}
+                                        onChange={() => {}}
+                                        className="w-4 h-4 text-navy rounded border-gray-300 cursor-pointer"
+                                    />
+                                    <div className="flex-1 min-w-0">
+                                        <span className="text-xs font-black text-navy block">
+                                            🏢 Standard Question Bank
+                                        </span>
+                                        <span className="text-[10px] text-gray-500 font-medium block">
+                                            Core subject repository ({metaData.total || availableQuestions.length} Questions)
+                                        </span>
+                                    </div>
+                                </div>
+
+                                <div
+                                    onClick={() => toggleSource('qbp_control')}
+                                    className={`p-3.5 rounded-2xl border-2 cursor-pointer transition flex items-center gap-3 ${
+                                        selectedSources.includes('qbp_control')
+                                            ? 'border-gold bg-amber-50/50 shadow-xs ring-1 ring-gold/20'
+                                            : 'border-gray-200 bg-white/60 hover:border-gray-300 opacity-60'
+                                    }`}
+                                >
+                                    <input
+                                        type="checkbox"
+                                        checked={selectedSources.includes('qbp_control')}
+                                        onChange={() => {}}
+                                        className="w-4 h-4 text-gold rounded border-gray-300 cursor-pointer"
+                                    />
+                                    <div className="flex-1 min-w-0">
+                                        <span className="text-xs font-black text-navy block">
+                                            📑 PYQ & Grand Test Papers (qbp-control)
+                                        </span>
+                                        <span className="text-[10px] text-gray-500 font-medium block">
+                                            Previous year entrance exams & full mock grand tests
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
                         {/* ── METADATA INPUTS ── */}
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 bg-slate-50 p-6 rounded-2xl border border-slate-200">
                             {/* Title */}
@@ -935,9 +1120,14 @@ export default function CreatePaper() {
                                         <option value="BOARD">PUC Board Standard</option>
                                     </select>
                                 </div>
-                            ) : (
-                                <div>
-                                    <label className="block text-xs font-black text-navy uppercase tracking-wider mb-2">Target Questions Count</label>
+                            ) : null}
+
+                            {/* Target Question Count */}
+                            <div>
+                                <label className="block text-xs font-black text-navy uppercase tracking-wider mb-2">
+                                    Target Questions Count
+                                </label>
+                                <div className="flex items-center gap-2">
                                     <input
                                         type="number"
                                         min={1}
@@ -949,8 +1139,23 @@ export default function CreatePaper() {
                                         }}
                                         className="w-full border-2 border-gray-200 focus:border-navy rounded-2xl px-4 py-3 text-sm font-bold text-navy outline-none bg-white"
                                     />
+                                    {[30, 45, 60, 90].map(cnt => (
+                                        <button
+                                            key={cnt}
+                                            type="button"
+                                            onClick={() => {
+                                                setTargetCount(cnt);
+                                                setAutoQty(cnt);
+                                            }}
+                                            className={`px-2.5 py-3 rounded-xl text-xs font-black transition cursor-pointer ${
+                                                targetCount === cnt ? 'bg-navy text-gold' : 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-100'
+                                            }`}
+                                        >
+                                            {cnt}
+                                        </button>
+                                    ))}
                                 </div>
-                            )}
+                            </div>
 
                             {/* Class */}
                             <div>
@@ -1118,6 +1323,105 @@ export default function CreatePaper() {
                                 </div>
                             )}
                         </div>
+
+                        {/* ── CHAPTER QUESTION DISTRIBUTION QUOTAS ── */}
+                        {selectedChapters.length > 0 && (
+                            <div className="bg-slate-50 p-6 rounded-2xl border-2 border-slate-200 space-y-4 animate-fade-in">
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 pb-3">
+                                    <div>
+                                        <h3 className="text-sm font-black text-navy uppercase tracking-wider flex items-center gap-2">
+                                            <span>📊</span> Chapter-wise Question Distribution Quotas
+                                        </h3>
+                                        <p className="text-[11px] text-gray-500 font-medium">
+                                            Specify how many questions to retrieve from each selected chapter (Total Target: {targetLimit} Questions).
+                                        </p>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={handleDistributeEvenly}
+                                            className="text-[11px] font-black text-navy bg-gold/30 hover:bg-gold px-3.5 py-1.5 rounded-xl transition cursor-pointer flex items-center gap-1 shadow-xs"
+                                        >
+                                            <span>⚡</span> Distribute Evenly
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Quotas grid */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                                    {selectedChapters.map((ch) => {
+                                        const quota = chapterQuotas[ch] !== undefined ? chapterQuotas[ch] : 0;
+                                        const availableForCh = availableQuestions.filter(q => q.chapter === ch).length;
+                                        return (
+                                            <div
+                                                key={ch}
+                                                className="bg-white p-3.5 rounded-2xl border border-gray-200 shadow-2xs flex flex-col justify-between gap-2"
+                                            >
+                                                <div className="min-w-0">
+                                                    <span className="text-xs font-bold text-navy block truncate" title={ch}>
+                                                        {ch}
+                                                    </span>
+                                                    <span className="text-[10px] text-gray-400 font-medium">
+                                                        {availableForCh} in pool
+                                                    </span>
+                                                </div>
+                                                <div className="flex items-center justify-between gap-2 pt-1 border-t border-gray-100">
+                                                    <span className="text-[10px] font-bold text-gray-500 uppercase">Questions:</span>
+                                                    <div className="flex items-center gap-1.5">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleQuotaChange(ch, Math.max(0, quota - 1))}
+                                                            className="w-6 h-6 rounded-lg bg-gray-100 hover:bg-gray-200 text-navy font-bold text-xs flex items-center justify-center transition cursor-pointer"
+                                                        >
+                                                            -
+                                                        </button>
+                                                        <input
+                                                            type="number"
+                                                            min={0}
+                                                            value={quota}
+                                                            onChange={e => handleQuotaChange(ch, e.target.value)}
+                                                            className="w-12 text-center font-black text-xs text-navy border border-gray-300 rounded-lg py-1 outline-none focus:border-navy"
+                                                        />
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleQuotaChange(ch, quota + 1)}
+                                                            className="w-6 h-6 rounded-lg bg-gray-100 hover:bg-gray-200 text-navy font-bold text-xs flex items-center justify-center transition cursor-pointer"
+                                                        >
+                                                            +
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+
+                                {/* Quota sum status */}
+                                <div className={`p-3.5 rounded-xl border flex items-center justify-between text-xs font-bold ${
+                                    totalAllocatedQuota === targetLimit
+                                        ? 'bg-emerald-50 border-emerald-300 text-emerald-900'
+                                        : totalAllocatedQuota > targetLimit
+                                            ? 'bg-rose-50 border-rose-300 text-rose-900'
+                                            : 'bg-amber-50 border-amber-300 text-amber-900'
+                                }`}>
+                                    <div className="flex items-center gap-2">
+                                        <span>{totalAllocatedQuota === targetLimit ? '✓' : '⚠️'}</span>
+                                        <span>
+                                            Allocated: <strong>{totalAllocatedQuota}</strong> of <strong>{targetLimit}</strong> Questions Needed
+                                        </span>
+                                    </div>
+                                    {totalAllocatedQuota !== targetLimit && (
+                                        <button
+                                            type="button"
+                                            onClick={handleDistributeEvenly}
+                                            className="text-[10px] font-black underline hover:no-underline cursor-pointer"
+                                        >
+                                            Auto-balance to {targetLimit} Qs
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+                        )}
 
                         {/* ── MULTI-SELECT CONCEPTS ── */}
                         {selectedChapters.length > 0 ? (
@@ -1411,6 +1715,50 @@ export default function CreatePaper() {
                                             </div>
                                         </div>
                                     </div>
+
+                                    {/* Chapter Quota Auto-Distribution Preview */}
+                                    {selectedChapters.length > 0 && Object.keys(chapterQuotas).length > 0 && (
+                                        <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 space-y-3">
+                                            <div className="flex items-center justify-between">
+                                                <h3 className="text-xs font-black text-navy uppercase tracking-wider flex items-center gap-2">
+                                                    <span>📋</span> Chapter Quota Breakdown ({selectedChapters.length} Chapters)
+                                                </h3>
+                                                <span className="text-[11px] font-bold text-slate-500">
+                                                    Total Allocated: {totalAllocatedQuota} / {targetLimit} Qs
+                                                </span>
+                                            </div>
+                                            <div className="overflow-x-auto rounded-xl border border-slate-200">
+                                                <table className="w-full text-left text-xs border-collapse">
+                                                    <thead>
+                                                        <tr className="bg-slate-100/80 border-b border-slate-200 text-slate-600 font-bold">
+                                                            <th className="py-2.5 px-3">Chapter</th>
+                                                            <th className="py-2.5 px-3 text-center">Quota</th>
+                                                            <th className="py-2.5 px-3 text-center text-emerald-700">Easy (~{autoDist.easy}%)</th>
+                                                            <th className="py-2.5 px-3 text-center text-amber-700">Medium (~{autoDist.medium}%)</th>
+                                                            <th className="py-2.5 px-3 text-center text-rose-700">Hard (~{autoDist.hard}%)</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody className="divide-y divide-slate-100 bg-white">
+                                                        {selectedChapters.map(ch => {
+                                                            const qty = parseInt(chapterQuotas[ch], 10) || 0;
+                                                            const easy = Math.round(qty * (autoDist.easy / 100));
+                                                            const med = Math.round(qty * (autoDist.medium / 100));
+                                                            const hard = Math.max(0, qty - easy - med);
+                                                            return (
+                                                                <tr key={ch} className="hover:bg-slate-50/70 font-medium text-slate-800">
+                                                                    <td className="py-2 px-3 font-bold text-navy truncate max-w-xs" title={ch}>{ch}</td>
+                                                                    <td className="py-2 px-3 text-center font-black text-navy">{qty}</td>
+                                                                    <td className="py-2 px-3 text-center text-emerald-700 font-bold">{easy}</td>
+                                                                    <td className="py-2 px-3 text-center text-amber-700 font-bold">{med}</td>
+                                                                    <td className="py-2 px-3 text-center text-rose-700 font-bold">{hard}</td>
+                                                                </tr>
+                                                            );
+                                                        })}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
 
                                 <div className="flex justify-between items-center pt-4 border-t border-gray-100">
@@ -1516,6 +1864,64 @@ export default function CreatePaper() {
                                         )}
                                     </div>
                                 </div>
+
+                                {/* Live Chapter Quota Tracker Bar */}
+                                {selectedChapters.length > 0 && (
+                                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2.5">
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-[11px] font-black text-navy uppercase tracking-wider flex items-center gap-1.5">
+                                                <span>🎯</span> Chapter Quota Progress
+                                            </span>
+                                            <span className="text-[11px] font-bold text-gray-500">
+                                                Click any chapter to filter questions
+                                            </span>
+                                        </div>
+                                        <div className="flex flex-wrap gap-2">
+                                            {selectedChapters.map(ch => {
+                                                const targetQ = chapterQuotas[ch] !== undefined ? chapterQuotas[ch] : 0;
+                                                const currentQ = selectedChapterCounts[ch] || 0;
+                                                const isFulfilled = targetQ > 0 && currentQ === targetQ;
+                                                const isOver = currentQ > targetQ;
+                                                const isActive = singleFilterChapter === ch;
+
+                                                return (
+                                                    <button
+                                                        key={ch}
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setSingleFilterChapter(isActive ? '' : ch);
+                                                            setPageNumber(1);
+                                                        }}
+                                                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
+                                                            isActive
+                                                                ? 'ring-2 ring-navy shadow-xs'
+                                                                : ''
+                                                        } ${
+                                                            isFulfilled
+                                                                ? 'bg-emerald-100 text-emerald-900 border border-emerald-300'
+                                                                : isOver
+                                                                ? 'bg-rose-100 text-rose-900 border border-rose-300'
+                                                                : currentQ > 0
+                                                                ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                                                                : 'bg-white text-slate-700 border border-gray-200 hover:border-gray-300'
+                                                        }`}
+                                                    >
+                                                        <span className="truncate max-w-[160px] sm:max-w-[200px]" title={ch}>{ch}</span>
+                                                        <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-black ${
+                                                            isFulfilled
+                                                                ? 'bg-emerald-600 text-white'
+                                                                : isOver
+                                                                ? 'bg-rose-600 text-white'
+                                                                : 'bg-slate-200 text-slate-800'
+                                                        }`}>
+                                                            {currentQ} / {targetQ} {isFulfilled ? '✓' : ''}
+                                                        </span>
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                )}
 
                                 {/* Quick Filters & Search */}
                                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3 bg-gray-50 p-4 rounded-2xl border border-gray-200">

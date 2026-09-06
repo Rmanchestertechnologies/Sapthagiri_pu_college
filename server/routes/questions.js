@@ -94,7 +94,7 @@ router.post('/', [auth, checkRole(['admin', 'teacher']), upload.fields([{ name: 
 // @access  Teacher / Admin
 router.get('/', [auth, checkRole(['admin', 'teacher'])], async (req, res) => {
     try {
-        const { classes, chapter, concept, type, subject, search, level, usage } = req.query;
+        const { classes, chapter, concept, type, subject, search, level, usage, source } = req.query;
         let filters = {};
 
         // Subject-level access control — teachers can ONLY access their own subject
@@ -114,6 +114,7 @@ router.get('/', [auth, checkRole(['admin', 'teacher'])], async (req, res) => {
         if (search) filters.search = search;
         if (level) filters.level = level;
         if (usage) filters.usage = usage;
+        if (source) filters.source = source;
 
         // Pagination
         const page = Math.max(1, parseInt(req.query.page) || 1);
@@ -133,6 +134,34 @@ router.get('/', [auth, checkRole(['admin', 'teacher'])], async (req, res) => {
     } catch (err) {
         console.error('[QUESTIONS GET] error:', err.message);
         res.status(500).json({ msg: 'Server error fetching questions from Supabase.' });
+    }
+});
+
+// @route   POST /api/questions/chapter-distribution
+// @desc    Auto-assemble questions adhering strictly to per-chapter quotas & difficulty distribution
+// @access  Teacher / Admin
+router.post('/chapter-distribution', [auth, checkRole(['admin', 'teacher'])], async (req, res) => {
+    try {
+        const { classes, chapterQuotas, difficultyDistribution, sources, concepts } = req.body;
+        const subject = req.user.role === 'teacher' ? req.user.subject : (req.body.subject || 'Physics');
+
+        if (!chapterQuotas || typeof chapterQuotas !== 'object' || Object.keys(chapterQuotas).length === 0) {
+            return res.status(400).json({ msg: 'chapterQuotas object is required.' });
+        }
+
+        const result = await supabaseQuestions.getQuestionsWithChapterQuotas({
+            subject,
+            classes: classes || req.body.class || '12',
+            chapterQuotas,
+            difficultyDistribution: difficultyDistribution || { easy: 40, medium: 40, hard: 20 },
+            sources: Array.isArray(sources) && sources.length > 0 ? sources : ['subject', 'qbp_control'],
+            concepts: concepts || []
+        });
+
+        res.json(result);
+    } catch (err) {
+        console.error('[QUESTIONS CHAPTER-DISTRIBUTION] error:', err.message);
+        res.status(500).json({ msg: 'Server error generating chapter-distributed questions.' });
     }
 });
 

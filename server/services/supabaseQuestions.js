@@ -1,6 +1,8 @@
 const primaryPool = require('../config/postgres');
 const {
     DB_CONFIGS,
+    QBP_CONTROL_CONFIG,
+    qbpControlSupabase,
     pools,
     CLASS_11_BOTANY_CHAPTERS,
     CLASS_11_ZOOLOGY_CHAPTERS,
@@ -526,17 +528,63 @@ async function getQuestions(filters = {}, page = 1, limit = 50) {
             })
         );
 
+        // Query QBP Control (PYQ & Grand Tests database) if source is all or qbp_control
+        let qbpRows = [];
+        let qbpTotal = 0;
+        const includeQbp = filters.source === 'qbp_control' || filters.source === 'all' || filters.source === 'pyq' || filters.source === 'grand_test' || !filters.source;
+        if (includeQbp && qbpControlSupabase) {
+            try {
+                let qbpQuery = qbpControlSupabase.from('questions').select('*', { count: 'exact' });
+                if (filters.subject) {
+                    qbpQuery = qbpQuery.ilike('subject', `%${filters.subject}%`);
+                }
+                if (filters.chapter) {
+                    const chapters = Array.isArray(filters.chapter) ? filters.chapter : filters.chapter.split(',').map(c => c.trim()).filter(Boolean);
+                    if (chapters.length > 0) {
+                        qbpQuery = qbpQuery.in('chapter', chapters);
+                    }
+                }
+                if (filters.concept) {
+                    const concepts = Array.isArray(filters.concept) ? filters.concept : filters.concept.split(',').map(c => c.trim()).filter(Boolean);
+                    if (concepts.length > 0) {
+                        qbpQuery = qbpQuery.in('topic', concepts);
+                    }
+                }
+                if (filters.type) {
+                    qbpQuery = qbpQuery.ilike('q_type', `%${filters.type}%`);
+                }
+                if (filters.search) {
+                    qbpQuery = qbpQuery.or(`question.ilike.%${filters.search}%,chapter.ilike.%${filters.search}%,topic.ilike.%${filters.search}%`);
+                }
+                qbpQuery = qbpQuery.order('created_at', { ascending: false }).range(0, requestedLimit - 1);
+                const qbpRes = await qbpQuery;
+                if (qbpRes.data && qbpRes.data.length > 0) {
+                    qbpTotal = qbpRes.count || qbpRes.data.length;
+                    qbpRows = qbpRes.data;
+                    for (const r of qbpRows) {
+                        cacheQuestionDb(r.id, 'qbp_control');
+                    }
+                }
+            } catch (e) {
+                console.error('[QBP CONTROL FETCH ERROR]:', e.message);
+            }
+        }
+
         // Aggregate counts & rows
-        const grandTotal = poolResults.reduce((acc, r) => acc + r.total, 0);
+        const subjectTotal = poolResults.reduce((acc, r) => acc + r.total, 0);
+        const grandTotal = filters.source === 'qbp_control' ? qbpTotal : (subjectTotal + qbpTotal);
 
         let mergedRows = [];
-        if (targetPoolEntries.length === 1) {
+        if (filters.source === 'qbp_control') {
+            mergedRows = qbpRows.slice(offset, offset + requestedLimit);
+        } else if (targetPoolEntries.length === 1 && qbpRows.length === 0) {
             mergedRows = poolResults[0].rows;
         } else {
-            // Merge all rows, sort descending by created_at, apply global pagination
+            // Merge subject rows and QBP control rows, sort descending by created_at, apply global pagination
             for (const pr of poolResults) {
                 mergedRows.push(...pr.rows);
             }
+            mergedRows.push(...qbpRows);
             mergedRows.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
             mergedRows = mergedRows.slice(offset, offset + requestedLimit);
         }
@@ -710,7 +758,14 @@ async function getQuestionById(id) {
         let targetDbKey = uuidToDbKey.get(String(id));
         let foundRow = null;
 
-        if (targetDbKey && pools.has(targetDbKey)) {
+        if (targetDbKey === 'qbp_control' && qbpControlSupabase) {
+            try {
+                const { data } = await qbpControlSupabase.from('questions').select('*').eq('id', id).single();
+                if (data) foundRow = data;
+            } catch (e) {}
+        }
+
+        if (targetDbKey && pools.has(targetDbKey) && !foundRow) {
             const poolEntry = pools.get(targetDbKey);
             const res = await poolEntry.pool.query('SELECT * FROM public.questions WHERE id = $1 LIMIT 1;', [id]);
             if (res.rows.length > 0) {
@@ -738,6 +793,17 @@ async function getQuestionById(id) {
                 foundRow = match.row;
                 cacheQuestionDb(id, match.key);
             }
+        }
+
+        // Fallback to QBP Control
+        if (!foundRow && qbpControlSupabase) {
+            try {
+                const { data } = await qbpControlSupabase.from('questions').select('*').eq('id', id).single();
+                if (data) {
+                    foundRow = data;
+                    cacheQuestionDb(id, 'qbp_control');
+                }
+            } catch (e) {}
         }
 
         if (!foundRow) return null;
@@ -772,7 +838,9 @@ async function getQuestionsByIds(ids) {
 
         for (const id of validUuids) {
             const key = uuidToDbKey.get(String(id));
-            if (key && pools.has(key)) {
+            if (key === 'qbp_control' && qbpControlSupabase) {
+                uncached.push(id);
+            } else if (key && pools.has(key)) {
                 if (!byPool.has(key)) byPool.set(key, []);
                 byPool.get(key).push(id);
             } else {
@@ -804,11 +872,25 @@ async function getQuestionsByIds(ids) {
 
         await Promise.all([...knownPromises, ...uncachedPromises]);
 
-        // 4. Fetch usage
+        // 4. For any still missing IDs, check QBP Control
+        const missingIds = validUuids.filter(id => !foundRowsMap.has(id.toString()));
+        if (missingIds.length > 0 && qbpControlSupabase) {
+            try {
+                const { data } = await qbpControlSupabase.from('questions').select('*').in('id', missingIds);
+                if (Array.isArray(data)) {
+                    data.forEach(r => {
+                        foundRowsMap.set(r.id.toString(), r);
+                        cacheQuestionDb(r.id, 'qbp_control');
+                    });
+                }
+            } catch (e) {}
+        }
+
+        // 5. Fetch usage
         const foundUuids = Array.from(foundRowsMap.keys());
         const usageMap = await fetchUsageMap(foundUuids);
 
-        // 5. Return ordered according to requested IDs
+        // 6. Return ordered according to requested IDs
         return validUuids
             .map(id => foundRowsMap.get(id.toString()))
             .filter(Boolean)
@@ -817,6 +899,82 @@ async function getQuestionsByIds(ids) {
         console.error('[DATABASE] getQuestionsByIds error:', err.message);
         return [];
     }
+}
+
+/**
+ * Assemble questions strictly honoring chapter quotas & difficulty distribution.
+ */
+async function getQuestionsWithChapterQuotas({
+    subject = 'Physics',
+    classes = '12',
+    chapterQuotas = {},
+    difficultyDistribution = { easy: 40, medium: 40, hard: 20 },
+    sources = ['subject', 'qbp_control'],
+    concepts = []
+}) {
+    const normSub = normalizeSubject(subject);
+    const normKlass = normalizeClass(classes);
+    const resultQuestions = [];
+    const report = {};
+
+    const shuffle = arr => [...arr].sort(() => Math.random() - 0.5);
+
+    const sourceParam = sources.includes('all') || (sources.includes('subject') && sources.includes('qbp_control'))
+        ? 'all'
+        : (sources.includes('qbp_control') ? 'qbp_control' : 'subject');
+
+    for (const [chapterName, targetQty] of Object.entries(chapterQuotas)) {
+        const qty = parseInt(targetQty, 10);
+        if (isNaN(qty) || qty <= 0) continue;
+
+        // Fetch pool of questions for this specific chapter
+        const chapterFilters = {
+            subject: normSub,
+            classes: normKlass,
+            chapter: chapterName,
+            source: sourceParam
+        };
+        if (Array.isArray(concepts) && concepts.length > 0) {
+            chapterFilters.concept = concepts;
+        }
+
+        const fetchRes = await getQuestions(chapterFilters, 1, 2000);
+        const pool = fetchRes.questions || [];
+
+        const easyTarget = Math.round(qty * ((difficultyDistribution.easy || 40) / 100));
+        const medTarget = Math.round(qty * ((difficultyDistribution.medium || 40) / 100));
+        const hardTarget = Math.max(0, qty - easyTarget - medTarget);
+
+        const easyPool = pool.filter(q => (q.level || 'medium').toLowerCase() === 'easy');
+        const medPool = pool.filter(q => (q.level || 'medium').toLowerCase() === 'medium');
+        const hardPool = pool.filter(q => (q.level || 'medium').toLowerCase() === 'hard');
+
+        const pickedEasy = shuffle(easyPool).slice(0, easyTarget);
+        const pickedMed = shuffle(medPool).slice(0, medTarget);
+        const pickedHard = shuffle(hardPool).slice(0, hardTarget);
+
+        let combined = [...pickedEasy, ...pickedMed, ...pickedHard];
+        const usedIds = new Set(combined.map(q => q._id || q.id));
+
+        if (combined.length < qty) {
+            const remainder = pool.filter(q => !usedIds.has(q._id || q.id));
+            combined.push(...shuffle(remainder).slice(0, qty - combined.length));
+        }
+
+        report[chapterName] = {
+            requested: qty,
+            delivered: combined.length,
+            available: pool.length
+        };
+
+        resultQuestions.push(...combined);
+    }
+
+    return {
+        questions: resultQuestions,
+        distributionReport: report,
+        total: resultQuestions.length
+    };
 }
 
 /**
@@ -1015,6 +1173,7 @@ module.exports = {
     getQuestions,
     getQuestionById,
     getQuestionsByIds,
+    getQuestionsWithChapterQuotas,
     getSubjectMetadata,
     recordQuestionUsage,
     createQuestion,
