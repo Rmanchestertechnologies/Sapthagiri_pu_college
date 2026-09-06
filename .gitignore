@@ -28,3 +28,8 @@ yarn-error.log*
 # OS Files
 .DS_Store
 Thumbs.db
+
+# OMR Python generated/debug artifacts
+__pycache__/
+*.py[cod]
+server/omr_engine/alignment_debug/

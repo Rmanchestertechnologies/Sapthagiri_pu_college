@@ -45,6 +45,43 @@ def _core_fill_ratio(
     return float(np.count_nonzero((roi < dark_threshold) & mask)) / float(count)
 
 
+def _relative_core_fill_ratio(
+    gray: np.ndarray,
+    x: float,
+    y: float,
+    *,
+    core_radius: int = 6,
+    outer_radius: int = 13,
+) -> float:
+    """Score a mark relative to its local paper tone for dim phone images."""
+    xi = int(round(float(x)))
+    yi = int(round(float(y)))
+    core_radius = max(2, int(core_radius))
+    outer_radius = max(core_radius + 3, int(outer_radius))
+    height, width = gray.shape[:2]
+    x0 = max(0, xi - outer_radius)
+    x1 = min(width, xi + outer_radius + 1)
+    y0 = max(0, yi - outer_radius)
+    y1 = min(height, yi + outer_radius + 1)
+    roi = gray[y0:y1, x0:x1]
+    if roi.size == 0:
+        return 0.0
+
+    yy, xx = np.ogrid[y0:y1, x0:x1]
+    distance_sq = (xx - xi) ** 2 + (yy - yi) ** 2
+    core = roi[distance_sq <= core_radius ** 2].astype(np.float32)
+    surround = roi[
+        (distance_sq >= (core_radius + 3) ** 2)
+        & (distance_sq <= outer_radius ** 2)
+    ].astype(np.float32)
+    if core.size == 0 or surround.size == 0:
+        return 0.0
+
+    local_paper = float(np.percentile(surround, 72.0))
+    threshold = float(np.clip(local_paper - 24.0, 45.0, 205.0))
+    return float(np.mean(core < threshold))
+
+
 def _cluster_1d(values: List[float], k: int) -> List[float] | None:
     if len(values) < k:
         return None
@@ -136,12 +173,18 @@ def _detect_roll_number(
 
     minimum_circles = max(
         35,
-        int(len(expected_x) * len(expected_y) * 0.55),
+        int(len(expected_x) * len(expected_y) * 0.50),
     )
 
     if len(circles) >= minimum_circles:
-        actual_x = _cluster_1d([point[0] for point in circles], len(expected_x))
-        actual_y = _cluster_1d([point[1] for point in circles], len(expected_y))
+        actual_x = _cluster_1d(
+            [point[0] for point in circles],
+            len(expected_x),
+        )
+        actual_y = _cluster_1d(
+            [point[1] for point in circles],
+            len(expected_y),
+        )
 
     calibrated = (
         actual_x is not None
@@ -154,36 +197,102 @@ def _detect_roll_number(
         actual_x = sorted(expected_x)
         actual_y = sorted(expected_y)
 
-    core_radius = int(config.get("core_radius", 6))
-    dark_threshold = int(config.get("dark_threshold", 140))
-    filled_threshold = float(config.get("filled_threshold", 0.76))
-    minimum_gap = float(config.get("minimum_confidence_gap", 0.12))
+    core_radius = int(config.get("solid_core_radius", 5))
+    p90_threshold = float(config.get("solid_p90_threshold", 125.0))
+    std_threshold = float(config.get("solid_std_threshold", 34.0))
+    relative_p90_ratio = float(config.get("solid_p90_ratio", 0.72))
+    minimum_p90_gap = float(config.get("solid_minimum_p90_gap", 16.0))
+
+    def core_stats(x: float, y: float) -> Dict[str, float]:
+        xi = int(round(float(x)))
+        yi = int(round(float(y)))
+        radius = max(2, core_radius)
+        h, w = gray.shape[:2]
+
+        x0 = max(0, xi - radius)
+        x1 = min(w, xi + radius + 1)
+        y0 = max(0, yi - radius)
+        y1 = min(h, yi + radius + 1)
+
+        roi = gray[y0:y1, x0:x1]
+        if roi.size == 0:
+            return {"mean": 255.0, "p90": 255.0, "std": 0.0}
+
+        yy, xx = np.ogrid[y0:y1, x0:x1]
+        mask = ((xx - xi) ** 2 + (yy - yi) ** 2) <= radius ** 2
+        vals = roi[mask].astype(np.float32)
+
+        if vals.size == 0:
+            return {"mean": 255.0, "p90": 255.0, "std": 0.0}
+
+        return {
+            "mean": float(np.mean(vals)),
+            "p90": float(np.percentile(vals, 90)),
+            "std": float(np.std(vals)),
+        }
 
     digits = []
     column_details = []
 
     for column_index, x in enumerate(actual_x):
-        scores = {
-            value: _core_fill_ratio(
-                gray,
-                x,
-                actual_y[index],
-                radius=core_radius,
-                dark_threshold=dark_threshold,
-            )
+        metrics = {
+            value: core_stats(x, actual_y[index])
             for index, value in enumerate(values)
         }
 
-        ranked = sorted(scores.items(), key=lambda item: item[1], reverse=True)
-        best_value, best_score = ranked[0]
-        second_score = ranked[1][1] if len(ranked) > 1 else 0.0
-        gap = float(best_score - second_score)
+        p90_values = [float(item["p90"]) for item in metrics.values()]
+        median_p90 = float(np.median(p90_values))
+
+        ranked = sorted(
+            metrics.items(),
+            key=lambda item: (
+                float(item[1]["p90"]),
+                float(item[1]["std"]),
+                float(item[1]["mean"]),
+            ),
+        )
+
+        best_value, best = ranked[0]
+        second = ranked[1][1] if len(ranked) > 1 else {"p90": 255.0}
+
+        best_p90 = float(best["p90"])
+        second_p90 = float(second["p90"])
+        p90_gap = second_p90 - best_p90
+
+        relative_ok = best_p90 <= median_p90 * relative_p90_ratio
+        absolute_ok = (
+            best_p90 <= p90_threshold
+            and float(best["std"]) <= std_threshold
+        )
 
         digit = (
             best_value
-            if best_score >= filled_threshold and gap >= minimum_gap
+            if absolute_ok and relative_ok and p90_gap >= minimum_p90_gap
             else None
         )
+
+        if digit is None:
+            old_scores = {
+                value: _core_fill_ratio(
+                    gray,
+                    x,
+                    actual_y[index],
+                    radius=int(config.get("core_radius", 6)),
+                    dark_threshold=int(config.get("dark_threshold", 140)),
+                )
+                for index, value in enumerate(values)
+            }
+
+            old_ranked = sorted(old_scores.items(), key=lambda item: item[1], reverse=True)
+            old_best_value, old_best = old_ranked[0]
+            old_second = old_ranked[1][1] if len(old_ranked) > 1 else 0.0
+
+            if (
+                old_best >= float(config.get("filled_threshold", 0.76))
+                and (old_best - old_second) >= float(config.get("minimum_confidence_gap", 0.12))
+                and best_p90 <= p90_threshold + 18.0
+            ):
+                digit = old_best_value
 
         digits.append(digit)
 
@@ -191,11 +300,17 @@ def _detect_roll_number(
             {
                 "column": column_index + 1,
                 "value": digit,
-                "best_score": round(float(best_score), 4),
-                "confidence_gap": round(float(gap), 4),
-                "scores": {
-                    key: round(float(score), 4)
-                    for key, score in scores.items()
+                "best_p90": round(best_p90, 2),
+                "second_p90": round(second_p90, 2),
+                "p90_gap": round(p90_gap, 2),
+                "median_p90": round(median_p90, 2),
+                "best_std": round(float(best["std"]), 2),
+                "metrics": {
+                    value: {
+                        key: round(float(metric), 2)
+                        for key, metric in details.items()
+                    }
+                    for value, details in metrics.items()
                 },
             }
         )
@@ -208,17 +323,751 @@ def _detect_roll_number(
         "columns": column_details,
         "grid_calibrated": bool(calibrated),
         "circle_count": len(circles),
+        "reader": "solid_roll_grid_v10_4",
     }
 
 
-def _detect_choice_row(
+
+def _roll_disk_dark_ratio(
+    gray: np.ndarray,
+    x: float,
+    y: float,
+    radius: int = 8,
+) -> float:
+    xi = int(round(float(x)))
+    yi = int(round(float(y)))
+    radius = max(4, int(radius))
+
+    h, w = gray.shape[:2]
+    x0 = max(0, xi - radius)
+    x1 = min(w, xi + radius + 1)
+    y0 = max(0, yi - radius)
+    y1 = min(h, yi + radius + 1)
+
+    roi = gray[y0:y1, x0:x1]
+    if roi.size == 0:
+        return 0.0
+
+    yy, xx = np.ogrid[y0:y1, x0:x1]
+    mask = (
+        (xx - xi) ** 2
+        + (yy - yi) ** 2
+        <= radius ** 2
+    )
+
+    pixels = roi[mask].astype(np.float32)
+    if pixels.size == 0:
+        return 0.0
+
+    paper = float(np.percentile(roi, 80))
+    dark_threshold = float(
+        np.clip(
+            paper - 38.0,
+            85.0,
+            165.0,
+        )
+    )
+
+    return float(
+        np.mean(
+            pixels < dark_threshold
+        )
+    )
+
+
+def _crop_roll_bubble(
+    gray: np.ndarray,
+    x: float,
+    y: float,
+    radius: int = 10,
+) -> np.ndarray:
+    xi = int(round(float(x)))
+    yi = int(round(float(y)))
+    radius = max(8, int(radius))
+
+    h, w = gray.shape[:2]
+    x0 = max(0, xi - radius)
+    x1 = min(w, xi + radius + 1)
+    y0 = max(0, yi - radius)
+    y1 = min(h, yi + radius + 1)
+
+    return gray[y0:y1, x0:x1]
+
+
+def _detect_roll_number_ml_fallback(
+    gray: np.ndarray,
+    config: Dict[str, Any],
+    template: Dict[str, Any],
+) -> Dict[str, Any]:
+    from ml_omr.inference import classify_batch
+
+    expected_x = [float(value) for value in config["x_positions"]]
+    expected_y = [float(value) for value in config["y_positions"]]
+    values = [
+        str(value)
+        for value in config.get("values", list(range(10)))
+    ]
+
+    bubble_radius = int(template.get("bubble_radius", 10))
+    margin = int(config.get("hough_margin", 20))
+    max_delta = float(config.get("max_calibration_delta", 22))
+
+    circles = _hough(
+        gray,
+        (
+            min(expected_x) - margin,
+            min(expected_y) - margin,
+            max(expected_x) + margin,
+            max(expected_y) + margin,
+        ),
+        bubble_radius=bubble_radius,
+    )
+
+    actual_x = None
+    actual_y = None
+
+    minimum_circles = max(
+        28,
+        int(len(expected_x) * len(expected_y) * 0.40),
+    )
+
+    if len(circles) >= minimum_circles:
+        actual_x = _cluster_1d(
+            [point[0] for point in circles],
+            len(expected_x),
+        )
+        actual_y = _cluster_1d(
+            [point[1] for point in circles],
+            len(expected_y),
+        )
+
+    calibrated = (
+        actual_x is not None
+        and actual_y is not None
+        and max(
+            abs(a - b)
+            for a, b in zip(actual_x, sorted(expected_x))
+        ) <= max_delta
+        and max(
+            abs(a - b)
+            for a, b in zip(actual_y, sorted(expected_y))
+        ) <= max_delta
+    )
+
+    if not calibrated:
+        actual_x = sorted(expected_x)
+        actual_y = sorted(expected_y)
+
+    crop_radius = int(config.get("ml_crop_radius", 10))
+
+    crops = []
+    locations = []
+
+    for column_index, x in enumerate(actual_x):
+        for row_index, value in enumerate(values):
+            y = actual_y[row_index]
+            crops.append(
+                _crop_roll_bubble(
+                    gray,
+                    x,
+                    y,
+                    radius=crop_radius,
+                )
+            )
+            locations.append(
+                (
+                    column_index,
+                    row_index,
+                    value,
+                    x,
+                    y,
+                )
+            )
+
+    predictions = classify_batch(crops)
+
+    by_column: Dict[int, List[Dict[str, Any]]] = {
+        index: []
+        for index in range(len(actual_x))
+    }
+
+    for location, prediction in zip(locations, predictions):
+        (
+            column_index,
+            row_index,
+            value,
+            x,
+            y,
+        ) = location
+
+        probabilities = (
+            prediction.get("probabilities", {})
+            if isinstance(prediction, dict)
+            else {}
+        )
+
+        filled_probability = float(
+            probabilities.get("filled", 0.0)
+        )
+        blank_probability = float(
+            probabilities.get("blank", 0.0)
+        )
+
+        disk_ratio = _roll_disk_dark_ratio(
+            gray,
+            x,
+            y,
+            radius=int(config.get("ml_disk_radius", 8)),
+        )
+
+        combined = (
+            0.72 * filled_probability
+            + 0.28 * disk_ratio
+        )
+
+        by_column[column_index].append(
+            {
+                "row": row_index,
+                "value": value,
+                "filled_probability": filled_probability,
+                "blank_probability": blank_probability,
+                "disk_dark_ratio": disk_ratio,
+                "combined_score": combined,
+                "center": [
+                    int(round(x)),
+                    int(round(y)),
+                ],
+            }
+        )
+
+    digits: List[str | None] = []
+    column_details = []
+
+    for column_index in range(len(actual_x)):
+        ranked = sorted(
+            by_column[column_index],
+            key=lambda item: (
+                float(item["combined_score"]),
+                float(item["filled_probability"]),
+                float(item["disk_dark_ratio"]),
+            ),
+            reverse=True,
+        )
+
+        best = ranked[0]
+        second = ranked[1]
+
+        combined_gap = (
+            float(best["combined_score"])
+            - float(second["combined_score"])
+        )
+        ml_gap = (
+            float(best["filled_probability"])
+            - float(second["filled_probability"])
+        )
+        disk_gap = (
+            float(best["disk_dark_ratio"])
+            - float(second["disk_dark_ratio"])
+        )
+
+        strong_ml = (
+            float(best["filled_probability"]) >= 0.52
+            and ml_gap >= 0.10
+        )
+        strong_disk = (
+            float(best["disk_dark_ratio"]) >= 0.46
+            and disk_gap >= 0.10
+        )
+        balanced = (
+            float(best["combined_score"]) >= 0.46
+            and combined_gap >= 0.085
+            and (
+                float(best["filled_probability"]) >= 0.42
+                or float(best["disk_dark_ratio"]) >= 0.42
+            )
+        )
+
+        digit = (
+            str(best["value"])
+            if (
+                strong_ml
+                or strong_disk
+                or balanced
+            )
+            else None
+        )
+
+        digits.append(digit)
+
+        column_details.append(
+            {
+                "column": column_index + 1,
+                "value": digit,
+                "best_value": str(best["value"]),
+                "best_combined": round(
+                    float(best["combined_score"]),
+                    4,
+                ),
+                "combined_gap": round(combined_gap, 4),
+                "ml_filled": round(
+                    float(best["filled_probability"]),
+                    4,
+                ),
+                "ml_gap": round(ml_gap, 4),
+                "disk_dark_ratio": round(
+                    float(best["disk_dark_ratio"]),
+                    4,
+                ),
+                "disk_gap": round(disk_gap, 4),
+                "center": list(best["center"]),
+            }
+        )
+
+    complete = all(value is not None for value in digits)
+
+    return {
+        "value": (
+            "".join(digits)
+            if complete
+            else None
+        ),
+        "complete": bool(complete),
+        "columns": column_details,
+        "grid_calibrated": bool(calibrated),
+        "circle_count": len(circles),
+        "reader": "jee_roll_ml_disk_v10_14",
+    }
+
+
+
+
+def _choice_cv_mark_metrics(
+    gray: np.ndarray,
+    x: float,
+    y: float,
+    config: Dict[str, Any],
+    template: Dict[str, Any],
+) -> Dict[str, float]:
+    """
+    Measure one identity choice bubble using only local CV evidence.
+
+    The JSON coordinate is the anchor.  Thin printed rings should score low,
+    while a genuinely filled bubble should retain a broad solid dark region.
+    All thresholds/radii are configurable from the template JSON.
+    """
+    xi = int(round(float(x)))
+    yi = int(round(float(y)))
+
+    bubble_radius = int(
+        template.get(
+            "bubble_radius",
+            10,
+        )
+    )
+
+    core_radius = int(
+        config.get(
+            "cv_core_radius",
+            max(
+                3,
+                int(round(bubble_radius * 0.45)),
+            ),
+        )
+    )
+
+    disk_radius = int(
+        config.get(
+            "cv_disk_radius",
+            max(
+                core_radius + 2,
+                int(round(bubble_radius * 0.75)),
+            ),
+        )
+    )
+
+    ring_inner = int(
+        config.get(
+            "cv_ring_inner_radius",
+            max(
+                disk_radius + 2,
+                bubble_radius,
+            ),
+        )
+    )
+
+    ring_outer = int(
+        config.get(
+            "cv_ring_outer_radius",
+            ring_inner + 5,
+        )
+    )
+
+    ring_outer = max(
+        ring_outer,
+        ring_inner + 2,
+    )
+
+    height, width = gray.shape[:2]
+
+    x0 = max(
+        0,
+        xi - ring_outer,
+    )
+    x1 = min(
+        width,
+        xi + ring_outer + 1,
+    )
+    y0 = max(
+        0,
+        yi - ring_outer,
+    )
+    y1 = min(
+        height,
+        yi + ring_outer + 1,
+    )
+
+    roi = gray[
+        y0:y1,
+        x0:x1,
+    ]
+
+    if roi.size == 0:
+        return {
+            "combined_score": 0.0,
+            "core_dark_ratio": 0.0,
+            "disk_dark_ratio": 0.0,
+            "solid_dark_ratio": 0.0,
+            "darkness_score": 0.0,
+            "local_paper": 255.0,
+            "dark_threshold": 140.0,
+            "core_mean": 255.0,
+        }
+
+    yy, xx = np.ogrid[
+        y0:y1,
+        x0:x1,
+    ]
+
+    distance_sq = (
+        (xx - xi) ** 2
+        + (yy - yi) ** 2
+    )
+
+    core_mask = (
+        distance_sq
+        <= core_radius ** 2
+    )
+
+    disk_mask = (
+        distance_sq
+        <= disk_radius ** 2
+    )
+
+    surround_mask = (
+        (
+            distance_sq
+            >= ring_inner ** 2
+        )
+        & (
+            distance_sq
+            <= ring_outer ** 2
+        )
+    )
+
+    core_pixels = (
+        roi[
+            core_mask
+        ].astype(
+            np.float32
+        )
+    )
+
+    disk_pixels = (
+        roi[
+            disk_mask
+        ].astype(
+            np.float32
+        )
+    )
+
+    surround_pixels = (
+        roi[
+            surround_mask
+        ].astype(
+            np.float32
+        )
+    )
+
+    if (
+        core_pixels.size == 0
+        or disk_pixels.size == 0
+    ):
+        return {
+            "combined_score": 0.0,
+            "core_dark_ratio": 0.0,
+            "disk_dark_ratio": 0.0,
+            "solid_dark_ratio": 0.0,
+            "darkness_score": 0.0,
+            "local_paper": 255.0,
+            "dark_threshold": 140.0,
+            "core_mean": 255.0,
+        }
+
+    if surround_pixels.size:
+        local_paper = float(
+            np.percentile(
+                surround_pixels,
+                float(
+                    config.get(
+                        "cv_paper_percentile",
+                        75.0,
+                    )
+                ),
+            )
+        )
+    else:
+        local_paper = float(
+            np.percentile(
+                roi,
+                80.0,
+            )
+        )
+
+    dark_offset = float(
+        config.get(
+            "cv_dark_offset",
+            25.0,
+        )
+    )
+
+    dark_threshold = float(
+        np.clip(
+            local_paper
+            - dark_offset,
+            float(
+                config.get(
+                    "cv_min_dark_threshold",
+                    55.0,
+                )
+            ),
+            float(
+                config.get(
+                    "cv_max_dark_threshold",
+                    205.0,
+                )
+            ),
+        )
+    )
+
+    core_dark_ratio = float(
+        np.mean(
+            core_pixels
+            < dark_threshold
+        )
+    )
+
+    disk_dark_ratio = float(
+        np.mean(
+            disk_pixels
+            < dark_threshold
+        )
+    )
+
+    # Morphological opening removes most thin printed-circle strokes.
+    # A filled bubble remains as a broad solid component.
+    dark_binary = (
+        (
+            roi
+            < dark_threshold
+        )
+        .astype(
+            np.uint8
+        )
+        * 255
+    )
+
+    solid_kernel_size = int(
+        config.get(
+            "cv_solid_kernel",
+            3,
+        )
+    )
+
+    solid_kernel_size = max(
+        1,
+        solid_kernel_size,
+    )
+
+    if (
+        solid_kernel_size
+        % 2 == 0
+    ):
+        solid_kernel_size += 1
+
+    if solid_kernel_size > 1:
+        solid_binary = (
+            cv2.morphologyEx(
+                dark_binary,
+                cv2.MORPH_OPEN,
+                cv2.getStructuringElement(
+                    cv2.MORPH_ELLIPSE,
+                    (
+                        solid_kernel_size,
+                        solid_kernel_size,
+                    ),
+                ),
+                iterations=1,
+            )
+        )
+    else:
+        solid_binary = dark_binary
+
+    solid_pixels = (
+        solid_binary[
+            disk_mask
+        ]
+    )
+
+    solid_dark_ratio = float(
+        np.mean(
+            solid_pixels > 0
+        )
+    )
+
+    core_mean = float(
+        np.mean(
+            core_pixels
+        )
+    )
+
+    darkness_scale = max(
+        1.0,
+        float(
+            config.get(
+                "cv_darkness_scale",
+                105.0,
+            )
+        ),
+    )
+
+    darkness_score = float(
+        np.clip(
+            (
+                local_paper
+                - core_mean
+            )
+            / darkness_scale,
+            0.0,
+            1.0,
+        )
+    )
+
+    solid_weight = float(
+        config.get(
+            "cv_solid_weight",
+            0.45,
+        )
+    )
+
+    core_weight = float(
+        config.get(
+            "cv_core_weight",
+            0.25,
+        )
+    )
+
+    disk_weight = float(
+        config.get(
+            "cv_disk_weight",
+            0.20,
+        )
+    )
+
+    darkness_weight = float(
+        config.get(
+            "cv_darkness_weight",
+            0.10,
+        )
+    )
+
+    weight_sum = max(
+        1e-6,
+        solid_weight
+        + core_weight
+        + disk_weight
+        + darkness_weight,
+    )
+
+    combined_score = (
+        solid_weight
+        * solid_dark_ratio
+        + core_weight
+        * core_dark_ratio
+        + disk_weight
+        * disk_dark_ratio
+        + darkness_weight
+        * darkness_score
+    ) / weight_sum
+
+    return {
+        "combined_score":
+            float(
+                combined_score
+            ),
+
+        "core_dark_ratio":
+            float(
+                core_dark_ratio
+            ),
+
+        "disk_dark_ratio":
+            float(
+                disk_dark_ratio
+            ),
+
+        "solid_dark_ratio":
+            float(
+                solid_dark_ratio
+            ),
+
+        "darkness_score":
+            float(
+                darkness_score
+            ),
+
+        "local_paper":
+            float(
+                local_paper
+            ),
+
+        "dark_threshold":
+            float(
+                dark_threshold
+            ),
+
+        "core_mean":
+            float(
+                core_mean
+            ),
+    }
+
+
+def _detect_choice_row_v10_16_impl(
     gray: np.ndarray,
     config: Dict[str, Any],
     template: Dict[str, Any],
 ) -> Dict[str, Any]:
     choices = config.get("choices", {})
     if not choices:
-        return {"value": None, "scores": {}}
+        return {
+            "value": None,
+            "scores": {},
+            "grid_calibrated": False,
+            "x_calibrated": False,
+            "y_calibrated": False,
+            "sampling_y": None,
+            "circle_count": 0,
+        }
 
     labels = list(choices.keys())
     expected = [choices[label] for label in labels]
@@ -243,18 +1092,30 @@ def _detect_choice_row(
     )
 
     actual_x = None
+    actual_y = None
 
-    if len(circles) >= len(labels):
+    row_circles = [
+        point
+        for point in circles
+        if abs(point[1] - target_y) <= margin
+    ]
+
+    if len(row_circles) >= len(labels):
         actual_x = _cluster_1d(
             [
                 point[0]
-                for point in circles
-                if abs(point[1] - target_y) <= margin
+                for point in row_circles
             ],
             len(labels),
         )
 
-    calibrated = (
+        actual_y = float(
+            np.median(
+                [point[1] for point in row_circles]
+            )
+        )
+
+    x_calibrated = (
         actual_x is not None
         and max(
             abs(a - b)
@@ -262,8 +1123,19 @@ def _detect_choice_row(
         ) <= max_delta
     )
 
-    if not calibrated:
+    y_calibrated = (
+        actual_y is not None
+        and abs(actual_y - target_y) <= max_delta
+    )
+
+    if not x_calibrated:
         actual_x = sorted(expected_x)
+
+    sampling_y = (
+        actual_y
+        if y_calibrated
+        else target_y
+    )
 
     # Preserve left-to-right label ordering from the template.
     sorted_pairs = sorted(
@@ -278,29 +1150,100 @@ def _detect_choice_row(
     filled_threshold = float(config.get("filled_threshold", 0.68))
     minimum_gap = float(config.get("minimum_confidence_gap", 0.12))
 
-    scores = {
-        label: _core_fill_ratio(
+    absolute_scores = {}
+    relative_scores = {}
+    scores = {}
+
+    for index, label in enumerate(labels_by_x):
+        absolute_score = _core_fill_ratio(
             gray,
             actual_x[index],
-            target_y,
+            sampling_y,
             radius=core_radius,
             dark_threshold=dark_threshold,
         )
-        for index, label in enumerate(labels_by_x)
-    }
 
-    ranked = sorted(scores.items(), key=lambda item: item[1], reverse=True)
+        relative_score = _relative_core_fill_ratio(
+            gray,
+            actual_x[index],
+            sampling_y,
+            core_radius=core_radius,
+            outer_radius=max(
+                core_radius + 5,
+                bubble_radius + 3,
+            ),
+        )
+
+        absolute_scores[label] = absolute_score
+        relative_scores[label] = relative_score
+        scores[label] = max(
+            absolute_score,
+            relative_score,
+        )
+
+    absolute_ranked = sorted(
+        absolute_scores.values(),
+        reverse=True,
+    )
+
+    relative_ranked = sorted(
+        relative_scores.values(),
+        reverse=True,
+    )
+
+    absolute_gap = (
+        absolute_ranked[0] - absolute_ranked[1]
+        if len(absolute_ranked) > 1
+        else absolute_ranked[0]
+    )
+
+    relative_gap = (
+        relative_ranked[0] - relative_ranked[1]
+        if len(relative_ranked) > 1
+        else relative_ranked[0]
+    )
+
+    dim_page = float(
+        np.percentile(
+            gray,
+            75.0,
+        )
+    ) < 170.0
+
+    if dim_page or (
+        absolute_gap < minimum_gap
+        and relative_gap > absolute_gap
+    ):
+        scores = relative_scores.copy()
+
+    ranked = sorted(
+        scores.items(),
+        key=lambda item: item[1],
+        reverse=True,
+    )
+
     best_label, best_score = ranked[0]
-    second_score = ranked[1][1] if len(ranked) > 1 else 0.0
-    gap = float(best_score - second_score)
+    second_score = (
+        ranked[1][1]
+        if len(ranked) > 1
+        else 0.0
+    )
+
+    gap = float(
+        best_score - second_score
+    )
 
     value = (
         best_label
-        if best_score >= filled_threshold and gap >= minimum_gap
+        if (
+            best_score >= filled_threshold
+            and gap >= minimum_gap
+        )
         else None
     )
 
     return {
+        "reader": "cv_json_choice_v10_16",
         "value": value,
         "best_score": round(float(best_score), 4),
         "confidence_gap": round(float(gap), 4),
@@ -308,9 +1251,56 @@ def _detect_choice_row(
             key: round(float(score), 4)
             for key, score in scores.items()
         },
-        "grid_calibrated": bool(calibrated),
+        "absolute_scores": {
+            key: round(float(score), 4)
+            for key, score in absolute_scores.items()
+        },
+        "relative_scores": {
+            key: round(float(score), 4)
+            for key, score in relative_scores.items()
+        },
+        "grid_calibrated": bool(
+            x_calibrated
+            and y_calibrated
+        ),
+        "x_calibrated": bool(x_calibrated),
+        "y_calibrated": bool(y_calibrated),
+        "sampling_y": round(
+            float(sampling_y),
+            2,
+        ),
         "circle_count": len(circles),
     }
+
+
+
+def _detect_choice_row(
+    gray: np.ndarray,
+    config: Dict[str, Any],
+    template: Dict[str, Any],
+) -> Dict[str, Any]:
+    """
+    v10.16a compatibility wrapper.
+
+    Preserve the existing cv/json recognition result exactly, while
+    guaranteeing decision_method metadata is present for consumers/tests.
+    """
+    result = _detect_choice_row_v10_16_impl(
+        gray,
+        config,
+        template,
+    )
+
+    if not isinstance(result, dict):
+        return result
+
+    if "decision_method" not in result:
+        if result.get("value") is not None:
+            result["decision_method"] = "cv_json_solid_fill"
+        else:
+            result["decision_method"] = "no_confident_fill"
+
+    return result
 
 
 def detect_identity_fields(
@@ -331,6 +1321,31 @@ def detect_identity_fields(
             config["roll_number"],
             template,
         )
+
+        if not roll.get("value"):
+            try:
+                ml_roll = (
+                    _detect_roll_number_ml_fallback(
+                        gray,
+                        config["roll_number"],
+                        template,
+                    )
+                )
+            except Exception as ml_roll_error:
+                ml_roll = {
+                    "value": None,
+                    "complete": False,
+                    "reader":
+                        "jee_roll_ml_disk_v10_14",
+                    "warning":
+                        str(ml_roll_error),
+                }
+
+            if ml_roll.get("value"):
+                roll = ml_roll
+            else:
+                roll["ml_fallback"] = ml_roll
+
         result["roll_number"] = roll.get("value")
         result["roll_number_details"] = roll
 

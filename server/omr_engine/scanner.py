@@ -1,9 +1,18 @@
 # scanner.py
 from ml_omr.hybrid_reader import scan_answers_ml
+from ml_omr.json_anchor_reader import (
+    scan_answers_json_anchored,
+    recover_identity_choices_ml,
+)
 from omr_preprocess import canonicalize_omr
 from omr_preprocess.document_mode import prepare_omr_document_mode
 from omr_preprocess.quality import assess_document_quality
 from identity_reader import detect_identity_fields
+from jee_precise_reader import scan_jee_numerical_precise
+from jee_reader import (
+    scan_jee_mcq_sections_robust,
+    scan_jee_numerical_sections_robust,
+)
 import json
 import logging
 import os
@@ -72,6 +81,31 @@ def ensure_ml_model_available():
             "ML bubble model is missing. Expected: "
             f"{model_path}"
         )
+
+
+def merge_identity_fallback(primary, fallback):
+    """Fill unread identity fields from a second canonical image pass."""
+    merged = dict(primary or {})
+    fallback = fallback or {}
+    recovered = []
+
+    for field in ("roll_number", "class", "exam"):
+        if merged.get(field) or not fallback.get(field):
+            continue
+
+        merged[field] = fallback[field]
+        details_key = f"{field}_details"
+
+        if fallback.get(details_key) is not None:
+            merged[details_key] = fallback[details_key]
+
+        recovered.append(field)
+
+    if recovered:
+        merged["fallback_source"] = "corrected_image"
+        merged["fallback_recovered"] = recovered
+
+    return merged
 
 
 # ============================================================
@@ -2725,6 +2759,252 @@ def detect_question_answer(
     }
 
 
+
+def prepare_neet_kcet_answer_image_v10_21(
+    corrected_bgr,
+):
+    """
+    Restore the proven pre-adaptive preprocessing used by NEET/KCET
+    answer recognition before adaptive_document_mode_v3.
+
+    IMPORTANT:
+    - answer bubbles only
+    - no gamma lift
+    - no saturation amplification
+    - no geometry changes
+    - JEE and identity paths keep the newer preprocessing
+    """
+    if corrected_bgr is None or corrected_bgr.size == 0:
+        raise ValueError(
+            "NEET/KCET answer preprocessing received an empty image."
+        )
+
+    if corrected_bgr.ndim == 2:
+        original = corrected_bgr.copy()
+    else:
+        original = cv2.cvtColor(
+            corrected_bgr,
+            cv2.COLOR_BGR2GRAY,
+        )
+
+    background_stats = cv2.GaussianBlur(
+        original,
+        (0, 0),
+        sigmaX=35,
+        sigmaY=35,
+    )
+
+    illumination_range = float(
+        np.percentile(background_stats, 95.0)
+        - np.percentile(background_stats, 5.0)
+    )
+
+    brightness = float(np.mean(original))
+    contrast = float(np.std(original))
+    blur_score = float(
+        cv2.Laplacian(
+            original,
+            cv2.CV_64F,
+        ).var()
+    )
+
+    short_side = min(original.shape[:2])
+    kernel_side = int(
+        np.clip(
+            round(short_side / 28.0),
+            31,
+            71,
+        )
+    )
+
+    if kernel_side % 2 == 0:
+        kernel_side += 1
+
+    illumination_background = cv2.morphologyEx(
+        original,
+        cv2.MORPH_CLOSE,
+        cv2.getStructuringElement(
+            cv2.MORPH_ELLIPSE,
+            (
+                kernel_side,
+                kernel_side,
+            ),
+        ),
+    )
+
+    illumination_background = cv2.GaussianBlur(
+        illumination_background,
+        (0, 0),
+        sigmaX=max(5.0, kernel_side / 7.0),
+        sigmaY=max(5.0, kernel_side / 7.0),
+    )
+
+    paper_level = min(
+        max(
+            float(
+                np.percentile(
+                    illumination_background,
+                    92.0,
+                )
+            ),
+            1.0,
+        ),
+        245.0,
+    )
+
+    normalized = cv2.divide(
+        original,
+        np.maximum(
+            illumination_background,
+            1,
+        ).astype(np.uint8),
+        scale=paper_level,
+    )
+
+    illumination_strength = float(
+        np.clip(
+            0.48
+            + illumination_range / 220.0,
+            0.50,
+            0.78,
+        )
+    )
+
+    lighting = cv2.addWeighted(
+        original,
+        1.0 - illumination_strength,
+        normalized,
+        illumination_strength,
+        0,
+    )
+
+    soft_input = blur_score < 900.0
+
+    if soft_input:
+        denoise_strength = float(
+            np.clip(
+                8.0
+                + (30.0 - contrast) * 0.16,
+                8.0,
+                14.0,
+            )
+        )
+        denoise_d = 3
+    else:
+        denoise_strength = float(
+            np.clip(
+                14.0
+                + (34.0 - contrast) * 0.28,
+                12.0,
+                22.0,
+            )
+        )
+        denoise_d = 5
+
+    denoised = cv2.bilateralFilter(
+        lighting,
+        d=denoise_d,
+        sigmaColor=denoise_strength,
+        sigmaSpace=denoise_strength,
+    )
+
+    clahe = cv2.createCLAHE(
+        clipLimit=float(
+            np.clip(
+                1.05
+                + (32.0 - contrast) / 80.0,
+                1.05,
+                1.38,
+            )
+        ),
+        tileGridSize=(
+            16,
+            16,
+        ),
+    )
+
+    contrasted = clahe.apply(
+        denoised
+    )
+
+    soft = cv2.GaussianBlur(
+        contrasted,
+        (0, 0),
+        sigmaX=0.65,
+        sigmaY=0.65,
+    )
+
+    if soft_input:
+        sharpen_amount = float(
+            np.clip(
+                0.22
+                + (
+                    900.0
+                    - blur_score
+                )
+                / 3000.0,
+                0.22,
+                0.34,
+            )
+        )
+    else:
+        sharpen_amount = float(
+            np.clip(
+                0.12
+                + (
+                    110.0
+                    - blur_score
+                )
+                / 900.0,
+                0.10,
+                0.20,
+            )
+        )
+
+    sharpened = cv2.addWeighted(
+        contrasted,
+        1.0 + sharpen_amount,
+        soft,
+        -sharpen_amount,
+        0,
+    )
+
+    values = sharpened.astype(
+        np.float32
+    )
+
+    light_mask = values > 180.0
+
+    lift = float(
+        np.clip(
+            (
+                210.0
+                - brightness
+            )
+            / 120.0,
+            0.18,
+            0.42,
+        )
+    )
+
+    values[light_mask] += (
+        255.0
+        - values[light_mask]
+    ) * lift
+
+    whitened = np.clip(
+        values,
+        0,
+        255,
+    ).astype(np.uint8)
+
+    return cv2.cvtColor(
+        whitened,
+        cv2.COLOR_GRAY2BGR,
+    )
+
+
+
 # ============================================================
 # SCAN NEET / KCET ANSWERS WITH ML
 # ============================================================
@@ -2822,6 +3102,10 @@ def scan_answers(
             grid_detection_debug,
         )
 
+    # _stable_neet_kcet_mapping_v10_20
+    # Restore the proven answer-grid path used before the JSON-anchor
+    # regression. Identity recovery can still use JSON/ML, but answer
+    # bubbles use the locally fitted/calibrated grid coordinates.
     raw_answers, ml_debug = (
         scan_answers_ml(
             gray=gray,
@@ -3792,6 +4076,976 @@ def detect_exam_series(
 def detect_jee_series(gray_image, template):
     """Backward-compatible JEE-specific entry point used by existing callers."""
     return detect_exam_series(gray_image, template, exam_name="JEE")
+
+
+# ============================================================
+# JEE CAMERA MCQ — PHOTOMETRIC PREPROCESSING ONLY
+# ============================================================
+
+def prepare_jee_camera_mcq_image(
+    recognition_image,
+):
+    """
+    Improve live-camera JEE MCQ contrast WITHOUT changing geometry.
+
+    Only pixel intensities are changed. No resize, crop, rotation,
+    homography, or perspective transform is used.
+    """
+    gray = normalize_grayscale(
+        recognition_image
+    )
+
+    original_shape = gray.shape
+
+    short_side = max(
+        1,
+        min(gray.shape[:2]),
+    )
+
+    background_sigma = float(
+        max(
+            16.0,
+            min(
+                36.0,
+                short_side / 55.0,
+            ),
+        )
+    )
+
+    background = cv2.GaussianBlur(
+        gray,
+        (0, 0),
+        sigmaX=background_sigma,
+        sigmaY=background_sigma,
+    )
+
+    safe_background = np.maximum(
+        background,
+        1,
+    ).astype(np.uint8)
+
+    flattened = cv2.divide(
+        gray,
+        safe_background,
+        scale=238.0,
+    )
+
+    # Empty printed bubbles and A/B/C/D glyphs are mostly thin strokes.
+    # Filled student bubbles contain broad dark ink.
+    ink = 255 - flattened
+
+    kernel = cv2.getStructuringElement(
+        cv2.MORPH_ELLIPSE,
+        (3, 3),
+    )
+
+    solid_ink = cv2.morphologyEx(
+        ink,
+        cv2.MORPH_OPEN,
+        kernel,
+        iterations=1,
+    )
+
+    retained_ink = cv2.addWeighted(
+        ink,
+        0.28,
+        solid_ink,
+        0.72,
+        0,
+    )
+
+    camera_mcq_gray = 255 - retained_ink
+
+    if camera_mcq_gray.shape != original_shape:
+        raise ValueError(
+            "JEE camera MCQ preprocessing changed image geometry."
+        )
+
+    # scan_jee_mcq_sections() follows the earlier stable BGR input path and
+    # performs its own grayscale normalization. Return a 3-channel image so
+    # OpenCV never receives an already-grayscale image in COLOR_BGR2GRAY.
+    #
+    # This conversion changes channels only; width and height stay identical.
+    return cv2.cvtColor(
+        camera_mcq_gray,
+        cv2.COLOR_GRAY2BGR,
+    )
+
+
+
+
+
+
+def _jee_record_answer(
+    record,
+):
+    if not isinstance(
+        record,
+        dict,
+    ):
+        return ""
+
+    return str(
+        record.get(
+            "answer",
+            "",
+        )
+    ).strip().upper()
+
+
+def _is_jee_mcq_choice(
+    value,
+):
+    return str(
+        value
+    ).strip().upper() in {
+        "A",
+        "B",
+        "C",
+        "D",
+    }
+
+
+
+def _jee_template_mcq_coordinates(
+    template,
+):
+    """
+    Build exact JEE MCQ coordinates from the canonical template.
+    Used only as a safe fallback when Hough grid calibration is unavailable.
+    """
+    coordinates = {}
+
+    for section in template.get(
+        "mcq_sections",
+        [],
+    ):
+        start_question = int(
+            section[
+                "start_question"
+            ]
+        )
+
+        total_questions = int(
+            section[
+                "total_questions"
+            ]
+        )
+
+        options = list(
+            section.get(
+                "options",
+                [
+                    "A",
+                    "B",
+                    "C",
+                    "D",
+                ],
+            )
+        )
+
+        option_x = (
+            section[
+                "option_x"
+            ]
+        )
+
+        y_positions = (
+            section.get(
+                "question_y_positions"
+            )
+        )
+
+        if y_positions is None:
+            start_y = int(
+                section[
+                    "start_y"
+                ]
+            )
+
+            row_gap = int(
+                section[
+                    "row_gap"
+                ]
+            )
+
+        for row_index in range(
+            total_questions
+        ):
+            question_number = (
+                start_question
+                + row_index
+            )
+
+            if y_positions is not None:
+                y = float(
+                    y_positions[
+                        row_index
+                    ]
+                )
+            else:
+                y = float(
+                    start_y
+                    + row_index
+                    * row_gap
+                )
+
+            coordinates[
+                question_number
+            ] = {
+                option: (
+                    float(
+                        option_x[
+                            option
+                        ]
+                    ),
+                    y,
+                )
+                for option in options
+            }
+
+    return coordinates
+
+
+def _jee_ml_mcq_coordinates(
+    recognition_image,
+    template,
+):
+    """
+    Use the robust JEE grid reader only for bubble CENTRES.
+
+    Its A/B/C/D classification is deliberately ignored.  The calibrated
+    option_centres are then handed to ml_omr.hybrid_reader, which was built
+    specifically to reject printed empty rings and requires much stronger
+    evidence before declaring MULTIPLE.
+    """
+    fallback = (
+        _jee_template_mcq_coordinates(
+            template
+        )
+    )
+
+    geometry_records = {}
+    geometry_debug = {}
+
+    try:
+        (
+            geometry_records,
+            geometry_debug,
+        ) = (
+            scan_jee_mcq_sections_robust(
+                recognition_image,
+                template,
+            )
+        )
+    except Exception as error:
+        geometry_debug = {
+            "error":
+                str(
+                    error
+                ),
+
+            "fallback":
+                "template_coordinates",
+        }
+
+    coordinates = {}
+
+    for (
+        question_number,
+        fallback_options,
+    ) in fallback.items():
+        record = geometry_records.get(
+            question_number,
+            geometry_records.get(
+                str(
+                    question_number
+                ),
+                {},
+            ),
+        )
+
+        calibrated = (
+            record.get(
+                "option_centres",
+                {},
+            )
+            if isinstance(
+                record,
+                dict,
+            )
+            else {}
+        )
+
+        option_map = {}
+
+        for option, fallback_point in (
+            fallback_options.items()
+        ):
+            point = (
+                calibrated.get(
+                    option
+                )
+            )
+
+            if (
+                isinstance(
+                    point,
+                    (
+                        list,
+                        tuple,
+                    ),
+                )
+                and len(
+                    point
+                ) == 2
+            ):
+                option_map[
+                    option
+                ] = (
+                    float(
+                        point[
+                            0
+                        ]
+                    ),
+                    float(
+                        point[
+                            1
+                        ]
+                    ),
+                )
+            else:
+                option_map[
+                    option
+                ] = (
+                    float(
+                        fallback_point[
+                            0
+                        ]
+                    ),
+                    float(
+                        fallback_point[
+                            1
+                        ]
+                    ),
+                )
+
+        coordinates[
+            question_number
+        ] = option_map
+
+    return (
+        coordinates,
+        geometry_debug,
+    )
+
+
+def resolve_jee_camera_mcq_ambiguities(
+    recognition_image,
+    stable_mcq,
+    template,
+):
+    """
+    Final JEE camera MCQ gate using the existing ml_omr hybrid reader.
+
+    Primary rule:
+      - a stable A/B/C/D answer is preserved
+
+    For unstable states only (MULTIPLE / UNCERTAIN / BLANK):
+      - run ml_omr on calibrated JEE bubble centres
+      - ML/hybrid SINGLE -> use that option
+      - ML/hybrid MULTIPLE -> keep MULTIPLE
+      - ML/hybrid blank -> force BLANK
+
+    This directly targets false MULTIPLE results caused by printed blank
+    bubble outlines.  It does not change numerical recognition.
+    """
+    ensure_ml_model_available()
+
+    (
+        coordinates,
+        geometry_debug,
+    ) = (
+        _jee_ml_mcq_coordinates(
+            recognition_image,
+            template,
+        )
+    )
+
+    crop_radius = int(
+        template.get(
+            "jee_ml_crop_radius",
+            10,
+        )
+    )
+
+    (
+        ml_answers,
+        ml_debug,
+    ) = (
+        scan_answers_ml(
+            gray=
+                recognition_image,
+
+            coordinates=
+                coordinates,
+
+            crop_radius=
+                crop_radius,
+
+            # hybrid_reader currently ignores these two legacy values,
+            # but pass the normal API values explicitly.
+            filled_confidence=
+                0.70,
+
+            ambiguous_confidence=
+                0.60,
+
+            # Disable the NEET/KCET "last row in a long column" rescue.
+            # JEE MCQ sections are separate 10-row blocks.
+            questions_per_column=
+                1000,
+        )
+    )
+
+    merged = {}
+
+    question_numbers = sorted(
+        set(
+            coordinates.keys()
+        )
+        | set(
+            stable_mcq.keys()
+        )
+    )
+
+    changed_questions = []
+    blanked_false_multiples = []
+
+    for question_number in (
+        question_numbers
+    ):
+        stable_record = (
+            stable_mcq.get(
+                question_number,
+                stable_mcq.get(
+                    str(
+                        question_number
+                    ),
+                    {},
+                ),
+            )
+        )
+
+        if not isinstance(
+            stable_record,
+            dict,
+        ):
+            stable_record = {}
+
+        stable_answer = (
+            _jee_record_answer(
+                stable_record
+            )
+        )
+
+        ml_answer = (
+            ml_answers.get(
+                question_number,
+                ml_answers.get(
+                    str(
+                        question_number
+                    )
+                ),
+            )
+        )
+
+        ml_decision = (
+            ml_debug.get(
+                question_number,
+                ml_debug.get(
+                    str(
+                        question_number
+                    ),
+                    {},
+                ),
+            )
+        )
+
+        if not isinstance(
+            ml_decision,
+            dict,
+        ):
+            ml_decision = {}
+
+        selected = dict(
+            stable_record
+        )
+
+        option_centres = {
+            option: [
+                int(
+                    round(
+                        float(
+                            point[
+                                0
+                            ]
+                        )
+                    )
+                ),
+                int(
+                    round(
+                        float(
+                            point[
+                                1
+                            ]
+                        )
+                    )
+                ),
+            ]
+            for option, point
+            in coordinates.get(
+                question_number,
+                {},
+            ).items()
+        }
+
+        if option_centres:
+            selected[
+                "option_centres"
+            ] = (
+                option_centres
+            )
+
+        # ----------------------------------------------------
+        # Preserve stable single answers.
+        # ----------------------------------------------------
+        if _is_jee_mcq_choice(
+            stable_answer
+        ):
+            final_answer = (
+                stable_answer
+            )
+
+            selected[
+                "camera_resolver"
+            ] = (
+                "stable_single_kept_v10_11"
+            )
+
+        # ----------------------------------------------------
+        # For MULTIPLE / UNCERTAIN / BLANK, trust the
+        # bubble-specific ML hybrid decision.
+        # ----------------------------------------------------
+        else:
+            if _is_jee_mcq_choice(
+                ml_answer
+            ):
+                final_answer = (
+                    str(
+                        ml_answer
+                    ).upper()
+                )
+
+                selected[
+                    "camera_resolver"
+                ] = (
+                    "ml_hybrid_single_v10_11"
+                )
+
+            elif (
+                str(
+                    ml_answer
+                    or ""
+                ).upper()
+                == "MULTIPLE"
+            ):
+                final_answer = (
+                    "MULTIPLE"
+                )
+
+                selected[
+                    "camera_resolver"
+                ] = (
+                    "ml_hybrid_multiple_v10_11"
+                )
+
+            else:
+                final_answer = (
+                    "BLANK"
+                )
+
+                selected[
+                    "camera_resolver"
+                ] = (
+                    "ml_hybrid_blank_v10_11"
+                )
+
+                if (
+                    stable_answer
+                    == "MULTIPLE"
+                ):
+                    blanked_false_multiples.append(
+                        int(
+                            question_number
+                        )
+                    )
+
+            if (
+                final_answer
+                != stable_answer
+            ):
+                changed_questions.append(
+                    int(
+                        question_number
+                    )
+                )
+
+        selected[
+            "answer"
+        ] = final_answer
+
+        selected[
+            "camera_resolver_original_answer"
+        ] = stable_answer
+
+        selected[
+            "camera_ml_hybrid"
+        ] = ml_decision
+
+        selected[
+            "camera_ml_answer"
+        ] = (
+            ml_answer
+        )
+
+        selected[
+            "reader"
+        ] = (
+            "jee_ml_hybrid_gate_v10_11"
+        )
+
+        # The JEE debug overlay identifies MULTIPLE bubbles by the score
+        # dictionary.  Replace those display scores with the ML multiple
+        # candidates so an old false-red circle is not carried forward.
+        if (
+            final_answer
+            == "MULTIPLE"
+        ):
+            multiple_options = list(
+                ml_decision.get(
+                    "multiple_options",
+                    [],
+                )
+                or []
+            )
+
+            selected[
+                "scores"
+            ] = {
+                option:
+                    (
+                        1.0
+                        if option
+                        in multiple_options
+                        else 0.0
+                    )
+                for option
+                in (
+                    "A",
+                    "B",
+                    "C",
+                    "D",
+                )
+            }
+
+            selected[
+                "multiple_options"
+            ] = (
+                multiple_options
+            )
+
+        elif (
+            final_answer
+            == "BLANK"
+        ):
+            selected[
+                "scores"
+            ] = {
+                option:
+                    0.0
+                for option
+                in (
+                    "A",
+                    "B",
+                    "C",
+                    "D",
+                )
+            }
+
+            selected[
+                "multiple_options"
+            ] = []
+
+        merged[
+            question_number
+        ] = selected
+
+    return merged, {
+        "reader":
+            "jee_ml_hybrid_gate_v10_11",
+
+        "crop_radius":
+            crop_radius,
+
+        "changed_questions":
+            changed_questions,
+
+        "false_multiple_to_blank":
+            blanked_false_multiples,
+
+        "geometry_debug":
+            geometry_debug,
+
+        "ml_debug":
+            ml_debug,
+    }
+
+def _is_concrete_jee_numeric_answer(
+    value,
+):
+    text = str(
+        value or ""
+    ).strip().upper()
+
+    return (
+        bool(
+            text
+        )
+        and text
+        not in {
+            "BLANK",
+            "UNCERTAIN",
+            "MULTIPLE",
+            "?",
+        }
+    )
+
+
+def merge_jee_camera_numerical_records(
+    primary_robust,
+    legacy,
+    raw_robust,
+):
+    """
+    Camera-only numerical ensemble.
+
+    Sources:
+      1. robust reader on recognition_image (current proven path)
+      2. original/legacy numerical result already produced by scan_jee_answers
+      3. robust reader on corrected canonical image (raw-ink fallback)
+
+    Rules:
+      - if two concrete readers agree, consensus wins
+      - otherwise keep the current robust recognition-image answer
+      - if current robust is BLANK/UNCERTAIN, use a concrete fallback
+      - if everybody is ambiguous, keep current robust
+
+    No numerical coordinates, thresholds, decimal logic, or sign logic are
+    modified inside jee_reader.py.
+    """
+    merged = {}
+    debug = {}
+
+    question_numbers = sorted(
+        set(
+            primary_robust.keys()
+        )
+        | set(
+            legacy.keys()
+        )
+        | set(
+            raw_robust.keys()
+        )
+    )
+
+    for question_number in question_numbers:
+        records = {
+            "robust_recognition":
+                primary_robust.get(
+                    question_number,
+                    {},
+                ),
+
+            "legacy":
+                legacy.get(
+                    question_number,
+                    {},
+                ),
+
+            "robust_corrected":
+                raw_robust.get(
+                    question_number,
+                    {},
+                ),
+        }
+
+        answers = {
+            source:
+                _jee_record_answer(
+                    record
+                )
+            for source, record
+            in records.items()
+        }
+
+        concrete = {
+            source:
+                answer
+            for source, answer
+            in answers.items()
+            if _is_concrete_jee_numeric_answer(
+                answer
+            )
+        }
+
+        counts = {}
+
+        for answer in concrete.values():
+            counts[
+                answer
+            ] = (
+                counts.get(
+                    answer,
+                    0,
+                )
+                + 1
+            )
+
+        consensus_answer = None
+
+        if counts:
+            best_answer, best_count = max(
+                counts.items(),
+                key=lambda item:
+                    item[1],
+            )
+
+            if best_count >= 2:
+                consensus_answer = (
+                    best_answer
+                )
+
+        priority = [
+            "robust_recognition",
+            "robust_corrected",
+            "legacy",
+        ]
+
+        selected_source = None
+
+        if consensus_answer is not None:
+            for source in priority:
+                if (
+                    answers.get(
+                        source
+                    )
+                    == consensus_answer
+                ):
+                    selected_source = (
+                        source
+                    )
+                    break
+
+        elif _is_concrete_jee_numeric_answer(
+            answers.get(
+                "robust_recognition"
+            )
+        ):
+            selected_source = (
+                "robust_recognition"
+            )
+
+        elif _is_concrete_jee_numeric_answer(
+            answers.get(
+                "robust_corrected"
+            )
+        ):
+            selected_source = (
+                "robust_corrected"
+            )
+
+        elif _is_concrete_jee_numeric_answer(
+            answers.get(
+                "legacy"
+            )
+        ):
+            selected_source = (
+                "legacy"
+            )
+
+        else:
+            selected_source = (
+                "robust_recognition"
+                if records[
+                    "robust_recognition"
+                ]
+                else (
+                    "robust_corrected"
+                    if records[
+                        "robust_corrected"
+                    ]
+                    else "legacy"
+                )
+            )
+
+        selected = dict(
+            records.get(
+                selected_source,
+                {},
+            )
+        )
+
+        selected[
+            "numeric_ensemble_source"
+        ] = selected_source
+
+        selected[
+            "numeric_ensemble_answers"
+        ] = answers
+
+        if consensus_answer is not None:
+            selected[
+                "numeric_ensemble_consensus"
+            ] = consensus_answer
+
+        merged[
+            question_number
+        ] = selected
+
+        debug[
+            str(
+                question_number
+            )
+        ] = {
+            "selected_source":
+                selected_source,
+
+            "answers":
+                answers,
+
+            "consensus":
+                consensus_answer,
+        }
+
+    return merged, {
+        "reader":
+            "three_source_numeric_ensemble_v10_10",
+
+        "questions":
+            debug,
+    }
+
 
 
 # ============================================================
@@ -4897,32 +6151,100 @@ def draw_jee_answer_analysis(corrected_image, template, answers):
                 base_x_value
             )
 
-            detected_answer = str(
-                record.get(
-                    "answer",
-                    "BLANK",
-                )
-            ).upper()
-
+            # Numerical bubble confidence is per bubble. The final assembled
+            # answer can still be UNCERTAIN because of an invalid pattern.
             ring_color = (
-                (
-                    0,
-                    215,
-                    255,
-                )
-                if detected_answer
-                == "UNCERTAIN"
-                else (
-                    0,
-                    200,
-                    0,
-                )
+                0,
+                200,
+                0,
             )
 
             for detail in record.get(
                 "columns",
                 [],
             ):
+                filled_candidates = (
+                    detail.get(
+                        "filled_candidates",
+                        [],
+                    )
+                    or []
+                )
+
+                if filled_candidates:
+                    candidate_color = (
+                        (
+                            0,
+                            215,
+                            255,
+                        )
+                        if len(
+                            filled_candidates
+                        ) >= 2
+                        else (
+                            0,
+                            200,
+                            0,
+                        )
+                    )
+
+                    for candidate in filled_candidates:
+                        detected_center = (
+                            candidate.get(
+                                "center"
+                            )
+                        )
+
+                        if (
+                            isinstance(
+                                detected_center,
+                                (list, tuple),
+                            )
+                            and len(
+                                detected_center
+                            ) == 2
+                        ):
+                            center = (
+                                int(
+                                    round(
+                                        float(
+                                            detected_center[
+                                                0
+                                            ]
+                                        )
+                                    )
+                                ),
+                                int(
+                                    round(
+                                        float(
+                                            detected_center[
+                                                1
+                                            ]
+                                        )
+                                    )
+                                ),
+                            )
+
+                            cv2.circle(
+                                debug,
+                                center,
+                                radius,
+                                candidate_color,
+                                ring_thickness,
+                                lineType=cv2.LINE_AA,
+                            )
+
+                            cv2.circle(
+                                debug,
+                                center,
+                                2,
+                                candidate_color,
+                                -1,
+                                lineType=cv2.LINE_AA,
+                            )
+
+                    continue
+
                 value = str(
                     detail.get(
                         "value",
@@ -5019,18 +6341,25 @@ def draw_jee_answer_analysis(corrected_image, template, answers):
                     lineType=cv2.LINE_AA,
                 )
 
-            for detail in record.get(
-                "decimal_points",
-                [],
-            ):
-                if float(
+            filled_decimal_points = [
+                detail
+                for detail in record.get(
+                    "decimal_points",
+                    [],
+                )
+                if bool(
                     detail.get(
-                        "score",
-                        0.0,
+                        "filled",
+                        False,
                     )
-                ) < threshold:
-                    continue
+                )
+            ]
 
+            # Every physically detected filled decimal is green.
+            # MULTIPLE/UNCERTAIN remains question-level only.
+            decimal_color = (0, 255, 0)
+
+            for detail in filled_decimal_points:
                 after_column = int(
                     detail.get(
                         "after_column",
@@ -5100,7 +6429,7 @@ def draw_jee_answer_analysis(corrected_image, template, answers):
                     debug,
                     center,
                     radius,
-                    ring_color,
+                    decimal_color,
                     ring_thickness,
                     lineType=cv2.LINE_AA,
                 )
@@ -5269,6 +6598,161 @@ def _last_row_geometry_debug(corrected_image, template):
     }
 
 
+
+def _orientation_ink_map(
+    image: np.ndarray,
+    width: int = 320,
+) -> np.ndarray:
+    if image.ndim == 3:
+        gray = cv2.cvtColor(
+            image,
+            cv2.COLOR_BGR2GRAY,
+        )
+    else:
+        gray = image.copy()
+
+    h, w = gray.shape[:2]
+    target_h = max(
+        1,
+        int(round(h * width / max(w, 1))),
+    )
+
+    small = cv2.resize(
+        gray,
+        (width, target_h),
+        interpolation=cv2.INTER_AREA,
+    )
+
+    background = cv2.GaussianBlur(
+        small,
+        (0, 0),
+        sigmaX=7.0,
+        sigmaY=7.0,
+    )
+
+    ink = cv2.subtract(
+        background,
+        small,
+    ).astype(np.float32)
+
+    return np.clip(
+        ink / 80.0,
+        0.0,
+        1.0,
+    )
+
+
+def _neet_kcet_orientation_score(
+    candidate: np.ndarray,
+    reference: np.ndarray,
+) -> float:
+    candidate_map = _orientation_ink_map(candidate)
+    reference_map = _orientation_ink_map(reference)
+
+    if candidate_map.shape != reference_map.shape:
+        candidate_map = cv2.resize(
+            candidate_map,
+            (
+                reference_map.shape[1],
+                reference_map.shape[0],
+            ),
+            interpolation=cv2.INTER_AREA,
+        )
+
+    h, w = reference_map.shape[:2]
+
+    mask = np.zeros((h, w), dtype=np.float32)
+
+    mask[:int(h * 0.24), :] = 1.0
+    mask[:, :int(w * 0.34)] = 1.0
+    mask[int(h * 0.90):, :] = 1.0
+
+    candidate_values = (
+        candidate_map * mask
+    ).reshape(-1)
+
+    reference_values = (
+        reference_map * mask
+    ).reshape(-1)
+
+    c_norm = float(np.linalg.norm(candidate_values))
+    r_norm = float(np.linalg.norm(reference_values))
+
+    if c_norm <= 1e-6 or r_norm <= 1e-6:
+        return 0.0
+
+    return float(
+        np.dot(
+            candidate_values,
+            reference_values,
+        )
+        / (c_norm * r_norm)
+    )
+
+
+def ensure_neet_kcet_upright(
+    corrected: np.ndarray,
+    reference_path,
+):
+    reference = cv2.imread(
+        str(reference_path),
+        cv2.IMREAD_COLOR,
+    )
+
+    if reference is None:
+        return corrected, {
+            "applied": False,
+            "reason": "reference_unavailable",
+        }
+
+    if reference.shape[:2] != corrected.shape[:2]:
+        reference = cv2.resize(
+            reference,
+            (
+                corrected.shape[1],
+                corrected.shape[0],
+            ),
+            interpolation=cv2.INTER_AREA,
+        )
+
+    upright_score = _neet_kcet_orientation_score(
+        corrected,
+        reference,
+    )
+
+    rotated = cv2.rotate(
+        corrected,
+        cv2.ROTATE_180,
+    )
+
+    rotated_score = _neet_kcet_orientation_score(
+        rotated,
+        reference,
+    )
+
+    improvement = rotated_score - upright_score
+
+    rotate = (
+        rotated_score >= 0.18
+        and improvement >= 0.035
+    )
+
+    return (
+        rotated
+        if rotate
+        else corrected
+    ), {
+        "applied": bool(rotate),
+        "rotation_degrees": 180 if rotate else 0,
+        "upright_score": round(upright_score, 5),
+        "rotated_180_score": round(rotated_score, 5),
+        "score_improvement": round(improvement, 5),
+        "reader":
+            "neet_kcet_reference_orientation_v10_14",
+    }
+
+
+
 def process_omr(
     image_path,
     template_path,
@@ -5386,10 +6870,24 @@ def process_omr(
         # Four registration boxes establish the canonical page geometry.
         # JEE answer grids are calibrated locally by the robust reader below,
         # so feature/ECC warps are deliberately disabled for every exam.
-        use_orb=False,
-        use_ecc=False,
+        use_orb=(template_exam_name == "JEE"),
+        use_ecc=(template_exam_name == "JEE"),
+        ecc_minimum_score=0.80,
         debug_dir=local_debug_dir,
     )
+    if template_exam_name in ("NEET", "KCET"):
+        (
+            corrected,
+            orientation_debug,
+        ) = ensure_neet_kcet_upright(
+            corrected,
+            reference_path,
+        )
+
+        alignment_debug[
+            "orientation"
+        ] = orientation_debug
+
     alignment_debug["input"] = input_debug
 
     document_preview, recognition_image, document_mode_debug = (
@@ -5399,6 +6897,39 @@ def process_omr(
         )
     )
     alignment_debug["document_mode"] = document_mode_debug
+
+    # v10.21:
+    # Keep adaptive_document_mode_v3 for preview, identity recovery and JEE,
+    # but restore the earlier proven gentle preprocessing for NEET/KCET
+    # answer bubbles. The newer gamma/saturation recovery was changing the
+    # appearance of printed rings and camera shadows before classification.
+    if template_exam_name in ("NEET", "KCET"):
+        neet_kcet_answer_image = (
+            prepare_neet_kcet_answer_image_v10_21(
+                corrected
+            )
+        )
+
+        alignment_debug[
+            "answer_preprocessing"
+        ] = {
+            "profile":
+                "gentle_neet_kcet_answers_v10_21",
+
+            "source":
+                "canonical_corrected",
+
+            "gamma_recovery":
+                False,
+
+            "saturation_recovery":
+                False,
+
+            "geometry_changed":
+                False,
+        }
+    else:
+        neet_kcet_answer_image = recognition_image
 
     expected_width = int(template["sheet_width"])
     expected_height = int(template["sheet_height"])
@@ -5459,6 +6990,115 @@ def process_omr(
         "document_quality"
     ]
 
+    # Live auto-capture must be stricter than a manually uploaded image.
+    camera_capture = (
+        os.path.basename(
+            str(input_filename or "")
+        ).lower()
+        == "camera_omr.jpg"
+    )
+
+    camera_sharpness = float(
+        document_quality.get(
+            "sharpness",
+            0.0,
+        )
+    )
+
+    camera_document_sharpness = float(
+        document_quality.get(
+            "document_sharpness",
+            0.0,
+        )
+    )
+
+    camera_brightness = float(
+        document_quality.get(
+            "brightness",
+            0.0,
+        )
+    )
+
+    camera_contrast = float(
+        document_quality.get(
+            "contrast",
+            0.0,
+        )
+    )
+
+    # v10.15:
+    # Do not reject a readable camera OMR because one generic camera metric
+    # is below an arbitrary threshold. prepare_omr_document_mode() has
+    # already enhanced illumination, contrast, soft edges, and paper whites.
+    # Keep the metrics as diagnostics and continue with the enhanced image.
+    camera_quality_needs_help = bool(
+        camera_capture
+        and (
+            camera_sharpness < 900.0
+            or camera_brightness < 105.0
+            or camera_brightness > 245.0
+            or camera_contrast < 20.0
+        )
+    )
+
+    if camera_capture:
+        document_quality[
+            "camera_quality_action"
+        ] = (
+            "continue_with_document_mode_enhancement"
+            if camera_quality_needs_help
+            else "ready"
+        )
+
+        document_quality[
+            "camera_enhancement_already_applied"
+        ] = True
+
+        document_quality[
+            "camera_quality_gate_removed_version"
+        ] = "v10_15"
+
+        alignment_debug[
+            "camera_quality_policy"
+        ] = {
+            "action":
+                document_quality[
+                    "camera_quality_action"
+                ],
+
+            "original_sharpness":
+                round(
+                    camera_sharpness,
+                    2,
+                ),
+
+            "document_sharpness":
+                round(
+                    camera_document_sharpness,
+                    2,
+                ),
+
+            "brightness":
+                round(
+                    camera_brightness,
+                    2,
+                ),
+
+            "contrast":
+                round(
+                    camera_contrast,
+                    2,
+                ),
+
+            "hard_sharpness_gate":
+                False,
+
+            "enhancement_profile":
+                document_mode_debug.get(
+                    "profile"
+                ),
+        }
+
     if not document_quality[
         "can_scan"
     ]:
@@ -5517,6 +7157,86 @@ def process_omr(
             recognition_image,
             template,
         )
+
+        if (
+            template_exam_name in ("NEET", "KCET")
+            and any(
+                not (identity or {}).get(field)
+                for field in ("roll_number", "class", "exam")
+            )
+        ):
+            corrected_identity = detect_identity_fields(
+                corrected,
+                template,
+            )
+            identity = merge_identity_fallback(
+                identity,
+                corrected_identity,
+            )
+
+        if (
+            template_exam_name in ("NEET", "KCET")
+            and any(
+                not (identity or {}).get(field)
+                for field in ("class", "exam")
+            )
+        ):
+            json_ml_identity = recover_identity_choices_ml(
+                corrected,
+                template,
+            )
+
+            identity = merge_identity_fallback(
+                identity,
+                json_ml_identity,
+            )
+
+            identity[
+                "json_ml_identity_reader"
+            ] = "kcet_neet_identity_json_ml_v10_19"
+
+        if (
+            template_exam_name == "JEE"
+            and not (
+                identity
+                or {}
+            ).get(
+                "roll_number"
+            )
+        ):
+            corrected_identity = (
+                detect_identity_fields(
+                    corrected,
+                    template,
+                )
+            )
+
+            corrected_roll = (
+                corrected_identity
+                or {}
+            ).get(
+                "roll_number"
+            )
+
+            if corrected_roll:
+                identity[
+                    "roll_number"
+                ] = corrected_roll
+
+                identity[
+                    "roll_number_details"
+                ] = (
+                    corrected_identity.get(
+                        "roll_number_details"
+                    )
+                )
+
+                identity[
+                    "roll_number_source"
+                ] = (
+                    "jee_identity_corrected_retry_v10_14"
+                )
+
     except Exception as identity_error:
         identity = {
             "warning": str(identity_error),
@@ -5545,7 +7265,7 @@ def process_omr(
         # Scan every physical response row in the generated sheet.
         answers = (
             scan_answers(
-                recognition_image,
+                neet_kcet_answer_image,
                 template,
             )
         )
@@ -5586,7 +7306,7 @@ def process_omr(
         # Scan every physical response row in the generated sheet.
         answers = (
             scan_answers(
-                recognition_image,
+                neet_kcet_answer_image,
                 template,
             )
         )
@@ -5617,6 +7337,107 @@ def process_omr(
                 recognition_image,
                 template,
             )
+        )
+
+        # ----------------------------------------------------
+        # CAMERA JEE MCQ — EARLIER GEOMETRY + PREPROCESSING ONLY
+        # ----------------------------------------------------
+        # Keep the earlier validated page geometry and stable MCQ reader.
+        # Only pixel intensities are preprocessed for live-camera MCQs.
+        if camera_capture:
+            camera_mcq_image = (
+                prepare_jee_camera_mcq_image(
+                    recognition_image
+                )
+            )
+
+            # Final camera MCQ path:
+            # 1. keep the proven v10.6a stable reader unchanged
+            # 2. use reference-delta only to resolve its ambiguous outputs
+            camera_mcq = (
+                scan_jee_mcq_sections(
+                    camera_mcq_image,
+                    template,
+                )
+            )
+
+            (
+                camera_mcq,
+                camera_mcq_resolver_debug,
+            ) = resolve_jee_camera_mcq_ambiguities(
+                recognition_image,
+                camera_mcq,
+                template,
+            )
+
+            answers["mcq"] = (
+                camera_mcq
+            )
+
+            answers[
+                "_camera_mcq_resolver"
+            ] = (
+                camera_mcq_resolver_debug
+            )
+
+        # Keep the already-produced legacy numerical result as an
+        # independent fallback. The current robust reader remains primary.
+        legacy_numerical = dict(
+            answers.get(
+                "numerical",
+                {},
+            )
+        )
+
+        robust_numerical, robust_numeric_debug = (
+            scan_jee_numerical_sections_robust(
+                recognition_image,
+                template,
+            )
+        )
+
+        if camera_capture:
+            # Second robust pass on the unmodified canonical image.
+            # This preserves raw pen ink that can occasionally be weakened
+            # by document-mode normalization. Geometry is identical.
+            (
+                raw_robust_numerical,
+                raw_robust_numeric_debug,
+            ) = (
+                scan_jee_numerical_sections_robust(
+                    corrected,
+                    template,
+                )
+            )
+
+            (
+                robust_numerical,
+                numeric_ensemble_debug,
+            ) = (
+                merge_jee_camera_numerical_records(
+                    robust_numerical,
+                    legacy_numerical,
+                    raw_robust_numerical,
+                )
+            )
+
+            robust_numeric_debug = {
+                "primary":
+                    robust_numeric_debug,
+
+                "raw_corrected":
+                    raw_robust_numeric_debug,
+
+                "ensemble":
+                    numeric_ensemble_debug,
+            }
+
+        answers["numerical"] = (
+            robust_numerical
+        )
+
+        answers["_numeric_calibration"] = (
+            robust_numeric_debug
         )
 
     else:

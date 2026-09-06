@@ -35,6 +35,16 @@ def _image_characteristics(gray: np.ndarray) -> Dict[str, float]:
     }
 
 
+def _color_characteristics(image: np.ndarray) -> Dict[str, float]:
+    if image.ndim != 3:
+        return {"saturation_mean": 0.0, "saturation_p95": 0.0}
+    saturation = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)[:, :, 1]
+    return {
+        "saturation_mean": round(float(np.mean(saturation)), 2),
+        "saturation_p95": round(float(np.percentile(saturation, 95.0)), 2),
+    }
+
+
 def _gentle_illumination_correction(
     gray: np.ndarray,
     characteristics: Dict[str, float],
@@ -104,7 +114,7 @@ def _lift_paper_whites(
 def enhance_color_saturation(
     bgr_image: np.ndarray,
     saturation_factor: float = 1.4,
-    saturation_boost: float = 12.0,
+    saturation_boost: float = 0.0,
 ) -> np.ndarray:
     """
     Enhance saturation channel in HSV color space to make blue/black/colored pen marks
@@ -121,9 +131,66 @@ def enhance_color_saturation(
     return cv2.cvtColor(enhanced_hsv, cv2.COLOR_HSV2BGR)
 
 
+def _adaptive_capture_enhancement(
+    bgr_image: np.ndarray,
+) -> Tuple[np.ndarray, Dict[str, Any]]:
+    """Recover dim or washed-out pen marks without changing geometry."""
+    gray = _as_gray(bgr_image)
+    gray_stats = _image_characteristics(gray)
+    color_stats = _color_characteristics(bgr_image)
+    brightness = float(gray_stats["brightness"])
+    saturation_mean = float(color_stats["saturation_mean"])
+    saturation_p95 = float(color_stats["saturation_p95"])
+
+    low_brightness = brightness < 155.0
+    # Do not colourize truly grayscale sheets. A small amount of real chroma
+    # must exist before saturation is amplified.
+    low_saturation = (
+        saturation_mean < 36.0
+        and 4.0 < saturation_p95 < 75.0
+    )
+
+    enhanced = bgr_image.copy()
+    if low_brightness:
+        safe_brightness = float(np.clip(brightness, 25.0, 254.0))
+        gamma = float(
+            np.clip(
+                np.log(178.0 / 255.0) / np.log(safe_brightness / 255.0),
+                0.62,
+                0.92,
+            )
+        )
+        lut = np.array(
+            [((value / 255.0) ** gamma) * 255.0 for value in range(256)],
+            dtype=np.uint8,
+        )
+        enhanced = cv2.LUT(enhanced, lut)
+
+    if low_saturation:
+        factor = float(np.clip(1.65 - saturation_mean / 100.0, 1.25, 1.60))
+        enhanced = enhance_color_saturation(
+            enhanced,
+            saturation_factor=factor,
+            saturation_boost=0.0,
+        )
+
+    after_gray = _as_gray(enhanced)
+    return enhanced, {
+        **gray_stats,
+        **color_stats,
+        "low_brightness_enhanced": bool(low_brightness),
+        "low_saturation_enhanced": bool(low_saturation),
+        "enhanced_brightness": round(float(np.mean(after_gray)), 2),
+        **{
+            f"enhanced_{key}": value
+            for key, value in _color_characteristics(enhanced).items()
+        },
+    }
+
+
 def create_document_scan(
     corrected_bgr: np.ndarray,
-) -> Tuple[np.ndarray, Dict[str, np.ndarray]]:
+) -> Tuple[np.ndarray, Dict[str, Any]]:
     """
     Create a scan-like OMR image without changing its geometry.
 
@@ -131,20 +198,50 @@ def create_document_scan(
     geometry. Broad illumination is estimated independently of foreground ink
     so thin OMR rings and filled bubbles remain intact.
     """
-    # Recognition is intentionally colour-neutral. Saturation enhancement can
-    # exaggerate coloured shadows/compression noise and must never influence
-    # whether a bubble is considered filled.
     original = _as_gray(corrected_bgr)
-    characteristics = _image_characteristics(original)
-    lighting = _gentle_illumination_correction(original, characteristics)
-
-    denoise_strength = float(
-        np.clip(14.0 + (34.0 - characteristics["contrast"]) * 0.28, 12.0, 22.0)
+    adaptive_input, capture_characteristics = _adaptive_capture_enhancement(
+        corrected_bgr,
     )
+    recognition_gray = _as_gray(adaptive_input)
+    characteristics = _image_characteristics(original)
+    lighting = _gentle_illumination_correction(
+        recognition_gray,
+        _image_characteristics(recognition_gray),
+    )
+
+    soft_input = (
+        float(
+            characteristics[
+                "blur_score"
+            ]
+        )
+        < 900.0
+    )
+
+    if soft_input:
+        denoise_strength = float(
+            np.clip(
+                8.0
+                + (30.0 - characteristics["contrast"]) * 0.16,
+                8.0,
+                14.0,
+            )
+        )
+        denoise_d = 3
+    else:
+        denoise_strength = float(
+            np.clip(
+                14.0
+                + (34.0 - characteristics["contrast"]) * 0.28,
+                12.0,
+                22.0,
+            )
+        )
+        denoise_d = 5
 
     denoised = cv2.bilateralFilter(
         lighting,
-        d=5,
+        d=denoise_d,
         sigmaColor=denoise_strength,
         sigmaSpace=denoise_strength,
     )
@@ -163,9 +260,32 @@ def create_document_scan(
         sigmaX=0.65,
         sigmaY=0.65,
     )
-    sharpen_amount = float(
-        np.clip(0.12 + (110.0 - characteristics["blur_score"]) / 900.0, 0.10, 0.20)
-    )
+    if soft_input:
+        sharpen_amount = float(
+            np.clip(
+                0.22
+                + (
+                    900.0
+                    - characteristics["blur_score"]
+                )
+                / 3000.0,
+                0.22,
+                0.34,
+            )
+        )
+    else:
+        sharpen_amount = float(
+            np.clip(
+                0.12
+                + (
+                    110.0
+                    - characteristics["blur_score"]
+                )
+                / 900.0,
+                0.10,
+                0.20,
+            )
+        )
     sharpened = cv2.addWeighted(
         contrasted,
         1.0 + sharpen_amount,
@@ -179,6 +299,7 @@ def create_document_scan(
 
     stages = {
         "original": original,
+        "capture_characteristics": capture_characteristics,
         "lighting": lighting,
         "denoised": denoised,
         "whitened": whitened,
@@ -222,24 +343,23 @@ def prepare_omr_document_mode(
 
     height, width = document_image.shape[:2]
     debug = {
-        "profile": "gentle_document_mode_v2",
+        "profile": "adaptive_document_mode_v3",
         "preview_only": False,
         "recognition_image_modified": True,
-        "recognition_source": "shadow_normalized_grayscale_document",
+        "recognition_source": "adaptive_capture_enhanced_grayscale_document",
         "geometry_changed": False,
         "adaptive_threshold_used": False,
         "document_width": int(width),
         "document_height": int(height),
         "stages": [
             "lighting_correction",
+            "conditional_brightness_and_saturation_recovery",
             "edge_preserving_denoise",
             "controlled_contrast",
             "controlled_sharpening",
             "paper_whitening",
         ],
-        "image_characteristics": _image_characteristics(
-            stages["original"]
-        ),
+        "image_characteristics": stages["capture_characteristics"],
     }
 
     # Pass the enhanced document image to the recognition pipeline while preserving pixel dimensions.
