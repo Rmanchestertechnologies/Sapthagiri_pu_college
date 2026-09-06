@@ -10,6 +10,7 @@ import cv2
 import numpy as np
 
 from ml_omr.inference import classify_batch
+from ml_omr.final_guard_v10_29 import apply_strict_ml_blank_veto
 
 
 DEFAULT_CROP_RADIUS = 16
@@ -3728,6 +3729,15 @@ def scan_answers_ml(
             gray,
             questions_per_column=questions_per_column,
             crop_radius=crop_radius,
+        )
+
+        # _strict_ml_blank_veto_v10_29
+        # Do not replace the proven reader. Only veto a selected bubble when
+        # the ONNX model is overwhelmingly confident that it is blank.
+        decision = apply_strict_ml_blank_veto(
+            decision=decision,
+            option_data=option_data,
+            questions_per_column=questions_per_column,
         )
 
         decisions[

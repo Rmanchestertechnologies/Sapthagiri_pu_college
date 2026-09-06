@@ -1,5 +1,9 @@
 # scanner.py
 from ml_omr.hybrid_reader import scan_answers_ml
+from ml_omr.jee_solid_profile import apply_jee_solid_profile_overrides
+from ml_omr.final_guard_v10_29 import (
+    detect_series_cv_fallback,
+)
 from ml_omr.json_anchor_reader import (
     scan_answers_json_anchored,
     recover_identity_choices_ml,
@@ -39,6 +43,9 @@ from ml_omr.column_calibration import (
 from ml_omr.grid_detector import (
     fit_response_grid,
     draw_grid_detection_debug,
+)
+from ml_omr.cv_lattice_alignment import (
+    refine_fitted_grid_to_printed_rings,
 )
 
 
@@ -3065,6 +3072,24 @@ def scan_answers(
         )
     )
 
+    # v10.22: after the proven pin/RANSAC grid fit, make only a tiny shared
+    # row correction against the actual printed bubble rings. A/B/C/D move
+    # together, so a filled answer or stray contour cannot drag one option
+    # independently. The search remains inside the current safe grid limits.
+    fitted_coordinates, row_ring_debug = (
+        refine_fitted_grid_to_printed_rings(
+            gray,
+            fitted_coordinates,
+            coordinates,
+            template,
+        )
+    )
+
+    for column_index, row_details in row_ring_debug.items():
+        column_debug = grid_debug_info.get(column_index)
+        if isinstance(column_debug, dict):
+            column_debug["row_ring_alignment"] = row_details
+
     if not os.environ.get(
         "VERCEL"
     ):
@@ -3340,8 +3365,10 @@ def draw_answer_analysis(
         debug_image = corrected_image.copy()
         scale_ratio = 1.0
 
-    # Reduced bubble and pin point radius for subtle, compact indicators
-    base_radius = max(3.0, float(template.get("bubble_radius", 11)) - 6.0)
+    # Draw the analysis ring at the physical template bubble radius. The
+    # previous -6 px display shrink made correctly centered overlays look
+    # visibly misplaced inside the real printed bubble.
+    base_radius = max(3.0, float(template.get("bubble_radius", 11)))
     bubble_radius = max(
         3,
         int(round(base_radius * scale_ratio)),
@@ -3886,7 +3913,7 @@ def detect_paper_code(
 # EXAM SERIES (P/Q/R/S)
 # ============================================================
 
-def detect_exam_series(
+def _detect_exam_series_legacy(
     gray_image,
     template,
     exam_name=None,
@@ -4071,6 +4098,38 @@ def detect_exam_series(
 
         "sampling_centres": sampling_centres,
     }
+
+
+# _series_cv_fallback_wrapper_v10_29
+def detect_exam_series(
+    gray_image,
+    template,
+    exam_name=None,
+):
+    try:
+        return _detect_exam_series_legacy(
+            gray_image,
+            template,
+            exam_name=exam_name,
+        )
+
+    except ValueError as legacy_error:
+        fallback = detect_series_cv_fallback(
+            gray_image,
+            template,
+            exam_name=exam_name,
+        )
+
+        if fallback is not None:
+            fallback[
+                "legacy_error"
+            ] = str(
+                legacy_error
+            )
+
+            return fallback
+
+        raise
 
 
 def detect_jee_series(gray_image, template):
@@ -4508,6 +4567,24 @@ def resolve_jee_camera_mcq_ambiguities(
         )
     )
 
+
+
+    # jee_solid_profile_ml_v10_34
+    # JEE only: broad physical fill profile + existing ml_omr probabilities.
+    # No question numbers or answer-key values are used.
+    (
+        stable_mcq,
+        ml_answers,
+        ml_debug,
+    ) = apply_jee_solid_profile_overrides(
+        gray=recognition_image,
+        coordinates=coordinates,
+        stable_mcq=stable_mcq,
+        ml_answers=ml_answers,
+        ml_debug=ml_debug,
+        template=template,
+    )
+
     merged = {}
 
     question_numbers = sorted(
@@ -4619,6 +4696,8 @@ def resolve_jee_camera_mcq_ambiguities(
 
         # ----------------------------------------------------
         # Preserve stable single answers.
+        # Reference: Sapthagiri_pu_college commit dbc73846026ace637f0bf356ca63d069ea6fc3e5
+        # jee_reference_gate_dbc738_v10_33
         # ----------------------------------------------------
         if _is_jee_mcq_choice(
             stable_answer
