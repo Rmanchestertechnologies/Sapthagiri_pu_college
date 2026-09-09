@@ -16,9 +16,16 @@ const pool = new Pool({
 // ─────────────────────────────────────────────────────────────────
 router.get('/student/:rollNumber', async (req, res) => {
     try {
-        const roll = req.params.rollNumber;
+        const roll = String(req.params.rollNumber || '').trim().replace(/[\s\-_]/g, '');
+        if (!roll) {
+            return res.status(400).json({ msg: 'Enrollment / Register Number is required.' });
+        }
+
         const result = await pool.query(
-            'SELECT name, roll_number, section, email FROM public.students WHERE roll_number = $1 LIMIT 1',
+            `SELECT name, roll_number, enrollment_no, sats_no, section, class_level, email 
+             FROM public.students 
+             WHERE roll_number = $1 OR enrollment_no = $1 OR sats_no = $1 
+             LIMIT 1`,
             [roll]
         );
 
@@ -26,18 +33,18 @@ router.get('/student/:rollNumber', async (req, res) => {
             const s = result.rows[0];
             return res.json({
                 name: s.name,
-                rollNumber: s.roll_number,
-                section: s.section,
+                rollNumber: s.enrollment_no || s.roll_number,
+                enrollmentNo: s.enrollment_no || s.roll_number,
+                satsNo: s.sats_no || '',
+                section: s.section || '',
+                classLevel: s.class_level || (s.section?.includes('II') ? 'II-PUC' : 'I-PUC'),
                 email: s.email || ''
             });
         }
 
-        // Return fallback student record if student table hasn't imported this roll number
-        res.json({
-            name: `Student (${roll})`,
-            rollNumber: roll,
-            section: 'A',
-            email: ''
+        return res.status(404).json({
+            error: 'Not Enrolled',
+            msg: `Enrollment ID "${roll}" is not recognized. Only enrolled Sapthagiri PU College students are authorized to access the exam portal.`
         });
     } catch (err) {
         console.error('Error fetching student:', err);

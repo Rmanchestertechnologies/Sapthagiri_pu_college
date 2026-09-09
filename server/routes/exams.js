@@ -5,7 +5,7 @@ const storage = require('../services/postgresStorage');
 const auth = require('../middleware/auth');
 const checkRole = require('../middleware/role');
 const { detectLabIp } = require('../middleware/labIp');
-const supabaseQuestions = require('../services/supabaseQuestions');
+const pool = require('../config/postgres');
 const { createNotification } = require('./notifications');
 
 // ─────────────────────────────────────────────────────────────────
@@ -628,6 +628,18 @@ router.get('/:id/take', detectLabIp, async (req, res) => {
         }
 
         const { email, rollNumber } = req.query;
+        if (rollNumber) {
+            const studentCheck = await pool.query(
+                `SELECT name, roll_number, enrollment_no, section, class_level 
+                 FROM public.students 
+                 WHERE roll_number = $1 OR enrollment_no = $1 OR sats_no = $1 
+                 LIMIT 1`,
+                [String(rollNumber).trim().replace(/[\s\-_]/g, '')]
+            );
+            if (studentCheck.rows.length === 0) {
+                return res.status(403).json({ msg: 'Access Denied: Unregistered Student ID. Only officially enrolled students are permitted to take examinations.' });
+            }
+        }
         const studentId = rollNumber || email || 'anonymous';
         let examQuestions = exam.questions || [];
         if (exam.shuffleQuestions) {
@@ -672,7 +684,26 @@ router.post('/:id/start', detectLabIp, async (req, res) => {
         const exam = await storage.getExamById(req.params.id);
         if (!exam) return res.status(404).json({ msg: 'Exam not found' });
 
-        const { studentName, studentEmail, rollNumber } = req.body;
+        let { studentName, studentEmail, rollNumber } = req.body;
+        let verifiedName = studentName;
+        let verifiedSection = '';
+
+        if (rollNumber) {
+            const studentCheck = await pool.query(
+                `SELECT name, roll_number, enrollment_no, section, class_level, email 
+                 FROM public.students 
+                 WHERE roll_number = $1 OR enrollment_no = $1 OR sats_no = $1 
+                 LIMIT 1`,
+                [String(rollNumber).trim().replace(/[\s\-_]/g, '')]
+            );
+            if (studentCheck.rows.length === 0) {
+                return res.status(403).json({ msg: 'Access Denied: Unregistered Student ID. Only officially enrolled students are permitted to take examinations.' });
+            }
+            const s = studentCheck.rows[0];
+            verifiedName = s.name || studentName;
+            verifiedSection = s.section || '';
+            if (!studentEmail) studentEmail = s.email || `${s.enrollment_no || rollNumber}@student.sapthagiri.edu`;
+        }
 
         if (exam.allowedStudents && exam.allowedStudents.length > 0) {
             if (!exam.allowedStudents.includes(rollNumber)) {
@@ -693,7 +724,7 @@ router.post('/:id/start', detectLabIp, async (req, res) => {
         const session = await storage.createSession({
             examId: req.params.id,
             studentId,
-            studentName: studentName || 'Student',
+            studentName: verifiedName || 'Student',
             studentEmail: studentEmail || '',
             rollNumber: rollNumber || '',
             fromLabIp: req.isLabIp,

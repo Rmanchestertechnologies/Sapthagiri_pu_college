@@ -13,12 +13,20 @@ export default function ExamInstructions() {
     const [timeLeftToStart, setTimeLeftToStart] = useState(null); // seconds until start
 
     useEffect(() => {
+        if (!studentInfo || !studentInfo.rollNumber) {
+            navigate('/lab-exam');
+            return;
+        }
         const emailParam = encodeURIComponent(studentInfo.studentEmail || '');
         const rollParam = encodeURIComponent(studentInfo.rollNumber || '');
         api.get(`/api/exams/${examId}/take?email=${emailParam}&rollNumber=${rollParam}`)
             .then(r => { setExam(r.data); setLoading(false); })
-            .catch(() => { setLoading(false); });
-    }, [examId]);
+            .catch(err => {
+                setLoading(false);
+                alert(err.response?.data?.msg || 'Access Denied: Only officially enrolled students are permitted to take this exam.');
+                navigate('/lab-exam');
+            });
+    }, [examId, studentInfo, navigate]);
 
     useEffect(() => {
         if (!exam || !exam.start_time) {

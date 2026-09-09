@@ -11,6 +11,21 @@ if ENGINE_DIR not in sys.path:
 
 from scanner import process_omr
 
+class SafeJsonEncoder(json.JSONEncoder):
+    def default(self, obj):
+        try:
+            import numpy as np
+            if isinstance(obj, (np.integer, np.floating, np.bool_)):
+                return obj.item()
+            if isinstance(obj, np.ndarray):
+                return obj.tolist()
+        except ImportError:
+            pass
+        from decimal import Decimal
+        if isinstance(obj, Decimal):
+            return float(obj)
+        return super().default(obj)
+
 def main():
     parser = argparse.ArgumentParser(description="OMR Sheet Scanner CLI")
     parser.add_argument("--image", required=True, help="Path to OMR image file")
@@ -56,13 +71,28 @@ def main():
         raw_answers = result.get("answers") or {}
         # Normalize answers to simple key-value: {"1": "A", "2": "C"}
         clean_answers = {}
-        for q_num, val in raw_answers.items():
-            if isinstance(val, dict):
-                clean_answers[str(q_num)] = val.get("answer") or None
-            elif isinstance(val, str):
-                clean_answers[str(q_num)] = val
+        if isinstance(raw_answers, dict):
+            if "mcq" in raw_answers or "numerical" in raw_answers:
+                mcq = raw_answers.get("mcq") or {}
+                numerical = raw_answers.get("numerical") or {}
+                for q_num, val in mcq.items():
+                    if isinstance(val, dict):
+                        clean_answers[str(q_num)] = val.get("answer") or None
+                    else:
+                        clean_answers[str(q_num)] = val if val is not None else None
+                for q_num, val in numerical.items():
+                    if isinstance(val, dict):
+                        clean_answers[str(q_num)] = val.get("value") or val.get("raw_answer") or None
+                    else:
+                        clean_answers[str(q_num)] = str(val) if val is not None else None
             else:
-                clean_answers[str(q_num)] = None
+                for q_num, val in raw_answers.items():
+                    if isinstance(val, dict):
+                        clean_answers[str(q_num)] = val.get("answer") or val.get("value") or None
+                    elif isinstance(val, str):
+                        clean_answers[str(q_num)] = val
+                    else:
+                        clean_answers[str(q_num)] = None
 
         output = {
             "success": True,
@@ -73,7 +103,7 @@ def main():
             "answers": clean_answers,
             "quality": result.get("quality") or {}
         }
-        print(json.dumps(output))
+        print(json.dumps(output, cls=SafeJsonEncoder))
 
     except Exception as err:
         print(json.dumps({"success": False, "error": str(err)}))

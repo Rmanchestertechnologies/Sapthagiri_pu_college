@@ -107,6 +107,10 @@ export default function ExamEngine() {
     // ── Load exam and start session ─────────────────────────────
     useEffect(() => {
         const init = async () => {
+            if (!studentInfo || !studentInfo.rollNumber) {
+                navigate('/lab-exam');
+                return;
+            }
             try {
                 const emailParam = encodeURIComponent(studentInfo.studentEmail || '');
                 const rollParam = encodeURIComponent(studentInfo.rollNumber || '');
@@ -143,14 +147,14 @@ export default function ExamEngine() {
                     const end = new Date(e.end_time).getTime();
                     const now = new Date().getTime();
                     const scheduledRemaining = Math.floor((end - now) / 1000);
-                    if (scheduledRemaining < durationSeconds) {
-                        durationSeconds = Math.max(0, scheduledRemaining);
+                    if (scheduledRemaining >= 0 && scheduledRemaining < durationSeconds) {
+                        durationSeconds = scheduledRemaining;
                     }
                 }
                 setTimeLeft(durationSeconds);
 
                 // Initialize local answers state (restore saved state if session resumed)
-                const storageKey = `exam_answers_${examId}_${sessionData._id}`;
+                const storageKey = `exam_answers_${examId}_${sessionData._id || sessionData.id}`;
                 const cachedAnswersStr = localStorage.getItem(storageKey);
                 let cachedAnswers = null;
                 if (cachedAnswersStr) {
@@ -170,12 +174,14 @@ export default function ExamEngine() {
                 }));
             } catch (err) {
                 console.error(err);
+                alert(err.response?.data?.msg || 'Access Denied: Only enrolled students can take this exam.');
+                navigate('/lab-exam');
             }
             setLoading(false);
         };
         init();
         return () => clearInterval(timerRef.current);
-    }, [examId, navigate]);
+    }, [examId, studentInfo, navigate]);
 
     // ── Malpractice and Security Controls ─────────────────────────
     useEffect(() => {

@@ -502,10 +502,10 @@ function BodyMCQ({ q, classes, isTwoCol, diagramMaxHeight = '180px', onDiagramRe
                             key={i}
                             style={{
                                 ...Q.optRow,
-                                flexDirection: hasAnyOptionImage && !forceSingle ? 'column' : 'row',
-                                alignItems: hasAnyOptionImage && !forceSingle ? 'center' : 'flex-start',
-                                textAlign: hasAnyOptionImage && !forceSingle ? 'center' : 'left',
-                                gap: '2px',
+                                flexDirection: 'row',
+                                alignItems: hasAnyOptionImage ? 'center' : 'baseline',
+                                textAlign: 'left',
+                                gap: '4px',
                             }}
                         >
                             <span style={Q.optLbl}>({labels[i] || optionLabel(i, classes)})</span>
