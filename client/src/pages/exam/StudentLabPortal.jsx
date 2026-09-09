@@ -64,7 +64,7 @@ export default function StudentLabPortal() {
         const trimmedReg = regNo.trim().toUpperCase().replace(/[\s\-_]/g, '');
 
         if (!trimmedReg) {
-            setError('Please enter your official Student Enrollment Number or SATS Number.');
+            setError('Please enter your official Student Enrollment Number.');
             return;
         }
 
@@ -80,7 +80,6 @@ export default function StudentLabPortal() {
                 studentName: s.name,
                 rollNumber: s.rollNumber || trimmedReg,
                 enrollmentNo: s.enrollmentNo || trimmedReg,
-                satsNo: s.satsNo || '',
                 section: s.section || '',
                 class: classNum,
                 classLevel: s.classLevel || (classNum === '11' ? 'I-PUC' : 'II-PUC'),
@@ -95,7 +94,7 @@ export default function StudentLabPortal() {
             setError('');
         } catch (err) {
             console.error('Student verification error:', err);
-            const errorMsg = err.response?.data?.msg || `Access Denied: Enrollment ID "${trimmedReg}" was not found in Sapthagiri PU College records. Only enrolled students are allowed to access examinations.`;
+            const errorMsg = err.response?.data?.msg || `Access Denied: Enrollment Number "${trimmedReg}" was not found in Sapthagiri PU College records. Only enrolled students are allowed to access examinations.`;
             setError(errorMsg);
             setIsLoggedIn(false);
         } finally {
@@ -278,19 +277,19 @@ export default function StudentLabPortal() {
                             <form onSubmit={handleStudentLogin} className="space-y-4">
                                 <div>
                                     <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">
-                                        Official Enrollment / SATS Number *
+                                        Student Enrollment Number *
                                     </label>
                                     <input
                                         type="text"
                                         required
                                         autoFocus
-                                        placeholder="e.g. 202600751282 or 202500238180"
+                                        placeholder="Enter your enrollment number"
                                         value={regNo}
                                         onChange={(e) => setRegNo(e.target.value.trim().toUpperCase())}
-                                        className="w-full px-4 py-3 rounded-xl bg-[#071328] border border-slate-700 text-white placeholder-slate-500 font-mono font-semibold focus:outline-none focus:border-amber-400 transition"
+                                        className="w-full px-4 py-3 rounded-xl bg-[#071328] border border-slate-700 text-white placeholder-slate-600 font-mono font-semibold focus:outline-none focus:border-amber-400 transition"
                                     />
                                     <p className="text-[11px] text-slate-400 mt-1.5">
-                                        Enter your official Enrollment No or SATS No from college admission register.
+                                        Enter your official Student Enrollment Number from college register.
                                     </p>
                                 </div>
 
@@ -332,11 +331,6 @@ export default function StudentLabPortal() {
                                         {savedStudent.section && (
                                             <span className="text-slate-400">
                                                 Section: <strong className="text-white">{savedStudent.section}</strong>
-                                            </span>
-                                        )}
-                                        {savedStudent.satsNo && (
-                                            <span className="text-slate-400">
-                                                • SATS: <strong className="text-slate-300">{savedStudent.satsNo}</strong>
                                             </span>
                                         )}
                                     </div>

@@ -24,7 +24,7 @@ router.get('/student/:rollNumber', async (req, res) => {
         const result = await pool.query(
             `SELECT name, roll_number, enrollment_no, sats_no, section, class_level, email 
              FROM public.students 
-             WHERE roll_number = $1 OR enrollment_no = $1 OR sats_no = $1 
+             WHERE roll_number = $1 OR enrollment_no = $1 
              LIMIT 1`,
             [roll]
         );

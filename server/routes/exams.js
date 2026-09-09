@@ -632,7 +632,7 @@ router.get('/:id/take', detectLabIp, async (req, res) => {
             const studentCheck = await pool.query(
                 `SELECT name, roll_number, enrollment_no, section, class_level 
                  FROM public.students 
-                 WHERE roll_number = $1 OR enrollment_no = $1 OR sats_no = $1 
+                 WHERE roll_number = $1 OR enrollment_no = $1 
                  LIMIT 1`,
                 [String(rollNumber).trim().replace(/[\s\-_]/g, '')]
             );
@@ -692,7 +692,7 @@ router.post('/:id/start', detectLabIp, async (req, res) => {
             const studentCheck = await pool.query(
                 `SELECT name, roll_number, enrollment_no, section, class_level, email 
                  FROM public.students 
-                 WHERE roll_number = $1 OR enrollment_no = $1 OR sats_no = $1 
+                 WHERE roll_number = $1 OR enrollment_no = $1 
                  LIMIT 1`,
                 [String(rollNumber).trim().replace(/[\s\-_]/g, '')]
             );
