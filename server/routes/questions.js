@@ -97,9 +97,13 @@ router.get('/', [auth, checkRole(['admin', 'teacher'])], async (req, res) => {
         const { classes, chapter, concept, type, subject, search, level, usage, source } = req.query;
         let filters = {};
 
-        // Subject-level access control — teachers can ONLY access their own subject
+        // Subject-level access control — teachers can access their own subject or mixed subjects for paper generation
         if (req.user.role === 'teacher') {
-            filters.subject = req.user.subject;
+            if (subject && subject !== 'all') {
+                filters.subject = subject;
+            } else {
+                filters.subject = req.user.subject;
+            }
         } else if (subject) {
             filters.subject = subject;
         }
@@ -142,8 +146,8 @@ router.get('/', [auth, checkRole(['admin', 'teacher'])], async (req, res) => {
 // @access  Teacher / Admin
 router.post('/chapter-distribution', [auth, checkRole(['admin', 'teacher'])], async (req, res) => {
     try {
-        const { classes, chapterQuotas, difficultyDistribution, sources, concepts } = req.body;
-        const subject = req.user.role === 'teacher' ? req.user.subject : (req.body.subject || 'Physics');
+        const { classes, chapterQuotas, difficultyDistribution, sources, concepts, subject: reqSub } = req.body;
+        const subject = reqSub || (req.user.role === 'teacher' ? req.user.subject : 'Physics');
 
         if (!chapterQuotas || typeof chapterQuotas !== 'object' || Object.keys(chapterQuotas).length === 0) {
             return res.status(400).json({ msg: 'chapterQuotas object is required.' });
@@ -170,7 +174,7 @@ router.post('/chapter-distribution', [auth, checkRole(['admin', 'teacher'])], as
 // @access  Teacher / Admin
 router.get('/meta', [auth, checkRole(['admin', 'teacher'])], async (req, res) => {
     try {
-        const subject = req.user.role === 'teacher' ? req.user.subject : (req.query.subject || '');
+        const subject = req.query.subject || (req.user.role === 'teacher' ? req.user.subject : '');
         const klass = req.query.class || req.query.classes || null;
         const meta = await supabaseQuestions.getSubjectMetadata(subject, klass);
         res.json(meta);

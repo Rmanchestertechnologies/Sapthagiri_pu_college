@@ -18,6 +18,11 @@ export default function A4AnswerKey({
     const [saving, setSaving] = useState(false);
     const [saveStatus, setSaveStatus] = useState({ type: '', msg: '' });
 
+    // Sync activeSet if setName prop changes
+    useEffect(() => {
+        if (setName) setActiveSet(setName);
+    }, [setName]);
+
     // Initialize localQuestions with questions passed or paper questions
     useEffect(() => {
         const baseQs = (questions && questions.length > 0) ? questions : (paper?.questions || []);

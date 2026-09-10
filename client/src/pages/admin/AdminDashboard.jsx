@@ -15,6 +15,7 @@ import AssignmentGenerator from '../teacher/AssignmentGenerator';
 import PaperAnalysisModal from '../../components/PaperAnalysisModal';
 import MathRenderer from '../../components/MathRenderer';
 import TeacherOmr from '../teacher/omr/TeacherOmr';
+import CreatePaper from '../teacher/CreatePaper';
 import api from '../../api';
 
 const DashboardHome = () => {
@@ -249,6 +250,13 @@ const DashboardHome = () => {
                 </div>
 
                 <div className="flex items-center gap-3">
+                    <button
+                        onClick={() => navigate('/admin/dashboard/create-paper')}
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-widest hover:scale-105 active:scale-95 transition-all shadow-md flex items-center gap-2.5 cursor-pointer"
+                    >
+                        <span className="text-base">✍️</span>
+                        <span>Create Question Paper</span>
+                    </button>
                     <button
                         id="admin-quick-commission-btn"
                         onClick={() => setShowCommissionModal(true)}
@@ -1061,6 +1069,7 @@ const AdminDashboard = () => {
             group: 'Examination Operations',
             items: [
                 { title: 'Executive Overview', path: '/admin/dashboard', icon: '📋', desc: 'Delegation & readiness dashboard' },
+                { title: 'Create Question Paper', path: '/admin/dashboard/create-paper', icon: '✍️', desc: 'Create single or mixed-subject papers' },
                 { title: 'OMR Evaluation & Scanner', path: '/admin/dashboard/omr', icon: '📑', desc: 'Scan physical OMR sheets & merit lists' },
                 { title: 'CBT Online Exams', path: '/admin/dashboard/cbt-exams', icon: '⚡', desc: 'Manage & monitor online exams' },
                 { title: 'Results & Scorecards', path: '/admin/dashboard/results', icon: '📊', desc: 'View student scores and analytics' }
@@ -1086,6 +1095,7 @@ const AdminDashboard = () => {
 
     // Current page label
     const getCurrentPageTitle = () => {
+        if (location.pathname.includes('create-paper')) return 'Create Question Paper';
         if (location.pathname.includes('omr')) return 'OMR Sheet Evaluation';
         if (location.pathname.includes('cbt-exams')) return 'CBT Online Exams';
         if (location.pathname.includes('results')) return 'Result Scorecards';
@@ -1265,6 +1275,7 @@ const AdminDashboard = () => {
             <div className="flex-1 p-6 sm:p-10 max-w-7xl mx-auto w-full">
                 <Routes>
                     <Route path="/" element={<DashboardHome />} />
+                    <Route path="create-paper" element={<CreatePaper />} />
                     <Route path="omr/*" element={<TeacherOmr />} />
                     <Route path="cbt-exams" element={<ExamManagement />} />
                     <Route path="results" element={<AdminResults />} />

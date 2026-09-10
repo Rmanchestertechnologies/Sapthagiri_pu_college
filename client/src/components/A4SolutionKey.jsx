@@ -12,15 +12,30 @@ export default function A4SolutionKey({
 }) {
     const [activeSet, setActiveSet] = useState(setName || paper?.setName || 'P');
 
+    // Sync activeSet if setName prop changes
+    React.useEffect(() => {
+        if (setName) setActiveSet(setName);
+    }, [setName]);
+
+    const baseQuestions = useMemo(() => {
+        return (questions && questions.length > 0) ? questions : (paper?.questions || []);
+    }, [questions, paper]);
+
     const activePaper = useMemo(() => {
-        if (!paper || !paper.questions) return paper;
-        return generatePaperSet(paper, activeSet);
-    }, [paper, activeSet]);
+        const effectivePaper = {
+            ...paper,
+            _id: paper?._id || paper?.id || 'qp-default',
+            questions: baseQuestions
+        };
+        if (!effectivePaper.questions || effectivePaper.questions.length === 0) return effectivePaper;
+        return generatePaperSet(effectivePaper, activeSet);
+    }, [paper, baseQuestions, activeSet]);
 
     const resolvedQuestions = useMemo(() => {
-        if (activePaper?.questions && activePaper.questions.length > 0) return activePaper.questions;
-        return questions.length > 0 ? questions : (paper.questions || []);
-    }, [activePaper, questions, paper]);
+        return (activePaper?.questions && activePaper.questions.length > 0)
+            ? activePaper.questions
+            : baseQuestions;
+    }, [activePaper, baseQuestions]);
 
     const paperTitle = activePaper?.title || paper.title || `${paper.subject || 'Academic'} Assessment`;
 
@@ -157,7 +172,7 @@ export default function A4SolutionKey({
 
                                     <div className="mt-3 pt-2 border-t border-slate-200 flex flex-wrap justify-between items-center text-xs font-semibold text-slate-700">
                                         <span className="font-bold text-navy">{paperTitle}</span>
-                                        {setName && <span>SET: <strong>{setName}</strong></span>}
+                                        <span>SET: <strong>{activeSet}</strong></span>
                                         {paper.subject && <span>Subject: <strong>{paper.subject}</strong></span>}
                                         <span>Total Questions: <strong>{resolvedQuestions.length}</strong></span>
                                     </div>

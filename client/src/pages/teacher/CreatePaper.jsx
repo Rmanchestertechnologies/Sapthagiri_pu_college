@@ -929,7 +929,7 @@ export default function CreatePaper() {
             <header className="bg-navy p-4 text-white flex justify-between items-center shadow-xl border-b-4 border-gold sticky top-0 z-30">
                 <div className="flex items-center gap-4 ml-4">
                     <button
-                        onClick={() => navigate('/teacher/dashboard')}
+                        onClick={() => navigate(user?.role === 'admin' ? '/admin/dashboard' : '/teacher/dashboard')}
                         className="bg-white/10 hover:bg-white/20 text-gold px-3.5 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition cursor-pointer"
                     >
                         ← Exit Wizard
@@ -1178,41 +1178,58 @@ export default function CreatePaper() {
                             {/* Subject */}
                             <div>
                                 <label className="block text-xs font-black text-navy uppercase tracking-wider mb-2">Academic Subject</label>
-                                {user?.role === 'teacher' && !['biology', 'botany', 'zoology'].includes((user?.subject || '').toLowerCase()) ? (
-                                    <input
-                                        type="text"
-                                        value={subject}
-                                        disabled
-                                        className="w-full border-2 border-gray-200 rounded-2xl px-4 py-3 text-sm font-bold text-navy bg-gray-100"
-                                    />
-                                ) : (
-                                    <select
-                                        value={subject}
-                                        onChange={e => {
-                                            setSubject(e.target.value);
-                                            setSelectedChapters([]);
-                                            setSelectedConcepts([]);
-                                        }}
-                                        className="w-full border-2 border-gray-200 focus:border-navy rounded-2xl px-4 py-3 text-sm font-bold text-navy outline-none bg-white cursor-pointer"
-                                    >
-                                        {user?.role === 'teacher' ? (
-                                            <>
-                                                <option value="Botany">Botany</option>
-                                                <option value="Zoology">Zoology</option>
-                                                <option value="Biology">Biology (Combined Botany + Zoology)</option>
-                                            </>
-                                        ) : (
-                                            <>
+                                <select
+                                    value={subject}
+                                    onChange={e => {
+                                        setSubject(e.target.value);
+                                        setSelectedChapters([]);
+                                        setSelectedConcepts([]);
+                                    }}
+                                    className="w-full border-2 border-gray-200 focus:border-navy rounded-2xl px-4 py-3 text-sm font-bold text-navy outline-none bg-white cursor-pointer"
+                                >
+                                    {user?.role === 'teacher' ? (
+                                        <>
+                                            <optgroup label="Assigned Subject">
+                                                {['biology', 'botany', 'zoology'].includes((user?.subject || '').toLowerCase()) ? (
+                                                    <>
+                                                        <option value="Botany">Botany</option>
+                                                        <option value="Zoology">Zoology</option>
+                                                        <option value="Biology">Biology (Combined Botany + Zoology)</option>
+                                                    </>
+                                                ) : (
+                                                    <option value={user?.subject || 'Physics'}>{user?.subject || 'Physics'}</option>
+                                                )}
+                                            </optgroup>
+                                            <optgroup label="Mixed / Multi-Subject Assessments">
+                                                <option value="PCM">Mixed (PCM: Physics + Chemistry + Maths)</option>
+                                                <option value="PCB">Mixed (PCB: Physics + Chemistry + Biology)</option>
+                                                <option value="PCMB">Mixed (PCMB: Physics + Chemistry + Maths + Biology)</option>
+                                                <option value="Physics,Chemistry">Mixed (Physics + Chemistry)</option>
+                                                <option value="Physics,Mathematics">Mixed (Physics + Maths)</option>
+                                                <option value="Chemistry,Biology">Mixed (Chemistry + Biology)</option>
+                                            </optgroup>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <optgroup label="Single Subjects">
                                                 <option value="Physics">Physics</option>
                                                 <option value="Chemistry">Chemistry</option>
                                                 <option value="Mathematics">Mathematics</option>
                                                 <option value="Botany">Botany</option>
                                                 <option value="Zoology">Zoology</option>
-                                                <option value="Biology">Biology (Combined)</option>
-                                            </>
-                                        )}
-                                    </select>
-                                )}
+                                                <option value="Biology">Biology (Combined Botany + Zoology)</option>
+                                            </optgroup>
+                                            <optgroup label="Mixed / Multi-Subject Assessments">
+                                                <option value="PCM">Mixed (PCM: Physics + Chemistry + Maths)</option>
+                                                <option value="PCB">Mixed (PCB: Physics + Chemistry + Biology)</option>
+                                                <option value="PCMB">Mixed (PCMB: Physics + Chemistry + Maths + Biology)</option>
+                                                <option value="Physics,Chemistry">Mixed (Physics + Chemistry)</option>
+                                                <option value="Physics,Mathematics">Mixed (Physics + Maths)</option>
+                                                <option value="Chemistry,Biology">Mixed (Chemistry + Biology)</option>
+                                            </optgroup>
+                                        </>
+                                    )}
+                                </select>
                             </div>
 
                             {/* Duration (Manual Input Only) */}

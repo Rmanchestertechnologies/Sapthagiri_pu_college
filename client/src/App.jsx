@@ -70,6 +70,11 @@ function App() {
                                 <AdminDashboard />
                             </ProtectedRoute>
                         } />
+                        <Route path="/admin/create-paper" element={
+                            <ProtectedRoute role="admin">
+                                <CreatePaper />
+                            </ProtectedRoute>
+                        } />
                         <Route path="/admin/bridge" element={
                             <ProtectedRoute role="admin">
                                 <BridgeApp />

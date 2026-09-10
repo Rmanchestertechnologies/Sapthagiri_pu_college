@@ -8,7 +8,7 @@
  * - S Set: Maximum shuffle (shuffled questions, shuffled options) with recalculated answer keys.
  */
 
-import { getResolvedAnswerLabel } from './sanitize.js';
+import { getResolvedAnswerLabel, getQuestionOptionLabels, parseAnswerIndices } from './sanitize.js';
 
 // Seeded pseudo-random number generator for deterministic shuffling per paper ID + set name
 function createSeededRandom(seedStr) {
@@ -49,25 +49,8 @@ export function getOptionLetter(index) {
  * Convert answer representation ('A', 'B', 1, 2, or raw option text) to original option index 0-3
  */
 export function getAnswerIndex(answer, options = []) {
-    if (answer === null || answer === undefined || answer === '') return -1;
-    const ansStr = String(answer).trim().toUpperCase();
-
-    // Check letter 'A', 'B', 'C', 'D'
-    if (/^[A-D]$/.test(ansStr)) {
-        return ansStr.charCodeAt(0) - 65;
-    }
-    // Check 1-based number '1', '2', '3', '4'
-    if (/^[1-4]$/.test(ansStr)) {
-        return parseInt(ansStr, 10) - 1;
-    }
-    // Check option match by string content
-    const matchIdx = options.findIndex(opt => {
-        if (!opt) return false;
-        const cleanOpt = String(opt).trim().toLowerCase();
-        const cleanAns = String(answer).trim().toLowerCase();
-        return cleanOpt === cleanAns || cleanOpt.includes(cleanAns) || cleanAns.includes(cleanOpt);
-    });
-    return matchIdx;
+    const indices = parseAnswerIndices(answer, options);
+    return indices.length > 0 ? indices[0] : -1;
 }
 
 /**
@@ -79,13 +62,14 @@ function shuffleQuestionOptions(question, randomFn) {
         return {
             ...question,
             options: originalOptions,
-            originalAnswer: question.answer,
-            answer: question.answer,
+            originalAnswer: question.answer ?? question.correct_option ?? question.correctAnswer,
+            answer: question.answer ?? question.correct_option ?? question.correctAnswer,
         };
     }
 
-    const origAnsIdx = getAnswerIndex(question.answer, originalOptions);
-    const origAnsContent = origAnsIdx >= 0 ? originalOptions[origAnsIdx] : null;
+    const rawAns = question.answer ?? question.correct_option ?? question.correctAnswer;
+    const origAnsIndices = parseAnswerIndices(rawAns, originalOptions);
+    const origAnsContent = origAnsIndices.length > 0 ? originalOptions[origAnsIndices[0]] : null;
 
     // Create array of indexed options to track original positions
     const indexed = originalOptions.map((opt, i) => ({ opt, origIdx: i }));
@@ -94,21 +78,30 @@ function shuffleQuestionOptions(question, randomFn) {
     const newOptions = shuffledIndexed
         .filter(item => item && item.opt !== undefined)
         .map(item => item.opt);
-    let newAnsLetter = question.answer;
 
-    if (origAnsIdx >= 0) {
-        const newAnsIdx = shuffledIndexed.findIndex(item => item.origIdx === origAnsIdx);
-        if (newAnsIdx >= 0) {
-            newAnsLetter = getOptionLetter(newAnsIdx);
-        }
+    // Map the old indices to their new positions in shuffledIndexed
+    const newAnsIndices = origAnsIndices
+        .map(oldIdx => shuffledIndexed.findIndex(item => item.origIdx === oldIdx))
+        .filter(idx => idx >= 0)
+        .sort((a, b) => a - b);
+
+    // Get current option labels for this question (e.g. ['A', 'B', 'C', 'D'] or ['1', '2', '3', '4'])
+    const labels = getQuestionOptionLabels(question);
+    let newAnsLetter = rawAns;
+
+    if (newAnsIndices.length > 0) {
+        const mappedLabels = newAnsIndices.map(idx => labels[idx] || getOptionLetter(idx));
+        newAnsLetter = mappedLabels.join(', ');
     }
 
     return {
         ...question,
         options: newOptions,
-        originalAnswer: question.answer,
+        originalAnswer: rawAns,
         originalAnswerContent: origAnsContent,
         answer: newAnsLetter,
+        correctAnswer: newAnsLetter,
+        correct_option: newAnsIndices.length === 1 ? String(newAnsIndices[0] + 1) : newAnsIndices.map(i => i + 1).join(','),
         optionsShuffled: true,
     };
 }
@@ -120,25 +113,29 @@ export function generatePaperSet(paper, setName = 'P') {
     if (!paper) return null;
     const baseQuestions = Array.isArray(paper.questions) ? paper.questions : [];
     const paperId = paper._id || paper.id || 'qp-default';
-    const seed = `${paperId}-${setName}`;
+    const cleanSet = String(setName || 'P').toUpperCase();
+    const seed = `${paperId}-${cleanSet}`;
     const random = createSeededRandom(seed);
 
     let processedQuestions = [];
 
-    switch (setName.toUpperCase()) {
+    switch (cleanSet) {
         case 'P':
             // P Set: Normal original question and option order
             processedQuestions = baseQuestions.map((q, idx) => ({
                 ...q,
                 setQNo: idx + 1,
-                originalQNo: idx + 1,
+                originalQNo: q.originalQNo || (idx + 1),
             }));
             break;
 
         case 'Q':
-            // Q Set: Shuffle questions only, keep options original
+            // Q Set: Deterministic question permutation (seed Q), original options
             {
-                const indexed = baseQuestions.map((q, idx) => ({ ...q, originalQNo: idx + 1 }));
+                const indexed = baseQuestions.map((q, idx) => ({
+                    ...q,
+                    originalQNo: q.originalQNo || (idx + 1)
+                }));
                 const shuffled = shuffleArray(indexed, random);
                 processedQuestions = shuffled.map((q, idx) => ({
                     ...q,
@@ -148,22 +145,31 @@ export function generatePaperSet(paper, setName = 'P') {
             break;
 
         case 'R':
-            // R Set: Options shuffle only (questions remain in original order, answers recalculated)
-            processedQuestions = baseQuestions.map((q, idx) => {
-                const qWithShuffledOpts = shuffleQuestionOptions(q, random);
-                return {
-                    ...qWithShuffledOpts,
-                    setQNo: idx + 1,
-                    originalQNo: idx + 1,
-                };
-            });
+            // R Set: Deterministic question permutation (seed R) + option shuffling with recalculated answers
+            {
+                const indexed = baseQuestions.map((q, idx) => ({
+                    ...q,
+                    originalQNo: q.originalQNo || (idx + 1)
+                }));
+                const shuffledQs = shuffleArray(indexed, random);
+                processedQuestions = shuffledQs.map((q, idx) => {
+                    const qWithShuffledOpts = shuffleQuestionOptions(q, random);
+                    return {
+                        ...qWithShuffledOpts,
+                        setQNo: idx + 1,
+                    };
+                });
+            }
             break;
 
         case 'S':
         default:
-            // S Set: Both questions shuffled AND options shuffled (answers recalculated)
+            // S Set: Maximum shuffle: distinct question permutation (seed S) + distinct option permutation (answers recalculated)
             {
-                const indexed = baseQuestions.map((q, idx) => ({ ...q, originalQNo: idx + 1 }));
+                const indexed = baseQuestions.map((q, idx) => ({
+                    ...q,
+                    originalQNo: q.originalQNo || (idx + 1)
+                }));
                 const shuffledQs = shuffleArray(indexed, random);
                 processedQuestions = shuffledQs.map((q, idx) => {
                     const qWithShuffledOpts = shuffleQuestionOptions(q, random);
@@ -178,10 +184,10 @@ export function generatePaperSet(paper, setName = 'P') {
 
     return {
         ...paper,
-        setName: setName.toUpperCase(),
-        title: `${paper.title || 'Question Paper'} - SET ${setName.toUpperCase()}`,
+        setName: cleanSet,
+        title: `${paper.title || 'Question Paper'} - SET ${cleanSet}`,
         questions: processedQuestions,
-        answerKey: generateAnswerKey(processedQuestions, setName.toUpperCase()),
+        answerKey: generateAnswerKey(processedQuestions, cleanSet),
     };
 }
 

@@ -574,21 +574,48 @@ function getPoolForTarget(subject, klass = '12') {
 }
 
 function getPoolsForQuery(subject, klass) {
-    const normSub = normalizeSubject(subject);
-    const normKlass = normalizeClass(klass);
-
     const all = Array.from(pools.values());
-
     let filtered = all;
 
-    if (normSub) {
-        if (normSub === 'Botany' || normSub === 'Zoology' || normSub === 'Biology') {
-            filtered = filtered.filter(p => p.subject.toLowerCase() === 'biology');
-        } else {
-            filtered = filtered.filter(p => p.subject.toLowerCase() === normSub.toLowerCase());
+    if (subject) {
+        const subList = Array.isArray(subject)
+            ? subject
+            : String(subject).split(',').map(s => s.trim()).filter(Boolean);
+
+        const matchedSubjects = new Set();
+        subList.forEach(s => {
+            const raw = s.toUpperCase().trim();
+            if (raw === 'PCM') {
+                matchedSubjects.add('physics');
+                matchedSubjects.add('chemistry');
+                matchedSubjects.add('mathematics');
+            } else if (raw === 'PCB') {
+                matchedSubjects.add('physics');
+                matchedSubjects.add('chemistry');
+                matchedSubjects.add('biology');
+            } else if (raw === 'PCMB' || raw === 'MIXED' || raw === 'ALL' || raw === 'ALL SUBJECTS') {
+                matchedSubjects.add('physics');
+                matchedSubjects.add('chemistry');
+                matchedSubjects.add('mathematics');
+                matchedSubjects.add('biology');
+            } else {
+                const norm = normalizeSubject(s);
+                if (norm) {
+                    if (['Botany', 'Zoology', 'Biology'].includes(norm)) {
+                        matchedSubjects.add('biology');
+                    } else {
+                        matchedSubjects.add(norm.toLowerCase());
+                    }
+                }
+            }
+        });
+
+        if (matchedSubjects.size > 0) {
+            filtered = filtered.filter(p => matchedSubjects.has(p.subject.toLowerCase()));
         }
     }
 
+    const normKlass = normalizeClass(klass);
     if (normKlass && normKlass !== 'both') {
         filtered = filtered.filter(p => p.klass === normKlass);
     }
