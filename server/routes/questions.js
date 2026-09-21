@@ -177,10 +177,16 @@ router.get('/meta', [auth, checkRole(['admin', 'teacher'])], async (req, res) =>
         const subject = req.query.subject || (req.user.role === 'teacher' ? req.user.subject : '');
         const klass = req.query.class || req.query.classes || null;
         const meta = await supabaseQuestions.getSubjectMetadata(subject, klass);
-        res.json(meta);
+// @route   GET /api/questions/daily-stats
+// @desc    Get daily stats of questions added today across all subjects
+// @access  Teacher / Admin
+router.get('/daily-stats', [auth, checkRole(['admin', 'teacher'])], async (req, res) => {
+    try {
+        const stats = await supabaseQuestions.getDailyQuestionStats();
+        res.json(stats);
     } catch (err) {
-        console.error('[QUESTIONS META] error:', err.message);
-        res.status(500).json({ msg: 'Server error fetching question metadata.' });
+        console.error('[QUESTIONS DAILY-STATS] error:', err.message);
+        res.status(500).json({ msg: 'Server error fetching daily question stats.' });
     }
 });
 

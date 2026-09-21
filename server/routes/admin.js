@@ -6,6 +6,7 @@ const User = require('../models/User');
 const pool = require('../config/postgres');
 const auth = require('../middleware/auth');
 const checkRole = require('../middleware/role');
+const supabaseQuestions = require('../services/supabaseQuestions');
 
 // ─────────────────────────────────────────────────────────────────────────────
 // @route   GET /api/admin
@@ -342,9 +343,18 @@ router.patch('/teachers/:id/omr-access', [auth, checkRole(['admin'])], async (re
                 omr_access: Boolean(updatedUser.omr_access)
             }
         });
+// ─────────────────────────────────────────────────────────────────────────────
+// @route   GET /api/admin/questions-daily-stats
+// @desc    Get live daily stats on questions added today, timeline, and breakdown
+// @access  Admin
+// ─────────────────────────────────────────────────────────────────────────────
+router.get('/questions-daily-stats', [auth, checkRole(['admin'])], async (req, res) => {
+    try {
+        const stats = await supabaseQuestions.getDailyQuestionStats();
+        return res.json(stats);
     } catch (err) {
-        console.error('[ADMIN] Error updating OMR access:', err.message);
-        return res.status(500).json({ msg: 'Server error updating OMR access.' });
+        console.error('[ADMIN] Error fetching daily question stats:', err.message);
+        return res.status(500).json({ msg: 'Server error fetching daily question stats.' });
     }
 });
 

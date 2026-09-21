@@ -16,6 +16,7 @@ import PaperAnalysisModal from '../../components/PaperAnalysisModal';
 import MathRenderer from '../../components/MathRenderer';
 import TeacherOmr from '../teacher/omr/TeacherOmr';
 import CreatePaper from '../teacher/CreatePaper';
+import AdminDailyQuestionsWidget from '../../components/AdminDailyQuestionsWidget';
 import api from '../../api';
 
 const DashboardHome = () => {
@@ -1290,6 +1291,9 @@ const AdminDashboard = () => {
                     <Route path="assignments/:subject" element={<AdminAssignmentWrapper />} />
                 </Routes>
             </div>
+
+            {/* ── LIVE DAILY QUESTION INGESTION WIDGET (LEFT CORNER) ── */}
+            <AdminDailyQuestionsWidget />
         </div>
     );
 };

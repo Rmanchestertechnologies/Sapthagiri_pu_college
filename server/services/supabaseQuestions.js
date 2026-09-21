@@ -116,15 +116,18 @@ function mapSupabaseToQuestion(row, usageMap = null) {
 
     const options = rawOptions.map(cleanDifficultyTags).filter(Boolean);
 
-    // Skip true/false questions completely (by type, option values, or columns)
-    const isTF = (
-        qTypeLower.includes('true') || 
-        qTypeLower.includes('false') || 
-        qTypeLower.includes('tf') ||
-        (options.length <= 2 && options.some(o => /^(true|false)$/i.test(String(o).trim()))) ||
-        (/^(true|false)$/i.test(String(row.opt_a || '').trim()) && /^(true|false)$/i.test(String(row.opt_b || '').trim()))
+    // Skip only strictly binary true/false format questions (2 options where options are strictly True & False)
+    const isStrictTF = (
+        qTypeLower === 'true_false' ||
+        qTypeLower === 'tf' ||
+        (options.length === 2 && 
+            options.some(o => /^true$/i.test(String(o).trim())) && 
+            options.some(o => /^false$/i.test(String(o).trim()))
+        ) ||
+        (/^true$/i.test(String(row.opt_a || '').trim()) && /^false$/i.test(String(row.opt_b || '').trim()) && !row.opt_c && !row.opt_d) ||
+        (/^false$/i.test(String(row.opt_a || '').trim()) && /^true$/i.test(String(row.opt_b || '').trim()) && !row.opt_c && !row.opt_d)
     );
-    if (isTF) return null;
+    if (isStrictTF) return null;
 
     // Smart Question Type Auto-Classification
     let type = 'MCQ';
@@ -470,8 +473,9 @@ async function getQuestions(filters = {}, page = 1, limit = 50) {
     const requestedLimit = Math.max(1, Math.min(20000, Number(limit) || 50));
     const requestedPage = Math.max(1, Number(page) || 1);
     const offset = (requestedPage - 1) * requestedLimit;
-
-    const targetPoolEntries = getPoolsForQuery(filters.subject, filters.classes);
+    // If a chapter filter is provided, query all class pools for that subject so chapters from any class level are never missed
+    const effectiveClasses = filters.chapter ? 'Both' : filters.classes;
+    const targetPoolEntries = getPoolsForQuery(filters.subject, effectiveClasses);
     const { whereClauses, values } = buildQueryFilters(filters);
     const whereSql = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
 
@@ -603,7 +607,7 @@ async function getQuestions(filters = {}, page = 1, limit = 50) {
             }
         }
 
-        const mappedQuestions = mergedRows.map(r => mapSupabaseToQuestion(r, usageMap));
+        const mappedQuestions = mergedRows.map(r => mapSupabaseToQuestion(r, usageMap)).filter(Boolean);
 
         return {
             questions: mappedQuestions,
@@ -1169,12 +1173,117 @@ async function deleteQuestion(id) {
     return true;
 }
 
+/**
+ * Fast multi-pool daily question addition statistics for Admin Overview
+ */
+async function getDailyQuestionStats() {
+    const all = getAllPools();
+    const results = await Promise.allSettled(
+        all.map(async (entry) => {
+            try {
+                const todayRes = await entry.pool.query(`
+                    SELECT count(*)::bigint as count
+                    FROM public.questions
+                    WHERE created_at >= CURRENT_DATE;
+                `);
+
+                const yesterdayRes = await entry.pool.query(`
+                    SELECT count(*)::bigint as count
+                    FROM public.questions
+                    WHERE created_at >= CURRENT_DATE - INTERVAL '1 day' AND created_at < CURRENT_DATE;
+                `);
+
+                const totalRes = await entry.pool.query(`
+                    SELECT count(*)::bigint as count FROM public.questions;
+                `);
+
+                const dailyRes = await entry.pool.query(`
+                    SELECT 
+                        to_char(created_at::date, 'YYYY-MM-DD') as date,
+                        count(*)::bigint as count
+                    FROM public.questions
+                    WHERE created_at >= CURRENT_DATE - INTERVAL '14 days'
+                    GROUP BY created_at::date
+                    ORDER BY date DESC;
+                `);
+
+                return {
+                    key: entry.key,
+                    name: entry.name,
+                    subject: entry.subject,
+                    klass: entry.klass,
+                    total: parseInt(totalRes.rows[0]?.count || 0, 10),
+                    today: parseInt(todayRes.rows[0]?.count || 0, 10),
+                    yesterday: parseInt(yesterdayRes.rows[0]?.count || 0, 10),
+                    dailyHistory: dailyRes.rows.map(r => ({ date: r.date, count: parseInt(r.count, 10) }))
+                };
+            } catch (err) {
+                console.error(`[DAILY STATS ERROR - ${entry.name}]:`, err.message);
+                return {
+                    key: entry.key,
+                    name: entry.name,
+                    subject: entry.subject,
+                    klass: entry.klass,
+                    total: 0,
+                    today: 0,
+                    yesterday: 0,
+                    dailyHistory: []
+                };
+            }
+        })
+    );
+
+    const poolStats = results.map(r => r.status === 'fulfilled' ? r.value : null).filter(Boolean);
+
+    const totalQuestions = poolStats.reduce((sum, p) => sum + p.total, 0);
+    const addedToday = poolStats.reduce((sum, p) => sum + p.today, 0);
+    const addedYesterday = poolStats.reduce((sum, p) => sum + p.yesterday, 0);
+
+    const subjectsToday = {
+        Physics: 0,
+        Chemistry: 0,
+        Mathematics: 0,
+        Biology: 0
+    };
+    poolStats.forEach(p => {
+        const sub = p.subject;
+        if (subjectsToday[sub] !== undefined) {
+            subjectsToday[sub] += p.today;
+        } else {
+            subjectsToday[sub] = p.today;
+        }
+    });
+
+    const dailyMap = new Map();
+    poolStats.forEach(p => {
+        p.dailyHistory.forEach(dh => {
+            const current = dailyMap.get(dh.date) || 0;
+            dailyMap.set(dh.date, current + dh.count);
+        });
+    });
+
+    const dailyTimeline = Array.from(dailyMap.entries())
+        .map(([date, count]) => ({ date, count }))
+        .sort((a, b) => b.date.localeCompare(a.date));
+
+    return {
+        totalQuestions,
+        addedToday,
+        addedYesterday,
+        subjectsToday,
+        dailyTimeline,
+        pools: poolStats,
+        fetchedAt: new Date().toISOString()
+    };
+}
+
 module.exports = {
     getQuestions,
     getQuestionById,
     getQuestionsByIds,
     getQuestionsWithChapterQuotas,
     getSubjectMetadata,
+    getDailyQuestionStats,
     recordQuestionUsage,
     createQuestion,
     updateQuestion,

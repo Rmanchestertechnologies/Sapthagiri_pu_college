@@ -88,7 +88,7 @@ export default function CreatePaper() {
     // Step 1: Mode & Academic Metadata
     const [paperCategory, setPaperCategory] = useState(initialCategory);
     const [subject, setSubject] = useState(user?.subject || 'Physics');
-    const [selectedClass, setSelectedClass] = useState('12');
+    const [selectedClass, setSelectedClass] = useState('Both');
     const [examType, setExamType] = useState('CET');
     const [title, setTitle] = useState('');
     const [duration, setDuration] = useState('180 Minutes');
@@ -120,9 +120,6 @@ export default function CreatePaper() {
     const [selectedQuestions, setSelectedQuestions] = useState([]);
     const [loadingQuestions, setLoadingQuestions] = useState(false);
     const [activeTemplate, setActiveTemplate] = useState(null);
-
-    // In-memory Questions Cache by subject + chapter
-    const questionsCache = useRef({});
 
     // Question Swap Mode State
     const [swappingQuestionIndex, setSwappingQuestionIndex] = useState(null);
@@ -280,17 +277,11 @@ export default function CreatePaper() {
         fetchPaperDetails();
     }, [paperId]);
 
-    // ── 2. HIGH-SPEED QUESTIONS POOL FETCH WITH IN-MEMORY CACHE ──
+    // ── 2. HIGH-SPEED QUESTIONS POOL FETCH (Always fetches fresh live data) ──
     const fetchQuestionsPool = async (forceSubject = subject, forceClass = selectedClass, forceSources = selectedSources) => {
         if (!forceSubject) return;
 
         const cleanClass = forceClass === 'Both' ? '' : forceClass;
-        const sourceKey = (forceSources || ['subject', 'qbp_control']).sort().join('_');
-        const cacheKey = `${forceSubject.trim().toLowerCase()}_${cleanClass || 'all'}_${sourceKey}`;
-        if (questionsCache.current[cacheKey] && questionsCache.current[cacheKey].length > 0) {
-            setAvailableQuestions(questionsCache.current[cacheKey]);
-            return;
-        }
 
         setLoadingQuestions(true);
         try {
@@ -306,12 +297,11 @@ export default function CreatePaper() {
             const qs = rawQs.filter(q => {
                 if (!q) return false;
                 const typeStr = (q.type || q.q_type || '').toLowerCase();
-                if (typeStr.includes('true') || typeStr.includes('false') || typeStr.includes('tf')) return false;
+                if (typeStr === 'true_false' || typeStr === 'true/false' || typeStr === 'tf') return false;
                 const opts = Array.isArray(q.options) ? q.options : [];
-                if (opts.length <= 2 && opts.some(o => /^(true|false)$/i.test(String(typeof o === 'object' ? (o.text || o.option || '') : o).trim()))) return false;
+                if (opts.length === 2 && opts.every(o => /^(true|false)$/i.test(String(typeof o === 'object' ? (o.text || o.option || '') : o).trim()))) return false;
                 return true;
             });
-            questionsCache.current[cacheKey] = qs;
             setAvailableQuestions(qs);
         } catch (err) {
             console.error('Error fetching questions pool:', err);
@@ -561,8 +551,11 @@ export default function CreatePaper() {
             const isAlreadySelected = selectedQuestions.some(sq => (sq._id || sq.id) === (q._id || q.id));
             if (isAlreadySelected) return true;
 
-            // Class check (permissive: JEE/NEET/CET entrance questions match all high school classes)
-            if (selectedClass && selectedClass !== 'Both' && q.classes && q.classes.length > 0) {
+            // Chapter check: if specific chapters are selected, require matching chapter
+            if (selectedChapters.length > 0) {
+                if (!selectedChapters.includes(q.chapter) && q.chapter !== 'General') return false;
+            } else if (selectedClass && selectedClass !== 'Both' && q.classes && q.classes.length > 0) {
+                // If no specific chapters are selected, apply class filter
                 const isGeneralOrEntrance = q.classes.some(c => {
                     const str = String(c).toLowerCase();
                     return str.includes('jee') || str.includes('neet') || str.includes('cet') || str.includes('general');
@@ -576,11 +569,6 @@ export default function CreatePaper() {
                     });
                     if (!matchesClass) return false;
                 }
-            }
-
-            // Chapter check
-            if (selectedChapters.length > 0) {
-                if (!selectedChapters.includes(q.chapter) && q.chapter !== 'General') return false;
             }
 
             // Concept check
