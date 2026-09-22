@@ -107,6 +107,55 @@ function shuffleQuestionOptions(question, randomFn) {
 }
 
 /**
+ * Helper to group questions by section/subject and apply permutation within each section
+ */
+function applySectionAwareTransform(baseQuestions, transformFn) {
+    if (!Array.isArray(baseQuestions) || baseQuestions.length === 0) return [];
+
+    // Identify sections / subjects in order
+    const sectionMap = new Map();
+    baseQuestions.forEach((q, idx) => {
+        const key = q.sectionName || q.subject || 'Default';
+        if (!sectionMap.has(key)) {
+            sectionMap.set(key, []);
+        }
+        sectionMap.get(key).push({
+            ...q,
+            originalQNo: q.originalQNo || (idx + 1)
+        });
+    });
+
+    // If only 1 section, just transform all
+    if (sectionMap.size <= 1) {
+        const transformed = transformFn(baseQuestions.map((q, idx) => ({
+            ...q,
+            originalQNo: q.originalQNo || (idx + 1)
+        })));
+        return transformed.map((q, idx) => ({
+            ...q,
+            setQNo: idx + 1
+        }));
+    }
+
+    // Multiple sections: transform within each section and maintain section order
+    let runningIdx = 1;
+    const finalQuestions = [];
+
+    for (const [secKey, secQuestions] of sectionMap.entries()) {
+        const transformedSec = transformFn(secQuestions);
+        transformedSec.forEach(q => {
+            finalQuestions.push({
+                ...q,
+                sectionName: q.sectionName || secKey,
+                setQNo: runningIdx++
+            });
+        });
+    }
+
+    return finalQuestions;
+}
+
+/**
  * Generate a specific set ('P', 'Q', 'R', 'S') from a base paper
  */
 export function generatePaperSet(paper, setName = 'P') {
@@ -122,63 +171,31 @@ export function generatePaperSet(paper, setName = 'P') {
     switch (cleanSet) {
         case 'P':
             // P Set: Normal original question and option order
-            processedQuestions = baseQuestions.map((q, idx) => ({
-                ...q,
-                setQNo: idx + 1,
-                originalQNo: q.originalQNo || (idx + 1),
-            }));
+            processedQuestions = applySectionAwareTransform(baseQuestions, (qs) => qs);
             break;
 
         case 'Q':
-            // Q Set: Deterministic question permutation (seed Q), original options
-            {
-                const indexed = baseQuestions.map((q, idx) => ({
-                    ...q,
-                    originalQNo: q.originalQNo || (idx + 1)
-                }));
-                const shuffled = shuffleArray(indexed, random);
-                processedQuestions = shuffled.map((q, idx) => ({
-                    ...q,
-                    setQNo: idx + 1,
-                }));
-            }
+            // Q Set: Deterministic question permutation (seed Q) within each section, original options
+            processedQuestions = applySectionAwareTransform(baseQuestions, (qs) => {
+                return shuffleArray(qs, random);
+            });
             break;
 
         case 'R':
-            // R Set: Deterministic question permutation (seed R) + option shuffling with recalculated answers
-            {
-                const indexed = baseQuestions.map((q, idx) => ({
-                    ...q,
-                    originalQNo: q.originalQNo || (idx + 1)
-                }));
-                const shuffledQs = shuffleArray(indexed, random);
-                processedQuestions = shuffledQs.map((q, idx) => {
-                    const qWithShuffledOpts = shuffleQuestionOptions(q, random);
-                    return {
-                        ...qWithShuffledOpts,
-                        setQNo: idx + 1,
-                    };
-                });
-            }
+            // R Set: Question permutation (seed R) within section + option shuffling with recalculated answers
+            processedQuestions = applySectionAwareTransform(baseQuestions, (qs) => {
+                const shuffledQs = shuffleArray(qs, random);
+                return shuffledQs.map(q => shuffleQuestionOptions(q, random));
+            });
             break;
 
         case 'S':
         default:
-            // S Set: Maximum shuffle: distinct question permutation (seed S) + distinct option permutation (answers recalculated)
-            {
-                const indexed = baseQuestions.map((q, idx) => ({
-                    ...q,
-                    originalQNo: q.originalQNo || (idx + 1)
-                }));
-                const shuffledQs = shuffleArray(indexed, random);
-                processedQuestions = shuffledQs.map((q, idx) => {
-                    const qWithShuffledOpts = shuffleQuestionOptions(q, random);
-                    return {
-                        ...qWithShuffledOpts,
-                        setQNo: idx + 1,
-                    };
-                });
-            }
+            // S Set: Maximum shuffle: distinct question permutation (seed S) within section + distinct option permutation (answers recalculated)
+            processedQuestions = applySectionAwareTransform(baseQuestions, (qs) => {
+                const shuffledQs = shuffleArray(qs, random);
+                return shuffledQs.map(q => shuffleQuestionOptions(q, random));
+            });
             break;
     }
 

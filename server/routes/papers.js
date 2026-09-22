@@ -86,7 +86,7 @@ router.post('/', [auth, checkRole(['admin', 'teacher'])], async (req, res) => {
         const { examId, ...rest } = req.body;
         const paperData = {
             ...rest,
-            subject: req.user.role === 'admin' ? (req.body.subject || 'Physics') : (req.user.subject || 'Physics'),
+            subject: req.body.subject || (req.user.role === 'admin' ? 'Physics' : req.user.subject),
             teacherId: req.user.id,
             examId: examId || null
         };
