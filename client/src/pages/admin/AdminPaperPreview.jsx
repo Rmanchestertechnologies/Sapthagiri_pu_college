@@ -309,7 +309,7 @@ const AdminPaperPreview = () => {
             {showSolutionsModal && (
                 <A4SolutionKey
                     paper={selectedPaper}
-                    questions={currentPaperSet?.questions || selectedPaper?.questions || []}
+                    questions={selectedPaper?.questions || []}
                     startQNo={settings?.startQNo || 1}
                     setName={activeSet}
                     onClose={() => setShowSolutionsModal(false)}

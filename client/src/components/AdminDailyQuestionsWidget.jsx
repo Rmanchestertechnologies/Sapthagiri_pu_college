@@ -37,10 +37,12 @@ export default function AdminDailyQuestionsWidget() {
         return () => clearInterval(interval);
     }, [fetchStats]);
 
+    const totalQuestions = stats?.totalQuestions ?? 0;
     const addedToday = stats?.addedToday ?? stats?.today?.total ?? 0;
     const addedYesterday = stats?.addedYesterday ?? stats?.yesterday?.total ?? 0;
     const subjectsToday = stats?.subjectsToday ?? stats?.today?.bySubject ?? {};
     const history = stats?.dailyTimeline ?? stats?.history ?? [];
+    const poolStats = stats?.databases || stats?.poolBreakdown || [];
 
     return (
         <>
@@ -49,7 +51,7 @@ export default function AdminDailyQuestionsWidget() {
                 <button
                     onClick={() => setIsOpen(prev => !prev)}
                     className="group flex items-center gap-3 bg-gradient-to-r from-slate-900 via-[#081B3B] to-slate-900 text-white px-4 py-2.5 rounded-2xl border-2 border-amber-400/60 shadow-[0_10px_25px_rgba(0,0,0,0.5)] hover:border-amber-400 hover:shadow-amber-400/20 transition-all duration-300 transform hover:-translate-y-0.5 cursor-pointer backdrop-blur-xl"
-                    title="Click to view daily questions added tracker"
+                    title="Click to view total questions in DB & daily addition tracker"
                 >
                     <div className="relative flex items-center justify-center">
                         <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
@@ -57,12 +59,22 @@ export default function AdminDailyQuestionsWidget() {
                     </div>
 
                     <div className="flex flex-col text-left leading-tight">
-                        <span className="text-[10px] font-black uppercase tracking-wider text-amber-300">
-                            Questions Added Today:
-                        </span>
-                        <span className="text-sm font-black text-emerald-400">
-                            +{addedToday.toLocaleString()} <span className="text-[10px] font-semibold text-slate-300">Added</span>
-                        </span>
+                        <div className="flex items-center gap-1.5">
+                            <span className="text-[10px] font-black uppercase tracking-wider text-amber-300">
+                                Total Questions:
+                            </span>
+                            <span className="text-xs font-black text-white">
+                                {totalQuestions.toLocaleString()}
+                            </span>
+                        </div>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                            <span className="text-[10px] font-bold text-slate-300">
+                                Added Today:
+                            </span>
+                            <span className="text-xs font-black text-emerald-400">
+                                +{addedToday.toLocaleString()}
+                            </span>
+                        </div>
                     </div>
 
                     <div className="pl-1 text-slate-400 group-hover:text-amber-300 transition text-xs font-bold">
@@ -86,10 +98,10 @@ export default function AdminDailyQuestionsWidget() {
                                 </div>
                                 <div>
                                     <h3 className="text-sm font-black uppercase tracking-wider text-amber-400">
-                                        Questions Added Today & Daily Tracker
+                                        Database & Daily Deposit Overview
                                     </h3>
                                     <p className="text-[11px] text-slate-400 font-medium">
-                                        Live daily question deposit tracking
+                                        Live institutional question count & deposits
                                     </p>
                                 </div>
                             </div>
@@ -113,6 +125,17 @@ export default function AdminDailyQuestionsWidget() {
 
                         {/* Scrollable Content */}
                         <div className="flex-1 overflow-y-auto py-4 space-y-4 pr-1 custom-scrollbar">
+                            {/* Total Questions in Database Banner */}
+                            <div className="bg-gradient-to-r from-amber-500/20 via-navy/40 to-amber-500/10 border-2 border-amber-400/50 rounded-2xl p-4 text-center">
+                                <div className="text-[11px] uppercase font-black text-amber-300 tracking-wider">Total Questions in Database</div>
+                                <div className="text-3xl font-black text-white mt-1">
+                                    {totalQuestions.toLocaleString()} <span className="text-sm font-bold text-amber-300">Questions</span>
+                                </div>
+                                <div className="text-[10px] text-slate-300 mt-1">
+                                    Across all 8 Class 11 & 12 Subject Databases
+                                </div>
+                            </div>
+
                             {/* Key Numbers Grid (Today & Yesterday) */}
                             <div className="grid grid-cols-2 gap-3">
                                 <div className="bg-emerald-950/40 border border-emerald-500/30 rounded-2xl p-4 text-center">
@@ -161,6 +184,33 @@ export default function AdminDailyQuestionsWidget() {
                                     </div>
                                 </div>
                             </div>
+                            {/* Database Pools Breakdown */}
+                            {poolStats.length > 0 && (
+                                <div className="bg-white/5 rounded-2xl p-4 border border-white/10">
+                                    <h4 className="text-xs font-black uppercase tracking-wider text-amber-300 mb-3 flex items-center justify-between">
+                                        <span>8 Database Pools Status</span>
+                                        <span className="text-[10px] font-normal text-slate-400">Class 11 & 12</span>
+                                    </h4>
+                                    <div className="grid grid-cols-2 gap-2 text-xs">
+                                        {poolStats.map((p) => (
+                                            <div key={p.key} className="flex items-center justify-between p-2 rounded-xl bg-white/5 border border-white/10">
+                                                <div>
+                                                    <span className="font-bold text-slate-200 block text-[11px]">{p.name || p.subject}</span>
+                                                    <span className="text-[9px] text-slate-400">Class {p.klass}</span>
+                                                </div>
+                                                <div className="text-right">
+                                                    <span className="font-black text-amber-300 block text-[11px]">{p.total?.toLocaleString() || 0}</span>
+                                                    {p.today > 0 ? (
+                                                        <span className="text-[9px] font-bold text-emerald-400">+{p.today} today</span>
+                                                    ) : (
+                                                        <span className="text-[9px] text-slate-500">0 today</span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
 
                             {/* Daily Timeline (Last 14 Days) */}
                             <div className="bg-white/5 rounded-2xl p-4 border border-white/10">

@@ -418,9 +418,42 @@ function parseAssertionReason(q) {
     };
 }
 
-function cleanQuestionText(text) {
+export function cleanOptionText(text) {
     if (!text) return '';
-    return String(text).replace(/^(\s*(?:Q\.?\s*)?\d+[\.\)\-:]\s*)+/i, '').trim();
+    let str = String(text).trim();
+    // Strip leading duplicate option indicators like (A), (1), A., 1., (a), (i), etc.
+    // ONLY if followed by actual option content (don't strip if option itself is just "1" or "A")
+    str = str.replace(/^(\s*[\(\[]?(?:[A-Da-d]|[1-4])[\)\]\.:\-]\s+)(?=\S)/i, '');
+    return str.trim();
+}
+
+export function cleanQuestionText(text) {
+    if (!text) return '';
+    let str = String(text);
+
+    // 1. Strip leading question numbers e.g. "1.", "Q.1.", "Q 1:"
+    str = str.replace(/^(\s*(?:Q\.?\s*)?\d+[\.\)\-:]\s*)+/i, '');
+
+    // 2. Strip internal metadata tags
+    str = str.replace(/\[(?:QPV_|QBP_)?DIFFICULTY:\s*[^\]]+\]/gi, '');
+    str = str.replace(/\[(?:QPV|QBP)_[A-Za-z0-9_]+:[^\]]*\]/gi, '');
+
+    // 3. Strip trailing leaked exam/year tags like "[JEE Advanced 2020]", "JEE Advanced 2023", "[NEET 2021]", "[MHT-CET 2023]"
+    str = str.replace(/\s*\[\s*(?:JEE|NEET|CET|AIPMT|CBSE|KCET|BITSAT|AIIMS|MHT-?CET|IIT|ADVANCED|MAIN)[\s\w\-,\(\)]*\d{4}\s*\]\s*$/i, '');
+    str = str.replace(/\s*(?:JEE\s*(?:\(Advanced\)|\(Main\)|Advanced|Main)?|NEET|KCET|MHT-?CET|AIPMT|AIIMS)\s*\(?\d{4}\)?\s*$/i, '');
+    str = str.replace(/\s*\[\s*\d{4}\s*\]\s*$/i, '');
+    str = str.replace(/\s*\(\s*\d{4}\s*\)\s*$/i, '');
+
+    // 4. Strip trailing marks indicators like "[1 Mark]", "[4 Marks]", "[1]"
+    str = str.replace(/\s*\[\s*\d+\s*(?:Marks?|M)?\s*\]\s*$/i, '');
+
+    // 5. Strip trailing leaked options like "\n(A) 2/3\n(B) 1/3\n(C) 1/2\n(D) 3/2"
+    str = str.replace(/(?:\r?\n|\s{2,})\(?[A-Da-d1-4]\)[\s\S]*$/i, '');
+
+    // 6. Strip trailing isolated newline numbers like "\n1" or "\n 2"
+    str = str.replace(/(?:\r?\n)\s*\d{1,2}\s*$/i, '');
+
+    return str.trim();
 }
 
 /**
@@ -494,7 +527,8 @@ function BodyMCQ({ q, classes, isTwoCol, diagramMaxHeight = '180px', onDiagramRe
                 }
             >
                 {options.map((opt, i) => {
-                    const optText = typeof opt === 'object' ? (opt.text || opt.optionText || opt.value || opt.option || '') : String(opt || '');
+                    const rawOpt = typeof opt === 'object' ? (opt.text || opt.optionText || opt.value || opt.option || '') : String(opt || '');
+                    const optText = cleanOptionText(rawOpt);
                     const optHeight = q.customDiagramSizes?.[`opt_${i}`] || q.customOptionDiagramHeight || '60px';
 
                     return (
@@ -668,7 +702,7 @@ function BodyAssertionReason({ q, classes, isTwoCol, diagramMaxHeight = '180px',
                     <div key={i} style={Q.optRow}>
                         <span style={Q.optLbl}>({optionLabel(i, classes)})</span>
                         <span style={{ flex: 1, minWidth: 0, maxWidth: '100%', fontWeight: 400 }}>
-                            <MathRenderer inline text={typeof opt === 'object' ? (opt.text || opt.option || '') : opt} />
+                            <MathRenderer inline text={cleanOptionText(typeof opt === 'object' ? (opt.text || opt.option || '') : opt)} />
                         </span>
                     </div>
                 ))}
@@ -951,7 +985,7 @@ function BodyMatchFollowing({ q, classes, isTwoCol, diagramMaxHeight = '180px', 
                             <div key={i} style={Q.optRow}>
                                 <span style={Q.optLbl}>({labels[i] || optionLabel(i, classes)})</span>
                                 <span style={{ flex: 1, minWidth: 0, maxWidth: '100%', fontWeight: 400 }}>
-                                    <MathRenderer inline text={typeof opt === 'object' ? (opt.text || opt.option || '') : opt} />
+                                    <MathRenderer inline text={cleanOptionText(typeof opt === 'object' ? (opt.text || opt.option || '') : opt)} />
                                 </span>
                             </div>
                         );
@@ -1030,7 +1064,7 @@ function BodyStatementBased({ q, classes, isTwoCol, diagramMaxHeight = '180px', 
                         <div key={i} style={Q.optRow}>
                             <span style={Q.optLbl}>({labels[i] || optionLabel(i, classes)})</span>
                             <span style={{ flex: 1, minWidth: 0, maxWidth: '100%', fontWeight: 400 }}>
-                                <MathRenderer inline text={typeof opt === 'object' ? (opt.text || opt.option || '') : opt} />
+                                <MathRenderer inline text={cleanOptionText(typeof opt === 'object' ? (opt.text || opt.option || '') : opt)} />
                             </span>
                         </div>
                     ))}

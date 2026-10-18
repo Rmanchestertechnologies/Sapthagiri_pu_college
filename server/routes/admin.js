@@ -343,6 +343,11 @@ router.patch('/teachers/:id/omr-access', [auth, checkRole(['admin'])], async (re
                 omr_access: Boolean(updatedUser.omr_access)
             }
         });
+    } catch (err) {
+        console.error('[ADMIN] Error updating OMR access:', err.message);
+        return res.status(500).json({ msg: 'Server error updating OMR access.' });
+    }
+});
 // ─────────────────────────────────────────────────────────────────────────────
 // @route   GET /api/admin/questions-daily-stats
 // @desc    Get live daily stats on questions added today, timeline, and breakdown

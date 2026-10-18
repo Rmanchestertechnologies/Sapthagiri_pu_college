@@ -53,6 +53,11 @@ function cleanDifficultyTags(text) {
     return text
         .replace(/\[(?:QPV_|QBP_)?DIFFICULTY:\s*[^\]]+\]/gi, '')
         .replace(/\[(?:QPV|QBP)_[A-Za-z0-9_]+:[^\]]*\]/gi, '')
+        .replace(/\s*\[\s*(?:JEE|NEET|CET|AIPMT|CBSE|KCET|BITSAT|AIIMS|MHT-?CET|IIT|ADVANCED|MAIN)[\s\w\-,\(\)]*\d{4}\s*\]\s*$/i, '')
+        .replace(/\s*(?:JEE\s*(?:\(Advanced\)|\(Main\)|Advanced|Main)?|NEET|KCET|MHT-?CET|AIPMT|AIIMS)\s*\(?\d{4}\)?\s*$/i, '')
+        .replace(/\s*\[\s*\d{4}\s*\]\s*$/i, '')
+        .replace(/\s*\(\s*\d{4}\s*\)\s*$/i, '')
+        .replace(/\s*\[\s*\d+\s*(?:Marks?|M)?\s*\]\s*$/i, '')
         .trim();
 }
 

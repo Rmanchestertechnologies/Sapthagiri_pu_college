@@ -413,13 +413,19 @@ export default function CreatePaper() {
     }, [paperId]);
 
     // ── 2. HIGH-SPEED QUESTIONS POOL FETCH ──
-    const fetchQuestionsPoolForSubject = async (subToFetch, forceClass = selectedClass, forceSources = selectedSources) => {
+    const fetchQuestionsPoolForSubject = async (subToFetch, forceClass = selectedClass, forceSources = selectedSources, forceChapters = null) => {
         if (!subToFetch) return [];
         const cleanClass = forceClass === 'Both' ? '' : forceClass;
+        const currentChs = forceChapters !== null ? forceChapters : (subjectSelections[subToFetch]?.chapters || []);
 
         setLoadingQuestions(true);
         try {
-            let url = `/api/questions?subject=${encodeURIComponent(subToFetch)}&limit=25000`;
+            let url = `/api/questions?subject=${encodeURIComponent(subToFetch)}`;
+            if (currentChs && currentChs.length > 0) {
+                url += `&chapter=${encodeURIComponent(currentChs.join(','))}&limit=10000`;
+            } else {
+                url += `&limit=3000`;
+            }
             if (cleanClass) {
                 url += `&classes=${encodeURIComponent(cleanClass)}`;
             }
@@ -454,12 +460,12 @@ export default function CreatePaper() {
         }
     };
 
-    // Fetch questions whenever activeSubjectTab or class changes
+    // Fetch questions whenever activeSubjectTab, class, or selectedChapters changes
     useEffect(() => {
-        if (activeSubjectTab && !questionsPoolCache[activeSubjectTab]) {
-            fetchQuestionsPoolForSubject(activeSubjectTab, selectedClass, selectedSources);
+        if (activeSubjectTab) {
+            fetchQuestionsPoolForSubject(activeSubjectTab, selectedClass, selectedSources, selectedChapters);
         }
-    }, [activeSubjectTab, selectedClass, selectedSources]);
+    }, [activeSubjectTab, selectedClass, selectedSources, selectedChapters]);
 
     // Distinct chapters and concepts map (Robust & inclusive of all database questions)
     const { distinctChapters, chapterConceptsMap } = useMemo(() => {
@@ -577,18 +583,26 @@ export default function CreatePaper() {
                 const matchesChapter = selectedChapters.includes(rawCh) || 
                                        canonicalSelectedChapters.includes(canonCh) || 
                                        selectedNormKeys.has(normKey) ||
+                                       (rawCh && selectedChapters.some(sc => sc.toLowerCase() === rawCh.toLowerCase())) ||
                                        rawCh.toLowerCase() === 'general';
                 if (!matchesChapter) return false;
             }
 
-            // Concept check
+            // Concept check - only filter if concepts were selected for THIS question's chapter
             if (selectedConcepts.length > 0) {
-                const qConcept = q.concept || q.topic;
-                if (qConcept && qConcept !== 'General' && !allSelectedConcepts.has(qConcept)) {
-                    // If no explicit concept match, only accept if all concepts of chapter were checked
-                    const chConcepts = chapterConceptsMap[canonCh] || [];
-                    const allChConceptsChecked = chConcepts.length > 0 && chConcepts.every(c => allSelectedConcepts.has(c));
-                    if (!allChConceptsChecked) return false;
+                const chConcepts = chapterConceptsMap[canonCh] || chapterConceptsMap[rawCh] || [];
+                const selectedInThisChapter = chConcepts.filter(c => allSelectedConcepts.has(c));
+
+                if (selectedInThisChapter.length > 0) {
+                    const qConcept = q.concept || q.topic;
+                    if (qConcept && qConcept !== 'General') {
+                        const matchesConcept = allSelectedConcepts.has(qConcept) ||
+                            selectedInThisChapter.some(sc => sc.toLowerCase() === qConcept.toLowerCase());
+                        const allChConceptsChecked = chConcepts.length > 0 && selectedInThisChapter.length === chConcepts.length;
+                        if (!matchesConcept && !allChConceptsChecked) {
+                            return false;
+                        }
+                    }
                 }
             }
 
@@ -606,7 +620,9 @@ export default function CreatePaper() {
 
             const matchesSingleChapter = !singleFilterChapter || 
                 normalizeChapterKey(q.chapter) === normalizeChapterKey(singleFilterChapter) ||
-                canonicalizeChapterName(q.chapter) === canonicalizeChapterName(singleFilterChapter);
+                canonicalizeChapterName(q.chapter) === canonicalizeChapterName(singleFilterChapter) ||
+                (q.chapter || '').toLowerCase().includes(singleFilterChapter.toLowerCase()) ||
+                singleFilterChapter.toLowerCase().includes((q.chapter || '').toLowerCase());
 
             const matchesSingleConcept = !singleFilterConcept || (q.concept === singleFilterConcept || q.topic === singleFilterConcept);
             const matchesDifficulty = !filterDifficulty || (q.level || 'medium').toLowerCase() === filterDifficulty.toLowerCase();
@@ -1047,6 +1063,7 @@ export default function CreatePaper() {
             questions: displayList,
             examType: paperCategory === 'assignment' ? 'ASSIGNMENT' : examType,
             isAssignment: paperCategory === 'assignment',
+            enableSets: paperCategory !== 'assignment',
         };
     }, [paperId, title, paperCategory, subject, selectedClass, duration, selectedQuestions, selectedQuestionsBySubject, previewSectionFilter, examSubjects, examType]);
 
@@ -2384,6 +2401,7 @@ export default function CreatePaper() {
                             <PaperRenderer
                                 paper={currentPaperObject}
                                 isAssignment={paperCategory === 'assignment'}
+                                enableSets={paperCategory !== 'assignment'}
                                 activeTemplate={activeTemplate}
                                 settings={{ ...settings, startQNo, endQNo }}
                                 setSettings={setSettings}
@@ -2395,11 +2413,11 @@ export default function CreatePaper() {
                     </div>
                 )}
 
-                {/* ── MODAL: ANSWER KEY ── */}
+                {/* ── MODAL: ANSWER KEY (SYNCED P, Q, R, S SETS) ── */}
                 {showAnswerKeyModal && (
                     <A4AnswerKey
-                        paper={{ title, subject: examSubjects.join(', '), classes: [selectedClass, examType], _id: paperId }}
-                        questions={selectedQuestions}
+                        paper={currentPaperObject}
+                        questions={currentPaperObject.questions}
                         startQNo={startQNo}
                         onClose={() => setShowAnswerKeyModal(false)}
                         onQuestionsUpdated={(updatedQs) => {
@@ -2408,11 +2426,11 @@ export default function CreatePaper() {
                     />
                 )}
 
-                {/* ── MODAL: SOLUTIONS GUIDE ── */}
+                {/* ── MODAL: SOLUTIONS GUIDE (SYNCED P, Q, R, S SETS) ── */}
                 {showSolutionsModal && (
                     <A4SolutionKey
-                        paper={{ title, subject: examSubjects.join(', '), classes: [selectedClass, examType], _id: paperId }}
-                        questions={selectedQuestions}
+                        paper={currentPaperObject}
+                        questions={currentPaperObject.questions}
                         startQNo={startQNo}
                         onClose={() => setShowSolutionsModal(false)}
                         onQuestionsUpdated={(updatedQs) => {

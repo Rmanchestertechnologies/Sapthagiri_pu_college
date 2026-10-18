@@ -143,43 +143,45 @@ export default function ResizableDiagram({
             }`}
             style={{ position: 'relative', zIndex: 2, ...extraStyle }}
         >
-            {/* ── ALWAYS-VISIBLE RESIZE TOOLBAR (+ / −) ── */}
-            <div
-                className="no-print diagram-resize-toolbar flex items-center justify-center mb-0.5 select-none"
-                onClick={(e) => e.stopPropagation()}
-            >
-                <div className="inline-flex items-center gap-1 bg-slate-900/90 text-white px-2 py-0.5 rounded-md shadow-md border border-slate-700 text-xs">
-                    <button
-                        type="button"
-                        onClick={handleDecrease}
-                        disabled={height <= minHeight}
-                        title="Reduce diagram size (−)"
-                        className="w-5 h-5 flex items-center justify-center font-bold text-sm rounded bg-white/10 hover:bg-white/25 active:bg-white/40 transition cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
-                    >
-                        −
-                    </button>
-                    <span className="font-mono text-[10px] text-amber-300 px-1 font-semibold whitespace-nowrap">
-                        {height}px
-                    </span>
-                    <button
-                        type="button"
-                        onClick={handleIncrease}
-                        disabled={height >= maxHeight}
-                        title="Enlarge diagram (+)"
-                        className="w-5 h-5 flex items-center justify-center font-bold text-sm rounded bg-white/10 hover:bg-white/25 active:bg-white/40 transition cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
-                    >
-                        +
-                    </button>
-                    <button
-                        type="button"
-                        onClick={handleReset}
-                        title="Reset to AI Auto-Fit"
-                        className="text-[9px] text-slate-300 hover:text-white px-1 py-0.5 rounded hover:bg-white/20 transition cursor-pointer"
-                    >
-                        Auto ↺
-                    </button>
+            {/* ── ALWAYS-VISIBLE RESIZE TOOLBAR (+ / −) FOR MAIN DIAGRAMS ── */}
+            {!isOption && (
+                <div
+                    className="no-print diagram-resize-toolbar flex items-center justify-center mb-0.5 select-none"
+                    onClick={(e) => e.stopPropagation()}
+                >
+                    <div className="inline-flex items-center gap-1 bg-slate-900/90 text-white px-2 py-0.5 rounded-md shadow-md border border-slate-700 text-xs">
+                        <button
+                            type="button"
+                            onClick={handleDecrease}
+                            disabled={height <= minHeight}
+                            title="Reduce diagram size (−)"
+                            className="w-5 h-5 flex items-center justify-center font-bold text-sm rounded bg-white/10 hover:bg-white/25 active:bg-white/40 transition cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+                        >
+                            −
+                        </button>
+                        <span className="font-mono text-[10px] text-amber-300 px-1 font-semibold whitespace-nowrap">
+                            {height}px
+                        </span>
+                        <button
+                            type="button"
+                            onClick={handleIncrease}
+                            disabled={height >= maxHeight}
+                            title="Enlarge diagram (+)"
+                            className="w-5 h-5 flex items-center justify-center font-bold text-sm rounded bg-white/10 hover:bg-white/25 active:bg-white/40 transition cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+                        >
+                            +
+                        </button>
+                        <button
+                            type="button"
+                            onClick={handleReset}
+                            title="Reset to AI Auto-Fit"
+                            className="text-[9px] text-slate-300 hover:text-white px-1 py-0.5 rounded hover:bg-white/20 transition cursor-pointer"
+                        >
+                            Auto ↺
+                        </button>
+                    </div>
                 </div>
-            </div>
+            )}
 
             {/* ── THE DIAGRAM IMAGE (Transparent Background & Watermark Blend) ── */}
             <img
