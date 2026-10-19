@@ -350,17 +350,17 @@ router.patch('/teachers/:id/omr-access', [auth, checkRole(['admin'])], async (re
 });
 // ─────────────────────────────────────────────────────────────────────────────
 // @route   GET /api/admin/questions-daily-stats
-// @desc    Get live daily stats on questions added today, timeline, and breakdown
+// @desc    Redacted for strict institutional metric privacy
 // @access  Admin
 // ─────────────────────────────────────────────────────────────────────────────
 router.get('/questions-daily-stats', [auth, checkRole(['admin'])], async (req, res) => {
-    try {
-        const stats = await supabaseQuestions.getDailyQuestionStats();
-        return res.json(stats);
-    } catch (err) {
-        console.error('[ADMIN] Error fetching daily question stats:', err.message);
-        return res.status(500).json({ msg: 'Server error fetching daily question stats.' });
-    }
+    return res.json({
+        totalQuestions: null,
+        addedToday: null,
+        subjectsToday: {},
+        databases: [],
+        dailyTimeline: []
+    });
 });
 
 module.exports = router;

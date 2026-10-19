@@ -3,15 +3,13 @@ const dotenv = require('dotenv');
 
 dotenv.config();
 
-// Primary & Pooler URLs
-const POOLER_URL = 'postgresql://postgres.vukxgqkrersxcasdklda:Sapthagiri1@aws-0-ap-south-1.pooler.supabase.com:5432/postgres';
-const DIRECT_URL = 'postgresql://postgres:Sapthagiri1@db.vukxgqkrersxcasdklda.supabase.co:5432/postgres';
+// Primary Active Supabase Pooler URL (Physics 11 Database with support tables)
+const PRIMARY_ACTIVE_URL = 'postgresql://postgres.pfnlbyjsjxttdachegne:SubClass11Physics@aws-0-ap-northeast-2.pooler.supabase.com:5432/postgres';
 
-let DATABASE_URL = process.env.DATABASE_URL || POOLER_URL;
+let DATABASE_URL = process.env.DATABASE_URL;
 
-// On platforms where direct IPv6 db.<ref>.supabase.co cannot resolve, prefer pooler
-if (DATABASE_URL.includes('db.vukxgqkrersxcasdklda.supabase.co')) {
-    DATABASE_URL = POOLER_URL;
+if (!DATABASE_URL || DATABASE_URL.includes('vukxgqkrersxcasdklda')) {
+    DATABASE_URL = PRIMARY_ACTIVE_URL;
 }
 
 const pool = new Pool({

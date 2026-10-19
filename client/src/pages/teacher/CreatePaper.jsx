@@ -170,22 +170,29 @@ export default function CreatePaper() {
     const [paperCategory, setPaperCategory] = useState(initialCategory);
     const [subject, setSubject] = useState(user?.subject || 'Physics');
     const [selectedClass, setSelectedClass] = useState('Both');
-    const [examType, setExamType] = useState('NEET');
+    const [examType, setExamType] = useState('NEET_PCB');
     const [title, setTitle] = useState('');
     const [duration, setDuration] = useState('180 Minutes');
     const [targetCount, setTargetCount] = useState(60);
+
+    // Question Type filter in Auto-Fetch
+    const [selectedQuestionType, setSelectedQuestionType] = useState('ALL');
+    // Section saving state
+    const [savingSection, setSavingSection] = useState(false);
+    // Active drafts available for multi-teacher collaboration
+    const [availableDrafts, setAvailableDrafts] = useState([]);
 
     // Multi-Subject Exam Configuration (NEET: Physics, Chemistry, Botany, Zoology; JEE: Physics, Chemistry, Maths; CET: Physics, Chemistry, Maths, Biology)
     const examSubjects = useMemo(() => {
         if (paperCategory === 'assignment') return [subject || 'Physics'];
         const upperExam = (examType || '').toUpperCase();
-        if (upperExam === 'NEET') {
+        if (upperExam === 'NEET' || upperExam === 'NEET_PCB') {
             return ['Physics', 'Chemistry', 'Botany', 'Zoology'];
         }
-        if (upperExam === 'JEE') {
+        if (upperExam === 'JEE' || upperExam === 'JEE_PCM') {
             return ['Physics', 'Chemistry', 'Mathematics'];
         }
-        if (upperExam === 'CET') {
+        if (upperExam === 'CET' || upperExam === 'CET_PCMB') {
             return ['Physics', 'Chemistry', 'Mathematics', 'Biology'];
         }
         if (subject === 'PCM') return ['Physics', 'Chemistry', 'Mathematics'];
@@ -208,9 +215,9 @@ export default function CreatePaper() {
     // Target per subject defaults
     const defaultQuotaForSubject = useMemo(() => {
         const upperExam = (examType || '').toUpperCase();
-        if (upperExam === 'NEET') return 45;
-        if (upperExam === 'JEE') return 25;
-        if (upperExam === 'CET') return 60;
+        if (upperExam.includes('NEET')) return 45;
+        if (upperExam.includes('JEE')) return 25;
+        if (upperExam.includes('CET')) return 60;
         return Math.max(15, Math.round((targetCount || 60) / Math.max(1, examSubjects.length)));
     }, [examType, targetCount, examSubjects]);
 
@@ -383,6 +390,23 @@ export default function CreatePaper() {
         fetchExamDetails();
     }, [examId]);
 
+    // Load Active Drafts for Multi-Teacher Collaboration
+    useEffect(() => {
+        const fetchDrafts = async () => {
+            try {
+                const res = await api.get('/api/papers');
+                const drafts = (res.data || []).filter(p => {
+                    const st = (p.status || '').toUpperCase();
+                    return st === 'DRAFT' || st === 'IN_PROGRESS' || st === 'IN PROGRESS';
+                });
+                setAvailableDrafts(drafts);
+            } catch (e) {
+                // Ignore background error
+            }
+        };
+        fetchDrafts();
+    }, []);
+
     // Load Existing Paper if paperId is present (for Editing)
     useEffect(() => {
         const fetchPaperDetails = async () => {
@@ -392,6 +416,10 @@ export default function CreatePaper() {
                 const p = res.data;
                 if (p) {
                     if (p.title) setTitle(p.title);
+                    if (p.exam_type || p.examType) {
+                        const et = p.exam_type || p.examType;
+                        setExamType(et);
+                    }
                     if (p.subject) setSubject(p.subject);
                     if (p.isAssignment !== undefined) setPaperCategory(p.isAssignment ? 'assignment' : 'test');
                     if (p.classes && p.classes.length > 0) setSelectedClass(p.classes[0]);
@@ -639,15 +667,40 @@ export default function CreatePaper() {
         return filteredQuestions.slice(0, pageNumber * size);
     }, [filteredQuestions, pageNumber, pageSize]);
 
-    // ── 3. AUTO FETCH GENERATOR ALGORITHM ──
-    const generateBalancedSetForSubject = (subName, pool, targetQuota, dist, chaptersSelected, conceptsSelected) => {
+    // Helper to match question type filters
+    const matchesQuestionType = (q, allowedType) => {
+        if (!allowedType || allowedType === 'ALL') return true;
+        const qType = (q.type || q.q_type || '').toUpperCase();
+        if (allowedType === 'Single Correct MCQ') {
+            return qType === 'MCQ' || qType === 'MCQ_SINGLE' || (!q.type && q.options?.length > 1);
+        }
+        if (allowedType === 'Assertion & Reason (A/R)') {
+            return qType.includes('ASSERTION') || Boolean(q.assertion && q.reason);
+        }
+        if (allowedType === 'Numerical / Integer Type') {
+            return qType.includes('NUMERICAL') || qType.includes('INTEGER') || (q.num_answer !== undefined && q.num_answer !== null && q.num_answer !== '');
+        }
+        if (allowedType === 'Matrix Match') {
+            return qType.includes('MATCH') || qType.includes('MATRIX') || (q.column_a && q.column_a.length > 0);
+        }
+        return true;
+    };
+
+    // ── 3. AUTO FETCH GENERATOR ALGORITHM WITH CONCEPT DE-DUPLICATION ──
+    const generateBalancedSetForSubject = (subName, pool, targetQuota, dist, chaptersSelected, conceptsSelected, qTypeFilter = selectedQuestionType) => {
         if (!pool || pool.length === 0 || targetQuota <= 0) return [];
 
         const selectedNormKeys = new Set((chaptersSelected || []).map(normalizeChapterKey));
         const allSelectedConcepts = new Set(conceptsSelected || []);
 
-        // Filter pool by chosen chapters/concepts (if any were chosen)
+        // 1. Exclude questions already added to any section in the active paper
+        const alreadyAddedIds = new Set(selectedQuestions.map(q => String(q._id || q.id)));
+
+        // 2. Filter pool by chosen chapters/concepts and question types, excluding already present IDs
         let candidates = pool.filter(q => {
+            const qId = String(q._id || q.id);
+            if (alreadyAddedIds.has(qId)) return false;
+
             const rawCh = q.chapter || 'General';
             const normKey = normalizeChapterKey(rawCh);
             if (chaptersSelected && chaptersSelected.length > 0) {
@@ -658,17 +711,48 @@ export default function CreatePaper() {
                 const qCpt = q.concept || q.topic;
                 if (qCpt && qCpt !== 'General' && !allSelectedConcepts.has(qCpt)) return false;
             }
+
+            if (!matchesQuestionType(q, qTypeFilter)) return false;
+
             return true;
         });
 
+        // Fallback: if candidates became empty due to alreadyAddedIds, allow pool questions matching type filter
         if (candidates.length === 0) {
-            candidates = [...pool]; // Fallback to full pool if filters yield 0
+            candidates = pool.filter(q => matchesQuestionType(q, qTypeFilter));
+        }
+        if (candidates.length === 0) {
+            candidates = [...pool];
         }
 
-        // Shuffle candidates thoroughly
-        const shuffled = [...candidates].sort(() => Math.random() - 0.5);
+        // 3. Concept De-duplication & Round-Robin Partitioning:
+        // Group questions by unique concept / subtopic identifier
+        const conceptGroups = {};
+        candidates.forEach(q => {
+            const cKey = q.concept_id || q.subtopic_code || q.concept || q.topic || q.chapter || 'General';
+            if (!conceptGroups[cKey]) conceptGroups[cKey] = [];
+            conceptGroups[cKey].push(q);
+        });
 
-        // Calculate distribution quotas
+        // Shuffle questions within each concept group
+        Object.keys(conceptGroups).forEach(k => {
+            conceptGroups[k] = [...conceptGroups[k]].sort(() => Math.random() - 0.5);
+        });
+
+        // Interleave / Round-Robin: take 1 question from each unique concept before taking a second question
+        const roundRobinStream = [];
+        const uniqueKeys = Object.keys(conceptGroups).sort(() => Math.random() - 0.5);
+        const maxLen = Math.max(...uniqueKeys.map(k => conceptGroups[k].length));
+
+        for (let round = 0; round < maxLen; round++) {
+            for (const k of uniqueKeys) {
+                if (round < conceptGroups[k].length) {
+                    roundRobinStream.push(conceptGroups[k][round]);
+                }
+            }
+        }
+
+        // 4. Calculate distribution quotas (Easy / Medium / Hard)
         const easyPct = Number(dist?.easy || 40);
         const medPct = Number(dist?.medium || 40);
         const hardPct = Number(dist?.hard || 20);
@@ -678,12 +762,12 @@ export default function CreatePaper() {
         const targetMed = Math.round(targetQuota * (medPct / totalPct));
         const targetHard = Math.max(0, targetQuota - targetEasy - targetMed);
 
-        // Group into buckets
+        // Group into buckets adhering to the round-robin concept spread
         const easyBucket = [];
         const medBucket = [];
         const hardBucket = [];
 
-        shuffled.forEach(q => {
+        roundRobinStream.forEach(q => {
             const lvl = (q.level || 'medium').toLowerCase();
             if (lvl === 'easy') easyBucket.push(q);
             else if (lvl === 'hard') hardBucket.push(q);
@@ -696,7 +780,7 @@ export default function CreatePaper() {
         const pickFromBucket = (bucket, count) => {
             let added = 0;
             for (const q of bucket) {
-                const id = q._id || q.id;
+                const id = String(q._id || q.id);
                 if (!pickedIds.has(id) && added < count) {
                     picked.push({
                         ...q,
@@ -715,10 +799,10 @@ export default function CreatePaper() {
         pickFromBucket(medBucket, targetMed);
         pickFromBucket(hardBucket, targetHard);
 
-        // Backfill if buckets fell short
+        // Backfill from round-robin stream if buckets fell short
         if (picked.length < targetQuota) {
-            for (const q of shuffled) {
-                const id = q._id || q.id;
+            for (const q of roundRobinStream) {
+                const id = String(q._id || q.id);
                 if (!pickedIds.has(id) && picked.length < targetQuota) {
                     picked.push({
                         ...q,
@@ -749,11 +833,12 @@ export default function CreatePaper() {
                 quota,
                 autoDist,
                 selectedChapters,
-                selectedConcepts
+                selectedConcepts,
+                selectedQuestionType
             );
 
             if (newQs.length === 0) {
-                alert(`No questions found for ${activeSubjectTab}. Please check connection or selection.`);
+                alert(`No questions found matching criteria for ${activeSubjectTab}. Please check connection or type selection.`);
                 return;
             }
 
@@ -789,13 +874,14 @@ export default function CreatePaper() {
                     quota,
                     autoDist,
                     subSel.chapters,
-                    subSel.concepts
+                    subSel.concepts,
+                    selectedQuestionType
                 );
                 allPicked.push(...pickedForSub);
             }
 
             setSelectedQuestions(allPicked);
-            alert(`✓ Successfully Auto-Generated ${allPicked.length} Questions across all ${examSubjects.length} subjects!`);
+            alert(`✓ Successfully Auto-Generated ${allPicked.length} Questions across all ${examSubjects.length} subjects with concept balance!`);
         } catch (err) {
             console.error('Error in multi-subject auto generation:', err);
             alert('Error generating all subjects. Please try again.');
@@ -956,6 +1042,70 @@ export default function CreatePaper() {
         setCurrentStep(4);
     };
 
+    // Non-destructive section saving for multi-teacher asynchronous drafting
+    const handleSaveCurrentSectionDraft = async () => {
+        setSavingSection(true);
+        try {
+            const subQs = (selectedQuestionsBySubject[activeSubjectTab] || []).map((q, qIdx) => ({
+                ...q,
+                subject: activeSubjectTab,
+                sectionSubject: activeSubjectTab,
+                sectionName: `Section: ${activeSubjectTab.toUpperCase()}`
+            }));
+
+            let currentPaperId = paperId;
+            if (!currentPaperId) {
+                // Initialize draft paper
+                const initialSections = examSubjects.map((sub, sIdx) => {
+                    const isCurrent = sub.toLowerCase() === activeSubjectTab.toLowerCase();
+                    return {
+                        subject: sub,
+                        questions: isCurrent ? subQs.map(q => q._id || q.id) : [],
+                        questionObjects: isCurrent ? subQs : [],
+                        status: isCurrent && subQs.length > 0 ? 'SAVED' : 'NOT_STARTED',
+                        updated_at: new Date().toISOString()
+                    };
+                });
+
+                const initPayload = {
+                    title: title || `${examType} Examination Draft (${examSubjects.join(' + ')})`,
+                    subject: examSubjects.length === 1 ? examSubjects[0] : (subject || examSubjects.join(', ')),
+                    classes: [selectedClass],
+                    exam_type: examType,
+                    examType: examType,
+                    status: 'DRAFT',
+                    duration: duration || '180 Minutes',
+                    isAssignment: paperCategory === 'assignment',
+                    startQNo: startQNo || 1,
+                    endQNo: endQNo || (startQNo + selectedQuestions.length - 1),
+                    questions: subQs.map(q => q._id || q.id),
+                    questionObjects: subQs,
+                    sections: initialSections,
+                };
+
+                const createRes = await api.post('/api/papers', initPayload);
+                currentPaperId = createRes.data._id || createRes.data.id;
+                setPaperId(currentPaperId);
+                navigate(`/teacher/create-paper?paperId=${currentPaperId}`, { replace: true });
+            } else {
+                // Non-destructively patch only this subject's section
+                await api.patch(`/api/papers/${currentPaperId}/section`, {
+                    subject: activeSubjectTab,
+                    questions: subQs.map(q => q._id || q.id),
+                    questionObjects: subQs,
+                    status: subQs.length > 0 ? 'SAVED' : 'IN_PROGRESS',
+                    paperStatus: 'DRAFT'
+                });
+            }
+            alert(`✓ [${activeSubjectTab}] Section saved non-destructively as DRAFT! Questions in other subjects remain completely intact.`);
+        } catch (err) {
+            console.error('Error saving section draft:', err);
+            alert('Failed to save section draft: ' + (err.response?.data?.msg || err.message));
+        } finally {
+            setSavingSection(false);
+        }
+    };
+
     // Finalize and Save Paper (supports unified multi-subject merged paper)
     const handleFinalizeAndSave = async () => {
         if (selectedQuestions.length === 0) return alert('No questions selected.');
@@ -964,6 +1114,7 @@ export default function CreatePaper() {
         try {
             // Organize questions into strict subject order with section headers
             const organizedQuestions = [];
+            const sections = [];
             examSubjects.forEach((sub, sIdx) => {
                 const subQuestions = (selectedQuestionsBySubject[sub] || []).map((q, qIdx) => ({
                     ...q,
@@ -973,6 +1124,13 @@ export default function CreatePaper() {
                     sectionSubject: sub,
                 }));
                 organizedQuestions.push(...subQuestions);
+                sections.push({
+                    subject: sub,
+                    questions: subQuestions.map(q => q._id || q.id),
+                    questionObjects: subQuestions,
+                    status: subQuestions.length > 0 ? 'SAVED' : 'NOT_STARTED',
+                    updated_at: new Date().toISOString()
+                });
             });
 
             const finalQuestionsList = organizedQuestions.length > 0 ? organizedQuestions : selectedQuestions;
@@ -988,8 +1146,10 @@ export default function CreatePaper() {
                 endQNo: endQNo || (startQNo + finalQuestionsList.length - 1),
                 questions: finalQuestionsList.map(q => q._id || q.id),
                 questionObjects: finalQuestionsList,
+                sections: sections,
                 difficultyDistribution: autoDist,
-                status: user?.role === 'admin' ? 'Approved' : 'Pending Approval',
+                status: user?.role === 'admin' ? 'Approved' : 'COMPLETED',
+                exam_type: paperCategory === 'assignment' ? 'ASSIGNMENT' : examType,
                 examType: paperCategory === 'assignment' ? 'ASSIGNMENT' : examType,
             };
 
@@ -1130,6 +1290,45 @@ export default function CreatePaper() {
                 {currentStep === 1 && (
                     <div className="bg-white p-6 md:p-8 rounded-[2rem] shadow-sm border border-gray-200 space-y-8 animate-fade-in">
                         
+                        {/* Active Shared Drafts Banner */}
+                        {availableDrafts.length > 0 && !paperId && (
+                            <div className="bg-amber-50 border-2 border-amber-300 rounded-2xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-xs">
+                                <div className="flex items-start gap-3">
+                                    <span className="text-xl">⚡</span>
+                                    <div>
+                                        <h4 className="text-xs font-black text-amber-900 uppercase tracking-wider">
+                                            {availableDrafts.length} Active Shared Exam Draft{availableDrafts.length > 1 ? 's' : ''} in Progress
+                                        </h4>
+                                        <p className="text-[11px] text-amber-800 font-medium">
+                                            Faculty colleagues are currently drafting papers. You can resume editing directly or configure a new assessment below.
+                                        </p>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-2 flex-wrap">
+                                    {availableDrafts.slice(0, 3).map(d => (
+                                        <button
+                                            key={d._id}
+                                            type="button"
+                                            onClick={() => navigate(`/teacher/create-paper?paperId=${d._id}`)}
+                                            className="bg-navy hover:bg-navy/90 text-gold text-xs font-black px-3.5 py-1.5 rounded-xl transition shadow-xs cursor-pointer flex items-center gap-1"
+                                        >
+                                            <span>✏️</span>
+                                            <span>{d.title || d.exam_type || 'Draft'}</span>
+                                        </button>
+                                    ))}
+                                    {availableDrafts.length > 3 && (
+                                        <button
+                                            type="button"
+                                            onClick={() => navigate('/teacher/dashboard/saved-papers')}
+                                            className="text-xs font-bold text-navy underline px-2 cursor-pointer"
+                                        >
+                                            +{availableDrafts.length - 3} more
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
                         {/* Title & Mode */}
                         <div className="border-b border-gray-100 pb-4">
                             <span className="text-[10px] font-black text-gold uppercase tracking-[0.2em] bg-navy px-3 py-1 rounded-full">Step 1 of 5</span>
@@ -1148,9 +1347,9 @@ export default function CreatePaper() {
                                     onChange={(e) => setExamType(e.target.value)}
                                     className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-xs font-bold text-navy outline-none bg-white focus:ring-2 focus:ring-gold"
                                 >
-                                    <option value="NEET">NEET (Physics, Chemistry, Botany, Zoology - 180 Qs)</option>
-                                    <option value="JEE">JEE Main (Physics, Chemistry, Maths - 75 Qs)</option>
-                                    <option value="CET">KCET (Physics, Chemistry, Maths, Biology - 240 Qs)</option>
+                                    <option value="NEET_PCB">NEET (Physics, Chemistry, Botany, Zoology - 180 Qs)</option>
+                                    <option value="JEE_PCM">JEE Main (Physics, Chemistry, Mathematics - 75 Qs)</option>
+                                    <option value="CET_PCMB">KCET (Physics, Chemistry, Mathematics, Biology - 240 Qs)</option>
                                     <option value="CUSTOM">Custom Single/Multi-Subject</option>
                                 </select>
                             </div>
@@ -1530,13 +1729,20 @@ export default function CreatePaper() {
                                     }`}
                                 >
                                     <span>✍️ Manual Question Selection</span>
-                                    <span className="bg-gold/30 text-navy px-2 py-0.5 rounded-full text-[10px]">
-                                        {filteredQuestions.length} in pool
-                                    </span>
                                 </button>
                             </div>
 
                             <div className="flex items-center gap-2">
+                                <button
+                                    type="button"
+                                    onClick={handleSaveCurrentSectionDraft}
+                                    disabled={savingSection}
+                                    className="bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition shadow-sm cursor-pointer flex items-center gap-1.5"
+                                    title={`Save only ${activeSubjectTab} section without modifying other subjects`}
+                                >
+                                    <span>💾</span>
+                                    <span>{savingSection ? 'Saving...' : `Save ${activeSubjectTab} (Draft)`}</span>
+                                </button>
                                 <button
                                     type="button"
                                     onClick={() => setShowReviewSelectedModal(true)}
@@ -1567,9 +1773,6 @@ export default function CreatePaper() {
                                             <span className="text-[10px] font-black text-gold uppercase tracking-[0.2em] bg-navy px-3 py-1 rounded-full">
                                                 {activeSubjectTab} Section
                                             </span>
-                                            <span className="text-[10px] font-black text-navy bg-blue-100 px-2.5 py-0.5 rounded-full">
-                                                {availableQuestions.length} Questions in Subject Pool
-                                            </span>
                                         </div>
                                         <h2 className="text-2xl font-black text-navy mt-1 uppercase tracking-tight">
                                             Auto Fetch Generator Engine
@@ -1593,8 +1796,8 @@ export default function CreatePaper() {
                                     )}
                                 </div>
 
-                                {/* Controls: Target Count & Difficulty Distribution */}
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 bg-slate-50 p-6 rounded-3xl border border-gray-200">
+                                {/* Controls: Target Count, Question Type Filter & Difficulty Distribution */}
+                                <div className="grid grid-cols-1 md:grid-cols-4 gap-6 bg-slate-50 p-6 rounded-3xl border border-gray-200">
                                     
                                     {/* 1. Target Quota for Active Subject */}
                                     <div className="space-y-3">
@@ -1619,6 +1822,32 @@ export default function CreatePaper() {
                                             <span>5 Qs</span>
                                             <span>Standard ({defaultQuotaForSubject})</span>
                                             <span>120 Qs</span>
+                                        </div>
+                                    </div>
+
+                                    {/* 2. Question Type Filter Dropdown */}
+                                    <div className="space-y-3">
+                                        <div className="flex justify-between items-center">
+                                            <label className="text-xs font-black text-navy uppercase tracking-wider">
+                                                Question Type
+                                            </label>
+                                            <span className="text-[10px] font-bold text-gray-500 bg-white px-2 py-0.5 rounded-lg border border-gray-200">
+                                                Filter
+                                            </span>
+                                        </div>
+                                        <select
+                                            value={selectedQuestionType}
+                                            onChange={(e) => setSelectedQuestionType(e.target.value)}
+                                            className="w-full bg-white border border-gray-300 rounded-xl px-3 py-2.5 text-xs font-bold text-navy outline-none focus:ring-2 focus:ring-gold"
+                                        >
+                                            <option value="ALL">All Question Types</option>
+                                            <option value="Single Correct MCQ">Single Correct MCQ</option>
+                                            <option value="Assertion & Reason (A/R)">Assertion & Reason (A/R)</option>
+                                            <option value="Numerical / Integer Type">Numerical / Integer Type</option>
+                                            <option value="Matrix Match">Matrix Match</option>
+                                        </select>
+                                        <div className="text-[10px] font-medium text-gray-400">
+                                            Fetch only matching format questions
                                         </div>
                                     </div>
 
@@ -1844,10 +2073,7 @@ export default function CreatePaper() {
                                     <div>
                                         <div className="flex items-center gap-2">
                                             <span className="text-[10px] font-black text-gold uppercase tracking-[0.2em] bg-navy px-3 py-1 rounded-full">
-                                                {activeSubjectTab} Pool
-                                            </span>
-                                            <span className="text-[10px] font-black text-navy bg-blue-100 px-2.5 py-0.5 rounded-full">
-                                                {filteredQuestions.length} Questions Available
+                                                {activeSubjectTab} Section
                                             </span>
                                         </div>
                                         <h2 className="text-xl font-black text-navy mt-1 uppercase tracking-tight">

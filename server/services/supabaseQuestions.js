@@ -58,6 +58,8 @@ function cleanDifficultyTags(text) {
         .replace(/\s*\[\s*\d{4}\s*\]\s*$/i, '')
         .replace(/\s*\(\s*\d{4}\s*\)\s*$/i, '')
         .replace(/\s*\[\s*\d+\s*(?:Marks?|M)?\s*\]\s*$/i, '')
+        .replace(/\s*\[\s*[A-Za-z]{1,5}\s*[-.]?\s*\d{1,5}\s*\]\s*$/i, '')
+        .replace(/\s*\[\s*[A-Za-z0-9_\-]{2,8}\s*\]\s*$/i, '')
         .trim();
 }
 
@@ -448,6 +450,18 @@ function buildQueryFilters(filters) {
         const searchStr = filters.search.trim();
         whereClauses.push(`(q.question ILIKE $${paramIndex} OR q.chapter ILIKE $${paramIndex} OR q.topic ILIKE $${paramIndex++})`);
         values.push(`%${searchStr}%`);
+    }
+
+    // Exclude specific question IDs (e.g. questions already in active paper)
+    if (filters.excludeIds) {
+        const rawIds = Array.isArray(filters.excludeIds)
+            ? filters.excludeIds
+            : String(filters.excludeIds).split(',').map(id => id.trim()).filter(Boolean);
+        const validUuids = rawIds.filter(isUuid);
+        if (validUuids.length > 0) {
+            whereClauses.push(`NOT (q.id = ANY($${paramIndex++}::uuid[]))`);
+            values.push(validUuids);
+        }
     }
 
     // Exclude True/False questions explicitly from all queries

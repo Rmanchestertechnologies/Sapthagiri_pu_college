@@ -447,6 +447,10 @@ export function cleanQuestionText(text) {
     // 4. Strip trailing marks indicators like "[1 Mark]", "[4 Marks]", "[1]"
     str = str.replace(/\s*\[\s*\d+\s*(?:Marks?|M)?\s*\]\s*$/i, '');
 
+    // 4b. Strip trailing reference codes like "[P28]", "[C65]", "[C21]", "[G13]", "[G12]", "[W8]", "[P-10]"
+    str = str.replace(/\s*\[\s*[A-Za-z]{1,5}\s*[-.]?\s*\d{1,5}\s*\]\s*$/i, '');
+    str = str.replace(/\s*\[\s*[A-Za-z0-9_\-]{2,8}\s*\]\s*$/i, '');
+
     // 5. Strip trailing leaked options like "\n(A) 2/3\n(B) 1/3\n(C) 1/2\n(D) 3/2"
     str = str.replace(/(?:\r?\n|\s{2,})\(?[A-Da-d1-4]\)[\s\S]*$/i, '');
 

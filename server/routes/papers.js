@@ -243,6 +243,34 @@ router.put('/:id', [auth, checkRole(['teacher', 'admin'])], async (req, res) => 
     }
 });
 
+// @route   PATCH /api/papers/:id/section
+// @desc    Non-destructively update a single subject section in a multi-teacher draft
+// @access  Teacher, Admin
+router.patch('/:id/section', [auth, checkRole(['teacher', 'admin'])], async (req, res) => {
+    try {
+        const { subject, questions, questionObjects, status, paperStatus } = req.body;
+        if (!subject) {
+            return res.status(400).json({ msg: 'Subject name is required to update section.' });
+        }
+
+        const paper = await storage.getPaperById(req.params.id);
+        if (!paper) return res.status(404).json({ msg: 'Paper not found' });
+
+        const updated = await storage.updatePaperSection(req.params.id, subject, {
+            questions,
+            questionObjects,
+            status: status || (questions && questions.length > 0 ? 'SAVED' : 'IN_PROGRESS'),
+            paperStatus: paperStatus || 'DRAFT'
+        });
+
+        const populated = await populatePaperQuestions(updated);
+        res.json(populated);
+    } catch (err) {
+        console.error('Update paper section error:', err.message);
+        res.status(500).json({ msg: 'Server error updating section: ' + err.message });
+    }
+});
+
 // @route   GET /api/papers/:id/export-word
 // @desc    Export paper to Word (.docx)
 // @access  Teacher, Admin
@@ -268,6 +296,27 @@ router.get('/:id/export-word', [auth, checkRole(['teacher', 'admin'])], async (r
     } catch (err) {
         console.error('Word export error:', err.message);
         res.status(500).json({ msg: 'Server error exporting paper to Word: ' + err.message });
+    }
+});
+
+// @route   GET /api/papers/:id/export-pdf
+// @desc    Export paper to crisp vector PDF with server pre-rendered KaTeX math
+// @access  Teacher, Admin
+router.get('/:id/export-pdf', [auth, checkRole(['teacher', 'admin'])], async (req, res) => {
+    try {
+        const paper = await storage.getPaperById(req.params.id);
+        if (!paper) return res.status(404).json({ msg: 'Paper not found.' });
+
+        const populatedPaper = await populatePaperQuestions(paper);
+        const { generatePaperPdf } = require('../services/pdfPaperExport');
+        const buffer = await generatePaperPdf(populatedPaper);
+
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename="${(paper.title || 'Question_Paper').replace(/\s+/g, '_')}.pdf"`);
+        res.send(buffer);
+    } catch (err) {
+        console.error('PDF export error:', err.message);
+        res.status(500).json({ msg: 'Server error exporting paper to PDF: ' + err.message });
     }
 });
 

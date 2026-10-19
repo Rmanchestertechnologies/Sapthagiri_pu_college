@@ -43,6 +43,13 @@ function mapExamRow(r) {
 // Helper: map a Postgres papers row to standard JS object
 function mapPaperRow(r) {
     if (!r) return null;
+    let parsedSections = [];
+    if (Array.isArray(r.sections)) {
+        parsedSections = r.sections;
+    } else if (typeof r.sections === 'string') {
+        try { parsedSections = JSON.parse(r.sections); } catch (e) { parsedSections = []; }
+    }
+
     return {
         _id: String(r.id),
         id: r.id,
@@ -51,14 +58,15 @@ function mapPaperRow(r) {
         subject: r.subject,
         class_level: r.class_level,
         classes: r.classes || [r.class_level || '12'],
-        exam_type: r.exam_type || 'CET',
-        examType: r.exam_type || 'CET',
+        exam_type: r.exam_type || 'JEE_PCM',
+        examType: r.exam_type || 'JEE_PCM',
         duration_minutes: r.duration_minutes,
-        duration: r.duration || `${r.duration_minutes || 60} mins`,
+        duration: r.duration || `${r.duration_minutes || 180} mins`,
         total_marks: r.total_marks,
         instructions: r.instructions || '',
         questions: r.questions || [],
         questionObjects: r.question_objects || [],
+        sections: parsedSections,
         versions: r.versions || {},
         layout_settings: r.layout_settings || {},
         created_by: r.created_by,
@@ -71,10 +79,10 @@ function mapPaperRow(r) {
         isAssignment: r.is_assignment || false,
         startQNo: r.start_q_no || 1,
         endQNo: r.end_q_no,
-        status: r.status || 'Finalized',
+        status: r.status || 'DRAFT',
         metadata: r.metadata || {},
         createdAt: r.created_at,
-        updatedAt: r.updated_at
+        updatedAt: r.updated_at || r.created_at || new Date()
     };
 }
 
@@ -266,16 +274,17 @@ async function savePaper(paperData) {
     const {
         paper_id = `paper_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
         title,
-        subject,
+        subject = 'General',
         class_level = '12',
         classes = ['12'],
-        exam_type = 'CET',
-        examType = 'CET',
-        duration_minutes = 60,
-        total_marks = 60,
+        exam_type = 'JEE_PCM',
+        examType = 'JEE_PCM',
+        duration_minutes = 180,
+        total_marks = 180,
         instructions = '',
         questions = [],
         questionObjects = [],
+        sections = [],
         versions = {},
         layout_settings = {},
         created_by,
@@ -286,14 +295,34 @@ async function savePaper(paperData) {
         pattern = [],
         difficultyDistribution = { easy: 40, medium: 40, hard: 20 },
         isAssignment = false,
-        duration = '60 mins',
+        duration = '180 mins',
         startQNo = 1,
         endQNo = null,
-        status = 'In Progress',
+        status = 'DRAFT',
         metadata = {}
     } = paperData;
 
     const tId = teacherId || created_by || author_id;
+
+    // Build initial sections if empty based on exam_type
+    let initialSections = Array.isArray(sections) && sections.length > 0 ? sections : [];
+    if (initialSections.length === 0 && !isAssignment) {
+        const eType = (exam_type || examType || 'JEE_PCM').toUpperCase();
+        let defaultSubs = ['Physics', 'Chemistry', 'Mathematics'];
+        if (eType.includes('NEET') || eType.includes('PCB')) defaultSubs = ['Physics', 'Chemistry', 'Biology'];
+        else if (eType.includes('CET') || eType.includes('PCMB')) defaultSubs = ['Physics', 'Chemistry', 'Mathematics', 'Biology'];
+        
+        initialSections = defaultSubs.map(s => {
+            const isMatch = (subject && subject.toLowerCase() === s.toLowerCase());
+            return {
+                subject: s,
+                questions: isMatch ? (questions || []).map(q => typeof q === 'string' ? q : (q._id || q.id)) : [],
+                questionObjects: isMatch ? questionObjects : [],
+                status: isMatch && (questions || []).length > 0 ? 'SAVED' : 'NOT_STARTED',
+                updated_at: new Date().toISOString()
+            };
+        });
+    }
 
     const res = await pool.query(`
         INSERT INTO public.papers (
@@ -302,14 +331,14 @@ async function savePaper(paperData) {
             versions, layout_settings, created_by, author_id,
             status, metadata, teacher_id, exam_id, question_objects,
             template_id, pattern, difficulty_distribution, is_assignment,
-            duration, start_q_no, end_q_no, classes
+            duration, start_q_no, end_q_no, classes, sections
         ) VALUES (
             $1, $2, $3, $4, $5,
             $6, $7, $8, $9,
             $10, $11, $12, $13,
             $14, $15, $16, $17, $18,
             $19, $20, $21, $22,
-            $23, $24, $25, $26
+            $23, $24, $25, $26, $27
         ) RETURNING *
     `, [
         paper_id,
@@ -337,7 +366,8 @@ async function savePaper(paperData) {
         duration,
         startQNo,
         endQNo,
-        JSON.stringify(classes)
+        JSON.stringify(classes),
+        JSON.stringify(initialSections)
     ]);
 
     const paper = mapPaperRow(res.rows[0]);
@@ -348,6 +378,7 @@ async function savePaper(paperData) {
             const Paper = require('../models/Paper');
             const mPaper = new Paper({
                 ...paperData,
+                sections: initialSections,
                 teacherId: String(tId)
             });
             await mPaper.save();
@@ -363,11 +394,11 @@ async function getPapers(teacherId = null) {
     let res;
     if (teacherId) {
         res = await pool.query(
-            'SELECT * FROM public.papers WHERE teacher_id = $1 OR created_by = $1 OR author_id = $1 ORDER BY created_at DESC',
+            'SELECT * FROM public.papers WHERE teacher_id = $1 OR created_by = $1 OR author_id = $1 ORDER BY updated_at DESC, created_at DESC',
             [String(teacherId)]
         );
     } else {
-        res = await pool.query('SELECT * FROM public.papers ORDER BY created_at DESC');
+        res = await pool.query('SELECT * FROM public.papers ORDER BY updated_at DESC, created_at DESC');
     }
     return res.rows.map(mapPaperRow);
 }
@@ -415,8 +446,9 @@ async function updatePaper(id, updateData) {
             start_q_no = $19,
             end_q_no = $20,
             classes = $21,
+            sections = $22,
             updated_at = NOW()
-        WHERE id = $22
+        WHERE id = $23
         RETURNING *
     `, [
         merged.title,
@@ -436,12 +468,116 @@ async function updatePaper(id, updateData) {
         JSON.stringify(merged.pattern || []),
         JSON.stringify(merged.difficultyDistribution || {}),
         merged.isAssignment || false,
-        merged.duration || '60 mins',
+        merged.duration || '180 mins',
         merged.startQNo || 1,
         merged.endQNo || null,
         JSON.stringify(merged.classes || ['12']),
+        JSON.stringify(merged.sections || []),
         current.id
     ]);
+
+    return mapPaperRow(res.rows[0]);
+}
+
+/**
+ * Non-Destructive Section Saving for Shared Multi-Teacher Drafts:
+ * Atomically updates questions & status for ONE subject section without wiping or resetting others.
+ */
+async function updatePaperSection(id, subjectName, sectionData = {}) {
+    if (!id || !subjectName) return null;
+    const current = await getPaperById(id);
+    if (!current) return null;
+
+    const normSubject = String(subjectName).trim();
+    let sections = Array.isArray(current.sections) ? [...current.sections] : [];
+
+    // If sections is empty, initialize default sections based on exam_type
+    if (sections.length === 0) {
+        const eType = (current.exam_type || current.examType || 'JEE_PCM').toUpperCase();
+        let defaultSubs = ['Physics', 'Chemistry', 'Mathematics'];
+        if (eType.includes('NEET') || eType.includes('PCB')) defaultSubs = ['Physics', 'Chemistry', 'Biology'];
+        else if (eType.includes('CET') || eType.includes('PCMB')) defaultSubs = ['Physics', 'Chemistry', 'Mathematics', 'Biology'];
+        sections = defaultSubs.map(s => ({
+            subject: s,
+            questions: [],
+            questionObjects: [],
+            status: 'NOT_STARTED',
+            updated_at: new Date().toISOString()
+        }));
+    }
+
+    // Match section by subject
+    const existingIndex = sections.findIndex(s => (s.subject || '').toLowerCase() === normSubject.toLowerCase());
+
+    const questionIds = (sectionData.questions || []).map(q => typeof q === 'string' ? q : (q._id || q.id)).filter(Boolean);
+    const questionObjects = Array.isArray(sectionData.questionObjects) ? sectionData.questionObjects : (sectionData.questions || []).filter(q => typeof q === 'object');
+    const sectionStatus = sectionData.status || (questionIds.length > 0 ? 'SAVED' : 'NOT_STARTED');
+
+    const updatedSection = {
+        subject: normSubject,
+        questions: questionIds,
+        questionObjects: questionObjects,
+        status: sectionStatus,
+        updated_at: new Date().toISOString()
+    };
+
+    if (existingIndex !== -1) {
+        sections[existingIndex] = {
+            ...sections[existingIndex],
+            ...updatedSection
+        };
+    } else {
+        sections.push(updatedSection);
+    }
+
+    // Non-destructively construct merged list of questions across all sections
+    const mergedIds = [];
+    const mergedObjs = [];
+    sections.forEach(sec => {
+        (sec.questions || []).forEach((qId, idx) => {
+            if (!mergedIds.includes(qId)) {
+                mergedIds.push(qId);
+                const obj = (sec.questionObjects || [])[idx] || (sec.questionObjects || []).find(o => String(o._id || o.id) === String(qId));
+                if (obj) mergedObjs.push(obj);
+            }
+        });
+    });
+
+    const allSaved = sections.length > 0 && sections.every(s => s.status === 'SAVED');
+    const paperStatus = sectionData.paperStatus || (allSaved ? 'COMPLETED' : 'DRAFT');
+
+    const res = await pool.query(`
+        UPDATE public.papers SET
+            sections = $1,
+            questions = $2,
+            question_objects = $3,
+            status = $4,
+            updated_at = NOW()
+        WHERE id = $5
+        RETURNING *
+    `, [
+        JSON.stringify(sections),
+        JSON.stringify(mergedIds),
+        JSON.stringify(mergedObjs),
+        paperStatus,
+        current.id
+    ]);
+
+    // MongoDB sync if connected
+    if (mongoose.connection.readyState === 1) {
+        try {
+            const Paper = require('../models/Paper');
+            await Paper.findByIdAndUpdate(current._id || current.id, {
+                sections,
+                questions: mergedIds,
+                questionObjects: mergedObjs,
+                status: paperStatus,
+                updatedAt: new Date()
+            });
+        } catch (mErr) {
+            console.warn('[STORAGE] Mongo section sync notice:', mErr.message);
+        }
+    }
 
     return mapPaperRow(res.rows[0]);
 }
@@ -804,6 +940,7 @@ module.exports = {
     getPapers,
     getPaperById,
     updatePaper,
+    updatePaperSection,
     deletePaper,
 
     // Sessions & Bridge

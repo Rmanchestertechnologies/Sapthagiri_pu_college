@@ -43,43 +43,51 @@ const KATEX_CONFIG = {
 function processMathOnly(text) {
     if (!text || typeof text !== 'string') return '';
 
-    // 0) Strip internal QPV / QBP / DIFFICULTY tags
+    // 0) Strip internal QPV / QBP / DIFFICULTY tags and trailing reference bracket codes
     let result = text
         .replace(/\[(?:QPV_|QBP_)?DIFFICULTY:\s*[^\]]+\]/gi, '')
         .replace(/\[(?:QPV|QBP)_[A-Za-z0-9_]+:[^\]]*\]/gi, '')
+        .replace(/\s*\[\s*(?:JEE|NEET|CET|AIPMT|CBSE|KCET|BITSAT|AIIMS|MHT-?CET|IIT|ADVANCED|MAIN)[\s\w\-,\(\)]*\d{4}\s*\]\s*$/i, '')
+        .replace(/\s*\[\s*\d+\s*(?:Marks?|M)?\s*\]\s*$/i, '')
+        .replace(/\s*\[\s*[A-Za-z]{1,5}\s*[-.]?\s*\d{1,5}\s*\]\s*$/i, '')
+        .replace(/\s*\[\s*[A-Za-z0-9_\-]{2,8}\s*\]\s*$/i, '')
         .trim();
 
-    // 1) Render display math: $$...$$ (rendered inline-block to preserve sentence flow)
+    // 1) Auto-wrap naked LaTeX math commands if not surrounded by $
+    const nakedLatexRegex = /(?<!\$)\\(?:frac|sqrt|pm|times|div|leq|geq|neq|approx|rightarrow|infty|sum|int|partial|theta|alpha|beta|gamma|lambda|omega|Delta|mu|sigma|cdot|circ|text)\b[^{$\n]*(?:\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\})*(?!\$)/g;
+    result = result.replace(nakedLatexRegex, (match) => `$${match}$`);
+
+    // 2) Render display math: $$...$$
     result = result.replace(/\$\$([\s\S]*?)\$\$/g, (_match, math) => {
         try {
-            return katex.renderToString(math.trim(), { displayMode: false, throwOnError: false, output: 'html' });
+            return katex.renderToString(math.trim(), { displayMode: false, throwOnError: false, output: 'htmlAndMathml' });
         } catch {
             return math;
         }
     });
 
-    // 2) Render display math: \[...\]
+    // 3) Render display math: \[...\]
     result = result.replace(/\\\[([\s\S]*?)\\\]/g, (_match, math) => {
         try {
-            return katex.renderToString(math.trim(), { displayMode: false, throwOnError: false, output: 'html' });
+            return katex.renderToString(math.trim(), { displayMode: false, throwOnError: false, output: 'htmlAndMathml' });
         } catch {
             return math;
         }
     });
 
-    // 3) Render inline math: $...$ (single dollar)
-    result = result.replace(/\$([^$\n]+?)\$/g, (_match, math) => {
+    // 4) Render inline math: $...$ (handles multiline inline math cleanly)
+    result = result.replace(/\$([\s\S]+?)\$/g, (_match, math) => {
         try {
-            return katex.renderToString(math.trim(), { displayMode: false, throwOnError: false, output: 'html' });
+            return katex.renderToString(math.trim(), { displayMode: false, throwOnError: false, output: 'htmlAndMathml' });
         } catch {
             return math;
         }
     });
 
-    // 4) Render inline math: \(...\)
+    // 5) Render inline math: \(...\)
     result = result.replace(/\\\(([\s\S]*?)\\\)/g, (_match, math) => {
         try {
-            return katex.renderToString(math.trim(), { displayMode: false, throwOnError: false, output: 'html' });
+            return katex.renderToString(math.trim(), { displayMode: false, throwOnError: false, output: 'htmlAndMathml' });
         } catch {
             return math;
         }
