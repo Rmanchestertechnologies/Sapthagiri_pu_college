@@ -12,6 +12,7 @@
  */
 import React, { useMemo } from 'react';
 import QuestionBlock from './QuestionBlock';
+import MathRenderer from './MathRenderer';
 import { InstructionCoverPage, PaperHeader, formatMarks, calcTotal } from './PaperRenderer';
 
 export default function A4PaperEngine({
@@ -113,6 +114,7 @@ export default function A4PaperEngine({
                                 templateUrl={activeTemplate?.fileUrl}
                                 isAssignment={isAssignment}
                                 setName={paper?.setName || 'P'}
+                                headerConfig={paper?.headerConfig}
                             />
                         </div>
 
@@ -127,32 +129,64 @@ export default function A4PaperEngine({
                         >
                             {visibleQuestions.map((q, idx) => {
                                 const displayNum = startQNo + idx;
+                                const currentPartKey = q.part || (q.sectionName && !q.sectionName.includes('Section 1') ? q.sectionName : (idx === 0 && q.part ? q.part : null));
+                                const prevPartKey = idx > 0 ? (visibleQuestions[idx - 1].part || visibleQuestions[idx - 1].sectionName || null) : null;
+                                const isNewPart = Boolean(currentPartKey && currentPartKey !== prevPartKey);
+                                const directiveText = paper?.partDirectives?.[currentPartKey] || q.partDirective || null;
+
                                 return (
-                                    <div
-                                        key={q._id || displayNum}
-                                        className="question-print-item"
-                                        style={{
-                                            breakInside: 'avoid',
-                                            WebkitColumnBreakInside: 'avoid',
-                                            pageBreakInside: 'avoid',
-                                            marginBottom: settings.questionSpacing || (isTwoCol ? '8px' : '10px'),
-                                        }}
-                                    >
-                                        <QuestionBlock
-                                            q={q}
-                                            displayNum={displayNum}
-                                            classes={classes}
-                                            showMarks={settings.showMarks}
-                                            singleColMode={!isTwoCol}
-                                            isTwoCol={isTwoCol}
-                                            fontSize={settings.fontSize}
-                                            lineHeight={settings.lineHeight}
-                                            formatMarks={formatMarks}
-                                            extraStyle={{ marginBottom: '0px' }}
-                                            diagramMaxHeight={settings.diagramMaxHeight}
-                                            onDiagramResize={onDiagramResize}
-                                        />
-                                    </div>
+                                    <React.Fragment key={q._id || displayNum}>
+                                        {isNewPart && (
+                                            <div
+                                                className="part-header-directive-block"
+                                                style={{
+                                                    margin: idx === 0 ? '4px 0 10px 0' : '16px 0 10px 0',
+                                                    padding: '6px 12px',
+                                                    backgroundColor: '#f8fafc',
+                                                    borderLeft: '4px solid #001f6d',
+                                                    borderTop: '1px solid #cbd5e1',
+                                                    borderBottom: '1px solid #cbd5e1',
+                                                    breakInside: 'avoid',
+                                                    pageBreakInside: 'avoid',
+                                                    breakAfter: 'avoid',
+                                                    columnSpan: isTwoCol ? 'all' : 'none',
+                                                }}
+                                            >
+                                                <div style={{ fontWeight: 900, fontSize: '12px', textTransform: 'uppercase', color: '#001f6d', letterSpacing: '0.04em' }}>
+                                                    {currentPartKey}
+                                                </div>
+                                                {directiveText && (
+                                                    <div style={{ fontSize: '10.5px', fontWeight: 600, color: '#334155', marginTop: '2px', fontStyle: 'italic', whiteSpace: 'pre-line' }}>
+                                                        {directiveText}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+                                        <div
+                                            className="question-print-item"
+                                            style={{
+                                                breakInside: 'avoid',
+                                                WebkitColumnBreakInside: 'avoid',
+                                                pageBreakInside: 'avoid',
+                                                marginBottom: settings.questionSpacing || (isTwoCol ? '8px' : '10px'),
+                                            }}
+                                        >
+                                            <QuestionBlock
+                                                q={q}
+                                                displayNum={displayNum}
+                                                classes={classes}
+                                                showMarks={settings.showMarks}
+                                                singleColMode={!isTwoCol}
+                                                isTwoCol={isTwoCol}
+                                                fontSize={settings.fontSize}
+                                                lineHeight={settings.lineHeight}
+                                                formatMarks={formatMarks}
+                                                extraStyle={{ marginBottom: '0px' }}
+                                                diagramMaxHeight={settings.diagramMaxHeight}
+                                                onDiagramResize={onDiagramResize}
+                                            />
+                                        </div>
+                                    </React.Fragment>
                                 );
                             })}
                         </div>
@@ -163,6 +197,63 @@ export default function A4PaperEngine({
                         </div>
                     </div>
                 </div>
+
+                {/* Optional Scheme of Valuation Sheet on Last Page */}
+                {(paper?.includeSchemeOnLastPage || settings?.includeSchemeOnLastPage) && (
+                    <div className="a4-sheet-page a4-scheme-page" style={{ position: 'relative', pageBreakBefore: 'always', breakBefore: 'page', marginTop: '28px' }}>
+                        <div className="a4-page-content" style={{ fontFamily: settings.fontFamily, fontSize: '11px', lineHeight: '1.4', padding: '12mm' }}>
+                            <div style={{ textAlign: 'center', borderBottom: '2px solid #000', paddingBottom: '8px', marginBottom: '14px' }}>
+                                <div style={{ fontSize: '17px', fontWeight: 900, textTransform: 'uppercase', color: '#000' }}>
+                                    {paper?.headerConfig?.collegeName || 'SAPTHAGIRI PU COLLEGE'}
+                                </div>
+                                <div style={{ fontSize: '12px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#001f6d', marginTop: '2px' }}>
+                                    SCHEME OF VALUATION & ANSWER KEY
+                                </div>
+                                <div style={{ fontSize: '11px', fontWeight: 700, color: '#333', marginTop: '2px' }}>
+                                    {paper?.title || 'EXAMINATION'} • Subject: {paper?.subject} • Max Marks: {totalMarks}
+                                </div>
+                            </div>
+
+                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px' }}>
+                                <thead>
+                                    <tr style={{ backgroundColor: '#f1f5f9', borderBottom: '1.5px solid #000' }}>
+                                        <th style={{ padding: '6px 8px', border: '1px solid #cbd5e1', width: '50px', textAlign: 'center', fontWeight: 800 }}>Q.No</th>
+                                        <th style={{ padding: '6px 8px', border: '1px solid #cbd5e1', width: '90px', textAlign: 'center', fontWeight: 800 }}>Part / Key</th>
+                                        <th style={{ padding: '6px 8px', border: '1px solid #cbd5e1', textAlign: 'left', fontWeight: 800 }}>Valuation Criteria / Steps / Key Solution</th>
+                                        <th style={{ padding: '6px 8px', border: '1px solid #cbd5e1', width: '60px', textAlign: 'center', fontWeight: 800 }}>Marks</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {visibleQuestions.map((q, qIdx) => {
+                                        const num = startQNo + qIdx;
+                                        const key = q.answer || q.correct_option || '-';
+                                        const m = q.marks || (formatMarks(q.type, classes).replace(/\D+/g, '') || '1');
+                                        return (
+                                            <tr key={q._id || num} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                                                <td style={{ padding: '6px 8px', border: '1px solid #cbd5e1', textAlign: 'center', fontWeight: 700 }}>
+                                                    {num}
+                                                </td>
+                                                <td style={{ padding: '6px 8px', border: '1px solid #cbd5e1', textAlign: 'center', fontWeight: 800, color: '#001f6d' }}>
+                                                    {q.part ? `${q.part} (${key})` : key}
+                                                </td>
+                                                <td style={{ padding: '6px 8px', border: '1px solid #cbd5e1' }}>
+                                                    {q.solutionText ? (
+                                                        <MathRenderer text={q.solutionText} />
+                                                    ) : (
+                                                        <span>Correct Option / Standard step marks ({key})</span>
+                                                    )}
+                                                </td>
+                                                <td style={{ padding: '6px 8px', border: '1px solid #cbd5e1', textAlign: 'center', fontWeight: 800 }}>
+                                                    {m}M
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* ── CSS STYLES FOR ON-SCREEN AND PRINT ── */}
@@ -433,11 +524,24 @@ export default function A4PaperEngine({
                     .question-print-item {
                         display: block !important;
                         width: 100% !important;
-                        break-inside: auto !important;
-                        orphans: 2 !important;
-                        widows: 2 !important;
+                        break-inside: avoid !important;
+                        page-break-inside: avoid !important;
+                        -webkit-column-break-inside: avoid !important;
+                        orphans: 3 !important;
+                        widows: 3 !important;
                         position: relative !important;
                         z-index: 1 !important;
+                    }
+                    .part-header-directive-block {
+                        break-inside: avoid !important;
+                        page-break-inside: avoid !important;
+                        break-after: avoid !important;
+                    }
+                    .a4-scheme-page {
+                        page-break-before: always !important;
+                        break-before: page !important;
+                        box-shadow: none !important;
+                        border: none !important;
                     }
                     .a4-questions-flow {
                         orphans: 2 !important;

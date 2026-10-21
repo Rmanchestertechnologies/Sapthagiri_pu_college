@@ -18,6 +18,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../../api';
 import MathRenderer from '../../components/MathRenderer';
 import PaperRenderer, { DEFAULT_SETTINGS } from '../../components/PaperRenderer';
+import ChapterBlueprintMatrix from '../../components/ChapterBlueprintMatrix';
 import PaperAnalysisModal from '../../components/PaperAnalysisModal';
 import A4AnswerKey from '../../components/A4AnswerKey';
 import A4SolutionKey from '../../components/A4SolutionKey';
@@ -319,6 +320,178 @@ export default function CreatePaper() {
     const [saving, setSaving] = useState(false);
     const [showReviewSelectedModal, setShowReviewSelectedModal] = useState(false);
     const [editingQuestionModal, setEditingQuestionModal] = useState(null);
+
+    // Default Institutional Header & Part Directives
+    const DEFAULT_HEADER_CONFIG = {
+        collegeName: 'SAPTHAGIRI PU COLLEGE',
+        subTitle: 'DAVANAGERE • THE LAND OF OPPORTUNITY',
+        subject: '',
+        subjectCode: '',
+        streamClass: 'II PUC - SCIENCE',
+        timeAllowed: '3 Hours 15 Minutes',
+        maxMarks: '70',
+        generalInstructions: [
+            '1. The question paper contains four parts: A, B, C, and D. All parts are compulsory.',
+            '2. For PART-A questions, first written answer will be considered for awarding marks.',
+            '3. Answers without relevant formula/figure wherever necessary will not carry any marks.',
+            '4. Use of non-programmable scientific calculator and log tables is permitted.'
+        ]
+    };
+
+    const DEFAULT_PART_DIRECTIVES = {
+        'SECTION-A (MCQ)': 'Single Correct Multiple Choice Questions (+4 Marks for Correct, -1 for Incorrect).',
+        'SECTION-A (DIAGRAM)': 'Diagram / Graph Based Multiple Choice Questions (+4 Marks for Correct, -1 for Incorrect).',
+        'SECTION-B (ASSERTION & REASON)': 'Assertion and Reason Questions (+4 Marks for Correct, -1 for Incorrect).',
+        'SECTION-B (STATEMENT)': 'Statement Based Questions (+4 Marks for Correct, -1 for Incorrect).',
+        'SECTION-C (NUMERICAL)': 'Numerical / Integer Answer Questions (+4 Marks for Correct, 0 for Unattempted).',
+        'SECTION-D (MATRIX MATCH)': 'Match the Following / Matrix Match Questions (+4 Marks for Correct, -1 for Incorrect).',
+        'PART-A': 'Objective Multiple Choice Questions',
+        'PART-B': 'Numerical / Assertion & Reason Questions',
+    };
+
+    const [headerConfig, setHeaderConfig] = useState(DEFAULT_HEADER_CONFIG);
+    const [partDirectives, setPartDirectives] = useState(DEFAULT_PART_DIRECTIVES);
+    const [showHeaderConfigModal, setShowHeaderConfigModal] = useState(false);
+
+    // Swap Feedback State (Spinner, Flash animation, Toast & 5s Undo)
+    const [swappingIndex, setSwappingIndex] = useState(null);
+    const [justSwappedIndex, setJustSwappedIndex] = useState(null);
+    const [swapToast, setSwapToast] = useState({ open: false, message: '', type: 'info', undoData: null });
+    const undoTimeoutRef = useRef(null);
+
+    // Blueprint Generator State
+    const [generatingBlueprint, setGeneratingBlueprint] = useState(false);
+
+    // LaTeX Editor State
+    const [editorTab, setEditorTab] = useState('split'); // 'split' | 'edit' | 'preview'
+    const [activeEditorField, setActiveEditorField] = useState('questionText');
+
+    // Standard Step Wizard Navigation Handlers
+    const handlePrevStep = () => {
+        setCurrentStep(prev => Math.max(1, prev - 1));
+    };
+
+    const handleNextStep = () => {
+        setCurrentStep(prev => Math.min(5, prev + 1));
+    };
+
+    // Toast notification helper with auto-dismiss
+    const showToastNotification = (message, type = 'info', undoData = null) => {
+        if (undoTimeoutRef.current) clearTimeout(undoTimeoutRef.current);
+        setSwapToast({ open: true, message, type, undoData });
+        undoTimeoutRef.current = setTimeout(() => {
+            setSwapToast(prev => ({ ...prev, open: false, undoData: null }));
+        }, 5000);
+    };
+
+    // Quick LaTeX Math Symbol Inserter
+    const insertSymbolToEditorField = (symbol) => {
+        if (!editingQuestionModal) return;
+        setEditingQuestionModal(prev => {
+            const field = activeEditorField || 'questionText';
+            const curVal = prev.form[field] || '';
+            const addition = symbol.startsWith('\\') ? ` ${symbol} ` : symbol;
+            return {
+                ...prev,
+                form: {
+                    ...prev.form,
+                    [field]: curVal + addition
+                }
+            };
+        });
+    };
+
+    // LaTeX Syntax & Bracket Balance Validator
+    const validateLaTeXInput = (text) => {
+        if (!text) return null;
+        let curly = 0, square = 0, round = 0, dollars = 0;
+        for (let i = 0; i < text.length; i++) {
+            const ch = text[i];
+            const prev = i > 0 ? text[i - 1] : '';
+            if (ch === '$' && prev !== '\\') dollars++;
+            else if (ch === '{' && prev !== '\\') curly++;
+            else if (ch === '}' && prev !== '\\') curly--;
+            else if (ch === '[' && prev !== '\\') square++;
+            else if (ch === ']' && prev !== '\\') square--;
+            else if (ch === '(' && prev !== '\\') round++;
+            else if (ch === ')' && prev !== '\\') round--;
+        }
+        if (curly !== 0) return 'Unbalanced curly braces { } in LaTeX syntax';
+        if (square !== 0) return 'Unbalanced square brackets [ ] in LaTeX syntax';
+        if (round !== 0) return 'Unbalanced parentheses ( ) in LaTeX syntax';
+        if (dollars % 2 !== 0) return 'Unclosed math delimiter $ in LaTeX syntax';
+        return null;
+    };
+
+    // ── Persistent Draft Synchronization (localStorage) ──
+    const DRAFT_STORAGE_KEY = 'sapthagiri_pu_wizard_draft_v3';
+
+    // 1. Auto-restore draft on mount if not loading existing paperId
+    useEffect(() => {
+        if (paperId) return;
+        try {
+            const saved = localStorage.getItem(DRAFT_STORAGE_KEY);
+            if (saved) {
+                const draft = JSON.parse(saved);
+                if (draft && typeof draft === 'object') {
+                    if (draft.subject) setSubject(draft.subject);
+                    if (draft.selectedClass) setSelectedClass(draft.selectedClass);
+                    if (draft.examType) setExamType(draft.examType);
+                    if (draft.title) setTitle(draft.title);
+                    if (draft.duration) setDuration(draft.duration);
+                    if (draft.paperCategory) setPaperCategory(draft.paperCategory);
+                    if (draft.method) setMethod(draft.method);
+                    if (draft.autoDist) setAutoDist(draft.autoDist);
+                    if (draft.selectedChapters && Array.isArray(draft.selectedChapters)) setSelectedChapters(draft.selectedChapters);
+                    if (draft.selectedConcepts && Array.isArray(draft.selectedConcepts)) setSelectedConcepts(draft.selectedConcepts);
+                    if (draft.subjectSelections && typeof draft.subjectSelections === 'object') setSubjectSelections(draft.subjectSelections);
+                    if (draft.selectedQuestions && Array.isArray(draft.selectedQuestions) && draft.selectedQuestions.length > 0) {
+                        setSelectedQuestions(draft.selectedQuestions);
+                    }
+                    if (draft.headerConfig) setHeaderConfig(draft.headerConfig);
+                    if (draft.partDirectives) setPartDirectives(draft.partDirectives);
+                    if (draft.currentStep && draft.currentStep >= 1 && draft.currentStep <= 5) {
+                        setCurrentStep(draft.currentStep);
+                    }
+                }
+            }
+        } catch (e) {
+            console.warn('Failed to restore draft from localStorage', e);
+        }
+    }, [paperId]);
+
+    // 2. Auto-save draft on state updates
+    useEffect(() => {
+        if (paperId) return;
+        try {
+            const draftData = {
+                currentStep,
+                paperCategory,
+                subject,
+                selectedClass,
+                examType,
+                title,
+                duration,
+                targetCount,
+                method,
+                autoDist,
+                selectedChapters,
+                selectedConcepts,
+                subjectSelections,
+                selectedQuestions,
+                headerConfig,
+                partDirectives,
+                timestamp: Date.now()
+            };
+            localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(draftData));
+        } catch (e) {
+            console.warn('Failed to save draft to localStorage', e);
+        }
+    }, [
+        paperId, currentStep, paperCategory, subject, selectedClass, examType,
+        title, duration, targetCount, method, autoDist, selectedChapters,
+        selectedConcepts, subjectSelections, selectedQuestions, headerConfig, partDirectives
+    ]);
 
     // Selected questions grouped by subject
     const selectedQuestionsBySubject = useMemo(() => {
@@ -667,22 +840,44 @@ export default function CreatePaper() {
         return filteredQuestions.slice(0, pageNumber * size);
     }, [filteredQuestions, pageNumber, pageSize]);
 
-    // Helper to match question type filters
+    // Helper to match question type filters strictly aligned with database question types
     const matchesQuestionType = (q, allowedType) => {
         if (!allowedType || allowedType === 'ALL') return true;
         const qType = (q.type || q.q_type || '').toUpperCase();
-        if (allowedType === 'Single Correct MCQ') {
-            return qType === 'MCQ' || qType === 'MCQ_SINGLE' || (!q.type && q.options?.length > 1);
+        const qText = q.questionText || q.question || '';
+
+        if (allowedType === 'Single Correct MCQ' || allowedType === 'MCQ' || allowedType === 'mcq') {
+            if (qType === 'DIAGRAM_BASED' || q.imageUrl || q.image_url || /\{\{IMG::|!\[|<img/i.test(qText)) return false;
+            if (qType.includes('ASSERTION') || Boolean(q.assertion && q.reason) || (/Assertion/i.test(qText) && /Reason/i.test(qText))) return false;
+            if (qType.includes('STATEMENT') || (/Statement\s*(?:I|1)\s*[:\-]/i.test(qText) && /Statement\s*(?:II|2)\s*[:\-]/i.test(qText))) return false;
+            if (qType.includes('NUMERICAL') || (q.num_answer !== undefined && q.num_answer !== null && q.num_answer !== '')) return false;
+            if (qType.includes('MATCH') || (q.column_a && q.column_a.length > 0)) return false;
+            return qType === 'MCQ' || qType === 'MCQ_SINGLE' || (!q.type && (q.options?.length > 1));
         }
-        if (allowedType === 'Assertion & Reason (A/R)') {
-            return qType.includes('ASSERTION') || Boolean(q.assertion && q.reason);
+
+        if (allowedType === 'Assertion & Reason (A/R)' || allowedType === 'ASSERTION_REASON' || allowedType === 'ar') {
+            return qType.includes('ASSERTION') || Boolean(q.assertion && q.reason) || (/Assertion\s*(?:\(A\))?/i.test(qText) && /Reason\s*(?:\(R\))?/i.test(qText));
         }
-        if (allowedType === 'Numerical / Integer Type') {
-            return qType.includes('NUMERICAL') || qType.includes('INTEGER') || (q.num_answer !== undefined && q.num_answer !== null && q.num_answer !== '');
+
+        if (allowedType === 'Statement Based' || allowedType === 'STATEMENT_BASED' || allowedType === 'stmt') {
+            return qType.includes('STATEMENT') || (/Statement\s*(?:I|1)\s*[:\-]/i.test(qText) && /Statement\s*(?:II|2)\s*[:\-]/i.test(qText));
         }
-        if (allowedType === 'Matrix Match') {
-            return qType.includes('MATCH') || qType.includes('MATRIX') || (q.column_a && q.column_a.length > 0);
+
+        if (allowedType === 'Numerical / Integer Type' || allowedType === 'NUMERICAL' || allowedType === 'num') {
+            return qType.includes('NUMERICAL') || qType.includes('INTEGER') || (q.num_answer !== undefined && q.num_answer !== null && q.num_answer !== '') || (!q.options?.length && Boolean(q.correct_option));
         }
+
+        if (allowedType === 'Diagram Based' || allowedType === 'DIAGRAM_BASED' || allowedType === 'diag') {
+            const hasDiag = Boolean(q.imageUrl || q.image_url || /\{\{IMG::|!\[|<img/i.test(qText));
+            const opts = Array.isArray(q.options) ? q.options : [];
+            const optHasImages = opts.some(opt => /\{\{IMG::|!\[|<img/i.test(String(typeof opt === 'object' ? (opt.text || '') : opt)));
+            return qType === 'DIAGRAM_BASED' || hasDiag || optHasImages;
+        }
+
+        if (allowedType === 'Matrix Match' || allowedType === 'MATCH_FOLLOWING' || allowedType === 'match') {
+            return qType.includes('MATCH') || qType.includes('MATRIX') || (q.column_a && q.column_a.length > 0) || /(?:Column|List)\s*I[\s\S]*(?:Column|List)\s*II/i.test(qText) || /Match (?:List|the following|Column)/i.test(qText);
+        }
+
         return true;
     };
 
@@ -910,7 +1105,11 @@ export default function CreatePaper() {
                 next[swappingQuestionIndex] = qWithSub;
                 return next;
             });
+            const replacedIdx = swappingQuestionIndex;
             setSwappingQuestionIndex(null);
+            setJustSwappedIndex(replacedIdx);
+            setTimeout(() => setJustSwappedIndex(null), 1500);
+            showToastNotification(`Replaced Q#${replacedIdx + 1} with question from ${question.chapter || 'repository'}!`, 'success');
             return;
         }
 
@@ -922,6 +1121,210 @@ export default function CreatePaper() {
                 return [...prev, qWithSub];
             }
         });
+    };
+
+    // Auto-Swap Question with spinner, deduplication against current paper, flash animation, and 5s undo
+    const handleAutoSwapQuestion = async (targetQuestion, index) => {
+        if (swappingIndex !== null) return;
+        setSwappingIndex(index);
+
+        const sub = targetQuestion.sectionSubject || targetQuestion.subject || activeSubjectTab;
+        let pool = questionsPoolCache[sub];
+        if (!pool || pool.length === 0) {
+            pool = await fetchQuestionsPoolForSubject(sub);
+        }
+
+        if (!pool || pool.length === 0) {
+            setSwappingIndex(null);
+            showToastNotification(`No question pool available for ${sub}. Check connection.`, 'warning');
+            return;
+        }
+
+        const activeIds = new Set(selectedQuestions.map(q => String(q._id || q.id)));
+        const targetChapter = targetQuestion.chapter;
+        const targetLevel = (targetQuestion.level || 'medium').toLowerCase();
+        const targetPart = targetQuestion.part || 'PART-A';
+        const targetMarks = targetQuestion.marks || 1;
+
+        // 1. Strict match: same chapter, same difficulty tier, not in active paper
+        let candidates = pool.filter(q => {
+            const id = String(q._id || q.id);
+            if (activeIds.has(id)) return false;
+            const sameChapter = q.chapter && targetChapter && q.chapter.toLowerCase() === targetChapter.toLowerCase();
+            const sameLevel = (q.level || 'medium').toLowerCase() === targetLevel;
+            return sameChapter && sameLevel;
+        });
+
+        // 2. Same chapter, any difficulty tier, not in active paper
+        if (candidates.length === 0) {
+            candidates = pool.filter(q => {
+                const id = String(q._id || q.id);
+                if (activeIds.has(id)) return false;
+                return q.chapter && targetChapter && q.chapter.toLowerCase() === targetChapter.toLowerCase();
+            });
+        }
+
+        // 3. Fallback: same subject pool, not in active paper
+        if (candidates.length === 0) {
+            candidates = pool.filter(q => {
+                const id = String(q._id || q.id);
+                return !activeIds.has(id);
+            });
+        }
+
+        if (candidates.length === 0) {
+            setSwappingIndex(null);
+            showToastNotification(
+                `No alternative questions found for chapter "${targetChapter || 'General'}" and mark category. Try manual selection.`,
+                'warning'
+            );
+            return;
+        }
+
+        // Pick a replacement at random
+        const replacement = candidates[Math.floor(Math.random() * candidates.length)];
+        const replacementWithMeta = {
+            ...replacement,
+            sectionSubject: sub,
+            subject: sub,
+            part: targetPart,
+            marks: targetMarks,
+        };
+
+        const undoData = {
+            index,
+            previousQuestion: targetQuestion,
+        };
+
+        setSelectedQuestions(prev => {
+            const next = [...prev];
+            next[index] = replacementWithMeta;
+            return next;
+        });
+
+        setSwappingIndex(null);
+        setJustSwappedIndex(index);
+        setTimeout(() => setJustSwappedIndex(null), 1500);
+
+        showToastNotification(
+            `Swapped Q#${index + 1} with an alternative from ${replacement.chapter || targetChapter}!`,
+            'success',
+            undoData
+        );
+    };
+
+    // 5-second Undo Swap action
+    const handleUndoSwap = (undoData) => {
+        if (!undoData || undoData.index === undefined || !undoData.previousQuestion) return;
+        const { index, previousQuestion } = undoData;
+        setSelectedQuestions(prev => {
+            const next = [...prev];
+            next[index] = previousQuestion;
+            return next;
+        });
+        setJustSwappedIndex(index);
+        setTimeout(() => setJustSwappedIndex(null), 1500);
+        showToastNotification(`Reverted to original question for Q#${index + 1}.`, 'info');
+    };
+
+    // Blueprint Generation Engine strictly aligned with objective/competitive exam question types
+    const handleGenerateFromBlueprint = async (matrix, targetMarksVal, targetTotalQsVal, marksPerQVal = 4) => {
+        setGeneratingBlueprint(true);
+        try {
+            let pool = questionsPoolCache[activeSubjectTab];
+            if (!pool || pool.length === 0) {
+                pool = await fetchQuestionsPoolForSubject(activeSubjectTab);
+            }
+
+            if (!pool || pool.length === 0) {
+                alert(`No questions found in database for ${activeSubjectTab}. Please check connection.`);
+                return;
+            }
+
+            const pickedQuestions = [];
+            const pickedIds = new Set(selectedQuestions.map(q => String(q._id || q.id)));
+
+            const sampleFromPoolByType = (chapter, count, typeKey, sectionName, markVal) => {
+                if (count <= 0) return;
+                const chapterPool = pool.filter(q => {
+                    const id = String(q._id || q.id);
+                    if (pickedIds.has(id)) return false;
+                    const ch = q.chapter || 'General';
+                    return ch.toLowerCase() === chapter.toLowerCase() || ch.toLowerCase() === 'general';
+                });
+
+                // Match questions for this specific type
+                let matches = chapterPool.filter(q => matchesQuestionType(q, typeKey));
+
+                // Fallback 1: if not enough in this chapter, check the whole subject pool for this type
+                if (matches.length < count) {
+                    const subjectTypeMatches = pool.filter(q => {
+                        const id = String(q._id || q.id);
+                        return !pickedIds.has(id) && matchesQuestionType(q, typeKey);
+                    });
+                    const additional = subjectTypeMatches.filter(q => !matches.includes(q));
+                    matches = [...matches, ...additional];
+                }
+
+                // Fallback 2: if still not enough, pick any question from the chapter
+                if (matches.length < count) {
+                    const chapterFallback = chapterPool.filter(q => !matches.includes(q));
+                    matches = [...matches, ...chapterFallback];
+                }
+
+                // Shuffle
+                matches.sort(() => Math.random() - 0.5);
+
+                let added = 0;
+                for (const q of matches) {
+                    if (added >= count) break;
+                    const id = String(q._id || q.id);
+                    if (!pickedIds.has(id)) {
+                        pickedIds.add(id);
+                        pickedQuestions.push({
+                            ...q,
+                            part: sectionName,
+                            marks: markVal,
+                            sectionSubject: activeSubjectTab,
+                            subject: q.subject || activeSubjectTab,
+                        });
+                        added++;
+                    }
+                }
+            };
+
+            // Order sections systematically: MCQs -> Diagrams -> Assertion & Reason -> Statements -> Numericals -> Matrix Match
+            Object.entries(matrix).forEach(([chapter, row]) => {
+                if (row.mcq > 0) sampleFromPoolByType(chapter, row.mcq, 'Single Correct MCQ', 'SECTION-A (MCQ)', marksPerQVal);
+                if (row.diag > 0) sampleFromPoolByType(chapter, row.diag, 'Diagram Based', 'SECTION-A (DIAGRAM)', marksPerQVal);
+                if (row.ar > 0) sampleFromPoolByType(chapter, row.ar, 'Assertion & Reason (A/R)', 'SECTION-B (ASSERTION & REASON)', marksPerQVal);
+                if (row.stmt > 0) sampleFromPoolByType(chapter, row.stmt, 'Statement Based', 'SECTION-B (STATEMENT)', marksPerQVal);
+                if (row.num > 0) sampleFromPoolByType(chapter, row.num, 'Numerical / Integer Type', 'SECTION-C (NUMERICAL)', marksPerQVal);
+                if (row.match > 0) sampleFromPoolByType(chapter, row.match, 'Matrix Match', 'SECTION-D (MATRIX MATCH)', marksPerQVal);
+            });
+
+            if (pickedQuestions.length === 0) {
+                alert('No questions could be sampled for the specified blueprint. Please verify chapter names.');
+                return;
+            }
+
+            setSelectedQuestions(prev => {
+                const others = prev.filter(q => (q.sectionSubject || q.subject || '').toLowerCase() !== activeSubjectTab.toLowerCase());
+                return [...others, ...pickedQuestions];
+            });
+
+            if (targetMarksVal) {
+                setHeaderConfig(prev => ({ ...prev, maxMarks: String(targetMarksVal) }));
+            }
+
+            showToastNotification(`✓ Successfully Generated ${pickedQuestions.length} Questions from Blueprint!`, 'success');
+            setCurrentStep(4);
+        } catch (err) {
+            console.error('Error generating from blueprint:', err);
+            alert('Error generating questions from blueprint. Please try again.');
+        } finally {
+            setGeneratingBlueprint(false);
+        }
     };
 
     const removeQuestionByIndex = (index) => {
@@ -951,7 +1354,7 @@ export default function CreatePaper() {
         setSelectedQuestions(prev => prev.filter(q => !matchingIds.has(q._id || q.id)));
     };
 
-    // In-Place Question Text & Options Editor
+    // In-Place Question Text & Options Editor with KaTeX Preview & Validation
     const handleOpenEditQuestion = (question, index) => {
         const idx = index !== undefined ? index : selectedQuestions.findIndex(q => (q._id || q.id) === (question._id || question.id));
         
@@ -968,25 +1371,54 @@ export default function CreatePaper() {
             optD = question.opt_d || question.option_d || '';
         }
 
+        const qTypeUpper = (question.type || question.q_type || '').toUpperCase();
+        const initialQType = (
+            qTypeUpper.includes('NUMERICAL') || (question.num_answer !== undefined && question.num_answer !== null && question.num_answer !== '')
+        ) ? 'NUMERICAL' : (
+            qTypeUpper.includes('ASSERTION') || Boolean(question.assertion && question.reason)
+        ) ? 'ASSERTION_REASON' : (
+            qTypeUpper.includes('STATEMENT') || (/Statement\s*(?:I|1)/i.test(question.questionText || question.question || '') && /Statement\s*(?:II|2)/i.test(question.questionText || question.question || ''))
+        ) ? 'STATEMENT_BASED' : (
+            qTypeUpper.includes('DIAGRAM') || question.imageUrl || question.image_url || /\{\{IMG::|!\[|<img/i.test(question.questionText || question.question || '')
+        ) ? 'DIAGRAM_BASED' : (
+            qTypeUpper.includes('MATCH') || (question.column_a && question.column_a.length > 0)
+        ) ? 'MATCH_FOLLOWING' : 'MCQ';
+
         setEditingQuestionModal({
             index: idx,
             question,
             form: {
                 questionText: question.questionText || question.question || '',
+                qType: initialQType,
                 opt_a: optA,
                 opt_b: optB,
                 opt_c: optC,
                 opt_d: optD,
+                num_answer: question.num_answer !== undefined && question.num_answer !== null ? String(question.num_answer) : (typeof question.answer === 'number' ? String(question.answer) : ''),
                 answer: question.answer || question.correct_option || 'A',
+                marks: question.marks || 4,
                 solutionText: question.solutionText || question.solution_text || '',
                 imageUrl: question.imageUrl || question.image_url || '',
             }
         });
+        setActiveEditorField('questionText');
+        setEditorTab('split');
     };
 
     const handleSaveQuestionEdit = () => {
         if (!editingQuestionModal) return;
         const { index, question, form } = editingQuestionModal;
+
+        if (!form.questionText || !form.questionText.trim()) {
+            alert('Question text cannot be empty.');
+            return;
+        }
+
+        const bracketErr = validateLaTeXInput(form.questionText);
+        if (bracketErr) {
+            const proceed = window.confirm(`Warning: ${bracketErr}. Do you still want to save?`);
+            if (!proceed) return;
+        }
 
         const updatedOptions = [
             { label: 'A', text: form.opt_a },
@@ -995,17 +1427,23 @@ export default function CreatePaper() {
             { label: 'D', text: form.opt_d },
         ];
 
+        const isNumeric = form.qType === 'NUMERICAL';
+
         const updatedQuestion = {
             ...question,
             questionText: form.questionText,
             question: form.questionText,
-            options: updatedOptions,
+            type: form.qType,
+            q_type: form.qType.toLowerCase(),
+            options: isNumeric ? [] : updatedOptions,
             opt_a: form.opt_a,
             opt_b: form.opt_b,
             opt_c: form.opt_c,
             opt_d: form.opt_d,
-            answer: form.answer,
-            correct_option: form.answer,
+            num_answer: isNumeric ? (form.num_answer || '') : '',
+            answer: isNumeric ? (form.num_answer || form.answer) : form.answer,
+            correct_option: isNumeric ? (form.num_answer || form.answer) : form.answer,
+            marks: Number(form.marks) || 4,
             solutionText: form.solutionText,
             solution_text: form.solutionText,
             imageUrl: form.imageUrl,
@@ -1029,6 +1467,7 @@ export default function CreatePaper() {
             };
         });
         setEditingQuestionModal(null);
+        showToastNotification(`Updated Question #${index + 1} successfully!`, 'success');
     };
 
     // Pre-finalize check
@@ -1219,13 +1658,16 @@ export default function CreatePaper() {
             title: title || (paperCategory === 'assignment' ? `${subject} Assignment` : `${examType} Examination (${examSubjects.join(' + ')})`),
             subject: examSubjects.length === 1 ? examSubjects[0] : (subject || examSubjects.join(', ')),
             classes: [selectedClass],
-            duration: duration || null,
+            duration: headerConfig?.timeAllowed || duration || null,
             questions: displayList,
             examType: paperCategory === 'assignment' ? 'ASSIGNMENT' : examType,
             isAssignment: paperCategory === 'assignment',
             enableSets: paperCategory !== 'assignment',
+            headerConfig: headerConfig,
+            partDirectives: partDirectives,
+            includeSchemeOnLastPage: settings?.includeSchemeOnLastPage,
         };
-    }, [paperId, title, paperCategory, subject, selectedClass, duration, selectedQuestions, selectedQuestionsBySubject, previewSectionFilter, examSubjects, examType]);
+    }, [paperId, title, paperCategory, subject, selectedClass, duration, selectedQuestions, selectedQuestionsBySubject, previewSectionFilter, examSubjects, examType, headerConfig, partDirectives, settings?.includeSchemeOnLastPage]);
 
     // Active subject questions in basket
     const activeSubSelected = selectedQuestionsBySubject[activeSubjectTab] || [];
@@ -1238,19 +1680,28 @@ export default function CreatePaper() {
             
             {/* ── TOP HEADER / STEP WIZARD BAR ── */}
             <header className="bg-navy p-4 text-white flex justify-between items-center shadow-xl border-b-4 border-gold sticky top-0 z-30">
-                <div className="flex items-center gap-4 ml-4">
+                <div className="flex items-center gap-3 ml-4">
                     <button
+                        type="button"
                         onClick={() => navigate(user?.role === 'admin' ? '/admin/dashboard' : '/teacher/dashboard')}
                         className="bg-white/10 hover:bg-white/20 text-gold px-3.5 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition cursor-pointer"
                     >
-                        ← Exit Wizard
+                        ← Exit
+                    </button>
+                    <button
+                        type="button"
+                        onClick={handlePrevStep}
+                        disabled={currentStep === 1}
+                        className="bg-white/10 hover:bg-white/20 disabled:opacity-30 disabled:pointer-events-none text-white px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition cursor-pointer flex items-center gap-1"
+                    >
+                        <span>← Back Step</span>
                     </button>
                     <div>
                         <h1 className="text-base font-black uppercase tracking-tight leading-none text-white">
                             {paperCategory === 'assignment' ? 'Assignment Generator' : (examSubjects.length > 1 ? `${examType} Multi-Subject Exam Suite` : 'Question Paper Generator')}
                         </h1>
                         <span className="text-[10px] text-gold font-bold uppercase tracking-widest mt-0.5 block">
-                            {title || `${subject} Assessment`} • 77,987 Questions in Database
+                            {title || `${subject} Assessment`}
                         </span>
                     </div>
                 </div>
@@ -1599,47 +2050,75 @@ export default function CreatePaper() {
                             </p>
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            {/* Option 1: Chapter Blueprint Matrix */}
+                            <div
+                                onClick={() => {
+                                    setMethod('blueprint');
+                                    setCurrentStep(3);
+                                }}
+                                className="border-3 border-gray-200 hover:border-gold hover:shadow-2xl rounded-3xl p-6 cursor-pointer transition-all duration-300 flex flex-col justify-between group bg-surface"
+                            >
+                                <div>
+                                    <div className="w-14 h-14 rounded-2xl bg-gold text-navy flex items-center justify-center text-2xl mb-4 group-hover:scale-110 transition-transform shadow-xs">
+                                        📐
+                                    </div>
+                                    <div className="flex items-center gap-1.5 mb-1">
+                                        <span className="text-[9px] font-black uppercase tracking-wider bg-navy text-gold px-2 py-0.5 rounded-full">Recommended</span>
+                                    </div>
+                                    <h3 className="text-lg font-black text-navy uppercase tracking-tight mb-2">Chapter Blueprint Matrix</h3>
+                                    <p className="text-xs text-gray-600 leading-relaxed font-medium">
+                                        Target-driven competitive paper generation. Specify exact question counts per chapter for MCQs, Assertion & Reason, Statement-Based, Numericals, Diagrams, and Matrix Match with live target validation.
+                                    </p>
+                                </div>
+                                <div className="mt-6 pt-4 border-t border-gray-200 flex justify-between items-center text-xs font-black text-navy uppercase tracking-wider group-hover:text-gold">
+                                    <span>Configure Blueprint</span>
+                                    <span>→</span>
+                                </div>
+                            </div>
+
+                            {/* Option 2: Auto Fetch Generator Engine */}
                             <div
                                 onClick={() => {
                                     setMethod('auto');
                                     setCurrentStep(3);
                                 }}
-                                className="border-3 border-gray-200 hover:border-gold hover:shadow-2xl rounded-3xl p-8 cursor-pointer transition-all duration-300 flex flex-col justify-between group bg-surface"
+                                className="border-3 border-gray-200 hover:border-gold hover:shadow-2xl rounded-3xl p-6 cursor-pointer transition-all duration-300 flex flex-col justify-between group bg-surface"
                             >
                                 <div>
-                                    <div className="w-16 h-16 rounded-2xl bg-gold text-navy flex items-center justify-center text-3xl mb-4 group-hover:scale-110 transition-transform">
+                                    <div className="w-14 h-14 rounded-2xl bg-navy text-gold flex items-center justify-center text-2xl mb-4 group-hover:scale-110 transition-transform shadow-xs">
                                         ⚡
                                     </div>
-                                    <h3 className="text-xl font-black text-navy uppercase tracking-tight mb-2">Auto Fetch Generator Engine</h3>
+                                    <h3 className="text-lg font-black text-navy uppercase tracking-tight mb-2">Auto Fetch Generator Engine</h3>
                                     <p className="text-xs text-gray-600 leading-relaxed font-medium">
-                                        Automatically assemble questions across all your checked chapters and concepts with customized difficulty distribution (Easy / Medium / Hard) and 1-click generation for all subjects.
+                                        Automatically assemble questions across checked chapters and concepts with customized difficulty distribution (Easy / Medium / Hard) and 1-click multi-subject generation.
                                     </p>
                                 </div>
-                                <div className="mt-8 pt-4 border-t border-gray-200 flex justify-between items-center text-xs font-black text-navy uppercase tracking-wider group-hover:text-gold">
-                                    <span>Open Auto Fetch Engine</span>
+                                <div className="mt-6 pt-4 border-t border-gray-200 flex justify-between items-center text-xs font-black text-navy uppercase tracking-wider group-hover:text-gold">
+                                    <span>Open Auto Engine</span>
                                     <span>→</span>
                                 </div>
                             </div>
 
+                            {/* Option 3: Manual Question Selection */}
                             <div
                                 onClick={() => {
                                     setMethod('manual');
                                     setCurrentStep(3);
                                 }}
-                                className="border-3 border-gray-200 hover:border-navy hover:shadow-2xl rounded-3xl p-8 cursor-pointer transition-all duration-300 flex flex-col justify-between group bg-surface"
+                                className="border-3 border-gray-200 hover:border-navy hover:shadow-2xl rounded-3xl p-6 cursor-pointer transition-all duration-300 flex flex-col justify-between group bg-surface"
                             >
                                 <div>
-                                    <div className="w-16 h-16 rounded-2xl bg-navy text-gold flex items-center justify-center text-3xl mb-4 group-hover:scale-110 transition-transform">
+                                    <div className="w-14 h-14 rounded-2xl bg-slate-800 text-gold flex items-center justify-center text-2xl mb-4 group-hover:scale-110 transition-transform shadow-xs">
                                         ✍️
                                     </div>
-                                    <h3 className="text-xl font-black text-navy uppercase tracking-tight mb-2">Manual Question Selection</h3>
+                                    <h3 className="text-lg font-black text-navy uppercase tracking-tight mb-2">Manual Question Selection</h3>
                                     <p className="text-xs text-gray-600 leading-relaxed font-medium">
                                         Browse full question stems, formulas, diagrams, and options. Inspect quality and select or swap exactly what you want.
                                     </p>
                                 </div>
-                                <div className="mt-8 pt-4 border-t border-gray-200 flex justify-between items-center text-xs font-black text-navy uppercase tracking-wider group-hover:text-gold">
-                                    <span>Browse Questions Repository</span>
+                                <div className="mt-6 pt-4 border-t border-gray-200 flex justify-between items-center text-xs font-black text-navy uppercase tracking-wider group-hover:text-gold">
+                                    <span>Browse Repository</span>
                                     <span>→</span>
                                 </div>
                             </div>
@@ -1647,6 +2126,7 @@ export default function CreatePaper() {
 
                         <div className="flex justify-start pt-4 border-t border-gray-100">
                             <button
+                                type="button"
                                 onClick={() => setCurrentStep(1)}
                                 className="bg-gray-100 text-gray-700 hover:bg-gray-200 px-6 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider transition cursor-pointer"
                             >
@@ -1705,24 +2185,35 @@ export default function CreatePaper() {
                             </div>
                         )}
 
-                        {/* Top Mode Segmented Switcher (Auto Fetch vs Manual) */}
+                        {/* Top Mode Segmented Switcher (Blueprint vs Auto Fetch vs Manual) */}
                         <div className="flex flex-wrap items-center justify-between bg-white p-3 rounded-2xl border border-gray-200 shadow-sm gap-3">
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 flex-wrap">
+                                <button
+                                    type="button"
+                                    onClick={() => setMethod('blueprint')}
+                                    className={`px-4 py-2.5 rounded-xl font-black text-xs uppercase tracking-wider transition cursor-pointer flex items-center gap-2 ${
+                                        method === 'blueprint'
+                                            ? 'bg-gold text-navy shadow-md ring-2 ring-gold/40 scale-105'
+                                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                    }`}
+                                >
+                                    <span>📐 Chapter Blueprint Matrix</span>
+                                </button>
                                 <button
                                     type="button"
                                     onClick={() => setMethod('auto')}
-                                    className={`px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-wider transition cursor-pointer flex items-center gap-2 ${
+                                    className={`px-4 py-2.5 rounded-xl font-black text-xs uppercase tracking-wider transition cursor-pointer flex items-center gap-2 ${
                                         method === 'auto'
                                             ? 'bg-gold text-navy shadow-md ring-2 ring-gold/40 scale-105'
                                             : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                                     }`}
                                 >
-                                    <span>⚡ Auto Fetch Generator Engine</span>
+                                    <span>⚡ Auto Fetch Engine</span>
                                 </button>
                                 <button
                                     type="button"
                                     onClick={() => setMethod('manual')}
-                                    className={`px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-wider transition cursor-pointer flex items-center gap-2 ${
+                                    className={`px-4 py-2.5 rounded-xl font-black text-xs uppercase tracking-wider transition cursor-pointer flex items-center gap-2 ${
                                         method === 'manual'
                                             ? 'bg-navy text-gold shadow-md ring-2 ring-navy/40 scale-105'
                                             : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -1732,7 +2223,14 @@ export default function CreatePaper() {
                                 </button>
                             </div>
 
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 flex-wrap">
+                                <button
+                                    type="button"
+                                    onClick={() => setCurrentStep(2)}
+                                    className="bg-gray-100 text-gray-700 hover:bg-gray-200 px-3.5 py-2 rounded-xl font-bold text-xs uppercase tracking-wider transition cursor-pointer flex items-center gap-1"
+                                >
+                                    <span>←</span> Method (Step 2)
+                                </button>
                                 <button
                                     type="button"
                                     onClick={handleSaveCurrentSectionDraft}
@@ -1756,10 +2254,24 @@ export default function CreatePaper() {
                                     disabled={selectedQuestions.length === 0}
                                     className="bg-navy text-gold hover:scale-105 disabled:opacity-30 disabled:pointer-events-none px-5 py-2 rounded-xl font-black text-xs uppercase tracking-wider transition shadow-md cursor-pointer flex items-center gap-1.5"
                                 >
-                                    <span>Proceed to Preview (Step 4) →</span>
+                                    <span>Preview & Merge (Step 4) →</span>
                                 </button>
                             </div>
                         </div>
+
+                        {/* ──────────────────────────────────────────────────────────
+                            VIEW 0: CHAPTER BLUEPRINT / WEIGHTAGE MATRIX
+                        ────────────────────────────────────────────────────────── */}
+                        {method === 'blueprint' && (
+                            <ChapterBlueprintMatrix
+                                chapters={distinctChapters.length > 0 ? distinctChapters : (metaData.chapters || [])}
+                                subject={activeSubjectTab}
+                                examType={examType}
+                                isGenerating={generatingBlueprint}
+                                onGenerate={handleGenerateFromBlueprint}
+                                onCancel={() => setMethod('auto')}
+                            />
+                        )}
 
                         {/* ──────────────────────────────────────────────────────────
                             VIEW A: AUTO FETCH GENERATOR ENGINE
@@ -1843,7 +2355,9 @@ export default function CreatePaper() {
                                             <option value="ALL">All Question Types</option>
                                             <option value="Single Correct MCQ">Single Correct MCQ</option>
                                             <option value="Assertion & Reason (A/R)">Assertion & Reason (A/R)</option>
+                                            <option value="Statement Based">Statement Based</option>
                                             <option value="Numerical / Integer Type">Numerical / Integer Type</option>
+                                            <option value="Diagram Based">Diagrammatic / Image Based</option>
                                             <option value="Matrix Match">Matrix Match</option>
                                         </select>
                                         <div className="text-[10px] font-medium text-gray-400">
@@ -2088,10 +2602,10 @@ export default function CreatePaper() {
                                     <div className="flex items-center gap-2.5 flex-wrap">
                                         <button
                                             type="button"
-                                            onClick={() => setCurrentStep(1)}
+                                            onClick={() => setCurrentStep(2)}
                                             className="bg-gray-100 text-gray-700 hover:bg-gray-200 px-4 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider transition cursor-pointer flex items-center gap-1.5"
                                         >
-                                            <span>←</span> Setup (Step 1)
+                                            <span>←</span> Method (Step 2)
                                         </button>
                                         <button
                                             type="button"
@@ -2361,7 +2875,14 @@ export default function CreatePaper() {
                                         const diagramImg = q.imageUrl || q.image_url;
 
                                         return (
-                                            <div key={idx} className="border border-gray-200 p-5 rounded-2xl bg-gray-50/50 hover:bg-white hover:border-navy transition flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+                                            <div
+                                                key={idx}
+                                                className={`border p-5 rounded-2xl transition-all duration-700 flex flex-col sm:flex-row sm:items-start justify-between gap-4 ${
+                                                    justSwappedIndex === idx
+                                                        ? 'ring-4 ring-gold bg-amber-50/90 shadow-lg scale-[1.01] border-gold'
+                                                        : 'border-gray-200 bg-gray-50/50 hover:bg-white hover:border-navy'
+                                                }`}
+                                            >
                                                 <div className="flex-1 min-w-0">
                                                     <div className="flex items-center gap-2 mb-2 flex-wrap">
                                                         <span className="text-[10px] font-black bg-navy text-gold px-2 py-0.5 rounded">
@@ -2370,6 +2891,11 @@ export default function CreatePaper() {
                                                         <span className="text-[10px] font-bold text-navy bg-blue-50 px-2 py-0.5 rounded">
                                                             {q.sectionSubject || q.subject || 'Subject'} • {q.chapter || 'General'}
                                                         </span>
+                                                        {q.part && (
+                                                            <span className="text-[10px] font-black text-purple-800 bg-purple-100 px-2 py-0.5 rounded">
+                                                                {q.part} ({q.marks || 1}M)
+                                                            </span>
+                                                        )}
                                                         {q.answer && (
                                                             <span className="text-[10px] font-black text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded">
                                                                 Answer: ({q.answer})
@@ -2415,13 +2941,33 @@ export default function CreatePaper() {
                                                     </button>
                                                     <button
                                                         type="button"
+                                                        disabled={swappingIndex === idx}
+                                                        onClick={() => handleAutoSwapQuestion(q, idx)}
+                                                        className="bg-amber-100 text-amber-900 hover:bg-amber-200 disabled:opacity-50 px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer flex items-center gap-1 shadow-xs"
+                                                        title="Automatically swap with another question from the same chapter"
+                                                    >
+                                                        {swappingIndex === idx ? (
+                                                            <>
+                                                                <span className="inline-block animate-spin">⏳</span>
+                                                                <span>Swapping...</span>
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <span>🔄</span>
+                                                                <span>Swap</span>
+                                                            </>
+                                                        )}
+                                                    </button>
+                                                    <button
+                                                        type="button"
                                                         onClick={() => {
                                                             setSwappingQuestionIndex(idx);
                                                             setShowReviewSelectedModal(false);
                                                         }}
-                                                        className="bg-amber-100 text-amber-900 hover:bg-amber-200 px-3.5 py-1.5 rounded-xl text-xs font-black transition cursor-pointer flex items-center gap-1 shadow-xs"
+                                                        className="bg-gray-100 text-gray-700 hover:bg-gray-200 px-2.5 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer"
+                                                        title="Browse repository to manually pick a replacement"
                                                     >
-                                                        <span>🔄</span> Swap
+                                                        Browse 🔍
                                                     </button>
                                                     <button
                                                         type="button"
@@ -2509,43 +3055,54 @@ export default function CreatePaper() {
 
                         {/* Preview Toolbar */}
                         <div className="flex flex-wrap justify-between items-center bg-white p-4 rounded-2xl border border-gray-200 shadow-sm gap-3 no-print">
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    setMethod('manual');
-                                    setCurrentStep(3);
-                                }}
-                                className="bg-navy text-gold hover:scale-105 px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-wider transition shadow-md cursor-pointer flex items-center gap-2"
-                            >
-                                <span>←</span> ✏️ Edit / Change Questions
-                            </button>
+                            <div className="flex items-center gap-2 flex-wrap">
+                                <button
+                                    type="button"
+                                    onClick={() => setCurrentStep(3)}
+                                    className="bg-navy text-gold hover:scale-105 px-4 py-2.5 rounded-xl font-black text-xs uppercase tracking-wider transition shadow-md cursor-pointer flex items-center gap-2"
+                                >
+                                    <span>←</span> ✏️ Questions (Step 3)
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowHeaderConfigModal(true)}
+                                    className="bg-slate-100 hover:bg-slate-200 text-navy px-3.5 py-2.5 rounded-xl font-black text-xs uppercase tracking-wider transition border border-gray-300 flex items-center gap-1.5 cursor-pointer shadow-xs"
+                                >
+                                    <span>🏛️</span> Header & Choice Directives
+                                </button>
+                            </div>
 
                             <div className="flex items-center gap-2.5 flex-wrap">
                                 <button
+                                    type="button"
                                     onClick={() => setShowAnalysisModal(true)}
                                     className="bg-gold text-navy hover:bg-navy hover:text-gold px-4 py-2 rounded-xl font-black text-xs uppercase tracking-wider transition shadow flex items-center gap-1.5 cursor-pointer"
                                 >
                                     <span>📊</span> View Analysis
                                 </button>
                                 <button
+                                    type="button"
                                     onClick={() => setShowAnswerKeyModal(true)}
                                     className="bg-navy text-gold hover:bg-gold hover:text-navy px-4 py-2 rounded-xl font-black text-xs uppercase tracking-wider transition shadow flex items-center gap-1.5 cursor-pointer"
                                 >
                                     <span>🔑</span> Answer Key
                                 </button>
                                 <button
+                                    type="button"
                                     onClick={() => setShowSolutionsModal(true)}
                                     className="bg-navy text-gold hover:bg-gold hover:text-navy px-4 py-2 rounded-xl font-black text-xs uppercase tracking-wider transition shadow flex items-center gap-1.5 cursor-pointer"
                                 >
                                     <span>💡</span> Solutions Guide
                                 </button>
                                 <button
+                                    type="button"
                                     onClick={() => setCurrentStep(5)}
                                     className="bg-slate-100 hover:bg-slate-200 text-navy px-4 py-2 rounded-xl font-black text-xs uppercase tracking-wider transition border border-gray-300 flex items-center gap-1.5 cursor-pointer"
                                 >
                                     <span>⚙️</span> Alignment Controls →
                                 </button>
                                 <button
+                                    type="button"
                                     onClick={handleFinalizeAndSave}
                                     disabled={saving}
                                     className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2 rounded-xl font-black text-xs uppercase tracking-wider transition shadow flex items-center gap-1.5 cursor-pointer"
@@ -2580,12 +3137,14 @@ export default function CreatePaper() {
                         <div className="flex flex-wrap justify-between items-center bg-white p-4 rounded-2xl border border-gray-200 shadow-sm gap-3 no-print">
                             <div className="flex items-center gap-2">
                                 <button
+                                    type="button"
                                     onClick={() => setCurrentStep(4)}
                                     className="bg-gray-100 text-gray-700 hover:bg-gray-200 px-4 py-2 rounded-xl font-bold text-xs uppercase tracking-wider transition cursor-pointer"
                                 >
                                     ← Back to Preview
                                 </button>
                                 <button
+                                    type="button"
                                     onClick={() => setCurrentStep(3)}
                                     className="bg-gray-100 text-navy hover:bg-navy hover:text-gold px-4 py-2 rounded-xl font-bold text-xs uppercase tracking-wider transition cursor-pointer"
                                 >
@@ -2595,6 +3154,7 @@ export default function CreatePaper() {
 
                             <div className="flex items-center gap-2.5 flex-wrap">
                                 <button
+                                    type="button"
                                     onClick={() => setShowAnalysisModal(true)}
                                     className="bg-gold text-navy hover:bg-navy hover:text-gold px-4 py-2 rounded-xl font-black text-xs uppercase tracking-wider transition shadow flex items-center gap-1.5 cursor-pointer"
                                 >
@@ -2673,122 +3233,644 @@ export default function CreatePaper() {
                     />
                 )}
 
-                {/* ── MODAL: EDIT QUESTION IN-PLACE ── */}
+                {/* ── MODAL: EDIT QUESTION WITH LIVE KATEX MATH PREVIEW ── */}
                 {editingQuestionModal && (
-                    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 backdrop-blur-sm p-4 overflow-y-auto">
-                        <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col border-b-8 border-navy animate-fade-in-up overflow-hidden my-auto">
+                    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 backdrop-blur-sm p-4 overflow-y-auto">
+                        <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-5xl max-h-[92vh] flex flex-col border-b-8 border-navy animate-fade-in-up overflow-hidden my-auto">
+                            {/* Header */}
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between p-5 border-b border-gray-200 bg-gray-50/90 gap-3">
+                                <div>
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-[10px] font-black text-gold uppercase tracking-[0.2em] bg-navy px-3 py-0.5 rounded-full">
+                                            KaTeX Live Math Editor
+                                        </span>
+                                        <span className="text-xs font-bold text-gray-500">
+                                            Editing Question #{startQNo + (editingQuestionModal.index || 0)}
+                                        </span>
+                                    </div>
+                                    <h3 className="text-lg font-black text-navy mt-1 uppercase tracking-tight">
+                                        Edit Question Stem, Formulas & Option Keys
+                                    </h3>
+                                </div>
+
+                                <div className="flex items-center gap-2">
+                                    {/* View Mode Switcher */}
+                                    <div className="bg-gray-200 p-1 rounded-xl flex items-center gap-1 text-xs font-black">
+                                        <button
+                                            type="button"
+                                            onClick={() => setEditorTab('split')}
+                                            className={`px-3 py-1 rounded-lg transition cursor-pointer ${
+                                                editorTab === 'split' ? 'bg-navy text-gold shadow-xs' : 'text-gray-700 hover:bg-gray-300'
+                                            }`}
+                                        >
+                                            Split View
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setEditorTab('edit')}
+                                            className={`px-3 py-1 rounded-lg transition cursor-pointer ${
+                                                editorTab === 'edit' ? 'bg-navy text-gold shadow-xs' : 'text-gray-700 hover:bg-gray-300'
+                                            }`}
+                                        >
+                                            Edit Only
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setEditorTab('preview')}
+                                            className={`px-3 py-1 rounded-lg transition cursor-pointer ${
+                                                editorTab === 'preview' ? 'bg-navy text-gold shadow-xs' : 'text-gray-700 hover:bg-gray-300'
+                                            }`}
+                                        >
+                                            Preview
+                                        </button>
+                                    </div>
+
+                                    <button
+                                        type="button"
+                                        onClick={() => setEditingQuestionModal(null)}
+                                        className="text-slate-400 hover:text-red-500 bg-white rounded-full w-8 h-8 flex items-center justify-center text-lg font-bold border shadow-xs transition cursor-pointer"
+                                    >
+                                        ✕
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Quick Symbol Toolbar */}
+                            <div className="bg-slate-100 px-6 py-2 border-b border-gray-200 flex items-center gap-1.5 flex-wrap text-xs">
+                                <span className="text-[10px] font-black uppercase tracking-wider text-gray-500 mr-1">
+                                    Insert to {activeEditorField.replace('opt_', 'Option ').toUpperCase()}:
+                                </span>
+                                {[
+                                    { label: '+', val: '+' },
+                                    { label: '−', val: '−' },
+                                    { label: '×', val: '×' },
+                                    { label: '÷', val: '÷' },
+                                    { label: '±', val: '±' },
+                                    { label: '√', val: '\\sqrt{}' },
+                                    { label: 'x²', val: '^{2}' },
+                                    { label: 'xₙ', val: '_{n}' },
+                                    { label: 'π', val: '\\pi' },
+                                    { label: 'θ', val: '\\theta' },
+                                    { label: 'α', val: '\\alpha' },
+                                    { label: 'β', val: '\\beta' },
+                                    { label: 'λ', val: '\\lambda' },
+                                    { label: '→', val: '\\rightarrow' },
+                                    { label: '⇌', val: '\\rightleftharpoons' },
+                                    { label: '°C', val: '^\\circ\\text{C}' },
+                                    { label: 'a/b', val: '\\frac{a}{b}' },
+                                    { label: 'Δ', val: '\\Delta' },
+                                    { label: '∞', val: '\\infty' },
+                                    { label: '≤', val: '\\le' },
+                                    { label: '≥', val: '\\ge' },
+                                    { label: '≈', val: '\\approx' },
+                                ].map((sym, sIdx) => (
+                                    <button
+                                        key={sIdx}
+                                        type="button"
+                                        onClick={() => insertSymbolToEditorField(sym.val)}
+                                        className="bg-white hover:bg-navy hover:text-gold text-slate-800 px-2 py-1 rounded-md text-xs font-bold border border-gray-300 shadow-2xs transition cursor-pointer"
+                                        title={`Insert ${sym.val}`}
+                                    >
+                                        {sym.label}
+                                    </button>
+                                ))}
+                            </div>
+
+                            {/* Main Split-View Content */}
+                            <div className="flex-1 overflow-y-auto grid grid-cols-1 lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x divide-gray-200">
+                                {/* LEFT: Edit Form */}
+                                {(editorTab === 'split' || editorTab === 'edit') && (
+                                    <div className="p-6 space-y-4">
+                                        {/* Question Textarea */}
+                                        <div>
+                                            <div className="flex items-center justify-between mb-1">
+                                                <label className="block text-xs font-black text-navy uppercase">
+                                                    Question Text (LaTeX formulas inside $...$ or $$...$$)
+                                                </label>
+                                                <span className="text-[10px] text-gray-400 font-bold">
+                                                    Click to focus
+                                                </span>
+                                            </div>
+                                            <textarea
+                                                rows={4}
+                                                value={editingQuestionModal.form.questionText}
+                                                onFocus={() => setActiveEditorField('questionText')}
+                                                onChange={(e) => setEditingQuestionModal(prev => ({
+                                                    ...prev,
+                                                    form: { ...prev.form, questionText: e.target.value }
+                                                }))}
+                                                placeholder="Enter question stem with math e.g. $\\frac{1}{2}mv^2$..."
+                                                className={`w-full border rounded-xl p-3 text-xs font-medium outline-none transition focus:ring-2 ${
+                                                    activeEditorField === 'questionText'
+                                                        ? 'border-navy ring-2 ring-navy/20'
+                                                        : 'border-gray-300'
+                                                }`}
+                                            />
+                                            {/* Validation check */}
+                                            {validateLaTeXInput(editingQuestionModal.form.questionText) && (
+                                                <div className="text-[11px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-lg mt-1 flex items-center gap-1.5">
+                                                    <span>⚠️</span>
+                                                    <span>{validateLaTeXInput(editingQuestionModal.form.questionText)}</span>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* Options / Numerical Answer Field */}
+                                        {editingQuestionModal.form.qType === 'NUMERICAL' ? (
+                                            <div className="p-4 bg-amber-50/60 border border-amber-200 rounded-2xl">
+                                                <div className="flex items-center gap-2 mb-2">
+                                                    <span className="text-sm">🔢</span>
+                                                    <span className="text-xs font-black text-navy uppercase tracking-wider">
+                                                        Numerical / Integer Answer Question
+                                                    </span>
+                                                </div>
+                                                <p className="text-[11px] text-gray-600 mb-3">
+                                                    Students enter the numerical value directly. No multiple-choice options are required.
+                                                </p>
+                                                <div>
+                                                    <label className="block text-[11px] font-black text-gray-700 uppercase mb-1">
+                                                        Expected Numerical / Integer Answer
+                                                    </label>
+                                                    <input
+                                                        type="text"
+                                                        value={editingQuestionModal.form.num_answer || ''}
+                                                        placeholder="e.g. 25, 4.5, -12"
+                                                        onChange={(e) => setEditingQuestionModal(prev => ({
+                                                            ...prev,
+                                                            form: { ...prev.form, num_answer: e.target.value, answer: e.target.value }
+                                                        }))}
+                                                        className="w-full sm:w-64 bg-white border border-gray-300 rounded-xl px-3 py-2 text-xs font-black text-navy outline-none focus:ring-2 focus:ring-navy"
+                                                    />
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            /* 4 Options */
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                {['opt_a', 'opt_b', 'opt_c', 'opt_d'].map((optKey, idx) => {
+                                                    const label = ['A', 'B', 'C', 'D'][idx];
+                                                    const isCorrect = editingQuestionModal.form.answer === label;
+                                                    return (
+                                                        <div key={optKey}>
+                                                            <div className="flex items-center justify-between mb-1">
+                                                                <label className="block text-[11px] font-black text-gray-700 uppercase">
+                                                                    Option {label} {isCorrect && <span className="text-emerald-600 font-black">✓ Correct</span>}
+                                                                </label>
+                                                            </div>
+                                                            <input
+                                                                type="text"
+                                                                value={editingQuestionModal.form[optKey]}
+                                                                onFocus={() => setActiveEditorField(optKey)}
+                                                                onChange={(e) => setEditingQuestionModal(prev => ({
+                                                                    ...prev,
+                                                                    form: { ...prev.form, [optKey]: e.target.value }
+                                                                }))}
+                                                                className={`w-full border rounded-xl px-3 py-2 text-xs font-medium outline-none transition focus:ring-2 ${
+                                                                    isCorrect
+                                                                        ? 'border-emerald-500 bg-emerald-50/30'
+                                                                        : activeEditorField === optKey
+                                                                        ? 'border-navy ring-2 ring-navy/20'
+                                                                        : 'border-gray-300'
+                                                                }`}
+                                                            />
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
+
+                                        {/* Question Type, Answer Key, Marks, Diagram */}
+                                        <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                                            <div>
+                                                <label className="block text-[11px] font-bold text-gray-700 uppercase mb-1">Question Type</label>
+                                                <select
+                                                    value={editingQuestionModal.form.qType}
+                                                    onChange={(e) => setEditingQuestionModal(prev => ({
+                                                        ...prev,
+                                                        form: { ...prev.form, qType: e.target.value }
+                                                    }))}
+                                                    className="w-full border border-gray-300 rounded-xl px-2.5 py-2 text-xs font-black text-navy outline-none bg-white cursor-pointer"
+                                                >
+                                                    <option value="MCQ">Single Correct MCQ</option>
+                                                    <option value="ASSERTION_REASON">Assertion & Reason</option>
+                                                    <option value="STATEMENT_BASED">Statement Based</option>
+                                                    <option value="NUMERICAL">Numerical / Integer</option>
+                                                    <option value="DIAGRAM_BASED">Diagram Based</option>
+                                                    <option value="MATCH_FOLLOWING">Matrix Match</option>
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label className="block text-[11px] font-bold text-gray-700 uppercase mb-1">
+                                                    {editingQuestionModal.form.qType === 'NUMERICAL' ? 'Numerical Answer' : 'Correct Option'}
+                                                </label>
+                                                {editingQuestionModal.form.qType === 'NUMERICAL' ? (
+                                                    <input
+                                                        type="text"
+                                                        value={editingQuestionModal.form.num_answer || ''}
+                                                        placeholder="e.g. 25, 4.5"
+                                                        onChange={(e) => setEditingQuestionModal(prev => ({
+                                                            ...prev,
+                                                            form: { ...prev.form, num_answer: e.target.value, answer: e.target.value }
+                                                        }))}
+                                                        className="w-full border border-gray-300 rounded-xl px-3 py-2 text-xs font-black text-navy outline-none bg-white"
+                                                    />
+                                                ) : (
+                                                    <select
+                                                        value={editingQuestionModal.form.answer}
+                                                        onChange={(e) => setEditingQuestionModal(prev => ({
+                                                            ...prev,
+                                                            form: { ...prev.form, answer: e.target.value }
+                                                        }))}
+                                                        className="w-full border border-gray-300 rounded-xl px-3 py-2 text-xs font-black text-navy outline-none bg-white cursor-pointer"
+                                                    >
+                                                        <option value="A">Option A</option>
+                                                        <option value="B">Option B</option>
+                                                        <option value="C">Option C</option>
+                                                        <option value="D">Option D</option>
+                                                    </select>
+                                                )}
+                                            </div>
+                                            <div>
+                                                <label className="block text-[11px] font-bold text-gray-700 uppercase mb-1">Question Marks</label>
+                                                <select
+                                                    value={editingQuestionModal.form.marks || 4}
+                                                    onChange={(e) => setEditingQuestionModal(prev => ({
+                                                        ...prev,
+                                                        form: { ...prev.form, marks: parseInt(e.target.value, 10) || 4 }
+                                                    }))}
+                                                    className="w-full border border-gray-300 rounded-xl px-3 py-2 text-xs font-black text-navy outline-none bg-white cursor-pointer"
+                                                >
+                                                    <option value={4}>4 Marks (JEE/NEET Standard)</option>
+                                                    <option value={1}>1 Mark (KCET / Objective)</option>
+                                                    <option value={2}>2 Marks</option>
+                                                    <option value={3}>3 Marks</option>
+                                                    <option value={5}>5 Marks</option>
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label className="block text-[11px] font-bold text-gray-700 uppercase mb-1">Diagram Image URL</label>
+                                                <input
+                                                    type="text"
+                                                    value={editingQuestionModal.form.imageUrl}
+                                                    onFocus={() => setActiveEditorField('imageUrl')}
+                                                    onChange={(e) => setEditingQuestionModal(prev => ({
+                                                        ...prev,
+                                                        form: { ...prev.form, imageUrl: e.target.value }
+                                                    }))}
+                                                    placeholder="https://..."
+                                                    className="w-full border border-gray-300 rounded-xl px-3 py-2 text-xs outline-none"
+                                                />
+                                            </div>
+                                        </div>
+
+                                        {/* Solution */}
+                                        <div>
+                                            <label className="block text-xs font-black text-navy uppercase mb-1">
+                                                Solution / Valuation Steps
+                                            </label>
+                                            <textarea
+                                                rows={2}
+                                                value={editingQuestionModal.form.solutionText}
+                                                onFocus={() => setActiveEditorField('solutionText')}
+                                                onChange={(e) => setEditingQuestionModal(prev => ({
+                                                    ...prev,
+                                                    form: { ...prev.form, solutionText: e.target.value }
+                                                }))}
+                                                placeholder="Provide step-by-step solution / scheme of valuation..."
+                                                className="w-full border border-gray-300 rounded-xl p-3 text-xs outline-none"
+                                            />
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* RIGHT: KaTeX Live Preview */}
+                                {(editorTab === 'split' || editorTab === 'preview') && (
+                                    <div className="p-6 bg-slate-50/70 overflow-y-auto space-y-4">
+                                        <div className="flex items-center justify-between pb-2 border-b border-gray-200">
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-base">👁️</span>
+                                                <h4 className="font-black text-xs uppercase tracking-wider text-navy">
+                                                    Live Formatted KaTeX Preview
+                                                </h4>
+                                            </div>
+                                            <span className="bg-navy text-gold text-[10px] font-black px-2.5 py-0.5 rounded-full">
+                                                {editingQuestionModal.form.marks || 1} Mark{(editingQuestionModal.form.marks || 1) > 1 ? 's' : ''}
+                                            </span>
+                                        </div>
+
+                                        {/* Rendered Question Stem */}
+                                        <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-2xs">
+                                            <div className="text-xs font-bold text-navy leading-relaxed">
+                                                {editingQuestionModal.form.questionText ? (
+                                                    <MathRenderer inline text={editingQuestionModal.form.questionText} />
+                                                ) : (
+                                                    <span className="text-gray-400 italic">No question text yet. Type on the left...</span>
+                                                )}
+                                            </div>
+
+                                            {/* Rendered Diagram */}
+                                            {editingQuestionModal.form.imageUrl && (
+                                                <div className="mt-3 text-center">
+                                                    <img
+                                                        src={editingQuestionModal.form.imageUrl}
+                                                        alt="Diagram Preview"
+                                                        className="max-h-40 mx-auto rounded-lg border object-contain"
+                                                        onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                                                    />
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* Rendered Options / Numerical Answer */}
+                                        {editingQuestionModal.form.qType === 'NUMERICAL' ? (
+                                            <div className="p-4 rounded-2xl border border-amber-200 bg-amber-50/70 text-navy shadow-2xs">
+                                                <div className="text-[10px] font-black uppercase tracking-wider text-navy/70 mb-1">
+                                                    Numerical / Integer Answer Key:
+                                                </div>
+                                                <div className="font-mono font-black text-sm text-navy bg-white px-3 py-1.5 rounded-xl border border-amber-300 inline-block">
+                                                    {editingQuestionModal.form.num_answer || editingQuestionModal.form.answer || <span className="text-gray-400 italic font-sans font-normal">None specified</span>}
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            /* Rendered Options */
+                                            <div className="space-y-2">
+                                                <div className="text-[10px] font-black uppercase tracking-wider text-gray-500">
+                                                    Options Preview:
+                                                </div>
+                                                {['opt_a', 'opt_b', 'opt_c', 'opt_d'].map((optKey, idx) => {
+                                                    const label = ['A', 'B', 'C', 'D'][idx];
+                                                    const val = editingQuestionModal.form[optKey];
+                                                    const isCorrect = editingQuestionModal.form.answer === label;
+
+                                                    return (
+                                                        <div
+                                                            key={optKey}
+                                                            className={`p-3 rounded-xl border flex items-start gap-3 transition ${
+                                                                isCorrect
+                                                                    ? 'border-emerald-500 bg-emerald-50 text-emerald-900 shadow-2xs'
+                                                                    : 'border-gray-200 bg-white text-gray-800'
+                                                            }`}
+                                                        >
+                                                            <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black flex-shrink-0 ${
+                                                                isCorrect ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-700'
+                                                            }`}>
+                                                                {label}
+                                                            </span>
+                                                            <div className="text-xs font-medium flex-1 pt-0.5">
+                                                                {val ? <MathRenderer inline text={val} /> : <span className="text-gray-400 italic">Empty</span>}
+                                                            </div>
+                                                            {isCorrect && (
+                                                                <span className="text-[10px] font-black bg-emerald-600 text-white px-2 py-0.5 rounded-full">
+                                                                    Key
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
+
+                                        {/* Rendered Solution */}
+                                        {editingQuestionModal.form.solutionText && (
+                                            <div className="bg-blue-50/60 border border-blue-200 rounded-2xl p-4">
+                                                <div className="text-[10px] font-black uppercase tracking-wider text-navy mb-1">
+                                                    Solution / Steps Preview:
+                                                </div>
+                                                <div className="text-xs text-slate-700">
+                                                    <MathRenderer text={editingQuestionModal.form.solutionText} />
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Modal Footer */}
+                            <div className="p-4 border-t border-gray-200 bg-gray-50 flex justify-end gap-2.5">
+                                <button
+                                    type="button"
+                                    onClick={() => setEditingQuestionModal(null)}
+                                    className="px-4 py-2 rounded-xl text-xs font-bold text-gray-600 hover:bg-gray-200 transition cursor-pointer"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={handleSaveQuestionEdit}
+                                    className="bg-navy text-gold px-6 py-2 rounded-xl font-black text-xs uppercase tracking-wider hover:bg-navy/90 transition shadow-md cursor-pointer flex items-center gap-1.5"
+                                >
+                                    <span>✓</span>
+                                    <span>Save Changes</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* ── MODAL: INSTITUTIONAL EXAM HEADER & CHOICE DIRECTIVES ── */}
+                {showHeaderConfigModal && (
+                    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 backdrop-blur-sm p-4 overflow-y-auto">
+                        <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-3xl max-h-[92vh] flex flex-col border-b-8 border-navy animate-fade-in-up overflow-hidden my-auto">
                             <div className="flex justify-between items-center p-6 border-b border-gray-200 bg-gray-50/80">
                                 <div>
                                     <span className="text-[10px] font-black text-gold uppercase tracking-[0.2em] bg-navy px-3 py-1 rounded-full">
-                                        Question Editor
+                                        Institutional Layout Configuration
                                     </span>
                                     <h3 className="text-xl font-black text-navy mt-1 uppercase tracking-tight">
-                                        Edit Question Stem & Options
+                                        Exam Header & PU Board Choice Directives
                                     </h3>
                                 </div>
                                 <button
-                                    onClick={() => setEditingQuestionModal(null)}
-                                    className="text-slate-400 hover:text-red-500 bg-white rounded-full w-8 h-8 flex items-center justify-center text-lg font-bold border shadow transition cursor-pointer"
+                                    type="button"
+                                    onClick={() => setShowHeaderConfigModal(false)}
+                                    className="text-slate-400 hover:text-red-500 bg-white rounded-full w-8 h-8 flex items-center justify-center text-lg font-bold border shadow-xs transition cursor-pointer"
                                 >
                                     ✕
                                 </button>
                             </div>
 
-                            <div className="p-6 overflow-y-auto space-y-4">
+                            <div className="p-6 overflow-y-auto space-y-5">
+                                {/* Header Info */}
+                                <div className="space-y-3">
+                                    <h4 className="text-xs font-black text-navy uppercase tracking-wider border-b pb-1">
+                                        1. College Header Details
+                                    </h4>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                        <div>
+                                            <label className="block text-[11px] font-bold text-gray-700 uppercase mb-1">College Name</label>
+                                            <input
+                                                type="text"
+                                                value={headerConfig.collegeName}
+                                                onChange={(e) => setHeaderConfig(prev => ({ ...prev, collegeName: e.target.value }))}
+                                                className="w-full border border-gray-300 rounded-xl px-3 py-2 text-xs font-bold text-navy outline-none"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-[11px] font-bold text-gray-700 uppercase mb-1">Center / Subtitle</label>
+                                            <input
+                                                type="text"
+                                                value={headerConfig.subTitle}
+                                                onChange={(e) => setHeaderConfig(prev => ({ ...prev, subTitle: e.target.value }))}
+                                                className="w-full border border-gray-300 rounded-xl px-3 py-2 text-xs font-bold text-navy outline-none"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                        <div>
+                                            <label className="block text-[11px] font-bold text-gray-700 uppercase mb-1">Subject Code</label>
+                                            <input
+                                                type="text"
+                                                value={headerConfig.subjectCode || ''}
+                                                placeholder="e.g. 33"
+                                                onChange={(e) => setHeaderConfig(prev => ({ ...prev, subjectCode: e.target.value }))}
+                                                className="w-full border border-gray-300 rounded-xl px-3 py-2 text-xs font-bold text-navy outline-none"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-[11px] font-bold text-gray-700 uppercase mb-1">Class / Stream</label>
+                                            <input
+                                                type="text"
+                                                value={headerConfig.streamClass || ''}
+                                                onChange={(e) => setHeaderConfig(prev => ({ ...prev, streamClass: e.target.value }))}
+                                                className="w-full border border-gray-300 rounded-xl px-3 py-2 text-xs font-bold text-navy outline-none"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-[11px] font-bold text-gray-700 uppercase mb-1">Time Allowed</label>
+                                            <input
+                                                type="text"
+                                                value={headerConfig.timeAllowed || ''}
+                                                onChange={(e) => setHeaderConfig(prev => ({ ...prev, timeAllowed: e.target.value }))}
+                                                className="w-full border border-gray-300 rounded-xl px-3 py-2 text-xs font-bold text-navy outline-none"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-[11px] font-bold text-gray-700 uppercase mb-1">Max Marks</label>
+                                            <input
+                                                type="text"
+                                                value={headerConfig.maxMarks || ''}
+                                                onChange={(e) => setHeaderConfig(prev => ({ ...prev, maxMarks: e.target.value }))}
+                                                className="w-full border border-gray-300 rounded-xl px-3 py-2 text-xs font-bold text-navy outline-none"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* General Instructions */}
                                 <div>
-                                    <label className="block text-xs font-black text-navy uppercase mb-1">Question Text</label>
+                                    <label className="block text-xs font-black text-navy uppercase mb-1">
+                                        General Instructions (One instruction per line)
+                                    </label>
                                     <textarea
-                                        rows={3}
-                                        value={editingQuestionModal.form.questionText}
-                                        onChange={(e) => setEditingQuestionModal(prev => ({
+                                        rows={4}
+                                        value={(headerConfig.generalInstructions || []).join('\n')}
+                                        onChange={(e) => setHeaderConfig(prev => ({
                                             ...prev,
-                                            form: { ...prev.form, questionText: e.target.value }
+                                            generalInstructions: e.target.value.split('\n').filter(Boolean)
                                         }))}
-                                        className="w-full border border-gray-300 rounded-xl p-3 text-xs font-medium outline-none focus:ring-2 focus:ring-navy"
+                                        className="w-full border border-gray-300 rounded-xl p-3 text-xs outline-none font-medium leading-relaxed"
                                     />
                                 </div>
 
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                    {['opt_a', 'opt_b', 'opt_c', 'opt_d'].map((optKey, idx) => {
-                                        const label = ['A', 'B', 'C', 'D'][idx];
-                                        return (
-                                            <div key={optKey}>
-                                                <label className="block text-[11px] font-bold text-gray-700 uppercase mb-1">Option {label}</label>
+                                {/* Section / Part Directives */}
+                                <div className="space-y-3">
+                                    <h4 className="text-xs font-black text-navy uppercase tracking-wider border-b pb-1">
+                                        2. Section & Choice Directives (Examination Pattern)
+                                    </h4>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                        {Array.from(new Set([
+                                            ...selectedQuestions.map(q => q.part).filter(Boolean),
+                                            ...Object.keys(partDirectives)
+                                        ])).slice(0, 8).map((partKey) => (
+                                            <div key={partKey}>
+                                                <label className="block text-[11px] font-bold text-gray-700 uppercase mb-1">
+                                                    {partKey} Directive
+                                                </label>
                                                 <input
                                                     type="text"
-                                                    value={editingQuestionModal.form[optKey]}
-                                                    onChange={(e) => setEditingQuestionModal(prev => ({
-                                                        ...prev,
-                                                        form: { ...prev.form, [optKey]: e.target.value }
-                                                    }))}
-                                                    className="w-full border border-gray-300 rounded-xl px-3 py-2 text-xs font-medium outline-none focus:ring-2 focus:ring-navy"
+                                                    value={partDirectives[partKey] || ''}
+                                                    placeholder="e.g. Answer all questions (+4 Marks for Correct)"
+                                                    onChange={(e) => setPartDirectives(prev => ({ ...prev, [partKey]: e.target.value }))}
+                                                    className="w-full border border-gray-300 rounded-xl px-3 py-2 text-xs font-semibold text-navy outline-none focus:ring-2 focus:ring-navy"
                                                 />
                                             </div>
-                                        );
-                                    })}
-                                </div>
-
-                                <div className="grid grid-cols-2 gap-3">
-                                    <div>
-                                        <label className="block text-[11px] font-bold text-gray-700 uppercase mb-1">Correct Answer</label>
-                                        <select
-                                            value={editingQuestionModal.form.answer}
-                                            onChange={(e) => setEditingQuestionModal(prev => ({
-                                                ...prev,
-                                                form: { ...prev.form, answer: e.target.value }
-                                            }))}
-                                            className="w-full border border-gray-300 rounded-xl px-3 py-2 text-xs font-bold text-navy outline-none"
-                                        >
-                                            <option value="A">Option A</option>
-                                            <option value="B">Option B</option>
-                                            <option value="C">Option C</option>
-                                            <option value="D">Option D</option>
-                                        </select>
-                                    </div>
-                                    <div>
-                                        <label className="block text-[11px] font-bold text-gray-700 uppercase mb-1">Diagram Image URL</label>
-                                        <input
-                                            type="text"
-                                            value={editingQuestionModal.form.imageUrl}
-                                            onChange={(e) => setEditingQuestionModal(prev => ({
-                                                ...prev,
-                                                form: { ...prev.form, imageUrl: e.target.value }
-                                            }))}
-                                            placeholder="https://..."
-                                            className="w-full border border-gray-300 rounded-xl px-3 py-2 text-xs outline-none"
-                                        />
+                                        ))}
                                     </div>
                                 </div>
 
-                                <div>
-                                    <label className="block text-xs font-black text-navy uppercase mb-1">Solution / Explanation</label>
-                                    <textarea
-                                        rows={2}
-                                        value={editingQuestionModal.form.solutionText}
-                                        onChange={(e) => setEditingQuestionModal(prev => ({
-                                            ...prev,
-                                            form: { ...prev.form, solutionText: e.target.value }
-                                        }))}
-                                        className="w-full border border-gray-300 rounded-xl p-3 text-xs outline-none"
+                                {/* Scheme of Valuation Toggle */}
+                                <div className="p-4 bg-slate-50 border border-gray-200 rounded-2xl flex items-center justify-between">
+                                    <div>
+                                        <div className="text-xs font-black text-navy uppercase">
+                                            Include Scheme of Valuation / Answer Key
+                                        </div>
+                                        <p className="text-[11px] text-gray-500 font-medium">
+                                            Appends a structured scheme of valuation with steps and marks on the final page of the PDF.
+                                        </p>
+                                    </div>
+                                    <input
+                                        type="checkbox"
+                                        checked={Boolean(settings.includeSchemeOnLastPage)}
+                                        onChange={(e) => setSettings(prev => ({ ...prev, includeSchemeOnLastPage: e.target.checked }))}
+                                        className="w-5 h-5 accent-navy cursor-pointer"
                                     />
                                 </div>
                             </div>
 
-                            <div className="p-4 border-t border-gray-200 bg-gray-50 flex justify-end gap-2">
+                            <div className="p-4 border-t border-gray-200 bg-gray-50 flex justify-between items-center">
                                 <button
-                                    onClick={() => setEditingQuestionModal(null)}
-                                    className="px-4 py-2 rounded-xl text-xs font-bold text-gray-600 hover:bg-gray-200"
+                                    type="button"
+                                    onClick={() => {
+                                        setHeaderConfig(DEFAULT_HEADER_CONFIG);
+                                        setPartDirectives(DEFAULT_PART_DIRECTIVES);
+                                    }}
+                                    className="text-xs font-bold text-gray-500 hover:text-navy underline cursor-pointer"
                                 >
-                                    Cancel
+                                    Reset to Defaults
                                 </button>
                                 <button
-                                    onClick={handleSaveQuestionEdit}
-                                    className="bg-navy text-gold px-6 py-2 rounded-xl font-bold text-xs uppercase tracking-wider hover:bg-navy/90"
+                                    type="button"
+                                    onClick={() => setShowHeaderConfigModal(false)}
+                                    className="bg-navy text-gold px-6 py-2 rounded-xl font-bold text-xs uppercase tracking-wider hover:bg-navy/90 transition shadow cursor-pointer"
                                 >
-                                    Save Changes
+                                    Done
                                 </button>
                             </div>
                         </div>
+                    </div>
+                )}
+
+                {/* ── FLOATING TOAST NOTIFICATION WITH 5-SECOND UNDO ── */}
+                {swapToast.open && (
+                    <div className={`fixed bottom-6 right-6 z-50 flex items-center gap-3 px-5 py-3.5 rounded-2xl shadow-2xl border-2 transition-all duration-300 animate-slide-up ${
+                        swapToast.type === 'success'
+                            ? 'bg-navy text-white border-gold'
+                            : swapToast.type === 'warning'
+                            ? 'bg-amber-50 text-amber-900 border-amber-400'
+                            : 'bg-slate-900 text-white border-slate-700'
+                    }`}>
+                        <span className="text-xl">
+                            {swapToast.type === 'success' ? '⚡' : swapToast.type === 'warning' ? '⚠️' : 'ℹ️'}
+                        </span>
+                        <div className="text-xs font-black">
+                            {swapToast.message}
+                        </div>
+                        {swapToast.undoData && (
+                            <button
+                                type="button"
+                                onClick={() => handleUndoSwap(swapToast.undoData)}
+                                className="bg-gold text-navy hover:scale-105 px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition ml-2 shadow-xs cursor-pointer"
+                            >
+                                ↩ Undo Swap (5s)
+                            </button>
+                        )}
+                        <button
+                            type="button"
+                            onClick={() => setSwapToast(prev => ({ ...prev, open: false }))}
+                            className="text-white/60 hover:text-white text-sm font-bold ml-1 cursor-pointer"
+                        >
+                            ✕
+                        </button>
                     </div>
                 )}
             </div>

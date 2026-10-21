@@ -45,7 +45,7 @@ export function calcTotal(questions = [], classes = []) {
 }
 
 // ─── Default settings ─────────────────────────────────────────────────────────
-const DEFAULT_SETTINGS = {
+export const DEFAULT_SETTINGS = {
     fontFamily: 'Georgia, "Times New Roman", serif',
     fontSize: '13px',
     lineHeight: '1.42',
@@ -55,6 +55,8 @@ const DEFAULT_SETTINGS = {
     showAnswerKey: false,
     showDifficulty: false,
     showCoverPage: false,
+    includeSchemeOnLastPage: false,
+    numberingMode: 'continuous',
     startQNo: 1,
     endQNo: null,
     pageSize: 'A4',
@@ -156,6 +158,13 @@ export function SettingsPanel({ settings, setSettings, totalQuestions = 0 }) {
                         <option value="yes">Display Marks</option>
                     </select>
                 </SettingField>
+
+                <SettingField label="Scheme of Valuation">
+                    <select style={selectStyle} value={settings.includeSchemeOnLastPage ? 'yes' : 'no'} onChange={e => update('includeSchemeOnLastPage', e.target.value === 'yes')}>
+                        <option value="no">Exclude (Question Paper Only)</option>
+                        <option value="yes">Include on Final Page</option>
+                    </select>
+                </SettingField>
             </div>
         </div>
     );
@@ -233,7 +242,17 @@ export function InstructionCoverPage({ paper, questions = [], duration, totalMar
 }
 
 // ─── Paper Header ─────────────────────────────────────────────────────────────
-export function PaperHeader({ title, subject, classes, duration, totalMarks, templateUrl, isAssignment = false, setName = 'P' }) {
+export function PaperHeader({
+    title,
+    subject,
+    classes,
+    duration,
+    totalMarks,
+    templateUrl,
+    isAssignment = false,
+    setName = 'P',
+    headerConfig = null,
+}) {
     // Clean assignment title
     let displayTitle = title;
     if (isAssignment) {
@@ -249,6 +268,16 @@ export function PaperHeader({ title, subject, classes, duration, totalMarks, tem
     }
 
     const currentSet = (setName || 'P').toUpperCase();
+
+    // Institutional Header Configuration
+    const collegeName = headerConfig?.collegeName || 'SAPTHAGIRI PU COLLEGE';
+    const subTitle = headerConfig?.subTitle || 'DAVANAGERE • THE LAND OF OPPORTUNITY';
+    const subjectCode = headerConfig?.subjectCode ? ` (Code: ${headerConfig.subjectCode})` : '';
+    const displaySubject = (headerConfig?.subject || subject || 'General') + subjectCode;
+    const displayClass = headerConfig?.streamClass || (classes && classes.length > 0 ? `PUC ${classes.join(', ')}` : 'PUC Science');
+    const displayDuration = headerConfig?.timeAllowed || duration || '3 Hours 15 Minutes';
+    const displayMarks = headerConfig?.maxMarks || totalMarks || '70';
+    const instructions = headerConfig?.generalInstructions || [];
 
     return (
         <div style={{ marginBottom: '14px', borderBottom: '2px solid #000', paddingBottom: '6px' }}>
@@ -273,10 +302,10 @@ export function PaperHeader({ title, subject, classes, duration, totalMarks, tem
                     </div>
                     <div style={{ flex: 1, textAlign: 'center' }}>
                         <div style={{ fontSize: '20px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.04em', color: '#000', lineHeight: 1.1 }}>
-                            SAPTHAGIRI PU COLLEGE
+                            {collegeName}
                         </div>
                         <div style={{ fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#333', marginTop: '2px' }}>
-                            DAVANAGERE • THE LAND OF OPPORTUNITY
+                            {subTitle}
                         </div>
                         <div style={{ fontSize: '13px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#000', marginTop: '4px' }}>
                             {displayTitle || (isAssignment ? `${subject} ASSIGNMENT` : (title || `${subject} Examination`))}
@@ -293,17 +322,30 @@ export function PaperHeader({ title, subject, classes, duration, totalMarks, tem
 
             {!isAssignment && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11.5px', color: '#111', fontWeight: 700, borderTop: '1px solid #777', paddingTop: '4px', marginTop: '4px' }}>
-                    <span>Subject: <strong>{subject || 'General'}</strong></span>
-                    {classes && classes.length > 0 && <span>Class: <strong>PUC {classes.join(', ')}</strong></span>}
-                    <span>Time: <strong>{duration || '3 Hours'}</strong></span>
-                    <span>Max Marks: <strong>{totalMarks}</strong></span>
+                    <span>Subject: <strong>{displaySubject}</strong></span>
+                    <span>Class: <strong>{displayClass}</strong></span>
+                    <span>Time: <strong>{displayDuration}</strong></span>
+                    <span>Max Marks: <strong>{displayMarks}</strong></span>
+                </div>
+            )}
+
+            {!isAssignment && instructions.length > 0 && (
+                <div style={{ marginTop: '6px', padding: '5px 8px', border: '1px solid #777', borderRadius: '4px', background: '#fafafa', fontSize: '10px', lineHeight: '1.4', color: '#111' }}>
+                    <div style={{ fontWeight: 800, textTransform: 'uppercase', marginBottom: '2px', fontSize: '9.5px', letterSpacing: '0.04em' }}>
+                        General Instructions:
+                    </div>
+                    <ul style={{ margin: 0, paddingLeft: '14px', listStyleType: 'decimal' }}>
+                        {instructions.map((ins, iIdx) => (
+                            <li key={iIdx} style={{ margin: '1px 0' }}>{ins.replace(/^\d+[\.\)]\s*/, '')}</li>
+                        ))}
+                    </ul>
                 </div>
             )}
 
             {isAssignment && (
                 /* Pure clean Assignment header */
                 <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #777', paddingTop: '4px', fontWeight: 700, fontSize: '11.5px', marginTop: '4px' }}>
-                    <span>Subject: <strong>{subject || 'General'}</strong></span>
+                    <span>Subject: <strong>{displaySubject}</strong></span>
                     <span>Student Name: _____________________</span>
                     <span>Roll No: ________</span>
                     <span>Date: _________</span>
@@ -492,5 +534,3 @@ export default function PaperRenderer({
         </div>
     );
 }
-
-export { DEFAULT_SETTINGS };
