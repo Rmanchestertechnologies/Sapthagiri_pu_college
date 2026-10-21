@@ -39,6 +39,22 @@ const NO_CELL_BORDERS = {
     right: { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' },
 };
 
+const MATCH_TABLE_BORDERS = {
+    top: { style: BorderStyle.SINGLE, size: 4, color: 'CBD5E1' },
+    bottom: { style: BorderStyle.SINGLE, size: 6, color: '001F6D' },
+    left: { style: BorderStyle.SINGLE, size: 4, color: 'CBD5E1' },
+    right: { style: BorderStyle.SINGLE, size: 4, color: 'CBD5E1' },
+    insideHorizontal: { style: BorderStyle.SINGLE, size: 4, color: 'E2E8F0' },
+    insideVertical: { style: BorderStyle.SINGLE, size: 4, color: 'CBD5E1' }
+};
+
+const MATCH_CELL_BORDERS = {
+    top: { style: BorderStyle.SINGLE, size: 4, color: 'CBD5E1' },
+    bottom: { style: BorderStyle.SINGLE, size: 4, color: 'CBD5E1' },
+    left: { style: BorderStyle.SINGLE, size: 4, color: 'CBD5E1' },
+    right: { style: BorderStyle.SINGLE, size: 4, color: 'CBD5E1' }
+};
+
 /**
  * Converts LaTeX math notation to clean, genuine Unicode characters for Microsoft Word.
  * Each character is 100% editable in Word. No raw LaTeX commands or $ delimiters appear.
@@ -47,7 +63,10 @@ function latexToEditableText(latex) {
     if (!latex) return '';
     let s = String(latex);
 
-    // 0. Remove leaked internal prompt/reference artifacts e.g. "Reference case R_{2}4."
+    // 0. Auto-repair broken LaTeX fractions e.g. \sigma}2\epsilon_0 -> \frac{\sigma}{2\epsilon_0}
+    s = repairBrokenLatexFraction(s);
+
+    // 0b. Remove leaked internal prompt/reference artifacts e.g. "Reference case R_{2}4."
     s = s.replace(/\s*Reference\s+case\s+R_?\{?[0-9a-zA-Z_\s]+\}?[0-9a-zA-Z_\s]*\.?/gi, '')
          .replace(/\s*Reference\s+case\b[^\.\n]*\.?/gi, '');
 
@@ -205,6 +224,203 @@ function extractOptionImageUrl(opt) {
     const urlMatch = str.match(/(https?:\/\/[^\s]+(?:\.jpg|\.png|\.jpeg|\.webp))/i);
     if (urlMatch) return urlMatch[1];
     return null;
+}
+
+/**
+ * Auto-repair broken LaTeX fractions missing \frac{ prefix (e.g. \sigma}2\epsilon_0 -> \frac{\sigma}{2\epsilon_0})
+ */
+function repairBrokenLatexFraction(str) {
+    if (!str) return '';
+    return str.replace(/(?:^|\s)(?:\\([a-zA-Z]+)|([a-zA-Z0-9]+))\}(?:\{([^}]+)\}|([^\s}]+))/g, (m, sym, plain, denomBrace, denomPlain) => {
+        const num = sym ? `\\${sym}` : plain;
+        const den = denomBrace || denomPlain;
+        return ` \\frac{${num}}{${den}}`;
+    });
+}
+
+/**
+ * Robust Match the Following parser
+ */
+function parseMatchFromText(q) {
+    if (Array.isArray(q.matchPairs) && q.matchPairs.length > 0) {
+        return { introText: cleanQuestionText(q.questionText || q.question || ''), pairs: q.matchPairs };
+    }
+    if (Array.isArray(q.column_a) && q.column_a.length > 0 && Array.isArray(q.column_b) && q.column_b.length > 0) {
+        const maxL = Math.max(q.column_a.length, q.column_b.length);
+        const pairs = [];
+        for (let i = 0; i < maxL; i++) {
+            pairs.push({
+                left: q.column_a[i] || '',
+                right: q.column_b[i] || ''
+            });
+        }
+        return { introText: cleanQuestionText(q.questionText || q.question || ''), pairs };
+    }
+    let txt = cleanQuestionText(q.questionText || q.question || '');
+    if (!txt) return { introText: '', pairs: [] };
+
+    // Clean up bold asterisks around headers e.g. **Column I** -> Column I
+    txt = txt.replace(/\*\*(Column|List)\s*[-:]?\s*(I|II|1|2|A|B)\*\*/gi, '$1 $2');
+
+    // 1. Strip and preserve introductory sentence like "Match Column-I with Column-II" or "Match the items in Column I with Column II:"
+    const introSentenceRegex = /^([\s\S]*?Match\s+[a-zA-Z\s\-']*\b(?:Column|List)\s*[-:]?\s*(?:I|1|A)\b[a-zA-Z\s\-']*?\bwith\b[a-zA-Z\s\-']*?\b(?:Column|List)\s*[-:]?\s*(?:II|2|B)\b[\.:\-]?)(\s+|$)/i;
+    let introText = '';
+    let remainder = txt;
+
+    const introMatch = txt.match(introSentenceRegex);
+    if (introMatch) {
+        introText = introMatch[1].trim();
+        remainder = txt.substring(introMatch[0].length).trim();
+    } else {
+        const genIntroMatch = txt.match(/^([\s\S]*?Match\s+(?:the\s+following(?:\s+columns|\s+items)?)?[\.:\-]?)(\s+|$)/i);
+        if (genIntroMatch && genIntroMatch[1].length < 120) {
+            introText = genIntroMatch[1].trim();
+            remainder = txt.substring(genIntroMatch[0].length).trim();
+        }
+    }
+
+    let rawCol1 = '';
+    let rawCol2 = '';
+
+    const col1HeaderRegex = /^(?:Column|List)\s*[-:]?\s*(?:I|1|A)\b[:\-\s]*/i;
+    const col2SplitRegex = /(?:Column|List)\s*[-:]?\s*(?:II|2|B)\b[:\-\s]*([\s\S]*?)(?=(?:Choose\s+the\s+correct|Select\s+the\s+correct|Options:?|\([a-d1-4]\)\s*[A-D]|\([A-D]\)\s*\(?[A-D0-9]|Codes\s*:?|$))/i;
+
+    if (col1HeaderRegex.test(remainder)) {
+        const withoutCol1 = remainder.replace(col1HeaderRegex, '').trim();
+        const splitMatch = withoutCol1.match(col2SplitRegex);
+        if (splitMatch) {
+            rawCol1 = withoutCol1.substring(0, splitMatch.index).trim();
+            rawCol2 = splitMatch[1].trim();
+        }
+    } else {
+        const splitMatch = remainder.match(col2SplitRegex);
+        if (splitMatch) {
+            rawCol1 = remainder.substring(0, splitMatch.index).trim();
+            rawCol2 = splitMatch[1].trim();
+        } else {
+            // Fallback: search in full txt if intro was not stripped
+            const fallbackRegex = /(?:Column|List)\s*[-:]?\s*(?:I|1|A)\b([\s\S]*?)(?:Column|List)\s*[-:]?\s*(?:II|2|B)\b([\s\S]*?)(?=(?:Choose\s+the\s+correct|Select\s+the\s+correct|Options:?|\([a-d1-4]\)\s*[A-D]|\([A-D]\)\s*\(?[A-D0-9]|Codes\s*:?|$))/i;
+            const fbMatch = txt.match(fallbackRegex);
+            if (fbMatch) {
+                introText = txt.substring(0, fbMatch.index).trim();
+                rawCol1 = fbMatch[1].trim();
+                rawCol2 = fbMatch[2].trim();
+            }
+        }
+    }
+
+    if (!rawCol1 || !rawCol2) {
+        return { introText: txt, pairs: [] };
+    }
+
+    // Auto-repair any broken fraction syntax in both columns
+    rawCol1 = repairBrokenLatexFraction(rawCol1);
+    rawCol2 = repairBrokenLatexFraction(rawCol2);
+
+    const cleanItem = (s) => {
+        if (!s) return '';
+        return String(s)
+            .replace(/^[:\-]\s*/, '')
+            .replace(/^[\(\[]?(?:[A-Ea-e1-8]|i{1,4}|iv|v|vi{0,3}|ix|x|[p-tP-T])[\)\]\.:\-]\s*/, '')
+            .replace(/^\*+\s*/, '')
+            .replace(/\*+$/, '')
+            .replace(/^(?:with|Column|List|I|II|A|B|1|2)\s*/i, '')
+            .replace(/[:\-]$/, '')
+            .trim();
+    };
+
+    const extractItems = (colStr, isLeft = true, targetCount = 0) => {
+        if (!colStr) return [];
+
+        // 1. Explicit markers: (A), (B), (i), (ii), 1., 2., (p), (q), etc.
+        const markerTokenRegex = /(?:^|\s)(?:\(([A-Ea-e1-9]|i{1,4}|iv|v|vi{0,3}|ix|x|[p-tP-T])\)|([A-Ea-e1-9]|i{1,4}|iv|v|vi{0,3}|ix|x|[p-tP-T])[\.:\-\)])\s+/g;
+        const markers = [];
+        let im;
+        while ((im = markerTokenRegex.exec(colStr)) !== null) {
+            markers.push({
+                index: im.index,
+                matchLength: im[0].length,
+                label: im[1] || im[2]
+            });
+        }
+        if (markers.length >= 2) {
+            const markerItems = [];
+            for (let i = 0; i < markers.length; i++) {
+                const start = markers[i].index + markers[i].matchLength;
+                const end = (i + 1 < markers.length) ? markers[i + 1].index : colStr.length;
+                const itemText = cleanItem(colStr.substring(start, end));
+                if (itemText && !/^(?:with|Column|List|I|II|A|B|1|2)$/i.test(itemText)) {
+                    markerItems.push(itemText);
+                }
+            }
+            if (markerItems.length >= 2) return markerItems;
+        }
+
+        // 2. Newlines or HTML breaks
+        const lines = colStr
+            .split(/\r?\n+|<br\s*\/?>/i)
+            .map(s => cleanItem(s))
+            .filter(s => s && !/^(?:with|Column|List|I|II|A|B|1|2)$/i.test(s));
+        if (lines.length >= 2) return lines;
+
+        // 3. Semicolons or bullet points
+        if (/[;•]/.test(colStr)) {
+            const semiItems = colStr
+                .split(/[;•]+/)
+                .map(s => cleanItem(s))
+                .filter(s => s && !/^(?:with|Column|List|I|II|A|B|1|2)$/i.test(s));
+            if (semiItems.length >= 2) return semiItems;
+        }
+
+        // 4. Repeating prefix split (e.g. "Electric field due to an ...")
+        const words = colStr.trim().split(/\s+/);
+        if (words.length >= 8) {
+            for (let plen = 4; plen >= 2; plen--) {
+                const candidatePrefix = words.slice(0, plen).join(' ');
+                const escaped = candidatePrefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                const re = new RegExp(`(?:^|\\s)(?=${escaped})`, 'gi');
+                const parts = colStr.split(re).map(s => cleanItem(s)).filter(Boolean);
+                if (parts.length >= 2 && parts.length <= 6) {
+                    return parts;
+                }
+            }
+        }
+
+        // 5. Short math tokens / space-separated values for Column II
+        const mathTokens = colStr.trim().split(/\s+(?=[\\0-9a-zA-Z\-])/).map(s => cleanItem(s)).filter(Boolean);
+        if (mathTokens.length >= 2 && (targetCount === 0 || mathTokens.length === targetCount || Math.abs(mathTokens.length - targetCount) <= 1)) {
+            return mathTokens;
+        }
+
+        // 6. Fallback split by capital letter boundaries
+        const capitalizedPhrases = colStr
+            .split(/(?<=[a-z0-9\)])\s+(?=[A-Z])/g)
+            .map(s => cleanItem(s))
+            .filter(s => s && !/^(?:with|Column|List|I|II|A|B|1|2)$/i.test(s));
+        if (capitalizedPhrases.length >= 2) return capitalizedPhrases;
+
+        return [];
+    };
+
+    const leftItems = extractItems(rawCol1, true);
+    const rightItems = extractItems(rawCol2, false, leftItems.length);
+
+    if (leftItems.length >= 2 && rightItems.length >= 2) {
+        const maxLen = Math.max(leftItems.length, rightItems.length);
+        const pairs = [];
+        for (let i = 0; i < maxLen; i++) {
+            pairs.push({
+                left: leftItems[i] || '',
+                right: rightItems[i] || ''
+            });
+        }
+        return {
+            introText: introText || 'Match Column I with Column II:',
+            pairs
+        };
+    }
+
+    return { introText: txt, pairs: [] };
 }
 
 // In-memory cache for fetched image buffers
@@ -583,7 +799,19 @@ async function generatePaperDoc(paper, template = null) {
         const optionImageBuffers = hasOptionImages ? await Promise.all(optionImageUrls.map(u => fetchImageBuffer(u))) : [];
 
         const labels = ['(A)', '(B)', '(C)', '(D)', '(E)'];
-        const qRuns = textToRuns(rawQText, { bold: false, size: 21 });
+
+        // ── Detect Match the Following Questions ──
+        const matchData = parseMatchFromText(q);
+        const hasMatchPairs = (Array.isArray(q.matchPairs) && q.matchPairs.length > 0) || (matchData.pairs && matchData.pairs.length >= 2);
+
+        // When question is Match the Following, only use the clean intro statement for the title
+        let statementText = rawQText;
+        if (hasMatchPairs) {
+            const introStr = (matchData.introText || 'Match Column I with Column II').trim();
+            statementText = (introStr.endsWith(':') || introStr.endsWith('.')) ? introStr : `${introStr}:`;
+        }
+
+        const qRuns = textToRuns(statementText, { bold: false, size: 21 });
 
         // Build question statement paragraph
         const questionStatementParagraph = new Paragraph({
@@ -594,11 +822,86 @@ async function generatePaperDoc(paper, template = null) {
             spacing: { before: 100, after: 50 }
         });
 
+        // Build Match Table if applicable
+        let matchDocxTable = null;
+        if (hasMatchPairs) {
+            const pairs = (Array.isArray(q.matchPairs) && q.matchPairs.length > 0) ? q.matchPairs : matchData.pairs;
+            const avgLeft = pairs.reduce((acc, p) => acc + (p.left || '').length, 0) / (pairs.length || 1);
+            const avgRight = pairs.reduce((acc, p) => acc + (p.right || '').length, 0) / (pairs.length || 1);
+            const leftPct = avgLeft > avgRight * 1.8 ? 62 : (avgRight > avgLeft * 1.8 ? 38 : 50);
+            const rightPct = 100 - leftPct;
+
+            const romanLabels = ['i', 'ii', 'iii', 'iv', 'v', 'vi', 'vii', 'viii'];
+            const hasRomanOpts = opts.some(o => /[\-\s\(](?:i|ii|iii|iv|v|vi)\b/i.test(typeof o === 'object' ? (o.text || '') : String(o)));
+
+            const tableRows = [
+                new TableRow({
+                    children: [
+                        new TableCell({
+                            width: { size: leftPct, type: WidthType.PERCENTAGE },
+                            borders: MATCH_CELL_BORDERS,
+                            children: [new Paragraph({ children: [new TextRun({ text: "Column I", bold: true, font: 'Calibri', size: 20, color: '001f6d' })] })]
+                        }),
+                        new TableCell({
+                            width: { size: rightPct, type: WidthType.PERCENTAGE },
+                            borders: MATCH_CELL_BORDERS,
+                            children: [new Paragraph({ children: [new TextRun({ text: "Column II", bold: true, font: 'Calibri', size: 20, color: '001f6d' })] })]
+                        })
+                    ]
+                })
+            ];
+
+            pairs.forEach((pair, pi) => {
+                const rightLbl = hasRomanOpts ? (romanLabels[pi] || `${pi + 1}`) : `${pi + 1}`;
+                tableRows.push(
+                    new TableRow({
+                        children: [
+                            new TableCell({
+                                width: { size: leftPct, type: WidthType.PERCENTAGE },
+                                borders: MATCH_CELL_BORDERS,
+                                children: [
+                                    new Paragraph({
+                                        children: [
+                                            new TextRun({ text: `(${String.fromCharCode(65 + pi)}) `, bold: true, font: 'Calibri', size: 20, color: '001f6d' }),
+                                            ...textToRuns(pair.left || '', { font: 'Calibri', size: 20 })
+                                        ],
+                                        spacing: { before: 20, after: 20 }
+                                    })
+                                ]
+                            }),
+                            new TableCell({
+                                width: { size: rightPct, type: WidthType.PERCENTAGE },
+                                borders: MATCH_CELL_BORDERS,
+                                children: [
+                                    new Paragraph({
+                                        children: [
+                                            new TextRun({ text: `(${rightLbl}) `, bold: true, font: 'Calibri', size: 20, color: '001f6d' }),
+                                            ...textToRuns(pair.right || '', { font: 'Calibri', size: 20 })
+                                        ],
+                                        spacing: { before: 20, after: 20 }
+                                    })
+                                ]
+                            })
+                        ]
+                    })
+                );
+            });
+
+            matchDocxTable = new Table({
+                width: { size: 100, type: WidthType.PERCENTAGE },
+                borders: MATCH_TABLE_BORDERS,
+                rows: tableRows
+            });
+        }
+
         if (diagramBuf) {
             // SIDE-BY-SIDE LAYOUT (Matching PDF Question 1 & 2):
-            // Left Cell: Question text + Options
+            // Left Cell: Question text + (Match Table) + Options
             // Right Cell: Centered diagram
             const leftChildren = [questionStatementParagraph];
+            if (matchDocxTable) {
+                leftChildren.push(matchDocxTable);
+            }
 
             if (isNumerical) {
                 leftChildren.push(
@@ -665,6 +968,9 @@ async function generatePaperDoc(paper, template = null) {
         } else {
             // STANDARD LAYOUT (No main diagram):
             docChildren.push(questionStatementParagraph);
+            if (matchDocxTable) {
+                docChildren.push(matchDocxTable);
+            }
 
             if (isNumerical) {
                 docChildren.push(
@@ -714,9 +1020,9 @@ async function generatePaperDoc(paper, template = null) {
                     return textToRuns(str, { font: 'Calibri', size: 20 });
                 });
 
-                // Short text options: 2x2 borderless grid
+                // Short text options or match options: 2x2 borderless grid
                 const totalTextLength = opts.reduce((acc, o) => acc + String(typeof o === 'object' ? (o.text || '') : o).length, 0);
-                if (opts.length === 4 && totalTextLength <= 70) {
+                if (opts.length === 4 && totalTextLength <= 110) {
                     docChildren.push(
                         new Table({
                             width: { size: 100, type: WidthType.PERCENTAGE },

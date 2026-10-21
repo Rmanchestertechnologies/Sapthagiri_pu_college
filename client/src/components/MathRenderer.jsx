@@ -77,6 +77,13 @@ function safeRenderKatex(rawMath, displayMode = false) {
     // Strip leading / trailing quotes or stray punctuation that break math mode
     math = math.replace(/^['"`:,;]+/, '').replace(/['"`:,;]+$/, '').trim();
 
+    // Auto-fix broken missing \frac syntax e.g. \sigma}2\epsilon_0 -> \frac{\sigma}{2\epsilon_0}
+    math = math.replace(/(?:^|\s)(?:\\([a-zA-Z]+)|([a-zA-Z0-9]+))\}(?:\{([^}]+)\}|([^\s}]+))/g, (m, sym, plain, denomBrace, denomPlain) => {
+        const num = sym ? `\\${sym}` : plain;
+        const den = denomBrace || denomPlain;
+        return ` \\frac{${num}}{${den}}`;
+    });
+
     // Auto-fix unbraced fractions e.g. \frac em -> \frac{e}{m}
     math = math.replace(/\\frac\s+([a-zA-Z0-9])\s+([a-zA-Z0-9])\b/g, '\\frac{$1}{$2}');
     math = math.replace(/\\frac\s+([a-zA-Z0-9])([a-zA-Z0-9])\b/g, '\\frac{$1}{$2}');
@@ -123,8 +130,15 @@ function processMathOnly(text) {
         .replace(/\s*Reference\s+case\b[^\.\n]*\.?/gi, '')
         .trim();
 
+    // 0.5) Auto-fix broken missing \frac syntax e.g. \sigma}2\epsilon_0 -> \frac{\sigma}{2\epsilon_0}
+    result = result.replace(/(?:^|\s)(?:\\([a-zA-Z]+)|([a-zA-Z0-9]+))\}(?:\{([^}]+)\}|([^\s}]+))/g, (m, sym, plain, denomBrace, denomPlain) => {
+        const num = sym ? `\\${sym}` : plain;
+        const den = denomBrace || denomPlain;
+        return ` \\frac{${num}}{${den}}`;
+    });
+
     // 1) Auto-wrap naked LaTeX math commands if not surrounded by $
-    const nakedLatexRegex = /(?<!\$)\\(?:frac|sqrt|pm|times|div|leq|geq|neq|approx|rightarrow|infty|sum|int|partial|theta|alpha|beta|gamma|lambda|omega|Delta|mu|sigma|cdot|circ|text)\b[^{$\n]*(?:\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\})*(?!\$)/g;
+    const nakedLatexRegex = /(?<!\$)\\(?:frac|sqrt|pm|times|div|leq|geq|neq|approx|rightarrow|infty|sum|int|partial|theta|alpha|beta|gamma|lambda|omega|Delta|mu|sigma|epsilon|rho|phi|pi|tau|psi|eta|nu|xi|cdot|circ|text)\b[^{$\n]*(?:\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\})*(?!\$)/g;
     result = result.replace(nakedLatexRegex, (match) => `$${match}$`);
 
     // 2) Render display math: $$...$$

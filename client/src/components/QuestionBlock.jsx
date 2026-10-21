@@ -283,31 +283,32 @@ const Q = {
     matchTable: {
         width: '100%',
         borderCollapse: 'collapse',
-        margin: '2px 0 4px',
-        fontSize: '0.92em',
+        margin: '4px 0 6px',
+        fontSize: '0.94em',
         tableLayout: 'fixed',
         fontWeight: 400,
     },
     matchTh: {
-        border: '1px solid #aaa',
-        padding: '2px 4px',
+        border: '1px solid #cbd5e1',
+        padding: '3px 6px',
         background: '#f8fafc',
-        fontWeight: 600,
+        fontWeight: 700,
         textAlign: 'left',
         width: '50%',
-        color: '#111',
-        fontSize: '0.92em',
+        color: '#001f6d',
+        fontSize: '0.94em',
     },
     matchTd: {
-        border: '1px solid #aaa',
-        padding: '2px 4px',
+        border: '1px solid #cbd5e1',
+        padding: '3px 6px',
         verticalAlign: 'top',
         wordBreak: 'break-word',
         overflowWrap: 'break-word',
         width: '50%',
         fontWeight: 400,
-        color: '#111',
-        fontSize: '0.92em',
+        color: '#1e293b',
+        fontSize: '0.94em',
+        lineHeight: '1.35',
     },
     assertRow: {
         display: 'flex',
@@ -744,6 +745,18 @@ function BodyAssertionReason({ q, classes, isTwoCol, diagramMaxHeight = '180px',
 /**
  * Match the Following Body
  */
+/**
+ * Auto-repair broken LaTeX fractions missing \frac{ prefix (e.g. \sigma}2\epsilon_0 -> \frac{\sigma}{2\epsilon_0})
+ */
+export function repairBrokenLatexFraction(str) {
+    if (!str) return '';
+    return str.replace(/(?:^|\s)(?:\\([a-zA-Z]+)|([a-zA-Z0-9]+))\}(?:\{([^}]+)\}|([^\s}]+))/g, (m, sym, plain, denomBrace, denomPlain) => {
+        const num = sym ? `\\${sym}` : plain;
+        const den = denomBrace || denomPlain;
+        return ` \\frac{${num}}{${den}}`;
+    });
+}
+
 /** Parse match the following from text when matchPairs array is empty */
 function parseMatchFromText(q) {
     if (Array.isArray(q.matchPairs) && q.matchPairs.length > 0) {
@@ -766,87 +779,161 @@ function parseMatchFromText(q) {
     // Clean up bold asterisks around headers e.g. **Column I** -> Column I
     txt = txt.replace(/\*\*(Column|List)\s*[-:]?\s*(I|II|1|2|A|B)\*\*/gi, '$1 $2');
 
-    // Regex to detect Column I / Column II or List I / List II
-    const colSplitRegex = /(?:Column|List)\s*[-:]?\s*(?:I|1|A)\b([\s\S]*?)(?:Column|List)\s*[-:]?\s*(?:II|2|B)\b([\s\S]*?)(?=(?:Choose\s+the\s+correct|Select\s+the\s+correct|Options:?|\([a-d1-4]\)\s*[A-D]|\([A-D]\)\s*\(?[A-D0-9]|Codes\s*:?|$))/i;
-    const match = txt.match(colSplitRegex);
+    // 1. Strip and preserve introductory sentence like "Match Column-I with Column-II" or "Match the items in Column I with Column II:"
+    const introSentenceRegex = /^([\s\S]*?Match\s+[a-zA-Z\s\-']*\b(?:Column|List)\s*[-:]?\s*(?:I|1|A)\b[a-zA-Z\s\-']*?\bwith\b[a-zA-Z\s\-']*?\b(?:Column|List)\s*[-:]?\s*(?:II|2|B)\b[\.:\-]?)(\s+|$)/i;
+    let introText = '';
+    let remainder = txt;
 
-    if (match) {
-        let introText = txt.substring(0, match.index).trim();
-        introText = introText.replace(/\b(?:Match(?:\s+the\s+following)?(?:\s+items\s+in)?(?:\s+(?:Column|List)[-\s]*(?:I|1|A)\s+with\s+(?:Column|List)[-\s]*(?:II|2|B))?[:\-]?)\s*$/i, '').trim();
+    const introMatch = txt.match(introSentenceRegex);
+    if (introMatch) {
+        introText = introMatch[1].trim();
+        remainder = txt.substring(introMatch[0].length).trim();
+    } else {
+        const genIntroMatch = txt.match(/^([\s\S]*?Match\s+(?:the\s+following(?:\s+columns|\s+items)?)?[\.:\-]?)(\s+|$)/i);
+        if (genIntroMatch && genIntroMatch[1].length < 120) {
+            introText = genIntroMatch[1].trim();
+            remainder = txt.substring(genIntroMatch[0].length).trim();
+        }
+    }
 
-        let rawCol1 = match[1].trim();
-        let rawCol2 = match[2].trim();
+    let rawCol1 = '';
+    let rawCol2 = '';
 
-        // Clean out leading "with", ":", "-", "."
-        rawCol1 = rawCol1.replace(/^(?:with|:|-|\.)\s*/i, '').trim();
-        rawCol2 = rawCol2.replace(/^(?:with|:|-|\.)\s*/i, '').trim();
+    const col1HeaderRegex = /^(?:Column|List)\s*[-:]?\s*(?:I|1|A)\b[:\-\s]*/i;
+    const col2SplitRegex = /(?:Column|List)\s*[-:]?\s*(?:II|2|B)\b[:\-\s]*([\s\S]*?)(?=(?:Choose\s+the\s+correct|Select\s+the\s+correct|Options:?|\([a-d1-4]\)\s*[A-D]|\([A-D]\)\s*\(?[A-D0-9]|Codes\s*:?|$))/i;
 
-        const cleanItem = (s) => {
-            if (!s) return '';
-            return cleanStatementText(s)
-                .replace(/^[\(\[]?[A-Za-z0-9ivxIVX]+[\)\]\.:\-]\s*/, '')
-                .replace(/^\*+\s*/, '')
-                .replace(/\*+$/, '')
-                .replace(/^(?:with|Column|List|I|II|A|B|1|2)\s*/i, '')
-                .replace(/[:\-]$/, '')
-                .trim();
-        };
+    if (col1HeaderRegex.test(remainder)) {
+        const withoutCol1 = remainder.replace(col1HeaderRegex, '').trim();
+        const splitMatch = withoutCol1.match(col2SplitRegex);
+        if (splitMatch) {
+            rawCol1 = withoutCol1.substring(0, splitMatch.index).trim();
+            rawCol2 = splitMatch[1].trim();
+        }
+    } else {
+        const splitMatch = remainder.match(col2SplitRegex);
+        if (splitMatch) {
+            rawCol1 = remainder.substring(0, splitMatch.index).trim();
+            rawCol2 = splitMatch[1].trim();
+        } else {
+            // Fallback: search in full txt if intro was not stripped
+            const fallbackRegex = /(?:Column|List)\s*[-:]?\s*(?:I|1|A)\b([\s\S]*?)(?:Column|List)\s*[-:]?\s*(?:II|2|B)\b([\s\S]*?)(?=(?:Choose\s+the\s+correct|Select\s+the\s+correct|Options:?|\([a-d1-4]\)\s*[A-D]|\([A-D]\)\s*\(?[A-D0-9]|Codes\s*:?|$))/i;
+            const fbMatch = txt.match(fallbackRegex);
+            if (fbMatch) {
+                introText = txt.substring(0, fbMatch.index).trim();
+                rawCol1 = fbMatch[1].trim();
+                rawCol2 = fbMatch[2].trim();
+            }
+        }
+    }
 
-        const extractItems = (colStr, isLeft = true) => {
-            if (!colStr) return [];
+    if (!rawCol1 || !rawCol2) {
+        return { introText: txt, pairs: [] };
+    }
 
-            // Strategy 1: Explicit markers (e.g. (A), (B), (i), (ii), 1., 2., a), b), etc.)
-            const markerRegex = /(?:^|\s)(?:\(([a-zA-Z0-9ivxIVX]+)\)|([a-zA-Z0-9ivxIVX]+)[\.:\-\)])\s*([\s\S]*?)(?=(?:\s(?:\([a-zA-Z0-9ivxIVX]+\)|[a-zA-Z0-9ivxIVX]+[\.:\-\)]))|$)/g;
+    // Auto-repair any broken fraction syntax in both columns
+    rawCol1 = repairBrokenLatexFraction(rawCol1);
+    rawCol2 = repairBrokenLatexFraction(rawCol2);
+
+    const cleanItem = (s) => {
+        if (!s) return '';
+        return cleanStatementText(s)
+            .replace(/^[\(\[]?(?:[A-Ea-e1-8]|i{1,4}|iv|v|vi{0,3}|ix|x|[p-tP-T])[\)\]\.:\-]\s*/, '')
+            .replace(/^\*+\s*/, '')
+            .replace(/\*+$/, '')
+            .replace(/^(?:with|Column|List|I|II|A|B|1|2)\s*/i, '')
+            .replace(/[:\-]$/, '')
+            .trim();
+    };
+
+    const extractItems = (colStr, isLeft = true, targetCount = 0) => {
+        if (!colStr) return [];
+
+        // 1. Explicit markers: (A), (B), (i), (ii), 1., 2., (p), (q), etc.
+        const markerTokenRegex = /(?:^|\s)(?:\(([A-Ea-e1-9]|i{1,4}|iv|v|vi{0,3}|ix|x|[p-tP-T])\)|([A-Ea-e1-9]|i{1,4}|iv|v|vi{0,3}|ix|x|[p-tP-T])[\.:\-\)])\s+/g;
+        const markers = [];
+        let im;
+        while ((im = markerTokenRegex.exec(colStr)) !== null) {
+            markers.push({
+                index: im.index,
+                matchLength: im[0].length,
+                label: im[1] || im[2]
+            });
+        }
+        if (markers.length >= 2) {
             const markerItems = [];
-            let im;
-            while ((im = markerRegex.exec(colStr)) !== null) {
-                const content = cleanItem(im[3]);
-                if (content && !/^(?:with|Column|List|I|II|A|B|1|2)$/i.test(content)) {
-                    markerItems.push(content);
+            for (let i = 0; i < markers.length; i++) {
+                const start = markers[i].index + markers[i].matchLength;
+                const end = (i + 1 < markers.length) ? markers[i + 1].index : colStr.length;
+                const itemText = cleanItem(colStr.substring(start, end));
+                if (itemText && !/^(?:with|Column|List|I|II|A|B|1|2)$/i.test(itemText)) {
+                    markerItems.push(itemText);
                 }
             }
             if (markerItems.length >= 2) return markerItems;
-
-            // Strategy 2: Split by newlines or HTML breaks
-            const lines = colStr
-                .split(/\r?\n+|<br\s*\/?>/i)
-                .map(s => cleanItem(s))
-                .filter(s => s && !/^(?:with|Column|List|I|II|A|B|1|2)$/i.test(s));
-            if (lines.length >= 2) return lines;
-
-            // Strategy 3: Split by semicolon or bullet points
-            if (/[;•]/.test(colStr)) {
-                const semiItems = colStr
-                    .split(/[;•]+/)
-                    .map(s => cleanItem(s))
-                    .filter(s => s && !/^(?:with|Column|List|I|II|A|B|1|2)$/i.test(s));
-                if (semiItems.length >= 2) return semiItems;
-            }
-
-            // Strategy 4: Fallback split by capital letter boundaries (e.g. "Root hair Trichome Cuticle Stomatal apparatus")
-            const capitalizedPhrases = colStr
-                .split(/(?<=[a-z0-9\)])\s+(?=[A-Z])/g)
-                .map(s => cleanItem(s))
-                .filter(s => s && !/^(?:with|Column|List|I|II|A|B|1|2)$/i.test(s));
-            if (capitalizedPhrases.length >= 2) return capitalizedPhrases;
-
-            return [];
-        };
-
-        const leftItems = extractItems(rawCol1, true);
-        const rightItems = extractItems(rawCol2, false);
-
-        if (leftItems.length >= 2 && rightItems.length >= 2) {
-            const maxLen = Math.max(leftItems.length, rightItems.length);
-            const pairs = [];
-            for (let i = 0; i < maxLen; i++) {
-                pairs.push({
-                    left: leftItems[i] || '',
-                    right: rightItems[i] || ''
-                });
-            }
-            return { introText: introText || 'Match Column I with Column II:', pairs };
         }
+
+        // 2. Newlines or HTML breaks
+        const lines = colStr
+            .split(/\r?\n+|<br\s*\/?>/i)
+            .map(s => cleanItem(s))
+            .filter(s => s && !/^(?:with|Column|List|I|II|A|B|1|2)$/i.test(s));
+        if (lines.length >= 2) return lines;
+
+        // 3. Semicolons or bullet points
+        if (/[;•]/.test(colStr)) {
+            const semiItems = colStr
+                .split(/[;•]+/)
+                .map(s => cleanItem(s))
+                .filter(s => s && !/^(?:with|Column|List|I|II|A|B|1|2)$/i.test(s));
+            if (semiItems.length >= 2) return semiItems;
+        }
+
+        // 4. Repeating prefix split (e.g. "Electric field due to an ...")
+        const words = colStr.trim().split(/\s+/);
+        if (words.length >= 8) {
+            for (let plen = 4; plen >= 2; plen--) {
+                const candidatePrefix = words.slice(0, plen).join(' ');
+                const escaped = candidatePrefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                const re = new RegExp(`(?:^|\\s)(?=${escaped})`, 'gi');
+                const parts = colStr.split(re).map(s => cleanItem(s)).filter(Boolean);
+                if (parts.length >= 2 && parts.length <= 6) {
+                    return parts;
+                }
+            }
+        }
+
+        // 5. Short math tokens / space-separated values for Column II
+        const mathTokens = colStr.trim().split(/\s+(?=[\\0-9a-zA-Z\-])/).map(s => cleanItem(s)).filter(Boolean);
+        if (mathTokens.length >= 2 && (targetCount === 0 || mathTokens.length === targetCount || Math.abs(mathTokens.length - targetCount) <= 1)) {
+            return mathTokens;
+        }
+
+        // 6. Fallback split by capital letter boundaries
+        const capitalizedPhrases = colStr
+            .split(/(?<=[a-z0-9\)])\s+(?=[A-Z])/g)
+            .map(s => cleanItem(s))
+            .filter(s => s && !/^(?:with|Column|List|I|II|A|B|1|2)$/i.test(s));
+        if (capitalizedPhrases.length >= 2) return capitalizedPhrases;
+
+        return [];
+    };
+
+    const leftItems = extractItems(rawCol1, true);
+    const rightItems = extractItems(rawCol2, false, leftItems.length);
+
+    if (leftItems.length >= 2 && rightItems.length >= 2) {
+        const maxLen = Math.max(leftItems.length, rightItems.length);
+        const pairs = [];
+        for (let i = 0; i < maxLen; i++) {
+            pairs.push({
+                left: leftItems[i] || '',
+                right: rightItems[i] || ''
+            });
+        }
+        return {
+            introText: introText || 'Match Column I with Column II:',
+            pairs
+        };
     }
 
     return { introText: txt, pairs: [] };
@@ -956,13 +1043,18 @@ function BodyMatchFollowing({ q, classes, isTwoCol, diagramMaxHeight = '180px', 
     const romanLabels = ['i', 'ii', 'iii', 'iv', 'v', 'vi', 'vii', 'viii'];
     const hasRomanOpts = opts.some(o => /[\-\s\(](?:i|ii|iii|iv|v|vi)\b/i.test(typeof o === 'object' ? (o.text || '') : String(o)));
 
+    const avgLeftLen = pairs.reduce((acc, p) => acc + (p.left || '').length, 0) / (pairs.length || 1);
+    const avgRightLen = pairs.reduce((acc, p) => acc + (p.right || '').length, 0) / (pairs.length || 1);
+    const leftWidth = avgLeftLen > avgRightLen * 1.8 ? '62%' : (avgRightLen > avgLeftLen * 1.8 ? '38%' : '50%');
+    const rightWidth = leftWidth === '62%' ? '38%' : (leftWidth === '38%' ? '62%' : '50%');
+
     return (
         <>
             {qText && (
-                <div style={{ ...Q.qTextBold, marginBottom: '2px', display: 'block' }}>
+                <div style={{ ...Q.qTextBold, marginBottom: '4px', display: 'block' }}>
                     <MathRenderer
                         inline
-                        text={qText}
+                        text={qText.endsWith(':') || qText.endsWith('.') ? qText : `${qText}:`}
                         questionId={qId}
                         customDiagramSizes={q.customDiagramSizes}
                         onSizeChange={onDiagramResize ? (h, key) => onDiagramResize(qId, h, key) : undefined}
@@ -987,19 +1079,19 @@ function BodyMatchFollowing({ q, classes, isTwoCol, diagramMaxHeight = '180px', 
                 <table style={Q.matchTable}>
                     <thead>
                         <tr>
-                            <th style={Q.matchTh}>Column I</th>
-                            <th style={Q.matchTh}>Column II</th>
+                            <th style={{ ...Q.matchTh, width: leftWidth }}>Column I</th>
+                            <th style={{ ...Q.matchTh, width: rightWidth }}>Column II</th>
                         </tr>
                     </thead>
                     <tbody>
                         {pairs.map((pair, pi) => (
                             <tr key={pi}>
-                                <td style={Q.matchTd}>
-                                    <strong style={{ marginRight: '4px' }}>({String.fromCharCode(65 + pi)})</strong>
+                                <td style={{ ...Q.matchTd, width: leftWidth }}>
+                                    <strong style={{ marginRight: '6px', color: '#001f6d' }}>({String.fromCharCode(65 + pi)})</strong>
                                     <MathRenderer inline text={pair.left || ''} />
                                 </td>
-                                <td style={Q.matchTd}>
-                                    <strong style={{ marginRight: '4px' }}>({hasRomanOpts ? (romanLabels[pi] || (pi + 1)) : (pi + 1)})</strong>
+                                <td style={{ ...Q.matchTd, width: rightWidth }}>
+                                    <strong style={{ marginRight: '6px', color: '#001f6d' }}>({hasRomanOpts ? (romanLabels[pi] || (pi + 1)) : (pi + 1)})</strong>
                                     <MathRenderer inline text={pair.right || ''} />
                                 </td>
                             </tr>
