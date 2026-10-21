@@ -129,14 +129,48 @@ export default function A4PaperEngine({
                         >
                             {visibleQuestions.map((q, idx) => {
                                 const displayNum = startQNo + idx;
-                                const currentPartKey = q.part || (q.sectionName && !q.sectionName.includes('Section 1') ? q.sectionName : (idx === 0 && q.part ? q.part : null));
-                                const prevPartKey = idx > 0 ? (visibleQuestions[idx - 1].part || visibleQuestions[idx - 1].sectionName || null) : null;
-                                const isNewPart = Boolean(currentPartKey && currentPartKey !== prevPartKey);
-                                const directiveText = paper?.partDirectives?.[currentPartKey] || q.partDirective || null;
+                                const examTypeStr = String(paper?.examType || paper?.exam_type || '').toUpperCase();
+                                const isJEE = examTypeStr.includes('JEE');
+
+                                const curSubject = q.sectionSubject || q.subject || '';
+                                const prevSubject = idx > 0 ? (visibleQuestions[idx - 1].sectionSubject || visibleQuestions[idx - 1].subject || '') : '';
+                                const isSubjectChange = Boolean(curSubject && prevSubject && curSubject.toLowerCase() !== prevSubject.toLowerCase());
+
+                                let showHeader = false;
+                                let headerTitle = '';
+                                let directiveText = null;
+
+                                if (isJEE) {
+                                    const isNum = Boolean(q.isNumerical || (q.type && q.type.toUpperCase().includes('NUMERICAL')) || (!q.options?.length && q.num_answer));
+                                    const prevIsNum = idx > 0 ? Boolean(visibleQuestions[idx - 1].isNumerical || (visibleQuestions[idx - 1].type && visibleQuestions[idx - 1].type.toUpperCase().includes('NUMERICAL')) || (!visibleQuestions[idx - 1].options?.length && visibleQuestions[idx - 1].num_answer)) : false;
+
+                                    if (isSubjectChange) {
+                                        showHeader = true;
+                                        headerTitle = `${curSubject.toUpperCase()} • PART A (SECTION A)`;
+                                        directiveText = 'This section contains 20 Multiple Choice Questions. Each question has four choices (A), (B), (C), (D). Only one choice is correct.';
+                                    } else if (idx === 0) {
+                                        showHeader = true;
+                                        headerTitle = curSubject ? `${curSubject.toUpperCase()} • PART A (SECTION A)` : 'PART A (SECTION A)';
+                                        directiveText = 'This section contains 20 Multiple Choice Questions. Each question has four choices (A), (B), (C), (D). Only one choice is correct.';
+                                    } else if (isNum && !prevIsNum) {
+                                        showHeader = true;
+                                        headerTitle = curSubject ? `${curSubject.toUpperCase()} • PART B (SECTION B - NUMERICALS)` : 'PART B (SECTION B - NUMERICALS)';
+                                        directiveText = 'This section contains 5 Numerical Value Questions. The answer to each question is a NUMERICAL VALUE. No options are provided.';
+                                    }
+                                } else {
+                                    // Normal paper (KCET, NEET, Board, General):
+                                    // NO section A, B, C, D banners!
+                                    // Only show subject banner if multi-subject exam transitions to another subject
+                                    if (isSubjectChange) {
+                                        showHeader = true;
+                                        headerTitle = `SUBJECT: ${curSubject.toUpperCase()}`;
+                                        directiveText = null;
+                                    }
+                                }
 
                                 return (
                                     <React.Fragment key={q._id || displayNum}>
-                                        {isNewPart && (
+                                        {showHeader && (
                                             <div
                                                 className="part-header-directive-block"
                                                 style={{
@@ -153,7 +187,7 @@ export default function A4PaperEngine({
                                                 }}
                                             >
                                                 <div style={{ fontWeight: 900, fontSize: '12px', textTransform: 'uppercase', color: '#001f6d', letterSpacing: '0.04em' }}>
-                                                    {currentPartKey}
+                                                    {headerTitle}
                                                 </div>
                                                 {directiveText && (
                                                     <div style={{ fontSize: '10.5px', fontWeight: 600, color: '#334155', marginTop: '2px', fontStyle: 'italic', whiteSpace: 'pre-line' }}>

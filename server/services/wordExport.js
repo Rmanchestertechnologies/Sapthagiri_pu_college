@@ -15,7 +15,12 @@ const {
     Header,
     Footer,
     PageNumber,
-    NumberFormat
+    NumberFormat,
+    HorizontalPositionRelativeFrom,
+    HorizontalPositionAlign,
+    VerticalPositionRelativeFrom,
+    VerticalPositionAlign,
+    TextWrappingType
 } = require('docx');
 
 /**
@@ -307,6 +312,13 @@ async function generatePaperDoc(paper, template = null) {
     );
 
     // ── 3. GENERAL INSTRUCTIONS ──
+    const examTypeStr = String(paper.examType || paper.exam_type || '').toUpperCase();
+    const isJEE = examTypeStr.includes('JEE');
+
+    const instructionText = isJEE
+        ? "1. All questions are compulsory. Total 25 questions (100 Marks).  2. Section A contains 20 Multiple Choice Questions (+4 for correct, -1 for incorrect).  3. Section B contains 5 Numerical Value Questions (+4 for correct, 0 for unattempted). No options are provided.  4. Use of calculators or electronic devices is strictly prohibited."
+        : "1. All questions are compulsory.  2. Each question carries marks as indicated.  3. For multiple choice questions, only one option is correct.  4. Use of calculators or electronic devices is strictly prohibited.";
+
     docChildren.push(new Paragraph({ text: '', spacing: { after: 80 } }));
     docChildren.push(
         new Paragraph({
@@ -319,7 +331,7 @@ async function generatePaperDoc(paper, template = null) {
                     color: '001f6d'
                 }),
                 new TextRun({
-                    text: "1. The question paper contains Sections as prescribed by the examination format.  2. For Section A (MCQs), only one option is correct.  3. For Section B (Numericals), the answer is a numerical value without choices.  4. Use of calculators or electronic devices is strictly prohibited.",
+                    text: instructionText,
                     font: 'Calibri',
                     size: 18,
                     color: '334155'
@@ -331,37 +343,68 @@ async function generatePaperDoc(paper, template = null) {
 
     // ── 4. QUESTIONS WITH SECTIONS, NUMERICALS, AND TABLES ──
     let prevPartKey = null;
+    let prevSubject = null;
     const startQNo = Number(paper.startQNo) || 1;
 
     for (let idx = 0; idx < questions.length; idx++) {
         const q = questions[idx];
         const displayNum = startQNo + idx;
 
-        const currentPartKey = q.part || (q.sectionName && !q.sectionName.includes('Section 1') ? q.sectionName : null);
-        const isNewPart = Boolean(currentPartKey && currentPartKey !== prevPartKey);
+        const curSubject = q.sectionSubject || q.subject || '';
+        const isSubjectChange = Boolean(curSubject && prevSubject && curSubject.toLowerCase() !== prevSubject.toLowerCase());
 
-        if (isNewPart) {
-            prevPartKey = currentPartKey;
-            const directiveText = paper?.partDirectives?.[currentPartKey] || q.partDirective || null;
-
-            // Section Header Bar in Word
+        if (isSubjectChange) {
+            prevSubject = curSubject;
             docChildren.push(
                 new Paragraph({
                     children: [
                         new TextRun({
-                            text: currentPartKey.toUpperCase(),
+                            text: `SUBJECT: ${curSubject.toUpperCase()}`,
                             bold: true,
-                            size: 22,
+                            size: 24,
                             font: 'Calibri',
                             color: '001f6d',
                             underline: {}
                         })
                     ],
-                    spacing: { before: 200, after: 60 }
+                    spacing: { before: 240, after: 80 }
                 })
             );
+        } else if (idx === 0) {
+            prevSubject = curSubject;
+        }
 
-            if (directiveText) {
+        const qType = (q.type || q.q_type || 'MCQ').toUpperCase();
+        const isNumerical = qType.includes('NUMERICAL') || qType.includes('INTEGER') || qType === 'NUM' ||
+                            Boolean(q.isNumerical) ||
+                            (q.part && q.part.toUpperCase().includes('NUMERICAL')) ||
+                            (q.part && q.part.toUpperCase().includes('SECTION-B') && (!q.options || q.options.length === 0));
+
+        // In JEE: Show SECTION A (20 Qs) and SECTION B (5 Numericals)
+        if (isJEE) {
+            const currentPartKey = isNumerical ? 'SECTION B (NUMERICAL VALUE QUESTIONS)' : 'SECTION A (MULTIPLE CHOICE QUESTIONS)';
+            const isNewPart = Boolean(currentPartKey !== prevPartKey);
+            if (isNewPart) {
+                prevPartKey = currentPartKey;
+                const directiveText = isNumerical
+                    ? 'This section contains 5 Numerical Value Questions. The answer to each question is a NUMERICAL VALUE. No options are provided.'
+                    : 'This section contains 20 Multiple Choice Questions. Each question has four choices (A), (B), (C), (D). Only one choice is correct.';
+
+                docChildren.push(
+                    new Paragraph({
+                        children: [
+                            new TextRun({
+                                text: currentPartKey,
+                                bold: true,
+                                size: 22,
+                                font: 'Calibri',
+                                color: '001f6d',
+                                underline: {}
+                            })
+                        ],
+                        spacing: { before: 200, after: 60 }
+                    })
+                );
                 docChildren.push(
                     new Paragraph({
                         children: [
@@ -378,12 +421,7 @@ async function generatePaperDoc(paper, template = null) {
                 );
             }
         }
-
-        const qType = (q.type || q.q_type || 'MCQ').toUpperCase();
-        const isNumerical = qType.includes('NUMERICAL') || qType.includes('INTEGER') || qType === 'NUM' ||
-                            Boolean(q.isNumerical) ||
-                            (q.part && q.part.toUpperCase().includes('NUMERICAL')) ||
-                            (q.part && q.part.toUpperCase().includes('SECTION-B') && (!q.options || q.options.length === 0));
+        // Note: For non-JEE, NO artificial section headers! Questions flow continuously.
 
         const rawQText = q.questionText || q.question || '';
 
@@ -494,6 +532,29 @@ async function generatePaperDoc(paper, template = null) {
             headers: {
                 default: new Header({
                     children: [
+                        ...(logoBuf ? [
+                            new Paragraph({
+                                children: [
+                                    new ImageRun({
+                                        data: logoBuf,
+                                        transformation: { width: 320, height: 320 },
+                                        floating: {
+                                            horizontalPosition: {
+                                                relative: HorizontalPositionRelativeFrom.PAGE,
+                                                align: HorizontalPositionAlign.CENTER,
+                                            },
+                                            verticalPosition: {
+                                                relative: VerticalPositionRelativeFrom.PAGE,
+                                                align: VerticalPositionAlign.CENTER,
+                                            },
+                                            wrap: {
+                                                type: TextWrappingType.NONE,
+                                            }
+                                        }
+                                    })
+                                ]
+                            })
+                        ] : []),
                         new Paragraph({
                             alignment: AlignmentType.RIGHT,
                             children: [

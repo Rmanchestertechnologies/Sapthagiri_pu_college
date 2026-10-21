@@ -256,6 +256,145 @@ export default function CreatePaper() {
         }));
     };
 
+    // Chapter Quota Management
+    const chapterQuotas = useMemo(() => {
+        return currentSubjectSelection.quotas || {};
+    }, [currentSubjectSelection]);
+
+    const setChapterQuota = (ch, count) => {
+        const val = Math.max(0, parseInt(count, 10) || 0);
+        setSubjectSelections(prev => {
+            const cur = prev[activeSubjectTab] || { chapters: [], concepts: [], quotas: {} };
+            return {
+                ...prev,
+                [activeSubjectTab]: {
+                    ...cur,
+                    quotas: {
+                        ...(cur.quotas || {}),
+                        [ch]: val,
+                    }
+                }
+            };
+        });
+    };
+
+    const distributeChapterQuotasEvenly = () => {
+        if (selectedChapters.length === 0) return;
+        const target = defaultQuotaForSubject;
+        const count = selectedChapters.length;
+        const base = Math.floor(target / count);
+        const remainder = target % count;
+
+        const newQuotas = {};
+        selectedChapters.forEach((ch, idx) => {
+            newQuotas[ch] = base + (idx < remainder ? 1 : 0);
+        });
+
+        setSubjectSelections(prev => {
+            const cur = prev[activeSubjectTab] || { chapters: [], concepts: [], quotas: {} };
+            return {
+                ...prev,
+                [activeSubjectTab]: {
+                    ...cur,
+                    quotas: newQuotas,
+                }
+            };
+        });
+    };
+
+    const totalAllocatedChapterQs = useMemo(() => {
+        return selectedChapters.reduce((acc, ch) => acc + (chapterQuotas[ch] || 0), 0);
+    }, [selectedChapters, chapterQuotas]);
+
+    // Question Type Allocations per Subject
+    const [subjectTypeAllocations, setSubjectTypeAllocations] = useState({});
+
+    const currentTypeAllocation = useMemo(() => {
+        const isJEE = (examType || '').toUpperCase().includes('JEE');
+        const isNEET = (examType || '').toUpperCase().includes('NEET');
+        const isCET = (examType || '').toUpperCase().includes('CET');
+
+        const defaultAlloc = isJEE
+            ? { mcq: 18, stmt: 0, ar: 0, match: 0, diag: 2, num: 5 }
+            : isNEET
+            ? { mcq: 32, stmt: 4, ar: 4, match: 2, diag: 3, num: 0 }
+            : isCET
+            ? { mcq: 60, stmt: 0, ar: 0, match: 0, diag: 0, num: 0 }
+            : { mcq: defaultQuotaForSubject, stmt: 0, ar: 0, match: 0, diag: 0, num: 0 };
+
+        return subjectTypeAllocations[activeSubjectTab] || defaultAlloc;
+    }, [subjectTypeAllocations, activeSubjectTab, examType, defaultQuotaForSubject]);
+
+    const setTypeAllocationCount = (typeKey, val) => {
+        const isJEE = (examType || '').toUpperCase().includes('JEE');
+        const numVal = Math.max(0, parseInt(val, 10) || 0);
+
+        setSubjectTypeAllocations(prev => {
+            const cur = prev[activeSubjectTab] || { ...currentTypeAllocation };
+            const updated = { ...cur, [typeKey]: numVal };
+            if (isJEE && typeKey === 'num' && numVal < 5) {
+                updated.num = 5; // Enforce compulsory 5 numericals for JEE Part B
+            }
+            return {
+                ...prev,
+                [activeSubjectTab]: updated,
+            };
+        });
+    };
+
+    const totalAllocatedTypeQs = useMemo(() => {
+        const alloc = currentTypeAllocation;
+        return (alloc.mcq || 0) + (alloc.stmt || 0) + (alloc.ar || 0) + (alloc.match || 0) + (alloc.diag || 0) + (alloc.num || 0);
+    }, [currentTypeAllocation]);
+
+    const applyTypePreset = (presetName) => {
+        const isJEE = (examType || '').toUpperCase().includes('JEE');
+        const target = defaultQuotaForSubject;
+        let nextAlloc = {};
+
+        if (presetName === 'JEE' || (isJEE && presetName === 'STANDARD')) {
+            nextAlloc = { mcq: 16, stmt: 1, ar: 1, match: 1, diag: 1, num: 5 };
+        } else if (presetName === 'NEET' || presetName === 'STANDARD') {
+            nextAlloc = { mcq: 32, stmt: 4, ar: 4, match: 2, diag: 3, num: 0 };
+        } else if (presetName === 'ALL_MCQ') {
+            if (isJEE) {
+                nextAlloc = { mcq: 20, stmt: 0, ar: 0, match: 0, diag: 0, num: 5 };
+            } else {
+                nextAlloc = { mcq: target, stmt: 0, ar: 0, match: 0, diag: 0, num: 0 };
+            }
+        } else if (presetName === 'BALANCED') {
+            if (isJEE) {
+                nextAlloc = { mcq: 14, stmt: 2, ar: 2, match: 1, diag: 1, num: 5 };
+            } else {
+                const mcqCount = Math.max(0, target - 10);
+                nextAlloc = { mcq: mcqCount, stmt: 2, ar: 3, match: 2, diag: 3, num: 0 };
+            }
+        }
+
+        setSubjectTypeAllocations(prev => ({
+            ...prev,
+            [activeSubjectTab]: nextAlloc,
+        }));
+    };
+
+    // Live counts of selected questions by type for active subject
+    const activeSubjectSelectedQs = useMemo(() => {
+        return selectedQuestions.filter(q => (q.sectionSubject || q.subject || '').toLowerCase() === activeSubjectTab.toLowerCase());
+    }, [selectedQuestions, activeSubjectTab]);
+
+    const typeBreakdownCurrent = useMemo(() => {
+        let mcq = 0, stmt = 0, ar = 0, match = 0, diag = 0, num = 0;
+        activeSubjectSelectedQs.forEach(q => {
+            if (matchesQuestionType(q, 'Numerical / Integer Type') || q.isNumerical) num++;
+            else if (matchesQuestionType(q, 'Assertion & Reason (A/R)')) ar++;
+            else if (matchesQuestionType(q, 'Statement Based')) stmt++;
+            else if (matchesQuestionType(q, 'Matrix Match')) match++;
+            else if (matchesQuestionType(q, 'Diagram Based')) diag++;
+            else mcq++;
+        });
+        return { mcq, stmt, ar, match, diag, num };
+    }, [activeSubjectSelectedQs]);
+
     // Question Source Repositories
     const [selectedSources, setSelectedSources] = useState(['subject', 'qbp_control']);
 
@@ -331,9 +470,9 @@ export default function CreatePaper() {
         timeAllowed: '3 Hours 15 Minutes',
         maxMarks: '70',
         generalInstructions: [
-            '1. The question paper contains four parts: A, B, C, and D. All parts are compulsory.',
-            '2. For PART-A questions, first written answer will be considered for awarding marks.',
-            '3. Answers without relevant formula/figure wherever necessary will not carry any marks.',
+            '1. All questions are compulsory.',
+            '2. Each question carries marks as indicated.',
+            '3. Read each question carefully before answering.',
             '4. Use of non-programmable scientific calculator and log tables is permitted.'
         ]
     };
@@ -734,8 +873,24 @@ export default function CreatePaper() {
             if (prev.includes(ch)) {
                 const cList = chapterConceptsMap[ch] || [];
                 setSelectedConceptsForCurrentSubject(cPrev => cPrev.filter(c => !cList.includes(c)));
+                setSubjectSelections(sPrev => {
+                    const cur = sPrev[activeSubjectTab] || {};
+                    const qCopy = { ...(cur.quotas || {}) };
+                    delete qCopy[ch];
+                    return { ...sPrev, [activeSubjectTab]: { ...cur, quotas: qCopy } };
+                });
                 return prev.filter(item => item !== ch);
             } else {
+                setSubjectSelections(sPrev => {
+                    const cur = sPrev[activeSubjectTab] || {};
+                    return {
+                        ...sPrev,
+                        [activeSubjectTab]: {
+                            ...cur,
+                            quotas: { ...(cur.quotas || {}), [ch]: cur.quotas?.[ch] || 1 }
+                        }
+                    };
+                });
                 return [...prev, ch];
             }
         });
@@ -827,7 +982,7 @@ export default function CreatePaper() {
 
             const matchesSingleConcept = !singleFilterConcept || (q.concept === singleFilterConcept || q.topic === singleFilterConcept);
             const matchesDifficulty = !filterDifficulty || (q.level || 'medium').toLowerCase() === filterDifficulty.toLowerCase();
-            const matchesType = !filterType || (q.type || 'MCQ').toUpperCase() === filterType.toUpperCase();
+            const matchesType = !filterType || matchesQuestionType(q, filterType);
 
             return matchesSearch && matchesSingleChapter && matchesSingleConcept && matchesDifficulty && matchesType;
         });
@@ -882,14 +1037,109 @@ export default function CreatePaper() {
     };
 
     // ── 3. AUTO FETCH GENERATOR ALGORITHM WITH CONCEPT DE-DUPLICATION ──
-    const generateBalancedSetForSubject = (subName, pool, targetQuota, dist, chaptersSelected, conceptsSelected, qTypeFilter = selectedQuestionType) => {
+    const generateBalancedSetForSubject = (
+        subName,
+        pool,
+        targetQuota,
+        dist,
+        chaptersSelected,
+        conceptsSelected,
+        qTypeFilter = selectedQuestionType,
+        typeAlloc = null,
+        chQuotas = null
+    ) => {
         if (!pool || pool.length === 0 || targetQuota <= 0) return [];
+        const isJEE = (examType || '').toUpperCase().includes('JEE');
 
         const selectedNormKeys = new Set((chaptersSelected || []).map(normalizeChapterKey));
         const allSelectedConcepts = new Set(conceptsSelected || []);
-
-        // 1. Exclude questions already added to any section in the active paper
         const alreadyAddedIds = new Set(selectedQuestions.map(q => String(q._id || q.id)));
+
+        // If typeAlloc is supplied and has allocations, sample by type!
+        if (typeAlloc && (typeAlloc.mcq || typeAlloc.stmt || typeAlloc.ar || typeAlloc.match || typeAlloc.diag || typeAlloc.num)) {
+            const pickedByType = [];
+            const pickedTypeIds = new Set(alreadyAddedIds);
+
+            const sampleFromPool = (typeFilterName, count, isPartB = false) => {
+                if (count <= 0) return;
+                let chapterMatches = pool.filter(q => {
+                    const id = String(q._id || q.id);
+                    if (pickedTypeIds.has(id)) return false;
+                    const rawCh = q.chapter || 'General';
+                    const matchesCh = selectedNormKeys.size === 0 || selectedNormKeys.has(normalizeChapterKey(rawCh)) || rawCh.toLowerCase() === 'general';
+                    return matchesCh && matchesQuestionType(q, typeFilterName);
+                });
+
+                let fullMatches = chapterMatches;
+                if (chapterMatches.length < count) {
+                    const more = pool.filter(q => {
+                        const id = String(q._id || q.id);
+                        return !pickedTypeIds.has(id) && matchesQuestionType(q, typeFilterName);
+                    });
+                    const diff = more.filter(q => !chapterMatches.includes(q));
+                    fullMatches = [...chapterMatches, ...diff];
+                }
+
+                fullMatches.sort(() => Math.random() - 0.5);
+
+                let added = 0;
+                for (const q of fullMatches) {
+                    if (added >= count) break;
+                    const id = String(q._id || q.id);
+                    pickedTypeIds.add(id);
+                    pickedByType.push({
+                        ...q,
+                        sectionSubject: subName,
+                        subject: q.subject || subName,
+                        part: isJEE ? (isPartB ? 'SECTION B - NUMERICAL VALUE QUESTIONS' : 'SECTION A - MULTIPLE CHOICE QUESTIONS') : '',
+                        partDirective: isJEE ? (isPartB ? 'This section contains 5 Numerical Value Questions. The answer to each question is a NUMERICAL VALUE. No options are provided.' : 'This section contains 20 Multiple Choice Questions. Each question has four choices (A), (B), (C), (D). Only one choice is correct.') : '',
+                        isNumerical: isPartB,
+                        type: isPartB ? 'NUMERICAL' : (q.type || 'MCQ'),
+                        options: isPartB ? [] : (q.options || []),
+                    });
+                    added++;
+                }
+            };
+
+            if (isJEE) {
+                // Section A: 20 questions
+                const secAMCQ = typeAlloc.mcq || 16;
+                const secAStmt = typeAlloc.stmt || 1;
+                const secAAR = typeAlloc.ar || 1;
+                const secAMatch = typeAlloc.match || 1;
+                const secADiag = typeAlloc.diag || 1;
+                sampleFromPool('Single Correct MCQ', secAMCQ, false);
+                sampleFromPool('Statement Based', secAStmt, false);
+                sampleFromPool('Assertion & Reason (A/R)', secAAR, false);
+                sampleFromPool('Matrix Match', secAMatch, false);
+                sampleFromPool('Diagram Based', secADiag, false);
+
+                // Section B: 5 compulsory numericals
+                sampleFromPool('Numerical / Integer Type', 5, true);
+
+                return pickedByType;
+            } else {
+                // Non-JEE: Sample according to typeAlloc without section headers!
+                if (typeAlloc.diag > 0) sampleFromPool('Diagram Based', typeAlloc.diag, false);
+                if (typeAlloc.ar > 0) sampleFromPool('Assertion & Reason (A/R)', typeAlloc.ar, false);
+                if (typeAlloc.stmt > 0) sampleFromPool('Statement Based', typeAlloc.stmt, false);
+                if (typeAlloc.match > 0) sampleFromPool('Matrix Match', typeAlloc.match, false);
+                if (typeAlloc.num > 0) sampleFromPool('Numerical / Integer Type', typeAlloc.num, true);
+                if (typeAlloc.mcq > 0) sampleFromPool('Single Correct MCQ', typeAlloc.mcq, false);
+
+                if (pickedByType.length < targetQuota) {
+                    sampleFromPool('Single Correct MCQ', targetQuota - pickedByType.length, false);
+                }
+
+                return pickedByType.slice(0, targetQuota).map(q => ({
+                    ...q,
+                    part: '',
+                    partDirective: '',
+                }));
+            }
+        }
+
+        // 1. Exclude questions already added to any section in the active paper (sets initialized above)
 
         // 2. Filter pool by chosen chapters/concepts and question types, excluding already present IDs
         let candidates = pool.filter(q => {
@@ -1009,7 +1259,7 @@ export default function CreatePaper() {
             }
         }
 
-                const isJEE = (examType || '').toUpperCase().includes('JEE');
+
         if (isJEE && targetQuota === 25) {
             const secAPart = 'SECTION A - MULTIPLE CHOICE QUESTIONS';
             const secBPart = 'SECTION B - NUMERICAL VALUE QUESTIONS';
@@ -1085,7 +1335,9 @@ export default function CreatePaper() {
                 autoDist,
                 selectedChapters,
                 selectedConcepts,
-                selectedQuestionType
+                selectedQuestionType,
+                currentTypeAllocation,
+                chapterQuotas
             );
 
             if (newQs.length === 0) {
@@ -1126,7 +1378,9 @@ export default function CreatePaper() {
                     autoDist,
                     subSel.chapters,
                     subSel.concepts,
-                    selectedQuestionType
+                    selectedQuestionType,
+                    subjectTypeAllocations[sub] || currentTypeAllocation,
+                    subSel.quotas || {}
                 );
                 allPicked.push(...pickedForSub);
             }
@@ -1350,9 +1604,9 @@ export default function CreatePaper() {
             };
 
             const isJEE = (examType || '').toUpperCase().includes('JEE');
-            const secAPart = isJEE ? 'SECTION A - MULTIPLE CHOICE QUESTIONS' : 'SECTION A';
-            const secBPart = isJEE ? 'SECTION B - NUMERICAL VALUE QUESTIONS' : 'SECTION B';
-            const secADir = isJEE ? 'This section contains 20 Multiple Choice Questions. Each question has four choices (1), (2), (3), (4). Only one choice is correct.' : '';
+            const secAPart = isJEE ? 'SECTION A - MULTIPLE CHOICE QUESTIONS' : '';
+            const secBPart = isJEE ? 'SECTION B - NUMERICAL VALUE QUESTIONS' : '';
+            const secADir = isJEE ? 'This section contains 20 Multiple Choice Questions. Each question has four choices (A), (B), (C), (D). Only one choice is correct.' : '';
             const secBDir = isJEE ? 'This section contains 5 Numerical Value Questions. The answer to each question is a NUMERICAL VALUE. No options are provided.' : '';
 
             // Section A: MCQs, Diagrams, Assertion & Reason, Statements, Matrix Match
@@ -1371,15 +1625,21 @@ export default function CreatePaper() {
 
             // Format Section A & B directives and ensure Section B numericals have NO options
             pickedQuestions.forEach((q, idx) => {
-                if (q.part === secBPart || (isJEE && idx >= 20)) {
-                    q.part = secBPart;
-                    q.partDirective = secBDir;
-                    q.isNumerical = true;
-                    q.type = 'NUMERICAL';
-                    q.options = [];
-                } else if (isJEE) {
-                    q.part = secAPart;
-                    q.partDirective = secADir;
+                if (isJEE) {
+                    if (q.part === secBPart || idx >= 20 || q.isNumerical) {
+                        q.part = secBPart;
+                        q.partDirective = secBDir;
+                        q.isNumerical = true;
+                        q.type = 'NUMERICAL';
+                        q.options = [];
+                    } else {
+                        q.part = secAPart;
+                        q.partDirective = secADir;
+                    }
+                } else {
+                    // Standard paper: NO artificial section naming
+                    q.part = '';
+                    q.partDirective = '';
                 }
             });
 
@@ -1966,14 +2226,37 @@ export default function CreatePaper() {
                         <div className="space-y-4">
                             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-gray-100 pb-2">
                                 <div>
-                                    <h3 className="text-sm font-black text-navy uppercase tracking-wider">
-                                        {activeSubjectTab} Chapters ({distinctChapters.length} Available)
-                                    </h3>
-                                    <p className="text-[11px] text-gray-500 font-medium">
-                                        Check chapters to focus questions. Leaving all unchecked includes all chapters.
+                                    <div className="flex items-center gap-2">
+                                        <h3 className="text-sm font-black text-navy uppercase tracking-wider">
+                                            {activeSubjectTab} Chapters ({distinctChapters.length} Available)
+                                        </h3>
+                                        {selectedChapters.length > 0 && (
+                                            <span className={`text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider ${
+                                                totalAllocatedChapterQs === defaultQuotaForSubject
+                                                    ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                                                    : 'bg-amber-100 text-amber-900 border border-amber-300'
+                                            }`}>
+                                                Allocated: {totalAllocatedChapterQs} / {defaultQuotaForSubject} Qs
+                                            </span>
+                                        )}
+                                    </div>
+                                    <p className="text-[11px] text-gray-500 font-medium mt-0.5">
+                                        Check chapters and specify the number of questions to pick from each chapter.
                                     </p>
                                 </div>
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                    <button
+                                        type="button"
+                                        onClick={distributeChapterQuotasEvenly}
+                                        disabled={selectedChapters.length === 0}
+                                        className="text-[11px] font-black text-navy bg-gold hover:bg-gold/80 disabled:opacity-40 disabled:pointer-events-none px-3 py-1 rounded-xl transition cursor-pointer flex items-center gap-1.5 shadow-2xs"
+                                        title={`Distribute ${defaultQuotaForSubject} questions evenly across checked chapters`}
+                                    >
+                                        <span>⚡ Distribute Evenly</span>
+                                        <span className="text-[9px] bg-navy text-gold px-1.5 py-0.2 rounded-full font-black">
+                                            {defaultQuotaForSubject} Qs
+                                        </span>
+                                    </button>
                                     <button
                                         type="button"
                                         onClick={selectAllChapters}
@@ -2005,29 +2288,69 @@ export default function CreatePaper() {
                                         return (
                                             <div
                                                 key={ch}
-                                                onClick={() => toggleChapter(ch)}
-                                                className={`p-3 rounded-2xl border-2 cursor-pointer transition flex items-center gap-3 ${
+                                                className={`p-3 rounded-2xl border-2 transition flex flex-col justify-between gap-2 ${
                                                     isChecked
                                                         ? 'border-navy bg-navy/5 shadow-xs'
                                                         : 'border-gray-200 bg-white hover:border-gray-300'
                                                 }`}
                                             >
-                                                <input
-                                                    type="checkbox"
-                                                    checked={isChecked}
-                                                    onChange={() => {}}
-                                                    className="w-4 h-4 text-navy rounded border-gray-300 cursor-pointer"
-                                                />
-                                                <div className="flex-1 min-w-0">
-                                                    <span className="text-xs font-bold text-navy block truncate" title={ch}>
-                                                        {ch}
-                                                    </span>
-                                                    {cCount > 0 && (
-                                                        <span className="text-[10px] text-gray-500 font-medium">
-                                                            {cCount} Concept(s)
+                                                <div
+                                                    onClick={() => toggleChapter(ch)}
+                                                    className="flex items-center gap-3 cursor-pointer"
+                                                >
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={isChecked}
+                                                        onChange={() => {}}
+                                                        className="w-4 h-4 text-navy rounded border-gray-300 cursor-pointer"
+                                                    />
+                                                    <div className="flex-1 min-w-0">
+                                                        <span className="text-xs font-bold text-navy block truncate" title={ch}>
+                                                            {ch}
                                                         </span>
-                                                    )}
+                                                        {cCount > 0 && (
+                                                            <span className="text-[10px] text-gray-500 font-medium">
+                                                                {cCount} Concept(s)
+                                                            </span>
+                                                        )}
+                                                    </div>
                                                 </div>
+
+                                                {/* Chapter Quota Stepper */}
+                                                {isChecked && (
+                                                    <div
+                                                        onClick={(e) => e.stopPropagation()}
+                                                        className="flex items-center justify-between pt-1.5 border-t border-navy/10 mt-1"
+                                                    >
+                                                        <span className="text-[10px] font-black uppercase text-navy/70 tracking-wider">
+                                                            Questions:
+                                                        </span>
+                                                        <div className="flex items-center gap-1.5 bg-white px-2 py-0.5 rounded-lg border border-navy/20 shadow-2xs">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setChapterQuota(ch, Math.max(0, (chapterQuotas[ch] || 0) - 1))}
+                                                                className="w-5 h-5 flex items-center justify-center font-black text-xs text-navy hover:bg-slate-100 rounded cursor-pointer"
+                                                            >
+                                                                -
+                                                            </button>
+                                                            <input
+                                                                type="number"
+                                                                min="0"
+                                                                value={chapterQuotas[ch] ?? 0}
+                                                                onChange={(e) => setChapterQuota(ch, e.target.value)}
+                                                                className="w-10 text-center font-black text-xs text-navy outline-none border-b border-navy/30 focus:border-navy"
+                                                            />
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setChapterQuota(ch, (chapterQuotas[ch] || 0) + 1)}
+                                                                className="w-5 h-5 flex items-center justify-center font-black text-xs text-navy hover:bg-slate-100 rounded cursor-pointer"
+                                                            >
+                                                                +
+                                                            </button>
+                                                            <span className="text-[10px] text-gray-500 font-bold ml-0.5">Qs</span>
+                                                        </div>
+                                                    </div>
+                                                )}
                                             </div>
                                         );
                                     })}
@@ -2119,88 +2442,445 @@ export default function CreatePaper() {
                 )}
 
                 {/* ══════════════════════════════════════════════════════════════
-                    STEP 2: CHOOSE METHOD (MANUAL PICK VS AUTO FETCH)
+                    STEP 2: QUESTION TYPE ALLOCATION & ACQUISITION METHOD
                 ══════════════════════════════════════════════════════════════ */}
                 {currentStep === 2 && (
-                    <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-gray-200 animate-fade-in space-y-8">
-                        <div className="border-b border-gray-100 pb-4">
-                            <span className="text-[10px] font-black text-gold uppercase tracking-[0.2em] bg-navy px-3 py-1 rounded-full">Step 2 of 5</span>
-                            <h2 className="text-2xl font-black text-navy mt-2 uppercase tracking-tight">Choose Question Acquisition Method</h2>
-                            <p className="text-xs text-gray-500 font-medium mt-1">
-                                Auto-generate balanced questions with 1-click or manually pick questions with full quality checks.
-                            </p>
+                    <div className="bg-white p-6 md:p-8 rounded-[2rem] shadow-sm border border-gray-200 animate-fade-in space-y-8">
+                        <div className="border-b border-gray-100 pb-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                            <div>
+                                <span className="text-[10px] font-black text-gold uppercase tracking-[0.2em] bg-navy px-3 py-1 rounded-full">Step 2 of 5</span>
+                                <h2 className="text-2xl font-black text-navy mt-2 uppercase tracking-tight">Question Type Allocation & Method</h2>
+                                <p className="text-xs text-gray-500 font-medium mt-1">
+                                    Configure how many MCQs, Statements, Assertion & Reasons, Match the Following, Diagrams, and Numericals to include.
+                                </p>
+                            </div>
+                            {/* Live Type Quota Pill */}
+                            <div className="flex items-center gap-3">
+                                <div className={`px-4 py-2 rounded-2xl border-2 flex items-center gap-2 ${
+                                    totalAllocatedTypeQs === defaultQuotaForSubject
+                                        ? 'border-emerald-500 bg-emerald-50 text-emerald-900'
+                                        : 'border-amber-400 bg-amber-50 text-amber-900'
+                                }`}>
+                                    <span className="text-xs font-black uppercase tracking-wider">Type Allocation:</span>
+                                    <span className="text-base font-black">{totalAllocatedTypeQs} / {defaultQuotaForSubject} Qs</span>
+                                    {totalAllocatedTypeQs === defaultQuotaForSubject && <span className="text-emerald-600 font-black">✓</span>}
+                                </div>
+                            </div>
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                            {/* Option 1: Chapter Blueprint Matrix */}
-                            <div
-                                onClick={() => {
-                                    setMethod('blueprint');
-                                    setCurrentStep(3);
-                                }}
-                                className="border-3 border-gray-200 hover:border-gold hover:shadow-2xl rounded-3xl p-6 cursor-pointer transition-all duration-300 flex flex-col justify-between group bg-surface"
-                            >
-                                <div>
-                                    <div className="w-14 h-14 rounded-2xl bg-gold text-navy flex items-center justify-center text-2xl mb-4 group-hover:scale-110 transition-transform shadow-xs">
-                                        📐
-                                    </div>
-                                    <div className="flex items-center gap-1.5 mb-1">
-                                        <span className="text-[9px] font-black uppercase tracking-wider bg-navy text-gold px-2 py-0.5 rounded-full">Recommended</span>
-                                    </div>
-                                    <h3 className="text-lg font-black text-navy uppercase tracking-tight mb-2">📁 Chapter Dropdowns & Blueprint Matrix</h3>
-                                    <p className="text-xs text-gray-600 leading-relaxed font-medium">
-                                        Dropdown for every chapter to specify how many questions should be there in every type: Single Correct MCQ, Assertion & Reason, Statement-Based, Numericals (JEE Section B), Diagrams, and Match the Following.
+                        {/* Special Notice for JEE Main */}
+                        {(examType || '').toUpperCase().includes('JEE') && (
+                            <div className="bg-amber-500/10 border-2 border-amber-400/80 rounded-2xl p-4 flex items-center gap-3.5 shadow-xs">
+                                <div className="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center text-xl shrink-0 font-black">
+                                    ⭐
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <h4 className="text-xs font-black text-navy uppercase tracking-wider">
+                                        JEE Main Exam Format Enforced
+                                    </h4>
+                                    <p className="text-[11px] text-amber-950 font-semibold leading-relaxed mt-0.5">
+                                        • <strong>Part A (Section A)</strong>: Exactly 20 Questions (MCQ, Assertion-Reason, Statement, Match, Diagram).<br />
+                                        • <strong>Part B (Section B)</strong>: Exactly <strong>5 Numericals (Compulsory)</strong> without options (Answer Entry Box).
                                     </p>
                                 </div>
-                                <div className="mt-6 pt-4 border-t border-gray-200 flex justify-between items-center text-xs font-black text-navy uppercase tracking-wider group-hover:text-gold">
-                                    <span>Open Chapter Dropdowns</span>
-                                    <span>→</span>
+                            </div>
+                        )}
+
+                        {/* Quick Presets Strip */}
+                        <div className="flex items-center gap-2 flex-wrap pb-2 border-b border-gray-100">
+                            <span className="text-[11px] font-black text-navy/70 uppercase tracking-wider mr-1">
+                                Quick Presets:
+                            </span>
+                            {(examType || '').toUpperCase().includes('JEE') ? (
+                                <>
+                                    <button
+                                        type="button"
+                                        onClick={() => applyTypePreset('JEE')}
+                                        className="text-xs font-black bg-navy text-gold px-3.5 py-1.5 rounded-xl hover:scale-105 transition cursor-pointer shadow-xs"
+                                    >
+                                        ⚡ JEE Main Standard (20 Part A + 5 Part B Numericals)
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => applyTypePreset('ALL_MCQ')}
+                                        className="text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-800 px-3 py-1.5 rounded-xl transition cursor-pointer"
+                                    >
+                                        20 MCQs + 5 Numericals
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => applyTypePreset('BALANCED')}
+                                        className="text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-800 px-3 py-1.5 rounded-xl transition cursor-pointer"
+                                    >
+                                        Balanced Mix
+                                    </button>
+                                </>
+                            ) : (
+                                <>
+                                    <button
+                                        type="button"
+                                        onClick={() => applyTypePreset('NEET')}
+                                        className="text-xs font-black bg-navy text-gold px-3.5 py-1.5 rounded-xl hover:scale-105 transition cursor-pointer shadow-xs"
+                                    >
+                                        🧬 NEET Standard (32 MCQ, 4 AR, 4 Stmt, 2 Match, 3 Diag)
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => applyTypePreset('ALL_MCQ')}
+                                        className="text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-800 px-3 py-1.5 rounded-xl transition cursor-pointer"
+                                    >
+                                        All MCQs ({defaultQuotaForSubject})
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => applyTypePreset('BALANCED')}
+                                        className="text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-800 px-3 py-1.5 rounded-xl transition cursor-pointer"
+                                    >
+                                        Balanced Mix
+                                    </button>
+                                </>
+                            )}
+                        </div>
+
+                        {/* 6 Question Type Allocators */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {/* 1. Single Correct MCQ */}
+                            <div className="p-4 rounded-2xl border-2 border-emerald-200 bg-emerald-50/30 flex flex-col justify-between gap-3 shadow-2xs">
+                                <div>
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-xl">📝</span>
+                                        <span className="text-[10px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full">
+                                            Single Choice
+                                        </span>
+                                    </div>
+                                    <h4 className="text-sm font-black text-navy mt-1">Single Correct MCQ</h4>
+                                    <p className="text-[11px] text-gray-500 font-medium mt-0.5">
+                                        Standard multiple choice with 4 options (A), (B), (C), (D).
+                                    </p>
+                                </div>
+                                <div className="flex items-center justify-between pt-2 border-t border-emerald-100">
+                                    <span className="text-xs font-bold text-navy">Quantity:</span>
+                                    <div className="flex items-center gap-1.5 bg-white px-2 py-1 rounded-xl border border-emerald-300 shadow-2xs">
+                                        <button
+                                            type="button"
+                                            onClick={() => setTypeAllocationCount('mcq', Math.max(0, (currentTypeAllocation.mcq || 0) - 1))}
+                                            className="w-6 h-6 flex items-center justify-center font-black text-sm text-navy hover:bg-slate-100 rounded cursor-pointer"
+                                        >
+                                            -
+                                        </button>
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            value={currentTypeAllocation.mcq ?? 0}
+                                            onChange={(e) => setTypeAllocationCount('mcq', e.target.value)}
+                                            className="w-12 text-center font-black text-sm text-navy outline-none border-b border-navy/30"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => setTypeAllocationCount('mcq', (currentTypeAllocation.mcq || 0) + 1)}
+                                            className="w-6 h-6 flex items-center justify-center font-black text-sm text-navy hover:bg-slate-100 rounded cursor-pointer"
+                                        >
+                                            +
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
 
-                            {/* Option 2: Auto Fetch Generator Engine */}
-                            <div
-                                onClick={() => {
-                                    setMethod('auto');
-                                    setCurrentStep(3);
-                                }}
-                                className="border-3 border-gray-200 hover:border-gold hover:shadow-2xl rounded-3xl p-6 cursor-pointer transition-all duration-300 flex flex-col justify-between group bg-surface"
-                            >
+                            {/* 2. Statement Based */}
+                            <div className="p-4 rounded-2xl border-2 border-blue-200 bg-blue-50/30 flex flex-col justify-between gap-3 shadow-2xs">
                                 <div>
-                                    <div className="w-14 h-14 rounded-2xl bg-navy text-gold flex items-center justify-center text-2xl mb-4 group-hover:scale-110 transition-transform shadow-xs">
-                                        ⚡
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-xl">📑</span>
+                                        <span className="text-[10px] font-black uppercase tracking-wider bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full">
+                                            Evaluation
+                                        </span>
                                     </div>
-                                    <h3 className="text-lg font-black text-navy uppercase tracking-tight mb-2">Auto Fetch Generator Engine</h3>
-                                    <p className="text-xs text-gray-600 leading-relaxed font-medium">
-                                        Automatically assemble questions across checked chapters and concepts with customized difficulty distribution (Easy / Medium / Hard) and 1-click multi-subject generation.
+                                    <h4 className="text-sm font-black text-navy mt-1">Statement Based</h4>
+                                    <p className="text-[11px] text-gray-500 font-medium mt-0.5">
+                                        Statement I & Statement II correctness evaluation questions.
                                     </p>
                                 </div>
-                                <div className="mt-6 pt-4 border-t border-gray-200 flex justify-between items-center text-xs font-black text-navy uppercase tracking-wider group-hover:text-gold">
-                                    <span>Open Auto Engine</span>
-                                    <span>→</span>
+                                <div className="flex items-center justify-between pt-2 border-t border-blue-100">
+                                    <span className="text-xs font-bold text-navy">Quantity:</span>
+                                    <div className="flex items-center gap-1.5 bg-white px-2 py-1 rounded-xl border border-blue-300 shadow-2xs">
+                                        <button
+                                            type="button"
+                                            onClick={() => setTypeAllocationCount('stmt', Math.max(0, (currentTypeAllocation.stmt || 0) - 1))}
+                                            className="w-6 h-6 flex items-center justify-center font-black text-sm text-navy hover:bg-slate-100 rounded cursor-pointer"
+                                        >
+                                            -
+                                        </button>
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            value={currentTypeAllocation.stmt ?? 0}
+                                            onChange={(e) => setTypeAllocationCount('stmt', e.target.value)}
+                                            className="w-12 text-center font-black text-sm text-navy outline-none border-b border-navy/30"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => setTypeAllocationCount('stmt', (currentTypeAllocation.stmt || 0) + 1)}
+                                            className="w-6 h-6 flex items-center justify-center font-black text-sm text-navy hover:bg-slate-100 rounded cursor-pointer"
+                                        >
+                                            +
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
 
-                            {/* Option 3: Manual Question Selection */}
-                            <div
-                                onClick={() => {
-                                    setMethod('manual');
-                                    setCurrentStep(3);
-                                }}
-                                className="border-3 border-gray-200 hover:border-navy hover:shadow-2xl rounded-3xl p-6 cursor-pointer transition-all duration-300 flex flex-col justify-between group bg-surface"
-                            >
+                            {/* 3. Assertion & Reason */}
+                            <div className="p-4 rounded-2xl border-2 border-purple-200 bg-purple-50/30 flex flex-col justify-between gap-3 shadow-2xs">
                                 <div>
-                                    <div className="w-14 h-14 rounded-2xl bg-slate-800 text-gold flex items-center justify-center text-2xl mb-4 group-hover:scale-110 transition-transform shadow-xs">
-                                        ✍️
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-xl">⚖️</span>
+                                        <span className="text-[10px] font-black uppercase tracking-wider bg-purple-100 text-purple-800 px-2 py-0.5 rounded-full">
+                                            A / R Logic
+                                        </span>
                                     </div>
-                                    <h3 className="text-lg font-black text-navy uppercase tracking-tight mb-2">Manual Question Selection</h3>
-                                    <p className="text-xs text-gray-600 leading-relaxed font-medium">
-                                        Browse full question stems, formulas, diagrams, and options. Inspect quality and select or swap exactly what you want.
+                                    <h4 className="text-sm font-black text-navy mt-1">Assertion & Reason (A/R)</h4>
+                                    <p className="text-[11px] text-gray-500 font-medium mt-0.5">
+                                        Assertion (A) and Reason (R) logical explanation questions.
                                     </p>
                                 </div>
-                                <div className="mt-6 pt-4 border-t border-gray-200 flex justify-between items-center text-xs font-black text-navy uppercase tracking-wider group-hover:text-gold">
-                                    <span>Browse Repository</span>
-                                    <span>→</span>
+                                <div className="flex items-center justify-between pt-2 border-t border-purple-100">
+                                    <span className="text-xs font-bold text-navy">Quantity:</span>
+                                    <div className="flex items-center gap-1.5 bg-white px-2 py-1 rounded-xl border border-purple-300 shadow-2xs">
+                                        <button
+                                            type="button"
+                                            onClick={() => setTypeAllocationCount('ar', Math.max(0, (currentTypeAllocation.ar || 0) - 1))}
+                                            className="w-6 h-6 flex items-center justify-center font-black text-sm text-navy hover:bg-slate-100 rounded cursor-pointer"
+                                        >
+                                            -
+                                        </button>
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            value={currentTypeAllocation.ar ?? 0}
+                                            onChange={(e) => setTypeAllocationCount('ar', e.target.value)}
+                                            className="w-12 text-center font-black text-sm text-navy outline-none border-b border-navy/30"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => setTypeAllocationCount('ar', (currentTypeAllocation.ar || 0) + 1)}
+                                            className="w-6 h-6 flex items-center justify-center font-black text-sm text-navy hover:bg-slate-100 rounded cursor-pointer"
+                                        >
+                                            +
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* 4. Match the Following */}
+                            <div className="p-4 rounded-2xl border-2 border-teal-200 bg-teal-50/30 flex flex-col justify-between gap-3 shadow-2xs">
+                                <div>
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-xl">🔀</span>
+                                        <span className="text-[10px] font-black uppercase tracking-wider bg-teal-100 text-teal-800 px-2 py-0.5 rounded-full">
+                                            Matrix Match
+                                        </span>
+                                    </div>
+                                    <h4 className="text-sm font-black text-navy mt-1">Match the Following</h4>
+                                    <p className="text-[11px] text-gray-500 font-medium mt-0.5">
+                                        Column I and Column II tabular pairing format.
+                                    </p>
+                                </div>
+                                <div className="flex items-center justify-between pt-2 border-t border-teal-100">
+                                    <span className="text-xs font-bold text-navy">Quantity:</span>
+                                    <div className="flex items-center gap-1.5 bg-white px-2 py-1 rounded-xl border border-teal-300 shadow-2xs">
+                                        <button
+                                            type="button"
+                                            onClick={() => setTypeAllocationCount('match', Math.max(0, (currentTypeAllocation.match || 0) - 1))}
+                                            className="w-6 h-6 flex items-center justify-center font-black text-sm text-navy hover:bg-slate-100 rounded cursor-pointer"
+                                        >
+                                            -
+                                        </button>
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            value={currentTypeAllocation.match ?? 0}
+                                            onChange={(e) => setTypeAllocationCount('match', e.target.value)}
+                                            className="w-12 text-center font-black text-sm text-navy outline-none border-b border-navy/30"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => setTypeAllocationCount('match', (currentTypeAllocation.match || 0) + 1)}
+                                            className="w-6 h-6 flex items-center justify-center font-black text-sm text-navy hover:bg-slate-100 rounded cursor-pointer"
+                                        >
+                                            +
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* 5. Diagrammatic / Image Based */}
+                            <div className="p-4 rounded-2xl border-2 border-indigo-200 bg-indigo-50/30 flex flex-col justify-between gap-3 shadow-2xs">
+                                <div>
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-xl">🖼️</span>
+                                        <span className="text-[10px] font-black uppercase tracking-wider bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded-full">
+                                            Visual / Graph
+                                        </span>
+                                    </div>
+                                    <h4 className="text-sm font-black text-navy mt-1">Diagrammatic / Image Based</h4>
+                                    <p className="text-[11px] text-gray-500 font-medium mt-0.5">
+                                        Questions with diagrams, circuit schematics, biological illustrations.
+                                    </p>
+                                </div>
+                                <div className="flex items-center justify-between pt-2 border-t border-indigo-100">
+                                    <span className="text-xs font-bold text-navy">Quantity:</span>
+                                    <div className="flex items-center gap-1.5 bg-white px-2 py-1 rounded-xl border border-indigo-300 shadow-2xs">
+                                        <button
+                                            type="button"
+                                            onClick={() => setTypeAllocationCount('diag', Math.max(0, (currentTypeAllocation.diag || 0) - 1))}
+                                            className="w-6 h-6 flex items-center justify-center font-black text-sm text-navy hover:bg-slate-100 rounded cursor-pointer"
+                                        >
+                                            -
+                                        </button>
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            value={currentTypeAllocation.diag ?? 0}
+                                            onChange={(e) => setTypeAllocationCount('diag', e.target.value)}
+                                            className="w-12 text-center font-black text-sm text-navy outline-none border-b border-navy/30"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => setTypeAllocationCount('diag', (currentTypeAllocation.diag || 0) + 1)}
+                                            className="w-6 h-6 flex items-center justify-center font-black text-sm text-navy hover:bg-slate-100 rounded cursor-pointer"
+                                        >
+                                            +
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* 6. Numerical / Integer Type */}
+                            <div className={`p-4 rounded-2xl border-2 flex flex-col justify-between gap-3 shadow-2xs ${
+                                (examType || '').toUpperCase().includes('JEE')
+                                    ? 'border-amber-400 bg-amber-500/10 ring-2 ring-amber-400/40'
+                                    : 'border-orange-200 bg-orange-50/30'
+                            }`}>
+                                <div>
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-xl">🔢</span>
+                                        <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full ${
+                                            (examType || '').toUpperCase().includes('JEE')
+                                                ? 'bg-amber-500 text-white'
+                                                : 'bg-orange-100 text-orange-800'
+                                        }`}>
+                                            {(examType || '').toUpperCase().includes('JEE') ? 'JEE Part B Compulsory' : 'Numerical'}
+                                        </span>
+                                    </div>
+                                    <h4 className="text-sm font-black text-navy mt-1">Numerical / Integer Value</h4>
+                                    <p className="text-[11px] text-gray-500 font-medium mt-0.5">
+                                        {(examType || '').toUpperCase().includes('JEE')
+                                            ? 'Mandatory for JEE Section B: Exactly 5 questions without options (Answer Entry Box).'
+                                            : 'Questions where the answer is a numeric/integer value.'}
+                                    </p>
+                                </div>
+                                <div className="flex items-center justify-between pt-2 border-t border-amber-200">
+                                    <span className="text-xs font-bold text-navy">Quantity:</span>
+                                    <div className="flex items-center gap-1.5 bg-white px-2 py-1 rounded-xl border border-amber-300 shadow-2xs">
+                                        <button
+                                            type="button"
+                                            onClick={() => setTypeAllocationCount('num', Math.max((examType || '').toUpperCase().includes('JEE') ? 5 : 0, (currentTypeAllocation.num || 0) - 1))}
+                                            className="w-6 h-6 flex items-center justify-center font-black text-sm text-navy hover:bg-slate-100 rounded cursor-pointer"
+                                        >
+                                            -
+                                        </button>
+                                        <input
+                                            type="number"
+                                            min={(examType || '').toUpperCase().includes('JEE') ? 5 : 0}
+                                            value={currentTypeAllocation.num ?? ((examType || '').toUpperCase().includes('JEE') ? 5 : 0)}
+                                            onChange={(e) => setTypeAllocationCount('num', e.target.value)}
+                                            className="w-12 text-center font-black text-sm text-navy outline-none border-b border-navy/30"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => setTypeAllocationCount('num', (currentTypeAllocation.num || 0) + 1)}
+                                            className="w-6 h-6 flex items-center justify-center font-black text-sm text-navy hover:bg-slate-100 rounded cursor-pointer"
+                                        >
+                                            +
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Choose Method Section */}
+                        <div className="space-y-4 pt-4 border-t border-gray-100">
+                            <h3 className="text-lg font-black text-navy uppercase tracking-tight">
+                                Choose Question Acquisition Method
+                            </h3>
+
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                {/* Option 1: Auto Fetch Generator Engine */}
+                                <div
+                                    onClick={() => handleAutoGenerateActiveSubject()}
+                                    className="border-3 border-gray-200 hover:border-gold hover:shadow-2xl rounded-3xl p-6 cursor-pointer transition-all duration-300 flex flex-col justify-between group bg-surface"
+                                >
+                                    <div>
+                                        <div className="w-14 h-14 rounded-2xl bg-navy text-gold flex items-center justify-center text-2xl mb-4 group-hover:scale-110 transition-transform shadow-xs">
+                                            ⚡
+                                        </div>
+                                        <div className="flex items-center gap-1.5 mb-1">
+                                            <span className="text-[9px] font-black uppercase tracking-wider bg-gold text-navy px-2 py-0.5 rounded-full">Recommended</span>
+                                        </div>
+                                        <h3 className="text-lg font-black text-navy uppercase tracking-tight mb-2">⚡ Auto Fetch Generator</h3>
+                                        <p className="text-xs text-gray-600 leading-relaxed font-medium">
+                                            Automatically assemble questions from database adhering to chapter quotas and question type allocation with concept deduplication.
+                                        </p>
+                                    </div>
+                                    <div className="mt-6 pt-4 border-t border-gray-200 flex justify-between items-center text-xs font-black text-navy uppercase tracking-wider group-hover:text-gold">
+                                        <span>{autoGenerating ? 'Generating...' : 'Auto-Generate & Preview'}</span>
+                                        <span>→</span>
+                                    </div>
+                                </div>
+
+                                {/* Option 2: Manual Question Selection */}
+                                <div
+                                    onClick={() => {
+                                        setMethod('manual');
+                                        setCurrentStep(3);
+                                    }}
+                                    className="border-3 border-gray-200 hover:border-navy hover:shadow-2xl rounded-3xl p-6 cursor-pointer transition-all duration-300 flex flex-col justify-between group bg-surface"
+                                >
+                                    <div>
+                                        <div className="w-14 h-14 rounded-2xl bg-slate-800 text-gold flex items-center justify-center text-2xl mb-4 group-hover:scale-110 transition-transform shadow-xs">
+                                            ✍️
+                                        </div>
+                                        <h3 className="text-lg font-black text-navy uppercase tracking-tight mb-2">✍️ Manual Question Selection</h3>
+                                        <p className="text-xs text-gray-600 leading-relaxed font-medium">
+                                            Browse database filtered by chapter quotas, with live question type tracker (MCQs, Statements, AR, Match, Diagrams, Numericals) and quick filter tabs.
+                                        </p>
+                                    </div>
+                                    <div className="mt-6 pt-4 border-t border-gray-200 flex justify-between items-center text-xs font-black text-navy uppercase tracking-wider group-hover:text-gold">
+                                        <span>Browse Repository Manually</span>
+                                        <span>→</span>
+                                    </div>
+                                </div>
+
+                                {/* Option 3: Chapter Blueprint Dropdowns */}
+                                <div
+                                    onClick={() => {
+                                        setMethod('blueprint');
+                                        setCurrentStep(3);
+                                    }}
+                                    className="border-3 border-gray-200 hover:border-gold hover:shadow-2xl rounded-3xl p-6 cursor-pointer transition-all duration-300 flex flex-col justify-between group bg-surface"
+                                >
+                                    <div>
+                                        <div className="w-14 h-14 rounded-2xl bg-gold text-navy flex items-center justify-center text-2xl mb-4 group-hover:scale-110 transition-transform shadow-xs">
+                                            📐
+                                        </div>
+                                        <h3 className="text-lg font-black text-navy uppercase tracking-tight mb-2">📁 Chapter Dropdowns & Blueprint</h3>
+                                        <p className="text-xs text-gray-600 leading-relaxed font-medium">
+                                            Expandable dropdown cards for every chapter to map type-by-type breakdown on a spreadsheet-style matrix.
+                                        </p>
+                                    </div>
+                                    <div className="mt-6 pt-4 border-t border-gray-200 flex justify-between items-center text-xs font-black text-navy uppercase tracking-wider group-hover:text-gold">
+                                        <span>Open Chapter Dropdowns</span>
+                                        <span>→</span>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -2211,7 +2891,7 @@ export default function CreatePaper() {
                                 onClick={() => setCurrentStep(1)}
                                 className="bg-gray-100 text-gray-700 hover:bg-gray-200 px-6 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider transition cursor-pointer"
                             >
-                                ← Back to Scope Setup
+                                ← Back to Chapter Quotas Setup
                             </button>
                         </div>
                     </div>
@@ -2708,6 +3388,139 @@ export default function CreatePaper() {
                                             <span>→</span>
                                         </button>
                                     </div>
+                                </div>
+
+                                {/* Question Type Live Allocation Tracker */}
+                                <div className="bg-slate-900 text-white p-4 rounded-2xl shadow-md border border-navy/30 space-y-3">
+                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-gold font-black text-xs uppercase tracking-wider">
+                                                📊 Question Type Allocation Tracker ({activeSubjectTab})
+                                            </span>
+                                            <span className="text-[10px] text-white/70 font-semibold">
+                                                (Target: {defaultQuotaForSubject} Qs)
+                                            </span>
+                                        </div>
+                                        <div className="text-xs font-black text-gold">
+                                            Total Selected: {(selectedQuestionsBySubject[activeSubjectTab] || []).length} / {defaultQuotaForSubject} Qs
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
+                                        {/* MCQ */}
+                                        <div className={`p-2.5 rounded-xl border ${
+                                            typeBreakdownCurrent.mcq >= (currentTypeAllocation.mcq || 0) && (currentTypeAllocation.mcq || 0) > 0
+                                                ? 'bg-emerald-500/20 border-emerald-400/60 text-emerald-200'
+                                                : 'bg-white/10 border-white/15 text-white/90'
+                                        }`}>
+                                            <div className="text-[10px] font-bold uppercase tracking-wider text-white/60">Single Correct MCQ</div>
+                                            <div className="text-sm font-black mt-0.5 flex items-center justify-between">
+                                                <span>{typeBreakdownCurrent.mcq} / {currentTypeAllocation.mcq || 0}</span>
+                                                {typeBreakdownCurrent.mcq >= (currentTypeAllocation.mcq || 0) && (currentTypeAllocation.mcq || 0) > 0 && <span className="text-emerald-400 font-black">✓</span>}
+                                            </div>
+                                        </div>
+
+                                        {/* Statement */}
+                                        <div className={`p-2.5 rounded-xl border ${
+                                            typeBreakdownCurrent.stmt >= (currentTypeAllocation.stmt || 0) && (currentTypeAllocation.stmt || 0) > 0
+                                                ? 'bg-emerald-500/20 border-emerald-400/60 text-emerald-200'
+                                                : 'bg-white/10 border-white/15 text-white/90'
+                                        }`}>
+                                            <div className="text-[10px] font-bold uppercase tracking-wider text-white/60">Statement Based</div>
+                                            <div className="text-sm font-black mt-0.5 flex items-center justify-between">
+                                                <span>{typeBreakdownCurrent.stmt} / {currentTypeAllocation.stmt || 0}</span>
+                                                {typeBreakdownCurrent.stmt >= (currentTypeAllocation.stmt || 0) && (currentTypeAllocation.stmt || 0) > 0 && <span className="text-emerald-400 font-black">✓</span>}
+                                            </div>
+                                        </div>
+
+                                        {/* Assertion & Reason */}
+                                        <div className={`p-2.5 rounded-xl border ${
+                                            typeBreakdownCurrent.ar >= (currentTypeAllocation.ar || 0) && (currentTypeAllocation.ar || 0) > 0
+                                                ? 'bg-emerald-500/20 border-emerald-400/60 text-emerald-200'
+                                                : 'bg-white/10 border-white/15 text-white/90'
+                                        }`}>
+                                            <div className="text-[10px] font-bold uppercase tracking-wider text-white/60">Assertion & Reason</div>
+                                            <div className="text-sm font-black mt-0.5 flex items-center justify-between">
+                                                <span>{typeBreakdownCurrent.ar} / {currentTypeAllocation.ar || 0}</span>
+                                                {typeBreakdownCurrent.ar >= (currentTypeAllocation.ar || 0) && (currentTypeAllocation.ar || 0) > 0 && <span className="text-emerald-400 font-black">✓</span>}
+                                            </div>
+                                        </div>
+
+                                        {/* Match Following */}
+                                        <div className={`p-2.5 rounded-xl border ${
+                                            typeBreakdownCurrent.match >= (currentTypeAllocation.match || 0) && (currentTypeAllocation.match || 0) > 0
+                                                ? 'bg-emerald-500/20 border-emerald-400/60 text-emerald-200'
+                                                : 'bg-white/10 border-white/15 text-white/90'
+                                        }`}>
+                                            <div className="text-[10px] font-bold uppercase tracking-wider text-white/60">Match Following</div>
+                                            <div className="text-sm font-black mt-0.5 flex items-center justify-between">
+                                                <span>{typeBreakdownCurrent.match} / {currentTypeAllocation.match || 0}</span>
+                                                {typeBreakdownCurrent.match >= (currentTypeAllocation.match || 0) && (currentTypeAllocation.match || 0) > 0 && <span className="text-emerald-400 font-black">✓</span>}
+                                            </div>
+                                        </div>
+
+                                        {/* Diagrammatic */}
+                                        <div className={`p-2.5 rounded-xl border ${
+                                            typeBreakdownCurrent.diag >= (currentTypeAllocation.diag || 0) && (currentTypeAllocation.diag || 0) > 0
+                                                ? 'bg-emerald-500/20 border-emerald-400/60 text-emerald-200'
+                                                : 'bg-white/10 border-white/15 text-white/90'
+                                        }`}>
+                                            <div className="text-[10px] font-bold uppercase tracking-wider text-white/60">Diagrammatic</div>
+                                            <div className="text-sm font-black mt-0.5 flex items-center justify-between">
+                                                <span>{typeBreakdownCurrent.diag} / {currentTypeAllocation.diag || 0}</span>
+                                                {typeBreakdownCurrent.diag >= (currentTypeAllocation.diag || 0) && (currentTypeAllocation.diag || 0) > 0 && <span className="text-emerald-400 font-black">✓</span>}
+                                            </div>
+                                        </div>
+
+                                        {/* Numericals */}
+                                        <div className={`p-2.5 rounded-xl border ${
+                                            typeBreakdownCurrent.num >= (currentTypeAllocation.num || 0) && (currentTypeAllocation.num || 0) > 0
+                                                ? 'bg-emerald-500/20 border-emerald-400/60 text-emerald-200'
+                                                : (examType || '').toUpperCase().includes('JEE')
+                                                ? 'bg-amber-500/20 border-amber-400/60 text-amber-200 ring-1 ring-amber-400'
+                                                : 'bg-white/10 border-white/15 text-white/90'
+                                        }`}>
+                                            <div className="text-[10px] font-bold uppercase tracking-wider text-white/60 flex items-center gap-1">
+                                                <span>Numerical</span>
+                                                {(examType || '').toUpperCase().includes('JEE') && <span className="text-[8px] bg-amber-500 text-navy px-1 py-0.2 rounded font-black">JEE Sec B</span>}
+                                            </div>
+                                            <div className="text-sm font-black mt-0.5 flex items-center justify-between">
+                                                <span>{typeBreakdownCurrent.num} / {currentTypeAllocation.num || 0}</span>
+                                                {typeBreakdownCurrent.num >= (currentTypeAllocation.num || 0) && (currentTypeAllocation.num || 0) > 0 && <span className="text-emerald-400 font-black">✓</span>}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Question Type Quick Filter Tabs */}
+                                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 border-b border-gray-100">
+                                    <span className="text-[10px] font-black uppercase text-navy/70 tracking-wider mr-1">
+                                        Type Filter:
+                                    </span>
+                                    {[
+                                        { label: 'All Question Types', key: '' },
+                                        { label: 'Single Correct MCQ', key: 'MCQ' },
+                                        { label: 'Statement Based', key: 'STATEMENT' },
+                                        { label: 'Assertion & Reason', key: 'ASSERTION' },
+                                        { label: 'Match the Following', key: 'MATCH' },
+                                        { label: 'Diagrammatic', key: 'DIAGRAM' },
+                                        { label: (examType || '').toUpperCase().includes('JEE') ? 'Numericals (JEE Part B)' : 'Numericals', key: 'NUMERICAL' }
+                                    ].map(tab => {
+                                        const isTabActive = filterType === tab.key;
+                                        return (
+                                            <button
+                                                key={tab.key}
+                                                type="button"
+                                                onClick={() => { setFilterType(tab.key); setPageNumber(1); }}
+                                                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${
+                                                    isTabActive
+                                                        ? 'bg-navy text-gold shadow-xs font-black ring-1 ring-gold/40'
+                                                        : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+                                                }`}
+                                            >
+                                                {tab.label}
+                                            </button>
+                                        );
+                                    })}
                                 </div>
 
                                 {/* Quick Filters, Search & Page Size */}
