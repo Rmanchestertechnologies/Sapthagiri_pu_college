@@ -394,11 +394,13 @@ export default function PaperRenderer({
     const handleDownloadWord = async () => {
         setDownloadingWord(true);
         try {
+            const activeQs = questions && questions.length > 0 ? questions : (paper?.questions || []);
             const paperData = {
                 ...paper,
-                questions: currentQuestions,
-                setName: activeSet,
-                startQNo: settings.startQNo || 1
+                ...activePaper,
+                questions: activeQs,
+                setName: setsActive ? activeSet : (paper?.setName || 'P'),
+                startQNo: settings?.startQNo || 1
             };
 
             const res = await api.post('/api/papers/export-word', paperData, { responseType: 'blob' });
@@ -407,14 +409,26 @@ export default function PaperRenderer({
             const a = document.createElement('a');
             a.href = url;
             const cleanTitle = (paper?.title || 'Question_Paper').replace(/[^a-zA-Z0-9_-]/g, '_');
-            a.download = `${cleanTitle}_Set_${activeSet}.docx`;
+            a.download = `${cleanTitle}${setsActive ? `_Set_${activeSet}` : ''}.docx`;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
             window.URL.revokeObjectURL(url);
         } catch (err) {
             console.error('Word export error:', err);
-            alert('Failed to download Word document: ' + (err.response?.data?.msg || err.message));
+            let errMsg = err.message;
+            if (err.response?.data instanceof Blob) {
+                try {
+                    const text = await err.response.data.text();
+                    const parsed = JSON.parse(text);
+                    if (parsed.msg) errMsg = parsed.msg;
+                } catch (e) {
+                    // Ignore parse error
+                }
+            } else if (err.response?.data?.msg) {
+                errMsg = err.response.data.msg;
+            }
+            alert('Failed to download Word document: ' + errMsg);
         } finally {
             setDownloadingWord(false);
         }

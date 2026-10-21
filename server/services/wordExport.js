@@ -196,7 +196,18 @@ function getLocalLogoBuffer() {
  */
 async function generatePaperDoc(paper, template = null) {
     const docChildren = [];
-    const questions = Array.isArray(paper.questions) ? paper.questions : [];
+    let questions = Array.isArray(paper.questions) ? paper.questions : [];
+    if (questions.length === 0 && Array.isArray(paper.sections)) {
+        questions = paper.sections.flatMap(sec => {
+            const secName = sec.name || sec.title || '';
+            const secSub = sec.subject || '';
+            return (sec.questions || []).map(q => ({
+                ...q,
+                sectionName: q.sectionName || secName,
+                sectionSubject: q.sectionSubject || secSub || q.subject
+            }));
+        });
+    }
 
     // ── 1. HEADER SECTION MATCHING PDF ──
     const logoBuf = getLocalLogoBuffer();
@@ -423,7 +434,7 @@ async function generatePaperDoc(paper, template = null) {
         }
         // Note: For non-JEE, NO artificial section headers! Questions flow continuously.
 
-        const rawQText = q.questionText || q.question || '';
+        const rawQText = q.questionText || q.question || q.text || '';
 
         // Question Statement Paragraph
         const qRuns = textToRuns(rawQText, { bold: false, size: 21 });
