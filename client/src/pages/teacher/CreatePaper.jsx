@@ -154,6 +154,47 @@ const canonicalizeChapterName = (name) => {
     return clean;
 };
 
+// Helper to match question type filters strictly aligned with database question types
+export const matchesQuestionType = (q, allowedType) => {
+    if (!allowedType || allowedType === 'ALL') return true;
+    const qType = (q.type || q.q_type || '').toUpperCase();
+    const qText = q.questionText || q.question || q.text || '';
+
+    if (allowedType === 'Single Correct MCQ' || allowedType === 'MCQ' || allowedType === 'mcq') {
+        if (qType === 'DIAGRAM_BASED' || q.imageUrl || q.image_url || /\{\{IMG::|!\[|<img/i.test(qText)) return false;
+        if (qType.includes('ASSERTION') || Boolean(q.assertion && q.reason) || (/Assertion/i.test(qText) && /Reason/i.test(qText))) return false;
+        if (qType.includes('STATEMENT') || (/Statement\s*(?:I|1)\s*[:\-]/i.test(qText) && /Statement\s*(?:II|2)\s*[:\-]/i.test(qText))) return false;
+        if (qType.includes('NUMERICAL') || (q.num_answer !== undefined && q.num_answer !== null && q.num_answer !== '')) return false;
+        if (qType.includes('MATCH') || (q.column_a && q.column_a.length > 0)) return false;
+        return qType === 'MCQ' || qType === 'MCQ_SINGLE' || (!q.type && (q.options?.length > 1));
+    }
+
+    if (allowedType === 'Assertion & Reason (A/R)' || allowedType === 'ASSERTION_REASON' || allowedType === 'ar') {
+        return qType.includes('ASSERTION') || Boolean(q.assertion && q.reason) || (/Assertion\s*(?:\(A\))?/i.test(qText) && /Reason\s*(?:\(R\))?/i.test(qText));
+    }
+
+    if (allowedType === 'Statement Based' || allowedType === 'STATEMENT_BASED' || allowedType === 'stmt') {
+        return qType.includes('STATEMENT') || (/Statement\s*(?:I|1)\s*[:\-]/i.test(qText) && /Statement\s*(?:II|2)\s*[:\-]/i.test(qText));
+    }
+
+    if (allowedType === 'Numerical / Integer Type' || allowedType === 'NUMERICAL' || allowedType === 'num') {
+        return qType.includes('NUMERICAL') || qType.includes('INTEGER') || (q.num_answer !== undefined && q.num_answer !== null && q.num_answer !== '') || (!q.options?.length && Boolean(q.correct_option));
+    }
+
+    if (allowedType === 'Diagram Based' || allowedType === 'DIAGRAM_BASED' || allowedType === 'diag') {
+        const hasDiag = Boolean(q.imageUrl || q.image_url || /\{\{IMG::|!\[|<img/i.test(qText));
+        const opts = Array.isArray(q.options) ? q.options : [];
+        const optHasImages = opts.some(opt => /\{\{IMG::|!\[|<img/i.test(String(typeof opt === 'object' ? (opt.text || '') : opt)));
+        return qType === 'DIAGRAM_BASED' || hasDiag || optHasImages;
+    }
+
+    if (allowedType === 'Matrix Match' || allowedType === 'MATCH_FOLLOWING' || allowedType === 'match') {
+        return qType.includes('MATCH') || qType.includes('MATRIX') || (q.column_a && q.column_a.length > 0) || /(?:Column|List)\s*I[\s\S]*(?:Column|List)\s*II/i.test(qText) || /Match (?:List|the following|Column)/i.test(qText);
+    }
+
+    return true;
+};
+
 export default function CreatePaper() {
     const { user } = useContext(AuthContext);
     const navigate = useNavigate();
@@ -309,6 +350,12 @@ export default function CreatePaper() {
     // Question Type Allocations per Subject
     const [subjectTypeAllocations, setSubjectTypeAllocations] = useState({});
 
+    // Questions Pool & Selection (cached by subject)
+    const [questionsPoolCache, setQuestionsPoolCache] = useState({});
+    const [selectedQuestions, setSelectedQuestions] = useState([]);
+    const [loadingQuestions, setLoadingQuestions] = useState(false);
+    const [activeTemplate, setActiveTemplate] = useState(null);
+
     const currentTypeAllocation = useMemo(() => {
         const isJEE = (examType || '').toUpperCase().includes('JEE');
         const isNEET = (examType || '').toUpperCase().includes('NEET');
@@ -409,11 +456,7 @@ export default function CreatePaper() {
     // Step 2/3: Method selection ('auto' | 'manual')
     const [method, setMethod] = useState('auto');
 
-    // Questions Pool & Selection (cached by subject)
-    const [questionsPoolCache, setQuestionsPoolCache] = useState({});
-    const [selectedQuestions, setSelectedQuestions] = useState([]);
-    const [loadingQuestions, setLoadingQuestions] = useState(false);
-    const [activeTemplate, setActiveTemplate] = useState(null);
+
 
     const availableQuestions = useMemo(() => {
         return questionsPoolCache[activeSubjectTab] || [];
@@ -995,46 +1038,8 @@ export default function CreatePaper() {
         return filteredQuestions.slice(0, pageNumber * size);
     }, [filteredQuestions, pageNumber, pageSize]);
 
-    // Helper to match question type filters strictly aligned with database question types
-    const matchesQuestionType = (q, allowedType) => {
-        if (!allowedType || allowedType === 'ALL') return true;
-        const qType = (q.type || q.q_type || '').toUpperCase();
-        const qText = q.questionText || q.question || '';
+    // (matchesQuestionType is declared at module level)
 
-        if (allowedType === 'Single Correct MCQ' || allowedType === 'MCQ' || allowedType === 'mcq') {
-            if (qType === 'DIAGRAM_BASED' || q.imageUrl || q.image_url || /\{\{IMG::|!\[|<img/i.test(qText)) return false;
-            if (qType.includes('ASSERTION') || Boolean(q.assertion && q.reason) || (/Assertion/i.test(qText) && /Reason/i.test(qText))) return false;
-            if (qType.includes('STATEMENT') || (/Statement\s*(?:I|1)\s*[:\-]/i.test(qText) && /Statement\s*(?:II|2)\s*[:\-]/i.test(qText))) return false;
-            if (qType.includes('NUMERICAL') || (q.num_answer !== undefined && q.num_answer !== null && q.num_answer !== '')) return false;
-            if (qType.includes('MATCH') || (q.column_a && q.column_a.length > 0)) return false;
-            return qType === 'MCQ' || qType === 'MCQ_SINGLE' || (!q.type && (q.options?.length > 1));
-        }
-
-        if (allowedType === 'Assertion & Reason (A/R)' || allowedType === 'ASSERTION_REASON' || allowedType === 'ar') {
-            return qType.includes('ASSERTION') || Boolean(q.assertion && q.reason) || (/Assertion\s*(?:\(A\))?/i.test(qText) && /Reason\s*(?:\(R\))?/i.test(qText));
-        }
-
-        if (allowedType === 'Statement Based' || allowedType === 'STATEMENT_BASED' || allowedType === 'stmt') {
-            return qType.includes('STATEMENT') || (/Statement\s*(?:I|1)\s*[:\-]/i.test(qText) && /Statement\s*(?:II|2)\s*[:\-]/i.test(qText));
-        }
-
-        if (allowedType === 'Numerical / Integer Type' || allowedType === 'NUMERICAL' || allowedType === 'num') {
-            return qType.includes('NUMERICAL') || qType.includes('INTEGER') || (q.num_answer !== undefined && q.num_answer !== null && q.num_answer !== '') || (!q.options?.length && Boolean(q.correct_option));
-        }
-
-        if (allowedType === 'Diagram Based' || allowedType === 'DIAGRAM_BASED' || allowedType === 'diag') {
-            const hasDiag = Boolean(q.imageUrl || q.image_url || /\{\{IMG::|!\[|<img/i.test(qText));
-            const opts = Array.isArray(q.options) ? q.options : [];
-            const optHasImages = opts.some(opt => /\{\{IMG::|!\[|<img/i.test(String(typeof opt === 'object' ? (opt.text || '') : opt)));
-            return qType === 'DIAGRAM_BASED' || hasDiag || optHasImages;
-        }
-
-        if (allowedType === 'Matrix Match' || allowedType === 'MATCH_FOLLOWING' || allowedType === 'match') {
-            return qType.includes('MATCH') || qType.includes('MATRIX') || (q.column_a && q.column_a.length > 0) || /(?:Column|List)\s*I[\s\S]*(?:Column|List)\s*II/i.test(qText) || /Match (?:List|the following|Column)/i.test(qText);
-        }
-
-        return true;
-    };
 
     // ── 3. AUTO FETCH GENERATOR ALGORITHM WITH CONCEPT DE-DUPLICATION ──
     const generateBalancedSetForSubject = (
