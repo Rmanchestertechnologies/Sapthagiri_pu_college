@@ -23,6 +23,22 @@ const {
     TextWrappingType
 } = require('docx');
 
+const NO_BORDERS = {
+    top: { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' },
+    bottom: { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' },
+    left: { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' },
+    right: { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' },
+    insideHorizontal: { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' },
+    insideVertical: { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' },
+};
+
+const NO_CELL_BORDERS = {
+    top: { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' },
+    bottom: { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' },
+    left: { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' },
+    right: { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' },
+};
+
 /**
  * Converts LaTeX math notation to clean, genuine Unicode characters for Microsoft Word.
  * Each character is 100% editable in Word. No raw LaTeX commands or $ delimiters appear.
@@ -46,6 +62,7 @@ function latexToEditableText(latex) {
     while (/\\frac\{([^{}]+)\}\{([^{}]+)\}/.test(s)) {
         s = s.replace(/\\frac\{([^{}]+)\}\{([^{}]+)\}/g, '($1 / $2)');
     }
+    s = s.replace(/\\frac\s+([a-zA-Z0-9])\s+([a-zA-Z0-9])/g, '($1 / $2)');
 
     // 3. Square roots
     s = s.replace(/\\sqrt\[(.*?)\]\{(.*?)\}/g, '√[$1]($2)')
@@ -122,11 +139,27 @@ function latexToEditableText(latex) {
 }
 
 /**
- * Clean question text
+ * Clean question text - strips metadata, leaked codes, and raw image URLs
  */
 function cleanQuestionText(text) {
     if (!text || typeof text !== 'string') return '';
     let str = text;
+
+    // Decode HTML entities
+    str = str.replace(/&#x27;/g, "'")
+             .replace(/&#39;/g, "'")
+             .replace(/&quot;/g, '"')
+             .replace(/&amp;/g, '&')
+             .replace(/&lt;/g, '<')
+             .replace(/&gt;/g, '>')
+             .replace(/&nbsp;/g, ' ');
+
+    // Strip raw diagram markers (since diagrams are extracted and rendered as images)
+    str = str.replace(/(?:IMG::|{{IMG::)\s*https?:\/\/[^\s}]+(?:\}\})?/gi, '');
+    str = str.replace(/!\[.*?\]\((https?:\/\/[^\s\)]+)\)/gi, '');
+    str = str.replace(/<img[^>]+>/gi, '');
+    str = str.replace(/<span\s+class=["']katex-error["'][^>]*>[\s\S]*?<\/span>/gi, '');
+
     str = str.replace(/^(\s*(?:Q\.?\s*)?\d+[\.\)\-:]\s*)+/i, '');
     str = str.replace(/\[(?:QPV_|QBP_)?DIFFICULTY:\s*[^\]]+\]/gi, '');
     str = str.replace(/\[(?:QPV|QBP)_[A-Za-z0-9_]+:[^\]]*\]/gi, '');
@@ -136,20 +169,93 @@ function cleanQuestionText(text) {
     str = str.replace(/\s*\[\s*\d+\s*(?:Marks?|M)?\s*\]\s*$/i, '');
     str = str.replace(/\s*\[\s*[A-Za-z]{1,5}\s*[-.]?\s*\d{1,5}\s*\]\s*$/i, '');
     str = str.replace(/\s*\[\s*[A-Za-z0-9_\-]{2,8}\s*\]\s*$/i, '');
+
     return str.trim();
 }
 
 /**
- * Convert question text to an array of TextRuns with editable math.
+ * Extract diagram URL from question object
+ */
+function extractDiagramFromQuestion(q) {
+    if (!q) return null;
+    let diagramUrl = q.imageUrl || q.image_url || q.diagramUrl || q.diagram || null;
+    const rawText = q.questionText || q.question || q.text || '';
+
+    const prefixMatch = rawText.match(/(?:IMG::|{{IMG::)\s*(https?:\/\/[^\s}]+)/i);
+    if (prefixMatch && !diagramUrl) diagramUrl = prefixMatch[1];
+
+    const mdMatch = rawText.match(/!\[.*?\]\((https?:\/\/[^\s\)]+)\)/i);
+    if (mdMatch && !diagramUrl) diagramUrl = mdMatch[1];
+
+    const htmlMatch = rawText.match(/<img[^>]+src=["'](https?:\/\/[^"']+)["'][^>]*>/i);
+    if (htmlMatch && !diagramUrl) diagramUrl = htmlMatch[1];
+
+    return diagramUrl;
+}
+
+/**
+ * Extract image URL from an individual option string
+ */
+function extractOptionImageUrl(opt) {
+    const str = typeof opt === 'object' ? (opt.text || opt.optionText || opt.option || '') : String(opt || '');
+    const prefixMatch = str.match(/(?:IMG::|{{IMG::)\s*(https?:\/\/[^\s}]+)/i);
+    if (prefixMatch) return prefixMatch[1];
+    const mdMatch = str.match(/!\[.*?\]\((https?:\/\/[^\s\)]+)\)/i);
+    if (mdMatch) return mdMatch[1];
+    const urlMatch = str.match(/(https?:\/\/[^\s]+(?:\.jpg|\.png|\.jpeg|\.webp))/i);
+    if (urlMatch) return urlMatch[1];
+    return null;
+}
+
+// In-memory cache for fetched image buffers
+const imageBufferCache = new Map();
+
+/**
+ * Fetch image buffer from URL or local file
+ */
+async function fetchImageBuffer(url) {
+    if (!url || typeof url !== 'string') return null;
+    const cleanUrl = url.trim().replace(/^['"]|['"]$/g, '');
+    if (imageBufferCache.has(cleanUrl)) return imageBufferCache.get(cleanUrl);
+
+    try {
+        if (cleanUrl.startsWith('data:')) {
+            const base64Data = cleanUrl.split(',')[1];
+            if (base64Data) {
+                const buf = Buffer.from(base64Data, 'base64');
+                imageBufferCache.set(cleanUrl, buf);
+                return buf;
+            }
+        }
+        if (cleanUrl.startsWith('http://') || cleanUrl.startsWith('https://')) {
+            const res = await fetch(cleanUrl);
+            if (res.ok) {
+                const arrayBuf = await res.arrayBuffer();
+                const buf = Buffer.from(arrayBuf);
+                imageBufferCache.set(cleanUrl, buf);
+                return buf;
+            }
+        }
+        if (fs.existsSync(cleanUrl)) {
+            const buf = fs.readFileSync(cleanUrl);
+            imageBufferCache.set(cleanUrl, buf);
+            return buf;
+        }
+    } catch (e) {
+        console.warn('Could not fetch image for Word export:', cleanUrl, e.message);
+    }
+    return null;
+}
+
+/**
+ * Convert text into array of TextRuns with editable math
  */
 function textToRuns(rawText, options = {}) {
     if (!rawText) return [];
     const cleaned = cleanQuestionText(rawText);
     if (!cleaned) return [];
 
-    // Convert LaTeX math segments into editable unicode text
     const converted = latexToEditableText(cleaned);
-
     const lines = converted.split(/\r?\n|<br\s*\/?>/i);
     const runs = [];
 
@@ -185,6 +291,29 @@ function getLocalLogoBuffer() {
                 return fs.readFileSync(p);
             } catch (e) {
                 console.warn('Error reading logo from', p, e.message);
+            }
+        }
+    }
+    return null;
+}
+
+/**
+ * Read washed-out watermark file buffer (7% opacity grayscale PNG)
+ */
+function getLocalWatermarkBuffer() {
+    const candidates = [
+        path.resolve('server/public/watermark_faded.png'),
+        path.resolve('client/public/watermark_faded.png'),
+        path.resolve('../server/public/watermark_faded.png'),
+        path.resolve('../client/public/watermark_faded.png'),
+        path.resolve('server/public/SapthagiriLogo.jpg'),
+    ];
+    for (const p of candidates) {
+        if (fs.existsSync(p)) {
+            try {
+                return fs.readFileSync(p);
+            } catch (e) {
+                console.warn('Error reading watermark from', p, e.message);
             }
         }
     }
@@ -231,7 +360,7 @@ async function generatePaperDoc(paper, template = null) {
                         ]
                     })
                 ],
-                borders: { top: { style: BorderStyle.NONE }, bottom: { style: BorderStyle.NONE }, left: { style: BorderStyle.NONE }, right: { style: BorderStyle.NONE } }
+                borders: NO_CELL_BORDERS
             })
         );
     }
@@ -256,7 +385,7 @@ async function generatePaperDoc(paper, template = null) {
                     spacing: { after: 40 }
                 })
             ],
-            borders: { top: { style: BorderStyle.NONE }, bottom: { style: BorderStyle.NONE }, left: { style: BorderStyle.NONE }, right: { style: BorderStyle.NONE } }
+            borders: NO_CELL_BORDERS
         })
     );
 
@@ -277,13 +406,14 @@ async function generatePaperDoc(paper, template = null) {
                     ]
                 })
             ],
-            borders: { top: { style: BorderStyle.NONE }, bottom: { style: BorderStyle.NONE }, left: { style: BorderStyle.NONE }, right: { style: BorderStyle.NONE } }
+            borders: NO_CELL_BORDERS
         })
     );
 
     docChildren.push(
         new Table({
             width: { size: 100, type: WidthType.PERCENTAGE },
+            borders: NO_BORDERS,
             rows: [new TableRow({ children: headerCells })]
         })
     );
@@ -294,27 +424,35 @@ async function generatePaperDoc(paper, template = null) {
     const durText = paper.duration || '180 Minutes';
     const maxMarksText = paper.headerConfig?.maxMarks || (paper.exam_type?.includes('JEE') ? '100' : '180');
 
+    const metaBorders = {
+        top: { style: BorderStyle.SINGLE, color: '001f6d', size: 12 },
+        bottom: { style: BorderStyle.SINGLE, color: '001f6d', size: 12 },
+        left: { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' },
+        right: { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' }
+    };
+
     docChildren.push(
         new Table({
             width: { size: 100, type: WidthType.PERCENTAGE },
+            borders: NO_BORDERS,
             rows: [
                 new TableRow({
                     children: [
                         new TableCell({
                             children: [new Paragraph({ children: [new TextRun({ text: `Subject: ${subText}`, bold: true, font: 'Calibri', size: 19 })] })],
-                            borders: { top: { style: BorderStyle.SINGLE, color: '001f6d', size: 12 }, bottom: { style: BorderStyle.SINGLE, color: '001f6d', size: 12 }, left: { style: BorderStyle.NONE }, right: { style: BorderStyle.NONE } }
+                            borders: metaBorders
                         }),
                         new TableCell({
                             children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: `Class: ${classText}`, bold: true, font: 'Calibri', size: 19 })] })],
-                            borders: { top: { style: BorderStyle.SINGLE, color: '001f6d', size: 12 }, bottom: { style: BorderStyle.SINGLE, color: '001f6d', size: 12 }, left: { style: BorderStyle.NONE }, right: { style: BorderStyle.NONE } }
+                            borders: metaBorders
                         }),
                         new TableCell({
                             children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: `Time: ${durText}`, bold: true, font: 'Calibri', size: 19 })] })],
-                            borders: { top: { style: BorderStyle.SINGLE, color: '001f6d', size: 12 }, bottom: { style: BorderStyle.SINGLE, color: '001f6d', size: 12 }, left: { style: BorderStyle.NONE }, right: { style: BorderStyle.NONE } }
+                            borders: metaBorders
                         }),
                         new TableCell({
                             children: [new Paragraph({ alignment: AlignmentType.RIGHT, children: [new TextRun({ text: `Max Marks: ${maxMarksText}`, bold: true, font: 'Calibri', size: 19, color: '001f6d' })] })],
-                            borders: { top: { style: BorderStyle.SINGLE, color: '001f6d', size: 12 }, bottom: { style: BorderStyle.SINGLE, color: '001f6d', size: 12 }, left: { style: BorderStyle.NONE }, right: { style: BorderStyle.NONE } }
+                            borders: metaBorders
                         })
                     ]
                 })
@@ -330,7 +468,7 @@ async function generatePaperDoc(paper, template = null) {
         ? "1. All questions are compulsory. Total 25 questions (100 Marks).  2. Section A contains 20 Multiple Choice Questions (+4 for correct, -1 for incorrect).  3. Section B contains 5 Numerical Value Questions (+4 for correct, 0 for unattempted). No options are provided.  4. Use of calculators or electronic devices is strictly prohibited."
         : "1. All questions are compulsory.  2. Each question carries marks as indicated.  3. For multiple choice questions, only one option is correct.  4. Use of calculators or electronic devices is strictly prohibited.";
 
-    docChildren.push(new Paragraph({ text: '', spacing: { after: 80 } }));
+    docChildren.push(new Paragraph({ text: '', spacing: { after: 60 } }));
     docChildren.push(
         new Paragraph({
             children: [
@@ -348,7 +486,7 @@ async function generatePaperDoc(paper, template = null) {
                     color: '334155'
                 })
             ],
-            spacing: { after: 180 }
+            spacing: { after: 140 }
         })
     );
 
@@ -435,61 +573,166 @@ async function generatePaperDoc(paper, template = null) {
         // Note: For non-JEE, NO artificial section headers! Questions flow continuously.
 
         const rawQText = q.questionText || q.question || q.text || '';
+        const diagramUrl = extractDiagramFromQuestion(q);
+        const diagramBuf = diagramUrl ? await fetchImageBuffer(diagramUrl) : null;
 
-        // Question Statement Paragraph
+        // Check if options are images
+        const opts = Array.isArray(q.options) ? q.options : [];
+        const optionImageUrls = opts.map(o => extractOptionImageUrl(o));
+        const hasOptionImages = optionImageUrls.some(Boolean);
+        const optionImageBuffers = hasOptionImages ? await Promise.all(optionImageUrls.map(u => fetchImageBuffer(u))) : [];
+
+        const labels = ['(A)', '(B)', '(C)', '(D)', '(E)'];
         const qRuns = textToRuns(rawQText, { bold: false, size: 21 });
-        docChildren.push(
-            new Paragraph({
-                children: [
-                    new TextRun({ text: `${displayNum}. `, bold: true, font: 'Calibri', size: 21, color: '001f6d' }),
-                    ...qRuns
-                ],
-                spacing: { before: 120, after: 60 }
-            })
-        );
 
-        // Handle Question Types
-        if (isNumerical) {
-            // NUMERICAL QUESTION: NO OPTIONS, CLEAN ANSWER RESPONSE BLANK
-            docChildren.push(
-                new Paragraph({
-                    children: [
-                        new TextRun({ text: "Answer: [ ", bold: true, font: 'Calibri', size: 20, color: '001f6d' }),
-                        new TextRun({ text: "____________________", bold: true, font: 'Calibri', size: 20, color: '64748b' }),
-                        new TextRun({ text: " ]", bold: true, font: 'Calibri', size: 20, color: '001f6d' }),
-                    ],
-                    spacing: { before: 60, after: 120 }
-                })
-            );
-        } else {
-            // MCQ / AR / STATEMENT / MATCH OPTIONS
-            const opts = Array.isArray(q.options) ? q.options : [];
-            if (opts.length > 0) {
-                const labels = ['(A)', '(B)', '(C)', '(D)', '(E)'];
+        // Build question statement paragraph
+        const questionStatementParagraph = new Paragraph({
+            children: [
+                new TextRun({ text: `${displayNum}. `, bold: true, font: 'Calibri', size: 21, color: '001f6d' }),
+                ...qRuns
+            ],
+            spacing: { before: 100, after: 50 }
+        });
 
-                // Render options in 2x2 table or stacked rows
+        if (diagramBuf) {
+            // SIDE-BY-SIDE LAYOUT (Matching PDF Question 1 & 2):
+            // Left Cell: Question text + Options
+            // Right Cell: Centered diagram
+            const leftChildren = [questionStatementParagraph];
+
+            if (isNumerical) {
+                leftChildren.push(
+                    new Paragraph({
+                        children: [
+                            new TextRun({ text: "Answer: [ ", bold: true, font: 'Calibri', size: 20, color: '001f6d' }),
+                            new TextRun({ text: "____________________", bold: true, font: 'Calibri', size: 20, color: '64748b' }),
+                            new TextRun({ text: " ]", bold: true, font: 'Calibri', size: 20, color: '001f6d' }),
+                        ],
+                        spacing: { before: 60, after: 100 }
+                    })
+                );
+            } else if (opts.length > 0) {
                 const optRunsList = opts.map(o => {
-                    const str = typeof o === 'object' ? (o.text || o.optionText || o.option || '') : String(o);
+                    const str = typeof o === 'object' ? (o.text || o.optionText || o.option || '') : String(o || '');
                     return textToRuns(str, { font: 'Calibri', size: 20 });
                 });
 
-                if (opts.length === 4) {
-                    // 2x2 Grid table for clean alignment
+                opts.forEach((_, optIdx) => {
+                    leftChildren.push(
+                        new Paragraph({
+                            children: [
+                                new TextRun({ text: `${labels[optIdx] || `(${optIdx + 1})`} `, bold: true, size: 20 }),
+                                ...optRunsList[optIdx]
+                            ],
+                            spacing: { after: 30 }
+                        })
+                    );
+                });
+            }
+
+            docChildren.push(
+                new Table({
+                    width: { size: 100, type: WidthType.PERCENTAGE },
+                    borders: NO_BORDERS,
+                    rows: [
+                        new TableRow({
+                            children: [
+                                new TableCell({
+                                    width: { size: 62, type: WidthType.PERCENTAGE },
+                                    children: leftChildren,
+                                    borders: NO_CELL_BORDERS
+                                }),
+                                new TableCell({
+                                    width: { size: 38, type: WidthType.PERCENTAGE },
+                                    children: [
+                                        new Paragraph({
+                                            alignment: AlignmentType.CENTER,
+                                            children: [
+                                                new ImageRun({
+                                                    data: diagramBuf,
+                                                    transformation: { width: 195, height: 135 }
+                                                })
+                                            ]
+                                        })
+                                    ],
+                                    borders: NO_CELL_BORDERS
+                                })
+                            ]
+                        })
+                    ]
+                })
+            );
+        } else {
+            // STANDARD LAYOUT (No main diagram):
+            docChildren.push(questionStatementParagraph);
+
+            if (isNumerical) {
+                docChildren.push(
+                    new Paragraph({
+                        children: [
+                            new TextRun({ text: "Answer: [ ", bold: true, font: 'Calibri', size: 20, color: '001f6d' }),
+                            new TextRun({ text: "____________________", bold: true, font: 'Calibri', size: 20, color: '64748b' }),
+                            new TextRun({ text: " ]", bold: true, font: 'Calibri', size: 20, color: '001f6d' }),
+                        ],
+                        spacing: { before: 60, after: 120 }
+                    })
+                );
+            } else if (hasOptionImages && opts.length === 4) {
+                // 4 OPTION DIAGRAMS IN A ROW (Matching PDF Question 3):
+                const optCells = opts.map((_, optIdx) => {
+                    const buf = optionImageBuffers[optIdx];
+                    return new TableCell({
+                        width: { size: 25, type: WidthType.PERCENTAGE },
+                        children: [
+                            new Paragraph({
+                                alignment: AlignmentType.CENTER,
+                                children: [
+                                    new TextRun({ text: `${labels[optIdx]} `, bold: true, size: 20 }),
+                                    ...(buf ? [
+                                        new ImageRun({
+                                            data: buf,
+                                            transformation: { width: 95, height: 60 }
+                                        })
+                                    ] : textToRuns(String(opts[optIdx] || ''), { font: 'Calibri', size: 20 }))
+                                ]
+                            })
+                        ],
+                        borders: NO_CELL_BORDERS
+                    });
+                });
+
+                docChildren.push(
+                    new Table({
+                        width: { size: 100, type: WidthType.PERCENTAGE },
+                        borders: NO_BORDERS,
+                        rows: [new TableRow({ children: optCells })]
+                    })
+                );
+            } else if (opts.length > 0) {
+                const optRunsList = opts.map(o => {
+                    const str = typeof o === 'object' ? (o.text || o.optionText || o.option || '') : String(o || '');
+                    return textToRuns(str, { font: 'Calibri', size: 20 });
+                });
+
+                // Short text options: 2x2 borderless grid
+                const totalTextLength = opts.reduce((acc, o) => acc + String(typeof o === 'object' ? (o.text || '') : o).length, 0);
+                if (opts.length === 4 && totalTextLength <= 70) {
                     docChildren.push(
                         new Table({
                             width: { size: 100, type: WidthType.PERCENTAGE },
+                            borders: NO_BORDERS,
                             rows: [
                                 new TableRow({
                                     children: [
                                         new TableCell({
                                             width: { size: 50, type: WidthType.PERCENTAGE },
                                             children: [new Paragraph({ children: [new TextRun({ text: `${labels[0]} `, bold: true, size: 20 }), ...optRunsList[0]] })],
-                                            borders: { top: { style: BorderStyle.NONE }, bottom: { style: BorderStyle.NONE }, left: { style: BorderStyle.NONE }, right: { style: BorderStyle.NONE } }
+                                            borders: NO_CELL_BORDERS
                                         }),
                                         new TableCell({
                                             width: { size: 50, type: WidthType.PERCENTAGE },
                                             children: [new Paragraph({ children: [new TextRun({ text: `${labels[1]} `, bold: true, size: 20 }), ...optRunsList[1]] })],
-                                            borders: { top: { style: BorderStyle.NONE }, bottom: { style: BorderStyle.NONE }, left: { style: BorderStyle.NONE }, right: { style: BorderStyle.NONE } }
+                                            borders: NO_CELL_BORDERS
                                         })
                                     ]
                                 }),
@@ -498,12 +741,12 @@ async function generatePaperDoc(paper, template = null) {
                                         new TableCell({
                                             width: { size: 50, type: WidthType.PERCENTAGE },
                                             children: [new Paragraph({ children: [new TextRun({ text: `${labels[2]} `, bold: true, size: 20 }), ...optRunsList[2]] })],
-                                            borders: { top: { style: BorderStyle.NONE }, bottom: { style: BorderStyle.NONE }, left: { style: BorderStyle.NONE }, right: { style: BorderStyle.NONE } }
+                                            borders: NO_CELL_BORDERS
                                         }),
                                         new TableCell({
                                             width: { size: 50, type: WidthType.PERCENTAGE },
                                             children: [new Paragraph({ children: [new TextRun({ text: `${labels[3]} `, bold: true, size: 20 }), ...optRunsList[3]] })],
-                                            borders: { top: { style: BorderStyle.NONE }, bottom: { style: BorderStyle.NONE }, left: { style: BorderStyle.NONE }, right: { style: BorderStyle.NONE } }
+                                            borders: NO_CELL_BORDERS
                                         })
                                     ]
                                 })
@@ -518,7 +761,7 @@ async function generatePaperDoc(paper, template = null) {
                                     new TextRun({ text: `${labels[optIdx] || `(${optIdx + 1})`} `, bold: true, size: 20 }),
                                     ...optRunsList[optIdx]
                                 ],
-                                spacing: { after: 40 }
+                                spacing: { after: 30 }
                             })
                         );
                     });
@@ -527,7 +770,9 @@ async function generatePaperDoc(paper, template = null) {
         }
     }
 
-    // ── 5. ASSEMBLE DOCUMENT WITH WATERMARK AND PAGE NUMBERS ──
+    // ── 5. ASSEMBLE DOCUMENT WITH FAINT WATERMARK AND PAGE NUMBERS ──
+    const watermarkBuf = getLocalWatermarkBuffer();
+
     const doc = new Document({
         sections: [{
             properties: {
@@ -543,12 +788,12 @@ async function generatePaperDoc(paper, template = null) {
             headers: {
                 default: new Header({
                     children: [
-                        ...(logoBuf ? [
+                        ...(watermarkBuf ? [
                             new Paragraph({
                                 children: [
                                     new ImageRun({
-                                        data: logoBuf,
-                                        transformation: { width: 320, height: 320 },
+                                        data: watermarkBuf,
+                                        transformation: { width: 340, height: 340 },
                                         floating: {
                                             horizontalPosition: {
                                                 relative: HorizontalPositionRelativeFrom.PAGE,

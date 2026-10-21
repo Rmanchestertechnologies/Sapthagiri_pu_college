@@ -355,6 +355,7 @@ export default function CreatePaper() {
     const [selectedQuestions, setSelectedQuestions] = useState([]);
     const [loadingQuestions, setLoadingQuestions] = useState(false);
     const [activeTemplate, setActiveTemplate] = useState(null);
+    const [autoFetchConfigOpen, setAutoFetchConfigOpen] = useState(false);
 
     const currentTypeAllocation = useMemo(() => {
         const isJEE = (examType || '').toUpperCase().includes('JEE');
@@ -1355,6 +1356,7 @@ export default function CreatePaper() {
                 const others = prev.filter(q => (q.sectionSubject || q.subject || '').toLowerCase() !== activeSubjectTab.toLowerCase());
                 return [...others, ...newQs];
             });
+            setCurrentStep(4);
 
         } catch (err) {
             console.error('Error during auto generation:', err);
@@ -1391,6 +1393,7 @@ export default function CreatePaper() {
             }
 
             setSelectedQuestions(allPicked);
+            setCurrentStep(4);
             alert(`✓ Successfully Auto-Generated ${allPicked.length} Questions across all ${examSubjects.length} subjects with concept balance!`);
         } catch (err) {
             console.error('Error in multi-subject auto generation:', err);
@@ -2321,39 +2324,12 @@ export default function CreatePaper() {
                                                     </div>
                                                 </div>
 
-                                                {/* Chapter Quota Stepper */}
-                                                {isChecked && (
-                                                    <div
-                                                        onClick={(e) => e.stopPropagation()}
-                                                        className="flex items-center justify-between pt-1.5 border-t border-navy/10 mt-1"
-                                                    >
-                                                        <span className="text-[10px] font-black uppercase text-navy/70 tracking-wider">
-                                                            Questions:
+                                                {/* Chapter selected count badge */}
+                                                {isChecked && (chapterQuotas[ch] || 0) > 0 && (
+                                                    <div className="mt-1 pt-1 border-t border-navy/10 text-right">
+                                                        <span className="text-[10px] font-black text-navy/70 uppercase">
+                                                            {chapterQuotas[ch]} Qs configured
                                                         </span>
-                                                        <div className="flex items-center gap-1.5 bg-white px-2 py-0.5 rounded-lg border border-navy/20 shadow-2xs">
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => setChapterQuota(ch, Math.max(0, (chapterQuotas[ch] || 0) - 1))}
-                                                                className="w-5 h-5 flex items-center justify-center font-black text-xs text-navy hover:bg-slate-100 rounded cursor-pointer"
-                                                            >
-                                                                -
-                                                            </button>
-                                                            <input
-                                                                type="number"
-                                                                min="0"
-                                                                value={chapterQuotas[ch] ?? 0}
-                                                                onChange={(e) => setChapterQuota(ch, e.target.value)}
-                                                                className="w-10 text-center font-black text-xs text-navy outline-none border-b border-navy/30 focus:border-navy"
-                                                            />
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => setChapterQuota(ch, (chapterQuotas[ch] || 0) + 1)}
-                                                                className="w-5 h-5 flex items-center justify-center font-black text-xs text-navy hover:bg-slate-100 rounded cursor-pointer"
-                                                            >
-                                                                +
-                                                            </button>
-                                                            <span className="text-[10px] text-gray-500 font-bold ml-0.5">Qs</span>
-                                                        </div>
                                                     </div>
                                                 )}
                                             </div>
@@ -2450,455 +2426,607 @@ export default function CreatePaper() {
                     STEP 2: QUESTION TYPE ALLOCATION & ACQUISITION METHOD
                 ══════════════════════════════════════════════════════════════ */}
                 {currentStep === 2 && (
-                    <div className="bg-white p-6 md:p-8 rounded-[2rem] shadow-sm border border-gray-200 animate-fade-in space-y-8">
-                        <div className="border-b border-gray-100 pb-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
-                            <div>
-                                <span className="text-[10px] font-black text-gold uppercase tracking-[0.2em] bg-navy px-3 py-1 rounded-full">Step 2 of 5</span>
-                                <h2 className="text-2xl font-black text-navy mt-2 uppercase tracking-tight">Question Type Allocation & Method</h2>
-                                <p className="text-xs text-gray-500 font-medium mt-1">
-                                    Configure how many MCQs, Statements, Assertion & Reasons, Match the Following, Diagrams, and Numericals to include.
-                                </p>
-                            </div>
-                            {/* Live Type Quota Pill */}
-                            <div className="flex items-center gap-3">
-                                <div className={`px-4 py-2 rounded-2xl border-2 flex items-center gap-2 ${
-                                    totalAllocatedTypeQs === defaultQuotaForSubject
-                                        ? 'border-emerald-500 bg-emerald-50 text-emerald-900'
-                                        : 'border-amber-400 bg-amber-50 text-amber-900'
-                                }`}>
-                                    <span className="text-xs font-black uppercase tracking-wider">Type Allocation:</span>
-                                    <span className="text-base font-black">{totalAllocatedTypeQs} / {defaultQuotaForSubject} Qs</span>
-                                    {totalAllocatedTypeQs === defaultQuotaForSubject && <span className="text-emerald-600 font-black">✓</span>}
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Special Notice for JEE Main */}
-                        {(examType || '').toUpperCase().includes('JEE') && (
-                            <div className="bg-amber-500/10 border-2 border-amber-400/80 rounded-2xl p-4 flex items-center gap-3.5 shadow-xs">
-                                <div className="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center text-xl shrink-0 font-black">
-                                    ⭐
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                    <h4 className="text-xs font-black text-navy uppercase tracking-wider">
-                                        JEE Main Exam Format Enforced
-                                    </h4>
-                                    <p className="text-[11px] text-amber-950 font-semibold leading-relaxed mt-0.5">
-                                        • <strong>Part A (Section A)</strong>: Exactly 20 Questions (MCQ, Assertion-Reason, Statement, Match, Diagram).<br />
-                                        • <strong>Part B (Section B)</strong>: Exactly <strong>5 Numericals (Compulsory)</strong> without options (Answer Entry Box).
+                    <div className="space-y-6 animate-fade-in">
+                        {!autoFetchConfigOpen ? (
+                            /* ── VIEW A: METHOD PICKER (ONLY 2 METHODS) ── */
+                            <div className="bg-white p-6 md:p-8 rounded-[2rem] shadow-sm border border-gray-200 space-y-8">
+                                <div className="border-b border-gray-100 pb-4">
+                                    <span className="text-[10px] font-black text-gold uppercase tracking-[0.2em] bg-navy px-3 py-1 rounded-full">Step 2 of 5</span>
+                                    <h2 className="text-2xl font-black text-navy mt-2 uppercase tracking-tight">Choose Question Acquisition Method</h2>
+                                    <p className="text-xs text-gray-500 font-medium mt-1">
+                                        Select how you would like to source and assemble questions for this paper.
                                     </p>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    {/* Option 1: Auto Fetch Generator */}
+                                    <div
+                                        onClick={() => setAutoFetchConfigOpen(true)}
+                                        className="border-3 border-gray-200 hover:border-gold hover:shadow-2xl rounded-3xl p-8 cursor-pointer transition-all duration-300 flex flex-col justify-between group bg-surface hover:-translate-y-1"
+                                    >
+                                        <div>
+                                            <div className="w-16 h-16 rounded-2xl bg-navy text-gold flex items-center justify-center text-3xl mb-5 group-hover:scale-110 transition-transform shadow-xs">
+                                                ⚡
+                                            </div>
+                                            <div className="flex items-center gap-1.5 mb-2">
+                                                <span className="text-[9px] font-black uppercase tracking-wider bg-gold text-navy px-2.5 py-0.5 rounded-full">Recommended</span>
+                                            </div>
+                                            <h3 className="text-xl font-black text-navy uppercase tracking-tight mb-2">⚡ Auto Fetch Generator</h3>
+                                            <p className="text-xs text-gray-600 leading-relaxed font-medium">
+                                                First select how many questions from each chapter, then select how many of each question type (MCQs, Statements, AR, Match, Diagrams, Numericals). The engine balances and generates the paper in seconds.
+                                            </p>
+                                        </div>
+                                        <div className="mt-8 pt-4 border-t border-gray-200 flex justify-between items-center text-xs font-black text-navy uppercase tracking-wider group-hover:text-gold">
+                                            <span>Configure Quotas & Auto-Generate</span>
+                                            <span className="text-lg">→</span>
+                                        </div>
+                                    </div>
+
+                                    {/* Option 2: Manual Question Selection */}
+                                    <div
+                                        onClick={() => {
+                                            setMethod('manual');
+                                            setCurrentStep(3);
+                                        }}
+                                        className="border-3 border-gray-200 hover:border-navy hover:shadow-2xl rounded-3xl p-8 cursor-pointer transition-all duration-300 flex flex-col justify-between group bg-surface hover:-translate-y-1"
+                                    >
+                                        <div>
+                                            <div className="w-16 h-16 rounded-2xl bg-slate-800 text-gold flex items-center justify-center text-3xl mb-5 group-hover:scale-110 transition-transform shadow-xs">
+                                                ✍️
+                                            </div>
+                                            <div className="flex items-center gap-1.5 mb-2">
+                                                <span className="text-[9px] font-black uppercase tracking-wider bg-slate-200 text-slate-800 px-2.5 py-0.5 rounded-full">Full Control</span>
+                                            </div>
+                                            <h3 className="text-xl font-black text-navy uppercase tracking-tight mb-2">✍️ Manual Question Selection</h3>
+                                            <p className="text-xs text-gray-600 leading-relaxed font-medium">
+                                                Directly browse and pick individual questions chapter-by-chapter with search, difficulty, and type filter tabs. View solutions before picking.
+                                            </p>
+                                        </div>
+                                        <div className="mt-8 pt-4 border-t border-gray-200 flex justify-between items-center text-xs font-black text-navy uppercase tracking-wider group-hover:text-gold">
+                                            <span>Browse Repository Manually</span>
+                                            <span className="text-lg">→</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="flex justify-start pt-4 border-t border-gray-100">
+                                    <button
+                                        type="button"
+                                        onClick={() => setCurrentStep(1)}
+                                        className="bg-gray-100 text-gray-700 hover:bg-gray-200 px-6 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider transition cursor-pointer"
+                                    >
+                                        ← Back to Step 1
+                                    </button>
+                                </div>
+                            </div>
+                        ) : (
+                            /* ── VIEW B: AUTO FETCH CONFIGURATION (CHAPTER QUOTAS + TYPE ALLOCATION) ── */
+                            <div className="bg-white p-6 md:p-8 rounded-[2rem] shadow-sm border border-gray-200 space-y-8">
+                                <div className="border-b border-gray-100 pb-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                    <div>
+                                        <button
+                                            type="button"
+                                            onClick={() => setAutoFetchConfigOpen(false)}
+                                            className="text-xs font-black text-navy hover:text-gold uppercase tracking-wider transition cursor-pointer flex items-center gap-1 mb-2"
+                                        >
+                                            ← Change Acquisition Method
+                                        </button>
+                                        <h2 className="text-2xl font-black text-navy uppercase tracking-tight">⚡ Auto Fetch Generator Setup</h2>
+                                        <p className="text-xs text-gray-500 font-medium mt-1">
+                                            1. Set question counts for each chapter → 2. Allocate question types → 3. Click Generate.
+                                        </p>
+                                    </div>
+                                    <div className="flex items-center gap-3 flex-wrap">
+                                        <div className={`px-4 py-2 rounded-2xl border-2 flex items-center gap-2 ${
+                                            totalAllocatedTypeQs === defaultQuotaForSubject
+                                                ? 'border-emerald-500 bg-emerald-50 text-emerald-900'
+                                                : 'border-amber-400 bg-amber-50 text-amber-900'
+                                        }`}>
+                                            <span className="text-xs font-black uppercase tracking-wider">Type Allocation:</span>
+                                            <span className="text-base font-black">{totalAllocatedTypeQs} / {defaultQuotaForSubject} Qs</span>
+                                            {totalAllocatedTypeQs === defaultQuotaForSubject && <span className="text-emerald-600 font-black">✓</span>}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Multi-subject switch tabs if applicable */}
+                                {examSubjects.length > 1 && (
+                                    <div className="flex items-center gap-2 overflow-x-auto pb-2 border-b border-gray-100">
+                                        <span className="text-[11px] font-black text-navy/70 uppercase tracking-wider mr-2">Subject:</span>
+                                        {examSubjects.map((sub) => {
+                                            const isTabActive = activeSubjectTab === sub;
+                                            return (
+                                                <button
+                                                    key={sub}
+                                                    type="button"
+                                                    onClick={() => setActiveSubjectTab(sub)}
+                                                    className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition cursor-pointer ${
+                                                        isTabActive
+                                                            ? 'bg-navy text-gold shadow-md'
+                                                            : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                                                    }`}
+                                                >
+                                                    {sub} ({defaultQuotaForSubject} Qs)
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+
+                                {/* Special Notice for JEE Main */}
+                                {(examType || '').toUpperCase().includes('JEE') && (
+                                    <div className="bg-amber-500/10 border-2 border-amber-400/80 rounded-2xl p-4 flex items-center gap-3.5 shadow-xs">
+                                        <div className="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center text-xl shrink-0 font-black">
+                                            ⭐
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <h4 className="text-xs font-black text-navy uppercase tracking-wider">
+                                                JEE Main Exam Format Enforced
+                                            </h4>
+                                            <p className="text-[11px] text-amber-950 font-semibold leading-relaxed mt-0.5">
+                                                • <strong>Part A (Section A)</strong>: Exactly 20 Questions (MCQ, Assertion-Reason, Statement, Match, Diagram).<br />
+                                                • <strong>Part B (Section B)</strong>: Exactly <strong>5 Numericals (Compulsory)</strong> without options (Answer Entry Box).
+                                            </p>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* ── PART 1: CHAPTER-WISE QUESTION QUOTAS ── */}
+                                <div className="space-y-4 p-5 rounded-2xl border-2 border-navy/10 bg-slate-50/50">
+                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-navy/10">
+                                        <div>
+                                            <h3 className="text-sm font-black text-navy uppercase tracking-wider">
+                                                1. Set Question Counts for Each Chapter ({activeSubjectTab})
+                                            </h3>
+                                            <p className="text-[11px] text-gray-500 font-medium">
+                                                Specify how many questions should come from each chapter.
+                                            </p>
+                                        </div>
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                            <div className={`px-3 py-1 rounded-xl text-xs font-black uppercase ${
+                                                totalAllocatedChapterQs === defaultQuotaForSubject
+                                                    ? 'bg-emerald-100 text-emerald-800'
+                                                    : 'bg-amber-100 text-amber-900'
+                                            }`}>
+                                                Allocated: {totalAllocatedChapterQs} / {defaultQuotaForSubject} Qs
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={distributeChapterQuotasEvenly}
+                                                className="text-xs font-black bg-navy text-gold hover:bg-gold hover:text-navy px-3.5 py-1.5 rounded-xl transition cursor-pointer shadow-xs"
+                                                title="Split target questions equally among selected chapters"
+                                            >
+                                                ⚡ Distribute Evenly
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {/* Chapters Grid with Steppers */}
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 max-h-72 overflow-y-auto p-1">
+                                        {(metaData?.chapters || []).map((chObj) => {
+                                            const chName = typeof chObj === 'object' ? (chObj.chapter || chObj.name) : chObj;
+                                            const isChecked = selectedChapters.includes(chName) || selectedChapters.length === 0;
+                                            return (
+                                                <div
+                                                    key={chName}
+                                                    className={`p-3 rounded-2xl border-2 transition flex flex-col justify-between gap-2 ${
+                                                        isChecked
+                                                            ? 'border-navy bg-white shadow-xs'
+                                                            : 'border-gray-200 bg-white/60 opacity-60'
+                                                    }`}
+                                                >
+                                                    <div
+                                                        onClick={() => toggleChapter(chName)}
+                                                        className="flex items-center gap-2 cursor-pointer"
+                                                    >
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={selectedChapters.includes(chName)}
+                                                            onChange={() => {}}
+                                                            className="w-4 h-4 text-navy rounded border-gray-300 cursor-pointer"
+                                                        />
+                                                        <span className="text-xs font-bold text-navy truncate" title={chName}>
+                                                            {chName}
+                                                        </span>
+                                                    </div>
+
+                                                    <div className="flex items-center justify-between pt-1 border-t border-navy/10">
+                                                        <span className="text-[10px] font-black text-navy/70 uppercase">
+                                                            Quota:
+                                                        </span>
+                                                        <div className="flex items-center gap-1 bg-slate-100 px-2 py-0.5 rounded-lg border border-navy/20">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setChapterQuota(chName, Math.max(0, (chapterQuotas[chName] || 0) - 1))}
+                                                                className="w-5 h-5 flex items-center justify-center font-black text-xs text-navy hover:bg-white rounded cursor-pointer"
+                                                            >
+                                                                -
+                                                            </button>
+                                                            <input
+                                                                type="number"
+                                                                min="0"
+                                                                value={chapterQuotas[chName] ?? 0}
+                                                                onChange={(e) => setChapterQuota(chName, e.target.value)}
+                                                                className="w-10 text-center font-black text-xs text-navy outline-none border-b border-navy/30 bg-transparent"
+                                                            />
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setChapterQuota(chName, (chapterQuotas[chName] || 0) + 1)}
+                                                                className="w-5 h-5 flex items-center justify-center font-black text-xs text-navy hover:bg-white rounded cursor-pointer"
+                                                            >
+                                                                +
+                                                            </button>
+                                                            <span className="text-[9px] text-gray-500 font-bold">Qs</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+
+                                {/* ── PART 2: QUESTION TYPE ALLOCATION ── */}
+                                <div className="space-y-4">
+                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-gray-100">
+                                        <div>
+                                            <h3 className="text-sm font-black text-navy uppercase tracking-wider">
+                                                2. Allocate Number of Questions by Type ({activeSubjectTab})
+                                            </h3>
+                                            <p className="text-[11px] text-gray-500 font-medium">
+                                                The generated paper will ONLY contain the exact number and types selected below.
+                                            </p>
+                                        </div>
+
+                                        {/* Presets */}
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                            <span className="text-[10px] font-black text-navy/70 uppercase tracking-wider">Presets:</span>
+                                            {(examType || '').toUpperCase().includes('JEE') ? (
+                                                <>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => applyTypePreset('JEE')}
+                                                        className="text-xs font-black bg-navy text-gold px-3 py-1 rounded-xl hover:scale-105 transition cursor-pointer"
+                                                    >
+                                                        ⚡ JEE Standard (20 Part A + 5 Numericals)
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => applyTypePreset('ALL_MCQ')}
+                                                        className="text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-800 px-3 py-1 rounded-xl transition cursor-pointer"
+                                                    >
+                                                        20 MCQs + 5 Numericals
+                                                    </button>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => applyTypePreset('NEET')}
+                                                        className="text-xs font-black bg-navy text-gold px-3 py-1 rounded-xl hover:scale-105 transition cursor-pointer"
+                                                    >
+                                                        🧬 NEET Standard (32 MCQ, 4 AR, 4 Stmt, 2 Match, 3 Diag)
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => applyTypePreset('ALL_MCQ')}
+                                                        className="text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-800 px-3 py-1 rounded-xl transition cursor-pointer"
+                                                    >
+                                                        All MCQs ({defaultQuotaForSubject})
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => applyTypePreset('BALANCED')}
+                                                        className="text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-800 px-3 py-1 rounded-xl transition cursor-pointer"
+                                                    >
+                                                        Balanced Mix
+                                                    </button>
+                                                </>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {/* 6 Question Type Cards */}
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                                        {/* 1. Single Correct MCQ */}
+                                        <div className="p-4 rounded-2xl border-2 border-emerald-200 bg-emerald-50/30 flex flex-col justify-between gap-3 shadow-2xs">
+                                            <div>
+                                                <div className="flex items-center justify-between">
+                                                    <span className="text-xl">📝</span>
+                                                    <span className="text-[10px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full">
+                                                        Single Choice
+                                                    </span>
+                                                </div>
+                                                <h4 className="text-sm font-black text-navy mt-1">Single Correct MCQ</h4>
+                                                <p className="text-[11px] text-gray-500 font-medium mt-0.5">
+                                                    Standard multiple choice with 4 options (A), (B), (C), (D).
+                                                </p>
+                                            </div>
+                                            <div className="flex items-center justify-between pt-2 border-t border-emerald-100">
+                                                <span className="text-xs font-bold text-navy">Quantity:</span>
+                                                <div className="flex items-center gap-1.5 bg-white px-2 py-1 rounded-xl border border-emerald-300 shadow-2xs">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setTypeAllocationCount('mcq', Math.max(0, (currentTypeAllocation.mcq || 0) - 1))}
+                                                        className="w-6 h-6 flex items-center justify-center font-black text-sm text-navy hover:bg-slate-100 rounded cursor-pointer"
+                                                    >
+                                                        -
+                                                    </button>
+                                                    <input
+                                                        type="number"
+                                                        min="0"
+                                                        value={currentTypeAllocation.mcq ?? 0}
+                                                        onChange={(e) => setTypeAllocationCount('mcq', e.target.value)}
+                                                        className="w-12 text-center font-black text-sm text-navy outline-none border-b border-navy/30"
+                                                    />
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setTypeAllocationCount('mcq', (currentTypeAllocation.mcq || 0) + 1)}
+                                                        className="w-6 h-6 flex items-center justify-center font-black text-sm text-navy hover:bg-slate-100 rounded cursor-pointer"
+                                                    >
+                                                        +
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* 2. Statement Based */}
+                                        <div className="p-4 rounded-2xl border-2 border-blue-200 bg-blue-50/30 flex flex-col justify-between gap-3 shadow-2xs">
+                                            <div>
+                                                <div className="flex items-center justify-between">
+                                                    <span className="text-xl">📑</span>
+                                                    <span className="text-[10px] font-black uppercase tracking-wider bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full">
+                                                        Evaluation
+                                                    </span>
+                                                </div>
+                                                <h4 className="text-sm font-black text-navy mt-1">Statement Based</h4>
+                                                <p className="text-[11px] text-gray-500 font-medium mt-0.5">
+                                                    Statement I & Statement II correctness evaluation questions.
+                                                </p>
+                                            </div>
+                                            <div className="flex items-center justify-between pt-2 border-t border-blue-100">
+                                                <span className="text-xs font-bold text-navy">Quantity:</span>
+                                                <div className="flex items-center gap-1.5 bg-white px-2 py-1 rounded-xl border border-blue-300 shadow-2xs">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setTypeAllocationCount('stmt', Math.max(0, (currentTypeAllocation.stmt || 0) - 1))}
+                                                        className="w-6 h-6 flex items-center justify-center font-black text-sm text-navy hover:bg-slate-100 rounded cursor-pointer"
+                                                    >
+                                                        -
+                                                    </button>
+                                                    <input
+                                                        type="number"
+                                                        min="0"
+                                                        value={currentTypeAllocation.stmt ?? 0}
+                                                        onChange={(e) => setTypeAllocationCount('stmt', e.target.value)}
+                                                        className="w-12 text-center font-black text-sm text-navy outline-none border-b border-navy/30"
+                                                    />
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setTypeAllocationCount('stmt', (currentTypeAllocation.stmt || 0) + 1)}
+                                                        className="w-6 h-6 flex items-center justify-center font-black text-sm text-navy hover:bg-slate-100 rounded cursor-pointer"
+                                                    >
+                                                        +
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* 3. Assertion & Reason */}
+                                        <div className="p-4 rounded-2xl border-2 border-purple-200 bg-purple-50/30 flex flex-col justify-between gap-3 shadow-2xs">
+                                            <div>
+                                                <div className="flex items-center justify-between">
+                                                    <span className="text-xl">⚖️</span>
+                                                    <span className="text-[10px] font-black uppercase tracking-wider bg-purple-100 text-purple-800 px-2 py-0.5 rounded-full">
+                                                        A / R Logic
+                                                    </span>
+                                                </div>
+                                                <h4 className="text-sm font-black text-navy mt-1">Assertion & Reason (A/R)</h4>
+                                                <p className="text-[11px] text-gray-500 font-medium mt-0.5">
+                                                    Assertion (A) and Reason (R) logical explanation questions.
+                                                </p>
+                                            </div>
+                                            <div className="flex items-center justify-between pt-2 border-t border-purple-100">
+                                                <span className="text-xs font-bold text-navy">Quantity:</span>
+                                                <div className="flex items-center gap-1.5 bg-white px-2 py-1 rounded-xl border border-purple-300 shadow-2xs">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setTypeAllocationCount('ar', Math.max(0, (currentTypeAllocation.ar || 0) - 1))}
+                                                        className="w-6 h-6 flex items-center justify-center font-black text-sm text-navy hover:bg-slate-100 rounded cursor-pointer"
+                                                    >
+                                                        -
+                                                    </button>
+                                                    <input
+                                                        type="number"
+                                                        min="0"
+                                                        value={currentTypeAllocation.ar ?? 0}
+                                                        onChange={(e) => setTypeAllocationCount('ar', e.target.value)}
+                                                        className="w-12 text-center font-black text-sm text-navy outline-none border-b border-navy/30"
+                                                    />
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setTypeAllocationCount('ar', (currentTypeAllocation.ar || 0) + 1)}
+                                                        className="w-6 h-6 flex items-center justify-center font-black text-sm text-navy hover:bg-slate-100 rounded cursor-pointer"
+                                                    >
+                                                        +
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* 4. Match the Following */}
+                                        <div className="p-4 rounded-2xl border-2 border-teal-200 bg-teal-50/30 flex flex-col justify-between gap-3 shadow-2xs">
+                                            <div>
+                                                <div className="flex items-center justify-between">
+                                                    <span className="text-xl">🔀</span>
+                                                    <span className="text-[10px] font-black uppercase tracking-wider bg-teal-100 text-teal-800 px-2 py-0.5 rounded-full">
+                                                        Matrix Match
+                                                    </span>
+                                                </div>
+                                                <h4 className="text-sm font-black text-navy mt-1">Match the Following</h4>
+                                                <p className="text-[11px] text-gray-500 font-medium mt-0.5">
+                                                    Column I and Column II tabular pairing format.
+                                                </p>
+                                            </div>
+                                            <div className="flex items-center justify-between pt-2 border-t border-teal-100">
+                                                <span className="text-xs font-bold text-navy">Quantity:</span>
+                                                <div className="flex items-center gap-1.5 bg-white px-2 py-1 rounded-xl border border-teal-300 shadow-2xs">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setTypeAllocationCount('match', Math.max(0, (currentTypeAllocation.match || 0) - 1))}
+                                                        className="w-6 h-6 flex items-center justify-center font-black text-sm text-navy hover:bg-slate-100 rounded cursor-pointer"
+                                                    >
+                                                        -
+                                                    </button>
+                                                    <input
+                                                        type="number"
+                                                        min="0"
+                                                        value={currentTypeAllocation.match ?? 0}
+                                                        onChange={(e) => setTypeAllocationCount('match', e.target.value)}
+                                                        className="w-12 text-center font-black text-sm text-navy outline-none border-b border-navy/30"
+                                                    />
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setTypeAllocationCount('match', (currentTypeAllocation.match || 0) + 1)}
+                                                        className="w-6 h-6 flex items-center justify-center font-black text-sm text-navy hover:bg-slate-100 rounded cursor-pointer"
+                                                    >
+                                                        +
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* 5. Diagrammatic / Image Based */}
+                                        <div className="p-4 rounded-2xl border-2 border-indigo-200 bg-indigo-50/30 flex flex-col justify-between gap-3 shadow-2xs">
+                                            <div>
+                                                <div className="flex items-center justify-between">
+                                                    <span className="text-xl">🖼️</span>
+                                                    <span className="text-[10px] font-black uppercase tracking-wider bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded-full">
+                                                        Visual / Graph
+                                                    </span>
+                                                </div>
+                                                <h4 className="text-sm font-black text-navy mt-1">Diagrammatic / Image Based</h4>
+                                                <p className="text-[11px] text-gray-500 font-medium mt-0.5">
+                                                    Questions with diagrams, circuit schematics, biological illustrations.
+                                                </p>
+                                            </div>
+                                            <div className="flex items-center justify-between pt-2 border-t border-indigo-100">
+                                                <span className="text-xs font-bold text-navy">Quantity:</span>
+                                                <div className="flex items-center gap-1.5 bg-white px-2 py-1 rounded-xl border border-indigo-300 shadow-2xs">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setTypeAllocationCount('diag', Math.max(0, (currentTypeAllocation.diag || 0) - 1))}
+                                                        className="w-6 h-6 flex items-center justify-center font-black text-sm text-navy hover:bg-slate-100 rounded cursor-pointer"
+                                                    >
+                                                        -
+                                                    </button>
+                                                    <input
+                                                        type="number"
+                                                        min="0"
+                                                        value={currentTypeAllocation.diag ?? 0}
+                                                        onChange={(e) => setTypeAllocationCount('diag', e.target.value)}
+                                                        className="w-12 text-center font-black text-sm text-navy outline-none border-b border-navy/30"
+                                                    />
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setTypeAllocationCount('diag', (currentTypeAllocation.diag || 0) + 1)}
+                                                        className="w-6 h-6 flex items-center justify-center font-black text-sm text-navy hover:bg-slate-100 rounded cursor-pointer"
+                                                    >
+                                                        +
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* 6. Numerical / Integer Type */}
+                                        <div className={`p-4 rounded-2xl border-2 flex flex-col justify-between gap-3 shadow-2xs ${
+                                            (examType || '').toUpperCase().includes('JEE')
+                                                ? 'border-amber-400 bg-amber-500/10 ring-2 ring-amber-400/40'
+                                                : 'border-orange-200 bg-orange-50/30'
+                                        }`}>
+                                            <div>
+                                                <div className="flex items-center justify-between">
+                                                    <span className="text-xl">🔢</span>
+                                                    <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full ${
+                                                        (examType || '').toUpperCase().includes('JEE')
+                                                            ? 'bg-amber-500 text-white'
+                                                            : 'bg-orange-100 text-orange-800'
+                                                    }`}>
+                                                        {(examType || '').toUpperCase().includes('JEE') ? 'JEE Part B Compulsory' : 'Numerical'}
+                                                    </span>
+                                                </div>
+                                                <h4 className="text-sm font-black text-navy mt-1">Numerical / Integer Value</h4>
+                                                <p className="text-[11px] text-gray-500 font-medium mt-0.5">
+                                                    {(examType || '').toUpperCase().includes('JEE')
+                                                        ? 'Mandatory for JEE Section B: Exactly 5 questions without options (Answer Entry Box).'
+                                                        : 'Questions where the answer is a numeric/integer value.'}
+                                                </p>
+                                            </div>
+                                            <div className="flex items-center justify-between pt-2 border-t border-amber-200">
+                                                <span className="text-xs font-bold text-navy">Quantity:</span>
+                                                <div className="flex items-center gap-1.5 bg-white px-2 py-1 rounded-xl border border-amber-300 shadow-2xs">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setTypeAllocationCount('num', Math.max((examType || '').toUpperCase().includes('JEE') ? 5 : 0, (currentTypeAllocation.num || 0) - 1))}
+                                                        className="w-6 h-6 flex items-center justify-center font-black text-sm text-navy hover:bg-slate-100 rounded cursor-pointer"
+                                                    >
+                                                        -
+                                                    </button>
+                                                    <input
+                                                        type="number"
+                                                        min={(examType || '').toUpperCase().includes('JEE') ? 5 : 0}
+                                                        value={currentTypeAllocation.num ?? ((examType || '').toUpperCase().includes('JEE') ? 5 : 0)}
+                                                        onChange={(e) => setTypeAllocationCount('num', e.target.value)}
+                                                        className="w-12 text-center font-black text-sm text-navy outline-none border-b border-navy/30"
+                                                    />
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setTypeAllocationCount('num', (currentTypeAllocation.num || 0) + 1)}
+                                                        className="w-6 h-6 flex items-center justify-center font-black text-sm text-navy hover:bg-slate-100 rounded cursor-pointer"
+                                                    >
+                                                        +
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* ── PART 3: GENERATE ACTION BAR ── */}
+                                <div className="bg-navy text-white p-6 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xl border border-gold/30">
+                                    <div>
+                                        <span className="text-[10px] text-gold font-bold uppercase tracking-widest">
+                                            Ready to Assemble Paper
+                                        </span>
+                                        <div className="text-base font-black mt-0.5">
+                                            {activeSubjectTab}: {totalAllocatedTypeQs || defaultQuotaForSubject} Questions strictly sampled by quotas & type breakdown
+                                        </div>
+                                    </div>
+
+                                    <div className="flex items-center gap-3 flex-wrap">
+                                        {examSubjects.length > 1 && (
+                                            <button
+                                                type="button"
+                                                onClick={handleAutoGenerateAllSubjects}
+                                                disabled={autoGenerating}
+                                                className="bg-white/10 hover:bg-white/20 text-white px-5 py-3 rounded-xl font-bold text-xs uppercase tracking-wider transition border border-white/20 cursor-pointer"
+                                            >
+                                                {autoGenerating ? 'Generating...' : `⚡ Auto-Generate All ${examSubjects.length} Subjects`}
+                                            </button>
+                                        )}
+                                        <button
+                                            type="button"
+                                            onClick={handleAutoGenerateActiveSubject}
+                                            disabled={autoGenerating}
+                                            className="bg-gold text-navy hover:scale-105 px-8 py-3.5 rounded-xl font-black text-xs uppercase tracking-widest transition shadow-2xl flex items-center gap-2 cursor-pointer"
+                                        >
+                                            <span>⚡</span>
+                                            <span>{autoGenerating ? 'Generating Questions...' : `Generate ${activeSubjectTab} & Preview (${totalAllocatedTypeQs || defaultQuotaForSubject} Qs)`}</span>
+                                            <span>→</span>
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         )}
-
-                        {/* Quick Presets Strip */}
-                        <div className="flex items-center gap-2 flex-wrap pb-2 border-b border-gray-100">
-                            <span className="text-[11px] font-black text-navy/70 uppercase tracking-wider mr-1">
-                                Quick Presets:
-                            </span>
-                            {(examType || '').toUpperCase().includes('JEE') ? (
-                                <>
-                                    <button
-                                        type="button"
-                                        onClick={() => applyTypePreset('JEE')}
-                                        className="text-xs font-black bg-navy text-gold px-3.5 py-1.5 rounded-xl hover:scale-105 transition cursor-pointer shadow-xs"
-                                    >
-                                        ⚡ JEE Main Standard (20 Part A + 5 Part B Numericals)
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => applyTypePreset('ALL_MCQ')}
-                                        className="text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-800 px-3 py-1.5 rounded-xl transition cursor-pointer"
-                                    >
-                                        20 MCQs + 5 Numericals
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => applyTypePreset('BALANCED')}
-                                        className="text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-800 px-3 py-1.5 rounded-xl transition cursor-pointer"
-                                    >
-                                        Balanced Mix
-                                    </button>
-                                </>
-                            ) : (
-                                <>
-                                    <button
-                                        type="button"
-                                        onClick={() => applyTypePreset('NEET')}
-                                        className="text-xs font-black bg-navy text-gold px-3.5 py-1.5 rounded-xl hover:scale-105 transition cursor-pointer shadow-xs"
-                                    >
-                                        🧬 NEET Standard (32 MCQ, 4 AR, 4 Stmt, 2 Match, 3 Diag)
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => applyTypePreset('ALL_MCQ')}
-                                        className="text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-800 px-3 py-1.5 rounded-xl transition cursor-pointer"
-                                    >
-                                        All MCQs ({defaultQuotaForSubject})
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => applyTypePreset('BALANCED')}
-                                        className="text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-800 px-3 py-1.5 rounded-xl transition cursor-pointer"
-                                    >
-                                        Balanced Mix
-                                    </button>
-                                </>
-                            )}
-                        </div>
-
-                        {/* 6 Question Type Allocators */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                            {/* 1. Single Correct MCQ */}
-                            <div className="p-4 rounded-2xl border-2 border-emerald-200 bg-emerald-50/30 flex flex-col justify-between gap-3 shadow-2xs">
-                                <div>
-                                    <div className="flex items-center justify-between">
-                                        <span className="text-xl">📝</span>
-                                        <span className="text-[10px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full">
-                                            Single Choice
-                                        </span>
-                                    </div>
-                                    <h4 className="text-sm font-black text-navy mt-1">Single Correct MCQ</h4>
-                                    <p className="text-[11px] text-gray-500 font-medium mt-0.5">
-                                        Standard multiple choice with 4 options (A), (B), (C), (D).
-                                    </p>
-                                </div>
-                                <div className="flex items-center justify-between pt-2 border-t border-emerald-100">
-                                    <span className="text-xs font-bold text-navy">Quantity:</span>
-                                    <div className="flex items-center gap-1.5 bg-white px-2 py-1 rounded-xl border border-emerald-300 shadow-2xs">
-                                        <button
-                                            type="button"
-                                            onClick={() => setTypeAllocationCount('mcq', Math.max(0, (currentTypeAllocation.mcq || 0) - 1))}
-                                            className="w-6 h-6 flex items-center justify-center font-black text-sm text-navy hover:bg-slate-100 rounded cursor-pointer"
-                                        >
-                                            -
-                                        </button>
-                                        <input
-                                            type="number"
-                                            min="0"
-                                            value={currentTypeAllocation.mcq ?? 0}
-                                            onChange={(e) => setTypeAllocationCount('mcq', e.target.value)}
-                                            className="w-12 text-center font-black text-sm text-navy outline-none border-b border-navy/30"
-                                        />
-                                        <button
-                                            type="button"
-                                            onClick={() => setTypeAllocationCount('mcq', (currentTypeAllocation.mcq || 0) + 1)}
-                                            className="w-6 h-6 flex items-center justify-center font-black text-sm text-navy hover:bg-slate-100 rounded cursor-pointer"
-                                        >
-                                            +
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* 2. Statement Based */}
-                            <div className="p-4 rounded-2xl border-2 border-blue-200 bg-blue-50/30 flex flex-col justify-between gap-3 shadow-2xs">
-                                <div>
-                                    <div className="flex items-center justify-between">
-                                        <span className="text-xl">📑</span>
-                                        <span className="text-[10px] font-black uppercase tracking-wider bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full">
-                                            Evaluation
-                                        </span>
-                                    </div>
-                                    <h4 className="text-sm font-black text-navy mt-1">Statement Based</h4>
-                                    <p className="text-[11px] text-gray-500 font-medium mt-0.5">
-                                        Statement I & Statement II correctness evaluation questions.
-                                    </p>
-                                </div>
-                                <div className="flex items-center justify-between pt-2 border-t border-blue-100">
-                                    <span className="text-xs font-bold text-navy">Quantity:</span>
-                                    <div className="flex items-center gap-1.5 bg-white px-2 py-1 rounded-xl border border-blue-300 shadow-2xs">
-                                        <button
-                                            type="button"
-                                            onClick={() => setTypeAllocationCount('stmt', Math.max(0, (currentTypeAllocation.stmt || 0) - 1))}
-                                            className="w-6 h-6 flex items-center justify-center font-black text-sm text-navy hover:bg-slate-100 rounded cursor-pointer"
-                                        >
-                                            -
-                                        </button>
-                                        <input
-                                            type="number"
-                                            min="0"
-                                            value={currentTypeAllocation.stmt ?? 0}
-                                            onChange={(e) => setTypeAllocationCount('stmt', e.target.value)}
-                                            className="w-12 text-center font-black text-sm text-navy outline-none border-b border-navy/30"
-                                        />
-                                        <button
-                                            type="button"
-                                            onClick={() => setTypeAllocationCount('stmt', (currentTypeAllocation.stmt || 0) + 1)}
-                                            className="w-6 h-6 flex items-center justify-center font-black text-sm text-navy hover:bg-slate-100 rounded cursor-pointer"
-                                        >
-                                            +
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* 3. Assertion & Reason */}
-                            <div className="p-4 rounded-2xl border-2 border-purple-200 bg-purple-50/30 flex flex-col justify-between gap-3 shadow-2xs">
-                                <div>
-                                    <div className="flex items-center justify-between">
-                                        <span className="text-xl">⚖️</span>
-                                        <span className="text-[10px] font-black uppercase tracking-wider bg-purple-100 text-purple-800 px-2 py-0.5 rounded-full">
-                                            A / R Logic
-                                        </span>
-                                    </div>
-                                    <h4 className="text-sm font-black text-navy mt-1">Assertion & Reason (A/R)</h4>
-                                    <p className="text-[11px] text-gray-500 font-medium mt-0.5">
-                                        Assertion (A) and Reason (R) logical explanation questions.
-                                    </p>
-                                </div>
-                                <div className="flex items-center justify-between pt-2 border-t border-purple-100">
-                                    <span className="text-xs font-bold text-navy">Quantity:</span>
-                                    <div className="flex items-center gap-1.5 bg-white px-2 py-1 rounded-xl border border-purple-300 shadow-2xs">
-                                        <button
-                                            type="button"
-                                            onClick={() => setTypeAllocationCount('ar', Math.max(0, (currentTypeAllocation.ar || 0) - 1))}
-                                            className="w-6 h-6 flex items-center justify-center font-black text-sm text-navy hover:bg-slate-100 rounded cursor-pointer"
-                                        >
-                                            -
-                                        </button>
-                                        <input
-                                            type="number"
-                                            min="0"
-                                            value={currentTypeAllocation.ar ?? 0}
-                                            onChange={(e) => setTypeAllocationCount('ar', e.target.value)}
-                                            className="w-12 text-center font-black text-sm text-navy outline-none border-b border-navy/30"
-                                        />
-                                        <button
-                                            type="button"
-                                            onClick={() => setTypeAllocationCount('ar', (currentTypeAllocation.ar || 0) + 1)}
-                                            className="w-6 h-6 flex items-center justify-center font-black text-sm text-navy hover:bg-slate-100 rounded cursor-pointer"
-                                        >
-                                            +
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* 4. Match the Following */}
-                            <div className="p-4 rounded-2xl border-2 border-teal-200 bg-teal-50/30 flex flex-col justify-between gap-3 shadow-2xs">
-                                <div>
-                                    <div className="flex items-center justify-between">
-                                        <span className="text-xl">🔀</span>
-                                        <span className="text-[10px] font-black uppercase tracking-wider bg-teal-100 text-teal-800 px-2 py-0.5 rounded-full">
-                                            Matrix Match
-                                        </span>
-                                    </div>
-                                    <h4 className="text-sm font-black text-navy mt-1">Match the Following</h4>
-                                    <p className="text-[11px] text-gray-500 font-medium mt-0.5">
-                                        Column I and Column II tabular pairing format.
-                                    </p>
-                                </div>
-                                <div className="flex items-center justify-between pt-2 border-t border-teal-100">
-                                    <span className="text-xs font-bold text-navy">Quantity:</span>
-                                    <div className="flex items-center gap-1.5 bg-white px-2 py-1 rounded-xl border border-teal-300 shadow-2xs">
-                                        <button
-                                            type="button"
-                                            onClick={() => setTypeAllocationCount('match', Math.max(0, (currentTypeAllocation.match || 0) - 1))}
-                                            className="w-6 h-6 flex items-center justify-center font-black text-sm text-navy hover:bg-slate-100 rounded cursor-pointer"
-                                        >
-                                            -
-                                        </button>
-                                        <input
-                                            type="number"
-                                            min="0"
-                                            value={currentTypeAllocation.match ?? 0}
-                                            onChange={(e) => setTypeAllocationCount('match', e.target.value)}
-                                            className="w-12 text-center font-black text-sm text-navy outline-none border-b border-navy/30"
-                                        />
-                                        <button
-                                            type="button"
-                                            onClick={() => setTypeAllocationCount('match', (currentTypeAllocation.match || 0) + 1)}
-                                            className="w-6 h-6 flex items-center justify-center font-black text-sm text-navy hover:bg-slate-100 rounded cursor-pointer"
-                                        >
-                                            +
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* 5. Diagrammatic / Image Based */}
-                            <div className="p-4 rounded-2xl border-2 border-indigo-200 bg-indigo-50/30 flex flex-col justify-between gap-3 shadow-2xs">
-                                <div>
-                                    <div className="flex items-center justify-between">
-                                        <span className="text-xl">🖼️</span>
-                                        <span className="text-[10px] font-black uppercase tracking-wider bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded-full">
-                                            Visual / Graph
-                                        </span>
-                                    </div>
-                                    <h4 className="text-sm font-black text-navy mt-1">Diagrammatic / Image Based</h4>
-                                    <p className="text-[11px] text-gray-500 font-medium mt-0.5">
-                                        Questions with diagrams, circuit schematics, biological illustrations.
-                                    </p>
-                                </div>
-                                <div className="flex items-center justify-between pt-2 border-t border-indigo-100">
-                                    <span className="text-xs font-bold text-navy">Quantity:</span>
-                                    <div className="flex items-center gap-1.5 bg-white px-2 py-1 rounded-xl border border-indigo-300 shadow-2xs">
-                                        <button
-                                            type="button"
-                                            onClick={() => setTypeAllocationCount('diag', Math.max(0, (currentTypeAllocation.diag || 0) - 1))}
-                                            className="w-6 h-6 flex items-center justify-center font-black text-sm text-navy hover:bg-slate-100 rounded cursor-pointer"
-                                        >
-                                            -
-                                        </button>
-                                        <input
-                                            type="number"
-                                            min="0"
-                                            value={currentTypeAllocation.diag ?? 0}
-                                            onChange={(e) => setTypeAllocationCount('diag', e.target.value)}
-                                            className="w-12 text-center font-black text-sm text-navy outline-none border-b border-navy/30"
-                                        />
-                                        <button
-                                            type="button"
-                                            onClick={() => setTypeAllocationCount('diag', (currentTypeAllocation.diag || 0) + 1)}
-                                            className="w-6 h-6 flex items-center justify-center font-black text-sm text-navy hover:bg-slate-100 rounded cursor-pointer"
-                                        >
-                                            +
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* 6. Numerical / Integer Type */}
-                            <div className={`p-4 rounded-2xl border-2 flex flex-col justify-between gap-3 shadow-2xs ${
-                                (examType || '').toUpperCase().includes('JEE')
-                                    ? 'border-amber-400 bg-amber-500/10 ring-2 ring-amber-400/40'
-                                    : 'border-orange-200 bg-orange-50/30'
-                            }`}>
-                                <div>
-                                    <div className="flex items-center justify-between">
-                                        <span className="text-xl">🔢</span>
-                                        <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full ${
-                                            (examType || '').toUpperCase().includes('JEE')
-                                                ? 'bg-amber-500 text-white'
-                                                : 'bg-orange-100 text-orange-800'
-                                        }`}>
-                                            {(examType || '').toUpperCase().includes('JEE') ? 'JEE Part B Compulsory' : 'Numerical'}
-                                        </span>
-                                    </div>
-                                    <h4 className="text-sm font-black text-navy mt-1">Numerical / Integer Value</h4>
-                                    <p className="text-[11px] text-gray-500 font-medium mt-0.5">
-                                        {(examType || '').toUpperCase().includes('JEE')
-                                            ? 'Mandatory for JEE Section B: Exactly 5 questions without options (Answer Entry Box).'
-                                            : 'Questions where the answer is a numeric/integer value.'}
-                                    </p>
-                                </div>
-                                <div className="flex items-center justify-between pt-2 border-t border-amber-200">
-                                    <span className="text-xs font-bold text-navy">Quantity:</span>
-                                    <div className="flex items-center gap-1.5 bg-white px-2 py-1 rounded-xl border border-amber-300 shadow-2xs">
-                                        <button
-                                            type="button"
-                                            onClick={() => setTypeAllocationCount('num', Math.max((examType || '').toUpperCase().includes('JEE') ? 5 : 0, (currentTypeAllocation.num || 0) - 1))}
-                                            className="w-6 h-6 flex items-center justify-center font-black text-sm text-navy hover:bg-slate-100 rounded cursor-pointer"
-                                        >
-                                            -
-                                        </button>
-                                        <input
-                                            type="number"
-                                            min={(examType || '').toUpperCase().includes('JEE') ? 5 : 0}
-                                            value={currentTypeAllocation.num ?? ((examType || '').toUpperCase().includes('JEE') ? 5 : 0)}
-                                            onChange={(e) => setTypeAllocationCount('num', e.target.value)}
-                                            className="w-12 text-center font-black text-sm text-navy outline-none border-b border-navy/30"
-                                        />
-                                        <button
-                                            type="button"
-                                            onClick={() => setTypeAllocationCount('num', (currentTypeAllocation.num || 0) + 1)}
-                                            className="w-6 h-6 flex items-center justify-center font-black text-sm text-navy hover:bg-slate-100 rounded cursor-pointer"
-                                        >
-                                            +
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Choose Method Section */}
-                        <div className="space-y-4 pt-4 border-t border-gray-100">
-                            <h3 className="text-lg font-black text-navy uppercase tracking-tight">
-                                Choose Question Acquisition Method
-                            </h3>
-
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                {/* Option 1: Auto Fetch Generator Engine */}
-                                <div
-                                    onClick={() => handleAutoGenerateActiveSubject()}
-                                    className="border-3 border-gray-200 hover:border-gold hover:shadow-2xl rounded-3xl p-6 cursor-pointer transition-all duration-300 flex flex-col justify-between group bg-surface"
-                                >
-                                    <div>
-                                        <div className="w-14 h-14 rounded-2xl bg-navy text-gold flex items-center justify-center text-2xl mb-4 group-hover:scale-110 transition-transform shadow-xs">
-                                            ⚡
-                                        </div>
-                                        <div className="flex items-center gap-1.5 mb-1">
-                                            <span className="text-[9px] font-black uppercase tracking-wider bg-gold text-navy px-2 py-0.5 rounded-full">Recommended</span>
-                                        </div>
-                                        <h3 className="text-lg font-black text-navy uppercase tracking-tight mb-2">⚡ Auto Fetch Generator</h3>
-                                        <p className="text-xs text-gray-600 leading-relaxed font-medium">
-                                            Automatically assemble questions from database adhering to chapter quotas and question type allocation with concept deduplication.
-                                        </p>
-                                    </div>
-                                    <div className="mt-6 pt-4 border-t border-gray-200 flex justify-between items-center text-xs font-black text-navy uppercase tracking-wider group-hover:text-gold">
-                                        <span>{autoGenerating ? 'Generating...' : 'Auto-Generate & Preview'}</span>
-                                        <span>→</span>
-                                    </div>
-                                </div>
-
-                                {/* Option 2: Manual Question Selection */}
-                                <div
-                                    onClick={() => {
-                                        setMethod('manual');
-                                        setCurrentStep(3);
-                                    }}
-                                    className="border-3 border-gray-200 hover:border-navy hover:shadow-2xl rounded-3xl p-6 cursor-pointer transition-all duration-300 flex flex-col justify-between group bg-surface"
-                                >
-                                    <div>
-                                        <div className="w-14 h-14 rounded-2xl bg-slate-800 text-gold flex items-center justify-center text-2xl mb-4 group-hover:scale-110 transition-transform shadow-xs">
-                                            ✍️
-                                        </div>
-                                        <h3 className="text-lg font-black text-navy uppercase tracking-tight mb-2">✍️ Manual Question Selection</h3>
-                                        <p className="text-xs text-gray-600 leading-relaxed font-medium">
-                                            Browse database filtered by chapter quotas, with live question type tracker (MCQs, Statements, AR, Match, Diagrams, Numericals) and quick filter tabs.
-                                        </p>
-                                    </div>
-                                    <div className="mt-6 pt-4 border-t border-gray-200 flex justify-between items-center text-xs font-black text-navy uppercase tracking-wider group-hover:text-gold">
-                                        <span>Browse Repository Manually</span>
-                                        <span>→</span>
-                                    </div>
-                                </div>
-
-                                {/* Option 3: Chapter Blueprint Dropdowns */}
-                                <div
-                                    onClick={() => {
-                                        setMethod('blueprint');
-                                        setCurrentStep(3);
-                                    }}
-                                    className="border-3 border-gray-200 hover:border-gold hover:shadow-2xl rounded-3xl p-6 cursor-pointer transition-all duration-300 flex flex-col justify-between group bg-surface"
-                                >
-                                    <div>
-                                        <div className="w-14 h-14 rounded-2xl bg-gold text-navy flex items-center justify-center text-2xl mb-4 group-hover:scale-110 transition-transform shadow-xs">
-                                            📐
-                                        </div>
-                                        <h3 className="text-lg font-black text-navy uppercase tracking-tight mb-2">📁 Chapter Dropdowns & Blueprint</h3>
-                                        <p className="text-xs text-gray-600 leading-relaxed font-medium">
-                                            Expandable dropdown cards for every chapter to map type-by-type breakdown on a spreadsheet-style matrix.
-                                        </p>
-                                    </div>
-                                    <div className="mt-6 pt-4 border-t border-gray-200 flex justify-between items-center text-xs font-black text-navy uppercase tracking-wider group-hover:text-gold">
-                                        <span>Open Chapter Dropdowns</span>
-                                        <span>→</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="flex justify-start pt-4 border-t border-gray-100">
-                            <button
-                                type="button"
-                                onClick={() => setCurrentStep(1)}
-                                className="bg-gray-100 text-gray-700 hover:bg-gray-200 px-6 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider transition cursor-pointer"
-                            >
-                                ← Back to Chapter Quotas Setup
-                            </button>
-                        </div>
                     </div>
                 )}
 

@@ -422,7 +422,15 @@ function parseAssertionReason(q) {
 
 export function cleanOptionText(text) {
     if (!text) return '';
-    let str = String(text).trim();
+    let str = String(text)
+        .replace(/&#x27;/g, "'")
+        .replace(/&#39;/g, "'")
+        .replace(/&quot;/g, '"')
+        .replace(/&amp;/g, '&')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&nbsp;/g, ' ')
+        .trim();
     // Strip leading duplicate option indicators like (A), (1), A., 1., (a), (i), etc.
     // ONLY if followed by actual option content (don't strip if option itself is just "1" or "A")
     str = str.replace(/^(\s*[\(\[]?(?:[A-Da-d]|[1-4])[\)\]\.:\-]\s+)(?=\S)/i, '');
@@ -432,6 +440,18 @@ export function cleanOptionText(text) {
 export function cleanQuestionText(text) {
     if (!text) return '';
     let str = String(text);
+
+    // 0. Clean HTML entities & strip any leaked raw katex-error spans
+    str = str
+        .replace(/&#x27;/g, "'")
+        .replace(/&#39;/g, "'")
+        .replace(/&quot;/g, '"')
+        .replace(/&amp;/g, '&')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&nbsp;/g, ' ')
+        .replace(/<span\s+class=["']katex-error["'][^>]*>[\s\S]*?<\/span>/gi, '')
+        .replace(/style=["']color:#cc0000["'][^>]*>[\s\S]*?(?:<\/span>|$)/gi, '');
 
     // 1. Strip leading question numbers e.g. "1.", "Q.1.", "Q 1:"
     str = str.replace(/^(\s*(?:Q\.?\s*)?\d+[\.\)\-:]\s*)+/i, '');
