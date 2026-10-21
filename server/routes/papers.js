@@ -99,13 +99,13 @@ router.post('/', [auth, checkRole(['admin', 'teacher'])], async (req, res) => {
             exam = await storage.getExamById(examId);
         } else if (paper.title) {
             const exams = await storage.getExams();
-            exam = exams.find(e => paper.title.toLowerCase().includes(e.title.toLowerCase()));
+            exam = exams.find(e => e && e.title && paper && paper.title && paper.title.toLowerCase().includes(e.title.toLowerCase()));
         }
 
         if (exam) {
             const subName = (paper.subject || '').toLowerCase().trim();
             const assignment = (exam.subjectAssignments || []).find(sa => {
-                const saSub = (sa.subject || '').toLowerCase().trim();
+                const saSub = (sa && sa.subject ? sa.subject : "").toLowerCase().trim();
                 return saSub === subName ||
                        (subName.includes('math') && saSub.includes('math')) ||
                        (subName.includes('bio') && saSub.includes('bio')) ||
@@ -227,7 +227,7 @@ router.put('/:id', [auth, checkRole(['teacher', 'admin'])], async (req, res) => 
                     assignment.submittedPaperId = updated._id;
                     const qCount = Array.isArray(updated.questions) ? updated.questions.length : 0;
                     assignment.status = qCount >= (assignment.targetQuestions || 60) ? 'Completed' : (qCount > 0 ? 'In Progress' : 'Not Started');
-                    await storage.updateExam(exam._id, { subjectAssignments: exam.subjectAssignments });
+                    await storage.updateExam(exam._id || exam.id, { subjectAssignments: exam.subjectAssignments });
                 }
             }
         }
@@ -268,6 +268,24 @@ router.patch('/:id/section', [auth, checkRole(['teacher', 'admin'])], async (req
     } catch (err) {
         console.error('Update paper section error:', err.message);
         res.status(500).json({ msg: 'Server error updating section: ' + err.message });
+    }
+});
+
+// @route   POST /api/papers/export-word
+// @desc    Export active/unsaved paper object directly to Word (.docx)
+// @access  Teacher, Admin
+router.post('/export-word', [auth, checkRole(['teacher', 'admin'])], async (req, res) => {
+    try {
+        const paper = req.body || {};
+        const { generatePaperDoc } = require('../services/wordExport');
+        const buffer = await generatePaperDoc(paper);
+
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+        res.setHeader('Content-Disposition', `attachment; filename="${(paper.title || 'Question_Paper').replace(/\s+/g, '_')}.docx"`);
+        res.send(buffer);
+    } catch (err) {
+        console.error('Direct Word export error:', err.message);
+        res.status(500).json({ msg: 'Server error exporting paper to Word: ' + err.message });
     }
 });
 

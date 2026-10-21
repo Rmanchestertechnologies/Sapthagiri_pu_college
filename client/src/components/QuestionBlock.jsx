@@ -375,6 +375,8 @@ function cleanStatementText(str) {
     if (!str) return '';
     return String(str)
         .replace(/^[:\-]\s*/, '')
+        .replace(/\s*Reference\s+case\s+R_?\{?[0-9a-zA-Z_\s]+\}?[0-9a-zA-Z_\s]*\.?/gi, '')
+        .replace(/\s*Reference\s+case\b[^\.\n]*\.?/gi, '')
         .replace(/```/g, '')
         .replace(/\s{2,}/g, ' ')
         .trim();
@@ -409,8 +411,8 @@ function parseAssertionReason(q) {
     reason = reason.replace(/^[:\-]\s*/, '').replace(/\s*Assertion\s*(?:\(A\))?.*$/i, '').trim();
 
     // Specific fix for polluted questions like the one in Image 3:
-    assertion = assertion.replace(/\s*The\s*Reason\s*is\s*true[\s\S]*/i, '').trim();
-    reason = reason.replace(/\s*The\s*two\s*statements\s*are\s*therefore[\s\S]*/i, '').trim();
+    assertion = assertion.replace(/\s*The\s*Reason\s*is\s*true[\s\S]*/i, '').replace(/\s*Reference\s+case[\s\S]*$/i, '').trim();
+    reason = reason.replace(/\s*The\s*two\s*statements\s*are\s*therefore[\s\S]*/i, '').replace(/\s*Reference\s+case[\s\S]*$/i, '').trim();
 
     return {
         assertion: cleanStatementText(assertion),
@@ -446,6 +448,10 @@ export function cleanQuestionText(text) {
 
     // 4. Strip trailing marks indicators like "[1 Mark]", "[4 Marks]", "[1]"
     str = str.replace(/\s*\[\s*\d+\s*(?:Marks?|M)?\s*\]\s*$/i, '');
+
+    // Strip leaked internal prompt/reference artifacts e.g. "Reference case R_{2}4."
+    str = str.replace(/\s*Reference\s+case\s+R_?\{?[0-9a-zA-Z_\s]+\}?[0-9a-zA-Z_\s]*\.?/gi, '');
+    str = str.replace(/\s*Reference\s+case\b[^\.\n]*\.?/gi, '');
 
     // 4b. Strip trailing reference codes like "[P28]", "[C65]", "[C21]", "[G13]", "[G12]", "[W8]", "[P-10]"
     str = str.replace(/\s*\[\s*[A-Za-z]{1,5}\s*[-.]?\s*\d{1,5}\s*\]\s*$/i, '');
@@ -1081,6 +1087,90 @@ function BodyStatementBased({ q, classes, isTwoCol, diagramMaxHeight = '180px', 
 /**
  * Main QuestionBlock Component
  */
+/**
+ * SECTION B / NUMERICAL / INTEGER VALUE QUESTION RENDERER
+ * Strictly adheres to JEE Main / Advanced standards:
+ * - NO (A), (B), (C), (D) choices rendered.
+ * - Renders question text, LaTeX equations, diagrams.
+ * - Renders a clean standardized numerical answer blank / box.
+ */
+function BodyNumerical({
+    q,
+    classes = [],
+    isTwoCol = false,
+    diagramMaxHeight = 120,
+    onDiagramResize,
+    displayNum,
+}) {
+    const rawQText = cleanQuestionText(q.questionText || q.question || '');
+    const { cleanText: qText, diagramUrl: imageUrl } = extractDiagramFromText(rawQText, q.imageUrl || q.image_url);
+    const qId = q._id || q.id || displayNum;
+    const currentDiagramHeight = q.customDiagramSizes?.['main'] || q.customDiagramHeight || diagramMaxHeight;
+    const isMainManual = Boolean(q.customDiagramSizes?.['main'] || q.customDiagramHeight);
+
+    return (
+        <div style={{ width: '100%' }}>
+            {/* Question Text */}
+            <div style={{ lineHeight: '1.45', marginBottom: '6px' }}>
+                <MathRenderer
+                    inline
+                    text={qText}
+                    questionId={qId}
+                    customDiagramSizes={q.customDiagramSizes}
+                    onSizeChange={onDiagramResize ? (h, key) => onDiagramResize(qId, h, key) : undefined}
+                />
+            </div>
+
+            {/* Optional Diagram */}
+            {imageUrl && (
+                <div style={{ textAlign: 'center', margin: '4px auto 6px' }}>
+                    <ResizableDiagram
+                        src={imageUrl}
+                        alt={`Question ${displayNum} diagram`}
+                        height={currentDiagramHeight}
+                        isManual={isMainManual}
+                        onResize={(newH) => onDiagramResize && onDiagramResize(qId, newH, 'main')}
+                    />
+                </div>
+            )}
+
+            {/* Numerical Answer Entry Box (JEE Standard) */}
+            <div
+                style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    marginTop: '6px',
+                    padding: '3px 8px',
+                    border: '1px dashed #94a3b8',
+                    borderRadius: '4px',
+                    width: 'fit-content',
+                    backgroundColor: '#f8fafc',
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    color: '#1e293b'
+                }}
+            >
+                <span style={{ textTransform: 'uppercase', letterSpacing: '0.04em', color: '#001f6d' }}>
+                    Answer:
+                </span>
+                <span
+                    style={{
+                        display: 'inline-block',
+                        minWidth: '70px',
+                        height: '18px',
+                        backgroundColor: '#ffffff',
+                        borderRadius: '2px',
+                        border: '1px solid #cbd5e1',
+                        borderBottom: '1.5px solid #001f6d',
+                        padding: '0 6px',
+                    }}
+                />
+            </div>
+        </div>
+    );
+}
+
 export default function QuestionBlock({
     q,
     displayNum = 1,
@@ -1112,6 +1202,15 @@ export default function QuestionBlock({
     const hasStatements = (Array.isArray(q.statements) && q.statements.length > 0) || (stmtData.statements && stmtData.statements.length >= 2);
     const isStatement = qType.includes('STATEMENT') || hasStatements;
 
+    const isNumerical = qType.includes('NUMERICAL') ||
+                        qType.includes('INTEGER') ||
+                        qType === 'NUM' ||
+                        Boolean(q.isNumerical) ||
+                        (q.part && q.part.toUpperCase().includes('NUMERICAL')) ||
+                        (q.part && q.part.toUpperCase().includes('SECTION-B') && (!q.options || q.options.length === 0)) ||
+                        (q.sectionName && q.sectionName.toUpperCase().includes('SECTION B') && (!q.options || q.options.length === 0)) ||
+                        (q.num_answer !== undefined && q.num_answer !== null && q.num_answer !== '');
+
     const renderBody = () => {
         if (isAssertion) {
             return (
@@ -1140,6 +1239,18 @@ export default function QuestionBlock({
         if (isStatement && hasStatements) {
             return (
                 <BodyStatementBased
+                    q={q}
+                    classes={classes}
+                    isTwoCol={effectiveIsTwoCol}
+                    diagramMaxHeight={diagramMaxHeight}
+                    onDiagramResize={onDiagramResize}
+                    displayNum={displayNum}
+                />
+            );
+        }
+        if (isNumerical) {
+            return (
+                <BodyNumerical
                     q={q}
                     classes={classes}
                     isTwoCol={effectiveIsTwoCol}

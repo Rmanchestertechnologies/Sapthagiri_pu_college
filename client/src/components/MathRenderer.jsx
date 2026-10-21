@@ -51,6 +51,8 @@ function processMathOnly(text) {
         .replace(/\s*\[\s*\d+\s*(?:Marks?|M)?\s*\]\s*$/i, '')
         .replace(/\s*\[\s*[A-Za-z]{1,5}\s*[-.]?\s*\d{1,5}\s*\]\s*$/i, '')
         .replace(/\s*\[\s*[A-Za-z0-9_\-]{2,8}\s*\]\s*$/i, '')
+        .replace(/\s*Reference\s+case\s+R_?\{?[0-9a-zA-Z_\s]+\}?[0-9a-zA-Z_\s]*\.?/gi, '')
+        .replace(/\s*Reference\s+case\b[^\.\n]*\.?/gi, '')
         .trim();
 
     // 1) Auto-wrap naked LaTeX math commands if not surrounded by $

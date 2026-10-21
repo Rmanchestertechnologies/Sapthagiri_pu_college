@@ -11,6 +11,7 @@
  * - 100% fidelity match between Preview and PDF print
  */
 import React, { useState, useMemo } from 'react';
+import api from '../api';
 import A4PaperEngine from './A4PaperEngine';
 import QuestionBlock from './QuestionBlock';
 import { optionLabel } from '../utils/sanitize';
@@ -388,6 +389,37 @@ export default function PaperRenderer({
 
     const questions = useMemo(() => activePaper?.questions || [], [activePaper]);
 
+    const [downloadingWord, setDownloadingWord] = useState(false);
+
+    const handleDownloadWord = async () => {
+        setDownloadingWord(true);
+        try {
+            const paperData = {
+                ...paper,
+                questions: currentQuestions,
+                setName: activeSet,
+                startQNo: settings.startQNo || 1
+            };
+
+            const res = await api.post('/api/papers/export-word', paperData, { responseType: 'blob' });
+            const blob = new Blob([res.data], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            const cleanTitle = (paper?.title || 'Question_Paper').replace(/[^a-zA-Z0-9_-]/g, '_');
+            a.download = `${cleanTitle}_Set_${activeSet}.docx`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+        } catch (err) {
+            console.error('Word export error:', err);
+            alert('Failed to download Word document: ' + (err.response?.data?.msg || err.message));
+        } finally {
+            setDownloadingWord(false);
+        }
+    };
+
     const handlePrint = () => {
         window.print();
     };
@@ -487,10 +519,21 @@ export default function PaperRenderer({
                     </div>
 
                     <button
-                        onClick={handlePrint}
-                        className="bg-gold text-navy hover:bg-navy hover:text-gold px-5 py-2 rounded-xl font-black text-xs uppercase tracking-wider transition shadow cursor-pointer flex items-center gap-1.5"
+                        type="button"
+                        onClick={handleDownloadWord}
+                        disabled={downloadingWord}
+                        className="bg-blue-700 hover:bg-blue-800 disabled:opacity-50 text-white px-4 py-2 rounded-xl font-black text-xs uppercase tracking-wider transition shadow cursor-pointer flex items-center gap-1.5"
+                        title="Download 100% editable Microsoft Word document (.docx) with editable math characters"
                     >
-                        <span>🖨</span> Print Set {activeSet}
+                        <span>📝</span> {downloadingWord ? 'Exporting Word...' : 'Download Word (.docx)'}
+                    </button>
+                    <button
+                        type="button"
+                        onClick={handlePrint}
+                        className="bg-gold text-navy hover:bg-navy hover:text-gold px-4 py-2 rounded-xl font-black text-xs uppercase tracking-wider transition shadow cursor-pointer flex items-center gap-1.5"
+                        title="Print or Save as vector PDF"
+                    >
+                        <span>📄</span> Download PDF / Print
                     </button>
                 </div>
 

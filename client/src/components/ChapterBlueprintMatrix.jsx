@@ -3,32 +3,33 @@ import React, { useState, useMemo, useEffect } from 'react';
 /**
  * ChapterBlueprintMatrix.jsx
  *
- * Professional Objective & Competitive Exam Blueprint Matrix
+ * Professional Objective & Competitive Exam Blueprint & Chapter-by-Chapter Dropdown Manager
  * Designed for Sapthagiri PU College (JEE, NEET, CET, and Competitive Formats).
  *
- * Question Types strictly aligned with Database:
- *  1. MCQ (Single Correct Multiple Choice)
- *  2. Assertion & Reason (A/R)
- *  3. Statement Based (Statement I & II)
- *  4. Numerical / Integer Type
- *  5. Diagrammatic / Image Based
- *  6. Matrix Match (Match the Following)
- *
  * Features:
- *  - Real-time auto-calculation of:
- *      * Total questions allocated per chapter
- *      * Total marks allocated per chapter
- *      * Column totals for each question type
- *      * Grand total questions & Grand total marks
- *  - Target Questions and Marks Configuration with instant validation banner
- *  - Fast standard presets (NEET 45 Qs/180M, JEE 25 Qs/100M, CET 60 Qs/60M, Even Distribution)
- *  - Non-destructive and fully reactive
+ *  - 📂 Chapter Dropdown Cards: Expandable dropdown for EVERY chapter with type-by-type count selectors (+ / - / input)
+ *  - 📊 Matrix Table View: Full spreadsheet table for rapid entry
+ *  - ⚡ 1-Click Competitive Presets:
+ *      * JEE Main: Exactly 20 MCQs (Section A) + 5 Numericals (Section B) = 25 Qs (100M)
+ *      * NEET: 35 Section A + 10 Section B = 45 Qs (180M)
+ *      * KCET: 60 MCQs = 60 Qs (60M)
+ *      * Even Distribution across selected chapters
+ *  - Real-time Target Validation with Section A vs Section B breakdown
  */
+
+const QUESTION_TYPE_CONFIG = [
+    { key: 'mcq', label: 'Single Correct MCQ', short: 'MCQ', color: 'emerald', section: 'A' },
+    { key: 'ar', label: 'Assertion & Reason', short: 'A/R', color: 'purple', section: 'A' },
+    { key: 'stmt', label: 'Statement Based', short: 'Stmt', color: 'blue', section: 'A' },
+    { key: 'num', label: 'Numerical / Integer', short: 'Numerical (Sec B)', color: 'amber', section: 'B' },
+    { key: 'diag', label: 'Diagram / Image', short: 'Diag', color: 'indigo', section: 'A' },
+    { key: 'match', label: 'Match the Following', short: 'Match', color: 'teal', section: 'A' },
+];
 
 export default function ChapterBlueprintMatrix({
     chapters = [],
     subject = 'Physics',
-    examType = 'NEET_PCB',
+    examType = 'JEE_PCM',
     onGenerate,
     onCancel,
     initialBlueprint = null,
@@ -51,6 +52,15 @@ export default function ChapterBlueprintMatrix({
     const [targetQs, setTargetQs] = useState(defaultSettings.targetQs);
     const [marksPerQ, setMarksPerQ] = useState(defaultSettings.marksPerQ);
     const [searchFilter, setSearchFilter] = useState('');
+    const [viewMode, setViewMode] = useState('dropdown'); // 'dropdown' | 'table'
+    const [openDropdowns, setOpenDropdowns] = useState(() => {
+        // Initially keep all or first 5 open
+        const initial = {};
+        chapters.forEach((ch, idx) => {
+            initial[ch] = idx < 8;
+        });
+        return initial;
+    });
 
     // Auto-calculate target marks
     const targetMarks = useMemo(() => targetQs * marksPerQ, [targetQs, marksPerQ]);
@@ -94,6 +104,42 @@ export default function ChapterBlueprintMatrix({
         }));
     };
 
+    // Increment / Decrement helper
+    const handleStepChange = (chapter, typeKey, delta) => {
+        setMatrix(prev => {
+            const current = prev[chapter]?.[typeKey] || 0;
+            const nextVal = Math.max(0, current + delta);
+            return {
+                ...prev,
+                [chapter]: {
+                    ...(prev[chapter] || { mcq: 0, ar: 0, stmt: 0, num: 0, diag: 0, match: 0 }),
+                    [typeKey]: nextVal,
+                }
+            };
+        });
+    };
+
+    // Toggle single chapter dropdown
+    const toggleChapterDropdown = (chapter) => {
+        setOpenDropdowns(prev => ({
+            ...prev,
+            [chapter]: !prev[chapter]
+        }));
+    };
+
+    // Expand All / Collapse All
+    const expandAll = () => {
+        const allOpen = {};
+        chapters.forEach(ch => { allOpen[ch] = true; });
+        setOpenDropdowns(allOpen);
+    };
+
+    const collapseAll = () => {
+        const allClosed = {};
+        chapters.forEach(ch => { allClosed[ch] = false; });
+        setOpenDropdowns(allClosed);
+    };
+
     // Filtered chapters for table search
     const visibleChapters = useMemo(() => {
         if (!searchFilter.trim()) return chapters;
@@ -110,6 +156,8 @@ export default function ChapterBlueprintMatrix({
         totalNum,
         totalDiag,
         totalMatch,
+        secATotal,
+        secBTotal,
         grandTotalQs,
         grandTotalMarks,
     } = useMemo(() => {
@@ -134,11 +182,15 @@ export default function ChapterBlueprintMatrix({
 
             const qCount = mcq + ar + stmt + num + diag + match;
             const markCount = qCount * marksPerQ;
-            stats[ch] = { qCount, markCount };
+            const secA = mcq + ar + stmt + diag + match;
+            const secB = num;
+            stats[ch] = { qCount, markCount, secA, secB };
         });
 
         const totalQs = tMCQ + tAR + tStmt + tNum + tDiag + tMatch;
         const totalMarksSum = totalQs * marksPerQ;
+        const sA = tMCQ + tAR + tStmt + tDiag + tMatch;
+        const sB = tNum;
 
         return {
             chapterStats: stats,
@@ -148,6 +200,8 @@ export default function ChapterBlueprintMatrix({
             totalNum: tNum,
             totalDiag: tDiag,
             totalMatch: tMatch,
+            secATotal: sA,
+            secBTotal: sB,
             grandTotalQs: totalQs,
             grandTotalMarks: totalMarksSum,
         };
@@ -157,7 +211,7 @@ export default function ChapterBlueprintMatrix({
     const qsDifference = grandTotalQs - targetQs;
     const marksDifference = grandTotalMarks - targetMarks;
 
-    // Apply NEET Preset (45 Questions / 180 Marks: e.g. 30 MCQs, 5 A/R, 5 Statement, 5 Diagram)
+    // Apply NEET Preset (45 Questions / 180 Marks: 35 Sec A + 10 Sec B)
     const applyNEETPreset = () => {
         if (chapters.length === 0) return;
         setTargetQs(45);
@@ -165,12 +219,11 @@ export default function ChapterBlueprintMatrix({
         const next = {};
         const chCount = chapters.length;
 
-        // Distribute 30 MCQs, 5 AR, 5 Stmt, 5 Diag round-robin across chapters
         chapters.forEach((ch, idx) => {
             const mcqShare = Math.floor(30 / chCount) + (idx < (30 % chCount) ? 1 : 0);
-            const arShare = idx < 5 ? 1 : 0;
-            const stmtShare = idx >= 5 && idx < 10 ? 1 : (idx === 0 && chCount < 5 ? 1 : 0);
-            const diagShare = idx >= 10 && idx < 15 ? 1 : (idx === 1 && chCount < 5 ? 1 : 0);
+            const arShare = idx < Math.min(5, chCount) ? 1 : 0;
+            const stmtShare = idx >= 5 && idx < 10 ? 1 : 0;
+            const diagShare = idx < Math.min(5, chCount) ? 1 : 0;
 
             next[ch] = {
                 mcq: mcqShare,
@@ -184,7 +237,7 @@ export default function ChapterBlueprintMatrix({
         setMatrix(next);
     };
 
-    // Apply JEE Main Preset (25 Questions / 100 Marks: 20 MCQs/Diagrams + 5 Numericals)
+    // Apply JEE Main Preset: EXACTLY 20 Section A MCQs/Diag/AR + 5 Section B Numericals = 25 Questions
     const applyJEEPreset = () => {
         if (chapters.length === 0) return;
         setTargetQs(25);
@@ -192,10 +245,11 @@ export default function ChapterBlueprintMatrix({
         const next = {};
         const chCount = chapters.length;
 
+        // Exactly 20 MCQs/Diagrams in Section A, 5 Numericals in Section B
         chapters.forEach((ch, idx) => {
             const mcqShare = Math.floor(18 / chCount) + (idx < (18 % chCount) ? 1 : 0);
-            const diagShare = idx < 2 ? 1 : 0;
-            const numShare = idx < 5 ? 1 : 0;
+            const diagShare = idx < Math.min(2, chCount) ? 1 : 0;
+            const numShare = Math.floor(5 / chCount) + (idx < (5 % chCount) ? 1 : 0);
 
             next[ch] = {
                 mcq: mcqShare,
@@ -209,7 +263,7 @@ export default function ChapterBlueprintMatrix({
         setMatrix(next);
     };
 
-    // Apply KCET Preset (60 Questions / 60 Marks: 60 MCQs)
+    // Apply KCET Preset: 60 MCQs = 60 Marks
     const applyCETPreset = () => {
         if (chapters.length === 0) return;
         setTargetQs(60);
@@ -264,13 +318,15 @@ export default function ChapterBlueprintMatrix({
     const handleFormSubmit = (e) => {
         e?.preventDefault();
         if (grandTotalQs === 0) {
-            alert('Please allocate at least 1 question in the blueprint matrix.');
+            alert('Please allocate at least 1 question in the chapter blueprint.');
             return;
         }
         if (onGenerate) {
             onGenerate(matrix, targetMarks, targetQs, marksPerQ);
         }
     };
+
+    const isJEE = (examType || '').toUpperCase().includes('JEE');
 
     return (
         <div className="bg-white rounded-3xl border-2 border-navy/20 shadow-xl overflow-hidden animate-fade-in">
@@ -280,17 +336,17 @@ export default function ChapterBlueprintMatrix({
                     <div>
                         <div className="flex items-center gap-2 flex-wrap">
                             <span className="text-[10px] font-black text-navy uppercase tracking-[0.2em] bg-gold px-3 py-0.5 rounded-full">
-                                Objective & Competitive Matrix
+                                Chapter Blueprint & Question Type Matrix
                             </span>
                             <span className="text-xs text-white/70 font-semibold">• {subject}</span>
                             <span className="text-xs text-gold/90 font-mono">[{examType}]</span>
                         </div>
                         <h2 className="text-xl md:text-2xl font-black text-white mt-1 uppercase tracking-tight flex items-center gap-2">
                             <span>📐</span>
-                            <span>Chapter Weightage & Question Type Matrix</span>
+                            <span>Chapter-Wise Question Type Allocation</span>
                         </h2>
                         <p className="text-xs text-slate-300 font-medium mt-1">
-                            Allocate exact question counts per chapter across competitive exam types: MCQs, Assertion-Reason, Statement-Based, Numericals, Diagrams, and Matrix Match.
+                            Configure exact question counts per chapter for MCQs, Assertion & Reason, Statement Based, Numericals (Section B), Diagrams, and Matrix Match.
                         </p>
                     </div>
 
@@ -348,20 +404,20 @@ export default function ChapterBlueprintMatrix({
 
                 {/* Preset Buttons Bar */}
                 <div className="flex flex-wrap items-center gap-2 mt-5 pt-4 border-t border-white/10 text-xs">
-                    <span className="text-[11px] font-bold text-white/60 mr-1">Exam Presets:</span>
+                    <span className="text-[11px] font-bold text-white/60 mr-1">Fast Presets:</span>
+                    <button
+                        type="button"
+                        onClick={applyJEEPreset}
+                        className="bg-white/15 hover:bg-gold hover:text-navy text-white px-3 py-1.5 rounded-xl font-black transition text-xs flex items-center gap-1.5 cursor-pointer ring-1 ring-gold/40"
+                    >
+                        <span>⚡</span> JEE Main (20 MCQs Sec A + 5 Numericals Sec B)
+                    </button>
                     <button
                         type="button"
                         onClick={applyNEETPreset}
                         className="bg-white/15 hover:bg-gold hover:text-navy text-white px-3 py-1.5 rounded-xl font-bold transition text-xs flex items-center gap-1 cursor-pointer"
                     >
                         <span>🩺</span> NEET (45 Qs • 180M)
-                    </button>
-                    <button
-                        type="button"
-                        onClick={applyJEEPreset}
-                        className="bg-white/15 hover:bg-gold hover:text-navy text-white px-3 py-1.5 rounded-xl font-bold transition text-xs flex items-center gap-1 cursor-pointer"
-                    >
-                        <span>⚡</span> JEE Main (25 Qs • 100M)
                     </button>
                     <button
                         type="button"
@@ -398,6 +454,21 @@ export default function ChapterBlueprintMatrix({
                                 {grandTotalQs} / {targetQs}
                             </span>
                         </div>
+
+                        {/* JEE Section A & Section B Badges */}
+                        {isJEE && (
+                            <>
+                                <div className="bg-emerald-50 border border-emerald-300 px-3 py-1 rounded-xl flex items-center gap-1.5 text-xs font-black text-emerald-800">
+                                    <span>Section A (MCQs/AR/Diag):</span>
+                                    <span className="bg-emerald-200 px-2 py-0.5 rounded-full">{secATotal} / 20</span>
+                                </div>
+                                <div className="bg-amber-50 border border-amber-300 px-3 py-1 rounded-xl flex items-center gap-1.5 text-xs font-black text-amber-900">
+                                    <span>Section B (Numericals):</span>
+                                    <span className="bg-amber-200 px-2 py-0.5 rounded-full">{secBTotal} / 5</span>
+                                </div>
+                            </>
+                        )}
+
                         <div className="bg-white px-3.5 py-1.5 rounded-xl border border-gray-200 shadow-xs flex items-center gap-2">
                             <span className="text-[10px] font-black uppercase text-gray-500">Allocated Marks:</span>
                             <span className={`font-black text-sm ${marksDifference === 0 ? 'text-emerald-600' : marksDifference > 0 ? 'text-rose-600' : 'text-amber-600'}`}>
@@ -410,7 +481,7 @@ export default function ChapterBlueprintMatrix({
                     <div>
                         {grandTotalQs === 0 ? (
                             <span className="bg-gray-200 text-gray-700 px-3.5 py-1.5 rounded-xl font-black text-xs uppercase tracking-wider inline-flex items-center gap-1.5">
-                                ℹ️ Enter Question Counts Below
+                                ℹ️ Select Question Counts in Chapter Dropdowns Below
                             </span>
                         ) : qsDifference === 0 ? (
                             <span className="bg-emerald-100 text-emerald-800 border border-emerald-300 px-4 py-1.5 rounded-xl font-black text-xs uppercase tracking-wider inline-flex items-center gap-1.5 shadow-xs">
@@ -418,254 +489,334 @@ export default function ChapterBlueprintMatrix({
                             </span>
                         ) : qsDifference < 0 ? (
                             <span className="bg-amber-100 text-amber-900 border border-amber-300 px-4 py-1.5 rounded-xl font-black text-xs uppercase tracking-wider inline-flex items-center gap-1.5 shadow-xs">
-                                <span>⚠️</span> Under Target: {Math.abs(qsDifference)} Questions Remaining ({grandTotalQs}/{targetQs} Qs • {grandTotalMarks}/{targetMarks} M)
+                                <span>⚠️</span> Under Target: {Math.abs(qsDifference)} Questions Remaining ({grandTotalQs}/{targetQs} Qs)
                             </span>
                         ) : (
                             <span className="bg-rose-100 text-rose-900 border border-rose-300 px-4 py-1.5 rounded-xl font-black text-xs uppercase tracking-wider inline-flex items-center gap-1.5 shadow-xs">
-                                <span>⚠️</span> Over Target: {qsDifference} Questions Over Limit ({grandTotalQs}/{targetQs} Qs • {grandTotalMarks}/{targetMarks} M)
+                                <span>⚠️</span> Over Target: {qsDifference} Questions Over Limit ({grandTotalQs}/{targetQs} Qs)
                             </span>
                         )}
                     </div>
                 </div>
             </div>
 
-            {/* Chapter Table Filter */}
-            <div className="p-4 border-b border-gray-100 bg-white flex items-center justify-between gap-4">
-                <div className="relative flex-1 max-w-sm">
-                    <input
-                        type="text"
-                        placeholder="Search chapter in blueprint..."
-                        value={searchFilter}
-                        onChange={(e) => setSearchFilter(e.target.value)}
-                        className="w-full bg-slate-50 border border-gray-200 rounded-xl pl-9 pr-3 py-1.5 text-xs font-semibold text-navy outline-none focus:ring-2 focus:ring-navy"
-                    />
-                    <span className="absolute left-3 top-2 text-gray-400 text-xs">🔍</span>
+            {/* View Mode Switcher & Filter Controls */}
+            <div className="p-4 border-b border-gray-100 bg-white flex flex-wrap items-center justify-between gap-4">
+                <div className="flex items-center gap-2">
+                    {/* View Switcher */}
+                    <div className="flex items-center bg-gray-100 p-1 rounded-2xl border border-gray-200">
+                        <button
+                            type="button"
+                            onClick={() => setViewMode('dropdown')}
+                            className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition cursor-pointer flex items-center gap-1.5 ${
+                                viewMode === 'dropdown'
+                                    ? 'bg-navy text-gold shadow-sm'
+                                    : 'text-gray-600 hover:text-navy'
+                            }`}
+                        >
+                            <span>📁 Chapter Dropdowns</span>
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setViewMode('table')}
+                            className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition cursor-pointer flex items-center gap-1.5 ${
+                                viewMode === 'table'
+                                    ? 'bg-navy text-gold shadow-sm'
+                                    : 'text-gray-600 hover:text-navy'
+                            }`}
+                        >
+                            <span>📊 Matrix Table</span>
+                        </button>
+                    </div>
+
+                    {viewMode === 'dropdown' && (
+                        <div className="flex items-center gap-2 ml-2">
+                            <button
+                                type="button"
+                                onClick={expandAll}
+                                className="text-[11px] font-bold text-navy hover:underline cursor-pointer"
+                            >
+                                Expand All
+                            </button>
+                            <span className="text-gray-300">|</span>
+                            <button
+                                type="button"
+                                onClick={collapseAll}
+                                className="text-[11px] font-bold text-gray-500 hover:underline cursor-pointer"
+                            >
+                                Collapse All
+                            </button>
+                        </div>
+                    )}
                 </div>
-                <span className="text-xs font-bold text-gray-500">
-                    Showing {visibleChapters.length} of {chapters.length} Chapters
-                </span>
+
+                <div className="flex items-center gap-3">
+                    <div className="relative max-w-xs">
+                        <input
+                            type="text"
+                            placeholder="Filter chapters..."
+                            value={searchFilter}
+                            onChange={(e) => setSearchFilter(e.target.value)}
+                            className="bg-slate-50 border border-gray-200 rounded-xl pl-8 pr-3 py-1.5 text-xs font-semibold text-navy outline-none focus:ring-2 focus:ring-navy w-52"
+                        />
+                        <span className="absolute left-2.5 top-2 text-gray-400 text-xs">🔍</span>
+                    </div>
+                    <span className="text-xs font-bold text-gray-500">
+                        {visibleChapters.length} Chapters
+                    </span>
+                </div>
             </div>
 
-            {/* Matrix Table */}
-            <div className="overflow-x-auto max-h-[460px] overflow-y-auto">
-                <table className="w-full text-left border-collapse text-xs min-w-[850px]">
-                    <thead className="bg-navy text-white sticky top-0 z-10 shadow-xs">
-                        <tr>
-                            <th className="p-3 pl-4 font-black uppercase tracking-wider text-[11px] w-4/12">
-                                Chapter Name
-                            </th>
-                            <th className="p-2.5 font-black uppercase tracking-wider text-[10px] text-center w-[9%] bg-navy/90" title="Single Correct Multiple Choice">
-                                MCQ<br/><span className="text-[9px] text-gold font-bold">Single</span>
-                            </th>
-                            <th className="p-2.5 font-black uppercase tracking-wider text-[10px] text-center w-[9%] bg-navy/90" title="Assertion & Reason Statements">
-                                A / R<br/><span className="text-[9px] text-gold font-bold">Assertion</span>
-                            </th>
-                            <th className="p-2.5 font-black uppercase tracking-wider text-[10px] text-center w-[9%] bg-navy/90" title="Statement I & Statement II Questions">
-                                Stmt<br/><span className="text-[9px] text-gold font-bold">Statement</span>
-                            </th>
-                            <th className="p-2.5 font-black uppercase tracking-wider text-[10px] text-center w-[9%] bg-navy/90" title="Numerical / Integer Answer">
-                                Num<br/><span className="text-[9px] text-gold font-bold">Integer</span>
-                            </th>
-                            <th className="p-2.5 font-black uppercase tracking-wider text-[10px] text-center w-[9%] bg-navy/90" title="Diagrammatic / Image Based">
-                                Diag<br/><span className="text-[9px] text-gold font-bold">Diagram</span>
-                            </th>
-                            <th className="p-2.5 font-black uppercase tracking-wider text-[10px] text-center w-[9%] bg-navy/90" title="Match the Following / Matrix Match">
-                                Match<br/><span className="text-[9px] text-gold font-bold">Matrix</span>
-                            </th>
-                            <th className="p-2.5 font-black uppercase tracking-wider text-[10px] text-center w-[10%] bg-slate-800">
-                                Total Qs
-                            </th>
-                            <th className="p-2.5 pr-4 font-black uppercase tracking-wider text-[10px] text-center w-[10%] bg-slate-800 text-gold">
-                                Total Marks
-                            </th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100">
-                        {visibleChapters.length === 0 ? (
+            {/* ══════════════════════════════════════════════════════════════
+                VIEW 1: CHAPTER DROPDOWNS (ACCORDION CARDS)
+            ══════════════════════════════════════════════════════════════ */}
+            {viewMode === 'dropdown' && (
+                <div className="p-4 md:p-6 space-y-3 max-h-[520px] overflow-y-auto bg-slate-50/50">
+                    {visibleChapters.length === 0 ? (
+                        <div className="text-center py-12 text-gray-400 text-xs">
+                            No chapters match "{searchFilter}". Check spelling or clear filter.
+                        </div>
+                    ) : (
+                        visibleChapters.map((ch, idx) => {
+                            const isOpen = Boolean(openDropdowns[ch]);
+                            const stats = chapterStats[ch] || { qCount: 0, markCount: 0, secA: 0, secB: 0 };
+                            const row = matrix[ch] || { mcq: 0, ar: 0, stmt: 0, num: 0, diag: 0, match: 0 };
+
+                            return (
+                                <div
+                                    key={ch}
+                                    className={`bg-white rounded-2xl border-2 transition-all duration-200 shadow-xs overflow-hidden ${
+                                        stats.qCount > 0 ? 'border-navy/30 ring-1 ring-navy/10' : 'border-gray-200'
+                                    }`}
+                                >
+                                    {/* Dropdown Header Bar */}
+                                    <div
+                                        onClick={() => toggleChapterDropdown(ch)}
+                                        className="p-3.5 md:px-5 flex items-center justify-between cursor-pointer hover:bg-slate-50 select-none transition"
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            <span className={`w-6 h-6 rounded-lg flex items-center justify-center text-xs font-black transition-transform duration-200 ${
+                                                isOpen ? 'rotate-90 bg-navy text-gold' : 'bg-gray-100 text-gray-600'
+                                            }`}>
+                                                ▶
+                                            </span>
+                                            <div>
+                                                <span className="text-[10px] font-black uppercase text-gold bg-navy px-2 py-0.5 rounded-md mr-2">
+                                                    Ch {idx + 1}
+                                                </span>
+                                                <span className="text-xs md:text-sm font-black text-navy uppercase tracking-tight">
+                                                    {ch}
+                                                </span>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex items-center gap-2">
+                                            {stats.qCount > 0 && (
+                                                <span className="bg-emerald-100 text-emerald-800 border border-emerald-300 text-[10px] font-black px-2.5 py-1 rounded-xl">
+                                                    {stats.qCount} Qs • {stats.markCount} M
+                                                </span>
+                                            )}
+                                            {isJEE && stats.secB > 0 && (
+                                                <span className="bg-amber-100 text-amber-900 border border-amber-300 text-[10px] font-black px-2 py-1 rounded-xl">
+                                                    {stats.secB} Num (Sec B)
+                                                </span>
+                                            )}
+                                            <span className="text-xs text-gray-400 font-bold ml-1">
+                                                {isOpen ? '▲' : '▼'}
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    {/* Dropdown Expanded Question Types Content */}
+                                    {isOpen && (
+                                        <div className="p-4 pt-2 border-t border-gray-100 bg-slate-50/70">
+                                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
+                                                {QUESTION_TYPE_CONFIG.map(t => {
+                                                    const val = row[t.key] || 0;
+                                                    return (
+                                                        <div
+                                                            key={t.key}
+                                                            className={`bg-white p-2.5 rounded-xl border-2 transition ${
+                                                                val > 0 ? 'border-navy shadow-xs' : 'border-gray-200'
+                                                            }`}
+                                                        >
+                                                            <div className="flex items-center justify-between mb-1.5">
+                                                                <span className="text-[10px] font-black uppercase tracking-tight text-navy truncate" title={t.label}>
+                                                                    {t.short}
+                                                                </span>
+                                                                {isJEE && (
+                                                                    <span className={`text-[8px] font-black px-1.5 py-0.2 rounded ${
+                                                                        t.section === 'B' ? 'bg-amber-100 text-amber-900' : 'bg-slate-100 text-slate-700'
+                                                                    }`}>
+                                                                        Sec {t.section}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+
+                                                            {/* - / Input / + Controls */}
+                                                            <div className="flex items-center gap-1">
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => handleStepChange(ch, t.key, -1)}
+                                                                    disabled={val <= 0}
+                                                                    className="w-7 h-7 rounded-lg bg-gray-100 hover:bg-gray-200 disabled:opacity-30 disabled:pointer-events-none text-navy font-black text-xs flex items-center justify-center cursor-pointer"
+                                                                >
+                                                                    -
+                                                                </button>
+                                                                <input
+                                                                    type="number"
+                                                                    min="0"
+                                                                    max="99"
+                                                                    value={val === 0 ? '' : val}
+                                                                    placeholder="0"
+                                                                    onChange={(e) => handleCellChange(ch, t.key, e.target.value)}
+                                                                    className="w-full text-center font-black text-xs text-navy py-1 rounded-lg border border-gray-200 outline-none focus:border-navy bg-white"
+                                                                />
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => handleStepChange(ch, t.key, 1)}
+                                                                    className="w-7 h-7 rounded-lg bg-navy hover:bg-gold hover:text-navy text-gold font-black text-xs flex items-center justify-center cursor-pointer transition shadow-xs"
+                                                                >
+                                                                    +
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })
+                    )}
+                </div>
+            )}
+
+            {/* ══════════════════════════════════════════════════════════════
+                VIEW 2: SPREADSHEET MATRIX TABLE VIEW
+            ══════════════════════════════════════════════════════════════ */}
+            {viewMode === 'table' && (
+                <div className="overflow-x-auto max-h-[460px] overflow-y-auto">
+                    <table className="w-full text-left border-collapse text-xs">
+                        <thead className="bg-slate-100 sticky top-0 z-10 border-b border-gray-200 shadow-xs">
                             <tr>
-                                <td colSpan={9} className="p-8 text-center text-gray-400 font-bold">
-                                    No chapters match your search filter.
-                                </td>
+                                <th className="p-3 font-black text-navy uppercase tracking-wider text-[11px] w-60">
+                                    Chapter Name
+                                </th>
+                                <th className="p-2.5 font-black text-center text-emerald-800 text-[10px] uppercase tracking-wider bg-emerald-50/50">
+                                    MCQ (Single)
+                                </th>
+                                <th className="p-2.5 font-black text-center text-purple-800 text-[10px] uppercase tracking-wider bg-purple-50/50">
+                                    A/R (Assertion)
+                                </th>
+                                <th className="p-2.5 font-black text-center text-blue-800 text-[10px] uppercase tracking-wider bg-blue-50/50">
+                                    Statement I&II
+                                </th>
+                                <th className="p-2.5 font-black text-center text-amber-900 text-[10px] uppercase tracking-wider bg-amber-50">
+                                    Numerical (Sec B)
+                                </th>
+                                <th className="p-2.5 font-black text-center text-indigo-800 text-[10px] uppercase tracking-wider bg-indigo-50/50">
+                                    Diagrammatic
+                                </th>
+                                <th className="p-2.5 font-black text-center text-teal-800 text-[10px] uppercase tracking-wider bg-teal-50/50">
+                                    Matrix Match
+                                </th>
+                                <th className="p-3 font-black text-center text-navy text-[10px] uppercase tracking-wider bg-slate-200">
+                                    Total Qs
+                                </th>
+                                <th className="p-3 font-black text-center text-gold bg-navy text-[10px] uppercase tracking-wider">
+                                    Total Marks
+                                </th>
                             </tr>
-                        ) : (
-                            visibleChapters.map((ch, idx) => {
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                            {visibleChapters.map((ch, idx) => {
                                 const row = matrix[ch] || { mcq: 0, ar: 0, stmt: 0, num: 0, diag: 0, match: 0 };
                                 const stats = chapterStats[ch] || { qCount: 0, markCount: 0 };
-                                const hasAlloc = stats.qCount > 0;
 
                                 return (
-                                    <tr
-                                        key={ch}
-                                        className={`hover:bg-blue-50/50 transition-colors ${
-                                            hasAlloc ? 'bg-amber-50/30' : idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/40'
-                                        }`}
-                                    >
-                                        <td className="p-3 pl-4 font-bold text-navy">
+                                    <tr key={ch} className="hover:bg-slate-50 transition">
+                                        <td className="p-3 font-bold text-navy text-xs">
                                             <div className="flex items-center gap-2">
-                                                <span className="text-[10px] text-gray-400 font-mono">#{idx + 1}</span>
-                                                <span className="truncate max-w-xs block" title={ch}>{ch}</span>
+                                                <span className="text-[10px] font-black text-gray-400">{idx + 1}.</span>
+                                                <span className="truncate max-w-xs" title={ch}>{ch}</span>
                                             </div>
                                         </td>
-                                        {/* MCQ input */}
-                                        <td className="p-2 text-center">
-                                            <input
-                                                type="number"
-                                                min="0"
-                                                max="50"
-                                                value={row.mcq || ''}
-                                                placeholder="0"
-                                                onChange={(e) => handleCellChange(ch, 'mcq', e.target.value)}
-                                                className={`w-12 text-center font-bold text-xs py-1.5 rounded-lg border outline-none focus:ring-2 focus:ring-navy transition ${
-                                                    row.mcq > 0 ? 'bg-navy text-gold border-navy font-black shadow-xs' : 'bg-white border-gray-300 text-gray-700'
-                                                }`}
-                                            />
-                                        </td>
-                                        {/* A/R input */}
-                                        <td className="p-2 text-center">
-                                            <input
-                                                type="number"
-                                                min="0"
-                                                max="30"
-                                                value={row.ar || ''}
-                                                placeholder="0"
-                                                onChange={(e) => handleCellChange(ch, 'ar', e.target.value)}
-                                                className={`w-12 text-center font-bold text-xs py-1.5 rounded-lg border outline-none focus:ring-2 focus:ring-navy transition ${
-                                                    row.ar > 0 ? 'bg-navy text-gold border-navy font-black shadow-xs' : 'bg-white border-gray-300 text-gray-700'
-                                                }`}
-                                            />
-                                        </td>
-                                        {/* Stmt input */}
-                                        <td className="p-2 text-center">
-                                            <input
-                                                type="number"
-                                                min="0"
-                                                max="30"
-                                                value={row.stmt || ''}
-                                                placeholder="0"
-                                                onChange={(e) => handleCellChange(ch, 'stmt', e.target.value)}
-                                                className={`w-12 text-center font-bold text-xs py-1.5 rounded-lg border outline-none focus:ring-2 focus:ring-navy transition ${
-                                                    row.stmt > 0 ? 'bg-navy text-gold border-navy font-black shadow-xs' : 'bg-white border-gray-300 text-gray-700'
-                                                }`}
-                                            />
-                                        </td>
-                                        {/* Num input */}
-                                        <td className="p-2 text-center">
-                                            <input
-                                                type="number"
-                                                min="0"
-                                                max="30"
-                                                value={row.num || ''}
-                                                placeholder="0"
-                                                onChange={(e) => handleCellChange(ch, 'num', e.target.value)}
-                                                className={`w-12 text-center font-bold text-xs py-1.5 rounded-lg border outline-none focus:ring-2 focus:ring-navy transition ${
-                                                    row.num > 0 ? 'bg-navy text-gold border-navy font-black shadow-xs' : 'bg-white border-gray-300 text-gray-700'
-                                                }`}
-                                            />
-                                        </td>
-                                        {/* Diag input */}
-                                        <td className="p-2 text-center">
-                                            <input
-                                                type="number"
-                                                min="0"
-                                                max="30"
-                                                value={row.diag || ''}
-                                                placeholder="0"
-                                                onChange={(e) => handleCellChange(ch, 'diag', e.target.value)}
-                                                className={`w-12 text-center font-bold text-xs py-1.5 rounded-lg border outline-none focus:ring-2 focus:ring-navy transition ${
-                                                    row.diag > 0 ? 'bg-navy text-gold border-navy font-black shadow-xs' : 'bg-white border-gray-300 text-gray-700'
-                                                }`}
-                                            />
-                                        </td>
-                                        {/* Match input */}
-                                        <td className="p-2 text-center">
-                                            <input
-                                                type="number"
-                                                min="0"
-                                                max="30"
-                                                value={row.match || ''}
-                                                placeholder="0"
-                                                onChange={(e) => handleCellChange(ch, 'match', e.target.value)}
-                                                className={`w-12 text-center font-bold text-xs py-1.5 rounded-lg border outline-none focus:ring-2 focus:ring-navy transition ${
-                                                    row.match > 0 ? 'bg-navy text-gold border-navy font-black shadow-xs' : 'bg-white border-gray-300 text-gray-700'
-                                                }`}
-                                            />
-                                        </td>
-                                        {/* Chapter Total Qs */}
-                                        <td className="p-2 text-center font-black text-navy bg-slate-100/60">
+                                        {['mcq', 'ar', 'stmt', 'num', 'diag', 'match'].map(tKey => (
+                                            <td key={tKey} className="p-1.5 text-center">
+                                                <input
+                                                    type="number"
+                                                    min="0"
+                                                    max="50"
+                                                    value={row[tKey] === 0 ? '' : row[tKey]}
+                                                    placeholder="0"
+                                                    onChange={(e) => handleCellChange(ch, tKey, e.target.value)}
+                                                    className="w-12 text-center font-bold text-navy py-1 rounded-lg border border-gray-200 outline-none focus:border-navy focus:ring-1 focus:ring-navy"
+                                                />
+                                            </td>
+                                        ))}
+                                        <td className="p-3 text-center font-black text-navy bg-slate-50 text-xs">
                                             {stats.qCount}
                                         </td>
-                                        {/* Chapter Total Marks */}
-                                        <td className="p-2 pr-4 text-center font-black text-navy bg-slate-100/60">
-                                            <span className={stats.markCount > 0 ? 'text-navy font-black' : 'text-gray-400'}>
-                                                {stats.markCount} M
-                                            </span>
+                                        <td className="p-3 text-center font-black text-navy bg-gold/10 text-xs">
+                                            {stats.markCount} M
                                         </td>
                                     </tr>
                                 );
-                            })
-                        )}
-                    </tbody>
-                    {/* Summary Footer Row */}
-                    <tfoot className="bg-slate-900 text-white font-black sticky bottom-0 z-10 border-t-2 border-gold shadow-lg">
-                        <tr>
-                            <td className="p-3 pl-4 uppercase tracking-wider text-xs">
-                                Grand Type Totals
-                            </td>
-                            <td className="p-2 text-center text-gold text-xs">
-                                {totalMCQ} <span className="text-[9px] text-white/70 block font-normal">MCQ</span>
-                            </td>
-                            <td className="p-2 text-center text-gold text-xs">
-                                {totalAR} <span className="text-[9px] text-white/70 block font-normal">A/R</span>
-                            </td>
-                            <td className="p-2 text-center text-gold text-xs">
-                                {totalStmt} <span className="text-[9px] text-white/70 block font-normal">Stmt</span>
-                            </td>
-                            <td className="p-2 text-center text-gold text-xs">
-                                {totalNum} <span className="text-[9px] text-white/70 block font-normal">Num</span>
-                            </td>
-                            <td className="p-2 text-center text-gold text-xs">
-                                {totalDiag} <span className="text-[9px] text-white/70 block font-normal">Diag</span>
-                            </td>
-                            <td className="p-2 text-center text-gold text-xs">
-                                {totalMatch} <span className="text-[9px] text-white/70 block font-normal">Match</span>
-                            </td>
-                            <td className="p-2 text-center bg-slate-950 text-white text-xs font-black">
-                                {grandTotalQs} Qs
-                            </td>
-                            <td className="p-2 pr-4 text-center bg-slate-950 text-gold text-sm font-black">
-                                {grandTotalMarks} M
-                            </td>
-                        </tr>
-                    </tfoot>
-                </table>
-            </div>
+                            })}
+                        </tbody>
+                        <tfoot className="bg-slate-900 text-white font-black sticky bottom-0 z-10 border-t-2 border-gold text-xs">
+                            <tr>
+                                <td className="p-3 uppercase tracking-wider text-[11px] text-gold">Grand Totals</td>
+                                <td className="p-2 text-center">{totalMCQ}</td>
+                                <td className="p-2 text-center">{totalAR}</td>
+                                <td className="p-2 text-center">{totalStmt}</td>
+                                <td className="p-2 text-center text-amber-300">{totalNum}</td>
+                                <td className="p-2 text-center">{totalDiag}</td>
+                                <td className="p-2 text-center">{totalMatch}</td>
+                                <td className="p-3 text-center bg-gold text-navy text-sm font-black">{grandTotalQs}</td>
+                                <td className="p-3 text-center bg-gold text-navy text-sm font-black">{grandTotalMarks} M</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            )}
 
             {/* Bottom Actions Bar */}
-            <div className="p-6 bg-slate-50 border-t border-gray-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="p-5 border-t border-gray-200 bg-white flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div className="text-xs text-gray-600 font-medium">
+                    {grandTotalQs === targetQs ? (
+                        <span className="text-emerald-700 font-black flex items-center gap-1">
+                            <span>✓</span> Exactly {grandTotalQs} Questions ({grandTotalMarks} Marks) allocated according to blueprint.
+                        </span>
+                    ) : (
+                        <span className="text-amber-800 font-semibold">
+                            Target is {targetQs} Qs ({targetMarks} M). Currently {grandTotalQs} Qs allocated.
+                        </span>
+                    )}
+                </div>
+
                 <div className="flex items-center gap-3">
                     {onCancel && (
                         <button
                             type="button"
                             onClick={onCancel}
-                            className="bg-gray-200 hover:bg-gray-300 text-gray-700 px-5 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider transition cursor-pointer"
+                            className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-5 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider transition cursor-pointer"
                         >
                             Cancel
                         </button>
                     )}
-                    <span className="text-xs text-gray-500 font-medium">
-                        {grandTotalQs} questions allocated totaling {grandTotalMarks} marks (@ {marksPerQ} M/Q).
-                    </span>
+                    <button
+                        type="button"
+                        onClick={handleFormSubmit}
+                        disabled={isGenerating || grandTotalQs === 0}
+                        className="bg-navy hover:scale-105 disabled:opacity-40 disabled:pointer-events-none text-gold border-2 border-gold px-8 py-3 rounded-2xl font-black text-xs uppercase tracking-widest transition shadow-xl flex items-center gap-2 cursor-pointer"
+                    >
+                        <span>⚡</span>
+                        <span>{isGenerating ? 'Extracting Questions...' : `Generate ${grandTotalQs} Questions from Blueprint`}</span>
+                    </button>
                 </div>
-
-                <button
-                    type="button"
-                    onClick={handleFormSubmit}
-                    disabled={grandTotalQs === 0 || isGenerating}
-                    className="bg-gold text-navy hover:scale-105 disabled:opacity-40 disabled:pointer-events-none px-8 py-3 rounded-xl font-black text-xs uppercase tracking-widest transition shadow-lg flex items-center justify-center gap-2 cursor-pointer"
-                >
-                    <span>⚡</span>
-                    <span>{isGenerating ? 'Sampling Questions Pool...' : `Generate Paper (${grandTotalQs} Qs • ${grandTotalMarks} M)`}</span>
-                </button>
             </div>
         </div>
     );

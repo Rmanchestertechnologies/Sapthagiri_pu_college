@@ -1009,6 +1009,62 @@ export default function CreatePaper() {
             }
         }
 
+                const isJEE = (examType || '').toUpperCase().includes('JEE');
+        if (isJEE && targetQuota === 25) {
+            const secAPart = 'SECTION A - MULTIPLE CHOICE QUESTIONS';
+            const secBPart = 'SECTION B - NUMERICAL VALUE QUESTIONS';
+            const secADir = 'This section contains 20 Multiple Choice Questions. Each question has four choices (1), (2), (3), (4). Only one choice is correct.';
+            const secBDir = 'This section contains 5 Numerical Value Questions. The answer to each question is a NUMERICAL VALUE. No options are provided.';
+
+            // Look for numerical questions in pool for Section B
+            const numCandidates = pool.filter(q => matchesQuestionType(q, 'Numerical / Integer Type') && !alreadyAddedIds.has(String(q._id || q.id)));
+            const secBCount = 5;
+            const secACount = 20;
+
+            const finalSecA = [];
+            const finalSecB = [];
+
+            // Fill Section B with numerical questions if available, else pick from picked
+            for (let i = 0; i < secBCount; i++) {
+                if (i < numCandidates.length) {
+                    finalSecB.push({
+                        ...numCandidates[i],
+                        sectionSubject: subName,
+                        subject: numCandidates[i].subject || subName,
+                        part: secBPart,
+                        partDirective: secBDir,
+                        isNumerical: true,
+                        type: 'NUMERICAL',
+                        options: [],
+                    });
+                } else if (picked[secACount + i]) {
+                    const fallbackQ = picked[secACount + i];
+                    finalSecB.push({
+                        ...fallbackQ,
+                        part: secBPart,
+                        partDirective: secBDir,
+                        isNumerical: true,
+                        type: 'NUMERICAL',
+                        options: [],
+                    });
+                }
+            }
+
+            // Fill Section A with 20 questions
+            for (let i = 0; i < secACount; i++) {
+                if (picked[i]) {
+                    finalSecA.push({
+                        ...picked[i],
+                        part: secAPart,
+                        partDirective: secADir,
+                        isNumerical: false,
+                    });
+                }
+            }
+
+            return [...finalSecA, ...finalSecB];
+        }
+
         return picked.slice(0, targetQuota);
     };
 
@@ -1293,14 +1349,38 @@ export default function CreatePaper() {
                 }
             };
 
-            // Order sections systematically: MCQs -> Diagrams -> Assertion & Reason -> Statements -> Numericals -> Matrix Match
+            const isJEE = (examType || '').toUpperCase().includes('JEE');
+            const secAPart = isJEE ? 'SECTION A - MULTIPLE CHOICE QUESTIONS' : 'SECTION A';
+            const secBPart = isJEE ? 'SECTION B - NUMERICAL VALUE QUESTIONS' : 'SECTION B';
+            const secADir = isJEE ? 'This section contains 20 Multiple Choice Questions. Each question has four choices (1), (2), (3), (4). Only one choice is correct.' : '';
+            const secBDir = isJEE ? 'This section contains 5 Numerical Value Questions. The answer to each question is a NUMERICAL VALUE. No options are provided.' : '';
+
+            // Section A: MCQs, Diagrams, Assertion & Reason, Statements, Matrix Match
             Object.entries(matrix).forEach(([chapter, row]) => {
-                if (row.mcq > 0) sampleFromPoolByType(chapter, row.mcq, 'Single Correct MCQ', 'SECTION-A (MCQ)', marksPerQVal);
-                if (row.diag > 0) sampleFromPoolByType(chapter, row.diag, 'Diagram Based', 'SECTION-A (DIAGRAM)', marksPerQVal);
-                if (row.ar > 0) sampleFromPoolByType(chapter, row.ar, 'Assertion & Reason (A/R)', 'SECTION-B (ASSERTION & REASON)', marksPerQVal);
-                if (row.stmt > 0) sampleFromPoolByType(chapter, row.stmt, 'Statement Based', 'SECTION-B (STATEMENT)', marksPerQVal);
-                if (row.num > 0) sampleFromPoolByType(chapter, row.num, 'Numerical / Integer Type', 'SECTION-C (NUMERICAL)', marksPerQVal);
-                if (row.match > 0) sampleFromPoolByType(chapter, row.match, 'Matrix Match', 'SECTION-D (MATRIX MATCH)', marksPerQVal);
+                if (row.mcq > 0) sampleFromPoolByType(chapter, row.mcq, 'Single Correct MCQ', secAPart, marksPerQVal);
+                if (row.diag > 0) sampleFromPoolByType(chapter, row.diag, 'Diagram Based', secAPart, marksPerQVal);
+                if (row.ar > 0) sampleFromPoolByType(chapter, row.ar, 'Assertion & Reason (A/R)', secAPart, marksPerQVal);
+                if (row.stmt > 0) sampleFromPoolByType(chapter, row.stmt, 'Statement Based', secAPart, marksPerQVal);
+                if (row.match > 0) sampleFromPoolByType(chapter, row.match, 'Matrix Match', secAPart, marksPerQVal);
+            });
+
+            // Section B: Numericals (JEE Section B: 5 Numerical Value Questions)
+            Object.entries(matrix).forEach(([chapter, row]) => {
+                if (row.num > 0) sampleFromPoolByType(chapter, row.num, 'Numerical / Integer Type', secBPart, marksPerQVal);
+            });
+
+            // Format Section A & B directives and ensure Section B numericals have NO options
+            pickedQuestions.forEach((q, idx) => {
+                if (q.part === secBPart || (isJEE && idx >= 20)) {
+                    q.part = secBPart;
+                    q.partDirective = secBDir;
+                    q.isNumerical = true;
+                    q.type = 'NUMERICAL';
+                    q.options = [];
+                } else if (isJEE) {
+                    q.part = secAPart;
+                    q.partDirective = secADir;
+                }
             });
 
             if (pickedQuestions.length === 0) {
@@ -1607,7 +1687,8 @@ export default function CreatePaper() {
             }
         } catch (err) {
             console.error('Error saving paper:', err);
-            alert('Failed to save paper. Please verify details and try again.');
+            const serverMsg = err.response?.data?.msg || err.response?.data?.message || err.message;
+            alert('Failed to save paper: ' + serverMsg + '\n\nPlease verify details and try again.');
         } finally {
             setSaving(false);
         }
@@ -2066,13 +2147,13 @@ export default function CreatePaper() {
                                     <div className="flex items-center gap-1.5 mb-1">
                                         <span className="text-[9px] font-black uppercase tracking-wider bg-navy text-gold px-2 py-0.5 rounded-full">Recommended</span>
                                     </div>
-                                    <h3 className="text-lg font-black text-navy uppercase tracking-tight mb-2">Chapter Blueprint Matrix</h3>
+                                    <h3 className="text-lg font-black text-navy uppercase tracking-tight mb-2">📁 Chapter Dropdowns & Blueprint Matrix</h3>
                                     <p className="text-xs text-gray-600 leading-relaxed font-medium">
-                                        Target-driven competitive paper generation. Specify exact question counts per chapter for MCQs, Assertion & Reason, Statement-Based, Numericals, Diagrams, and Matrix Match with live target validation.
+                                        Dropdown for every chapter to specify how many questions should be there in every type: Single Correct MCQ, Assertion & Reason, Statement-Based, Numericals (JEE Section B), Diagrams, and Match the Following.
                                     </p>
                                 </div>
                                 <div className="mt-6 pt-4 border-t border-gray-200 flex justify-between items-center text-xs font-black text-navy uppercase tracking-wider group-hover:text-gold">
-                                    <span>Configure Blueprint</span>
+                                    <span>Open Chapter Dropdowns</span>
                                     <span>→</span>
                                 </div>
                             </div>
@@ -2197,7 +2278,7 @@ export default function CreatePaper() {
                                             : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                                     }`}
                                 >
-                                    <span>📐 Chapter Blueprint Matrix</span>
+                                    <span>📁 Chapter Dropdowns & Matrix</span>
                                 </button>
                                 <button
                                     type="button"
