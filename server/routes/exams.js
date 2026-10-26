@@ -1218,8 +1218,8 @@ router.get('/:id/export-word', [auth, checkRole(['admin'])], async (req, res) =>
 
 // @route   GET /api/exams/:id/pdf-report/:sessionId
 // @desc    Download PDF scorecard for an exam session
-// @access  Student (own), Teacher, Admin
-router.get('/:id/pdf-report/:sessionId', auth, async (req, res) => {
+// @access  Student (own), Teacher, Admin, Lab
+router.get('/:id/pdf-report/:sessionId', detectLabIp, async (req, res) => {
     try {
         const session = await storage.getSessionById(req.params.sessionId);
         if (!session) return res.status(404).json({ msg: 'Session not found' });

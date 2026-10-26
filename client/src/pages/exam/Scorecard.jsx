@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import api from '../../api';
 import { sanitize } from '../../utils/sanitize';
 import MathRenderer from '../../components/MathRenderer';
@@ -9,6 +11,7 @@ export default function Scorecard() {
     const navigate = useNavigate();
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [downloadingPdf, setDownloadingPdf] = useState(false);
     const [activeTab, setActiveTab] = useState('summary');
     const [leaderboard, setLeaderboard] = useState([]);
     const [loadingLeaderboard, setLoadingLeaderboard] = useState(false);
@@ -28,7 +31,65 @@ export default function Scorecard() {
         return m > 0 ? `${m}m ${s}s` : `${s}s`;
     };
 
+    const cleanForPdf = (val) => {
+        if (val === null || val === undefined) return 'N/A';
+        return String(val)
+            .replace(/<[^>]+>/g, '')
+            .replace(/&nbsp;/g, ' ')
+            .replace(/&amp;/g, '&')
+            .replace(/&lt;/g, '<')
+            .replace(/&gt;/g, '>')
+            .replace(/\\\[|\\\]|\\\(|\\\)/g, '')
+            .replace(/\$/g, '')
+            .replace(/\s+/g, ' ')
+            .trim();
+    };
 
+    const evalQuestionStatus = (q, answerKeyHidden) => {
+        const attempted = q.selectedOption !== null && q.selectedOption !== '' && q.selectedOption !== undefined;
+        if (!attempted) return { status: 'Skipped', badge: 'SKIPPED (0)', color: [100, 116, 139] };
+        if (answerKeyHidden) return { status: 'Attempted', badge: 'ATTEMPTED', color: [100, 116, 139] };
+
+        if (q.isCorrect === true) {
+            return { status: 'Correct', badge: 'CORRECT (+4)', color: [16, 185, 129] };
+        }
+        if (q.isCorrect === false) {
+            return { status: 'Incorrect', badge: 'WRONG (-1)', color: [239, 68, 68] };
+        }
+
+        let isCorrect = false;
+        const tolerance = q.numericalTolerance || 0;
+        const parsedSelected = parseFloat(q.selectedOption);
+        const parsedCorrect = parseFloat(q.correctAnswer);
+        if (!isNaN(parsedSelected) && !isNaN(parsedCorrect)) {
+            if (Math.abs(parsedSelected - parsedCorrect) <= (tolerance + 1e-9)) {
+                isCorrect = true;
+            }
+        }
+        if (!isCorrect && String(q.selectedOption).trim().toLowerCase() === String(q.correctAnswer || '').trim().toLowerCase()) {
+            isCorrect = true;
+        }
+        if (!isCorrect && q.options && q.options.length > 0) {
+            const letters = ['A', 'B', 'C', 'D'];
+            const selectedIdx = letters.indexOf(String(q.selectedOption).toUpperCase());
+            if (selectedIdx !== -1 && q.options[selectedIdx]) {
+                if (String(q.options[selectedIdx]).trim().toLowerCase() === String(q.correctAnswer || '').trim().toLowerCase()) {
+                    isCorrect = true;
+                }
+            }
+            const correctIdx = letters.indexOf(String(q.correctAnswer || '').toUpperCase());
+            if (correctIdx !== -1 && q.options[correctIdx]) {
+                if (String(q.selectedOption).trim().toLowerCase() === String(q.options[correctIdx]).trim().toLowerCase()) {
+                    isCorrect = true;
+                }
+            }
+        }
+
+        if (isCorrect) {
+            return { status: 'Correct', badge: 'CORRECT (+4)', color: [16, 185, 129] };
+        }
+        return { status: 'Incorrect', badge: 'WRONG (-1)', color: [239, 68, 68] };
+    };
 
     useEffect(() => {
         api.get(`/api/exams/${examId}/scorecard/${sessionId}`)
@@ -37,9 +98,177 @@ export default function Scorecard() {
     }, [examId, sessionId]);
 
     const downloadPDF = () => {
-        const token = localStorage.getItem('token');
-        const downloadUrl = `${api.defaults.baseURL || ''}/api/exams/${examId}/pdf-report/${sessionId}?token=${token}`;
-        window.open(downloadUrl, '_blank');
+        if (!data) return;
+        setDownloadingPdf(true);
+        try {
+            const doc = new jsPDF('p', 'mm', 'a4');
+            const pageWidth = doc.internal.pageSize.getWidth();
+            const pageHeight = doc.internal.pageSize.getHeight();
+
+            // ── 1. INSTITUTIONAL HEADER BANNER ──
+            doc.setFillColor(15, 23, 42); // Navy
+            doc.rect(0, 0, pageWidth, 28, 'F');
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(16);
+            doc.setTextColor(212, 175, 55); // Gold
+            doc.text('SAPTHAGIRI PU COLLEGE', pageWidth / 2, 11, { align: 'center' });
+
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(9);
+            doc.setTextColor(255, 255, 255);
+            doc.text('OFFICIAL EXAMINATION RESULT & STUDENT PERFORMANCE SCORECARD', pageWidth / 2, 18, { align: 'center' });
+
+            doc.setFontSize(8);
+            doc.setTextColor(203, 213, 225);
+            doc.text(`${cleanForPdf(data.examTitle)} • ${cleanForPdf(data.examType || 'Examination')}`, pageWidth / 2, 24, { align: 'center' });
+
+            // ── 2. CANDIDATE & EXAMINATION INFORMATION ──
+            autoTable(doc, {
+                startY: 32,
+                margin: { left: 14, right: 14 },
+                head: [[{ content: 'CANDIDATE & EXAMINATION INFORMATION', colSpan: 4 }]],
+                body: [
+                    ['Candidate Name:', cleanForPdf(data.studentName || 'Student'), 'Roll Number:', cleanForPdf(data.rollNumber || 'N/A')],
+                    ['Email Address:', cleanForPdf(data.studentEmail || 'N/A'), 'Examination Type:', cleanForPdf(data.examType || 'General')],
+                    ['Generated On:', new Date().toLocaleString('en-IN'), 'Result Status:', data.isLabSession ? 'Completed (Lab Exam)' : 'Completed (Final)']
+                ],
+                theme: 'grid',
+                headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8.5 },
+                columnStyles: {
+                    0: { fontStyle: 'bold', cellWidth: 32, textColor: [71, 85, 105], fontSize: 8 },
+                    1: { cellWidth: 59, textColor: [15, 23, 42], fontSize: 8, fontStyle: 'bold' },
+                    2: { fontStyle: 'bold', cellWidth: 32, textColor: [71, 85, 105], fontSize: 8 },
+                    3: { cellWidth: 59, textColor: [15, 23, 42], fontSize: 8, fontStyle: 'bold' },
+                },
+                styles: { cellPadding: 2 }
+            });
+
+            // ── 3. PERFORMANCE SUMMARY & SCORING METRICS ──
+            const maxMarks = data.totalQuestions * 4;
+            const pct = data.totalQuestions > 0 ? Math.round((data.score / maxMarks) * 100) : 0;
+            const attemptPct = data.totalQuestions > 0 ? Math.round((data.attempted / data.totalQuestions) * 100) : 0;
+
+            autoTable(doc, {
+                startY: doc.lastAutoTable.finalY + 5,
+                margin: { left: 14, right: 14 },
+                head: [['PERFORMANCE METRIC', 'SCORE / COUNT', 'SCORING IMPACT & DETAILS']],
+                body: [
+                    ['Total Net Marks Scored', `${data.score} / ${maxMarks} Marks`, `${pct}% Percentage • Grade: ${grade.grade} (${grade.label})`],
+                    ['Total Examination Questions', `${data.totalQuestions} Questions`, '100% of Exam Paper'],
+                    ['Questions Attempted', `${data.attempted} Questions`, `${attemptPct}% Attempt Rate`],
+                    ['Correct Answers', `${data.correct} Questions`, `+${data.correct * 4} Marks earned (+4 marks per correct answer)`],
+                    ['Incorrect Answers', `${data.incorrect} Questions`, `-${data.incorrect} Marks deducted (-1 mark penalty per incorrect answer)`],
+                    ['Unattempted Questions', `${data.unattempted} Questions`, '0 Marks deducted (No negative penalty applied)']
+                ],
+                theme: 'striped',
+                headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8.5 },
+                columnStyles: {
+                    0: { fontStyle: 'bold', cellWidth: 55, fontSize: 8 },
+                    1: { cellWidth: 45, fontSize: 8, fontStyle: 'bold' },
+                    2: { cellWidth: 82, fontSize: 8 }
+                },
+                styles: { cellPadding: 2.2 }
+            });
+
+            // ── 4. WEAK AREAS & CONCEPT FOCUS ANALYSIS ──
+            const weakRows = (data.weakAreas && data.weakAreas.length > 0)
+                ? data.weakAreas.map((w, i) => [
+                    String(i + 1),
+                    cleanForPdf(w.subject || 'General'),
+                    cleanForPdf(w.chapter || 'N/A'),
+                    `${w.incorrect} Incorrect Answers`,
+                    'High Priority Focus & Revision Required'
+                ])
+                : [['1', 'All Subjects', 'Comprehensive Syllabus', '0 Incorrect', 'Exemplary Performance — 100% Concept Mastery Achieved!']];
+
+            autoTable(doc, {
+                startY: doc.lastAutoTable.finalY + 5,
+                margin: { left: 14, right: 14 },
+                head: [['#', 'SUBJECT', 'CHAPTER / TOPIC', 'ERROR COUNT', 'RECOMMENDED ACTION']],
+                body: weakRows,
+                theme: 'grid',
+                headStyles: { fillColor: [180, 83, 9], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8.5 },
+                columnStyles: {
+                    0: { cellWidth: 10, halign: 'center', fontSize: 8 },
+                    1: { cellWidth: 32, fontStyle: 'bold', fontSize: 8 },
+                    2: { cellWidth: 55, fontSize: 8 },
+                    3: { cellWidth: 35, fontStyle: 'bold', textColor: [220, 38, 38], fontSize: 8 },
+                    4: { cellWidth: 50, fontSize: 8, fontStyle: 'italic' }
+                },
+                styles: { cellPadding: 2 }
+            });
+
+            // ── 5. QUESTION-BY-QUESTION REVIEW TABLE ──
+            if (data.breakdown && data.breakdown.length > 0) {
+                const reviewRows = data.breakdown.map((q, i) => {
+                    const statusObj = evalQuestionStatus(q, data.answerKeyHidden);
+                    const yourAns = cleanForPdf(q.selectedOption !== null && q.selectedOption !== undefined && q.selectedOption !== '' ? q.selectedOption : 'Skipped');
+                    const correctAns = data.answerKeyHidden ? '[Hidden in Lab]' : cleanForPdf(q.correctAnswer || 'N/A');
+                    const timeStr = formatSeconds(q.timeTaken || 0);
+
+                    return [
+                        String(i + 1),
+                        cleanForPdf(q.subject || 'General'),
+                        cleanForPdf(q.chapter || 'N/A'),
+                        yourAns,
+                        correctAns,
+                        statusObj.badge,
+                        timeStr
+                    ];
+                });
+
+                autoTable(doc, {
+                    startY: doc.lastAutoTable.finalY + 5,
+                    margin: { left: 14, right: 14 },
+                    head: [['Q#', 'SUBJECT', 'CHAPTER / TOPIC', 'YOUR ANSWER', 'CORRECT ANSWER', 'RESULT', 'TIME']],
+                    body: reviewRows,
+                    theme: 'grid',
+                    headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8 },
+                    columnStyles: {
+                        0: { cellWidth: 12, halign: 'center', fontStyle: 'bold', fontSize: 7.5 },
+                        1: { cellWidth: 28, fontStyle: 'bold', fontSize: 7.5 },
+                        2: { cellWidth: 46, fontSize: 7.5 },
+                        3: { cellWidth: 28, fontSize: 7.5 },
+                        4: { cellWidth: 28, fontSize: 7.5 },
+                        5: { cellWidth: 24, fontStyle: 'bold', fontSize: 7.5 },
+                        6: { cellWidth: 16, halign: 'center', fontSize: 7.5 }
+                    },
+                    styles: { cellPadding: 1.8 },
+                    didParseCell: (hookData) => {
+                        if (hookData.section === 'body' && hookData.column.index === 5) {
+                            const val = String(hookData.cell.raw);
+                            if (val.includes('CORRECT')) {
+                                hookData.cell.styles.textColor = [16, 185, 129];
+                            } else if (val.includes('WRONG')) {
+                                hookData.cell.styles.textColor = [239, 68, 68];
+                            } else {
+                                hookData.cell.styles.textColor = [100, 116, 139];
+                            }
+                        }
+                    }
+                });
+            }
+
+            // ── 6. INSTITUTIONAL FOOTER WITH PAGE NUMBERS ──
+            const totalPages = doc.getNumberOfPages();
+            for (let p = 1; p <= totalPages; p++) {
+                doc.setPage(p);
+                doc.setFont('helvetica', 'italic');
+                doc.setFontSize(7.5);
+                doc.setTextColor(148, 163, 184);
+                doc.text('Sapthagiri PU College • Examination Assessment Division • Confidential Student Scorecard', 14, pageHeight - 7);
+                doc.text('Page ' + p + ' of ' + totalPages, pageWidth - 14, pageHeight - 7, { align: 'right' });
+            }
+
+            const cleanFileName = (data.studentName || 'Student').replace(/[^a-zA-Z0-9_-]/g, '_');
+            const cleanExamTitle = (data.examTitle || 'Exam').replace(/[^a-zA-Z0-9_-]/g, '_');
+            doc.save(`${cleanFileName}_Scorecard_${cleanExamTitle}.pdf`);
+        } catch (err) {
+            console.error('PDF generation error:', err);
+            alert('Failed to generate PDF: ' + err.message);
+        } finally {
+            setDownloadingPdf(false);
+        }
     };
 
     if (loading) return <div style={styles.center}>Loading scorecard...</div>;
@@ -66,7 +295,23 @@ export default function Scorecard() {
                     {data.isLabSession && (
                         <span style={styles.labBadge}>🏫 Lab Session — Answer Key Hidden</span>
                     )}
-                    <button style={{ ...styles.homeBtn, backgroundColor: '#10b981', color: '#fff', border: 'none' }} onClick={downloadPDF}>Download PDF Result</button>
+                    <button
+                        style={{
+                            ...styles.homeBtn,
+                            backgroundColor: '#10b981',
+                            color: '#fff',
+                            border: 'none',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            cursor: downloadingPdf ? 'wait' : 'pointer',
+                            opacity: downloadingPdf ? 0.7 : 1
+                        }}
+                        onClick={downloadPDF}
+                        disabled={downloadingPdf}
+                    >
+                        {downloadingPdf ? '⏳ Generating PDF...' : '📥 Download PDF Result'}
+                    </button>
                     <button style={styles.homeBtn} onClick={() => {
                         localStorage.removeItem('student_info');
                         navigate('/lab');
