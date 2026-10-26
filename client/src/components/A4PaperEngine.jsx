@@ -27,7 +27,51 @@ export default function A4PaperEngine({
     singlePageMode = false,
     onDiagramResize,
 }) {
-    const questions = useMemo(() => paper?.questions || [], [paper]);
+    const isJEEPaper = Boolean(String(paper?.examType || paper?.exam_type || paper?.title || '').toUpperCase().includes('JEE'));
+
+    const questions = useMemo(() => {
+        const rawQs = paper?.questions || [];
+        if (!isJEEPaper) return rawQs;
+
+        // Strictly enforce JEE Main PCM structure: exactly max 20 Section A + max 5 Section B per subject
+        const bySub = {};
+        const subOrder = [];
+        rawQs.forEach(q => {
+            const s = q.sectionSubject || q.subject || 'General';
+            if (!bySub[s]) {
+                bySub[s] = [];
+                subOrder.push(s);
+            }
+            bySub[s].push(q);
+        });
+
+        const clamped = [];
+        subOrder.forEach(s => {
+            const list = bySub[s];
+            const isNum = (q) => {
+                const t = (q.type || q.q_type || '').toUpperCase();
+                return Boolean(q.isNumerical) || t.includes('NUMERICAL') || t.includes('INTEGER') || t === 'NUM' ||
+                       (q.part && q.part.toUpperCase().includes('NUMERICAL')) ||
+                       (q.part && q.part.toUpperCase().includes('SECTION B')) ||
+                       (q.part && q.part.toUpperCase().includes('SECTION-B'));
+            };
+            const secA = list.filter(q => !isNum(q)).slice(0, 20).map(q => ({
+                ...q,
+                isNumerical: false,
+                part: 'SECTION A - MULTIPLE CHOICE QUESTIONS'
+            }));
+            const secB = list.filter(q => isNum(q)).slice(0, 5).map(q => ({
+                ...q,
+                isNumerical: true,
+                type: 'NUMERICAL',
+                options: [],
+                part: 'SECTION B - NUMERICAL VALUE QUESTIONS'
+            }));
+            clamped.push(...secA, ...secB);
+        });
+
+        return clamped.length > 0 ? clamped : rawQs;
+    }, [paper, isJEEPaper]);
     const classes = useMemo(() => paper?.classes || [], [paper]);
     const totalMarks = useMemo(() => {
         if (paper?.pattern?.length) return paper.pattern.reduce((s, sec) => s + (sec.marks || 0), 0);
@@ -182,9 +226,9 @@ export default function A4PaperEngine({
 
                                     const effectiveQ = isJEE ? {
                                         ...q,
-                                        isNumerical: subQIdx >= 20,
-                                        type: subQIdx >= 20 ? 'NUMERICAL' : (q.type || 'MCQ'),
-                                        options: subQIdx >= 20 ? [] : (q.options || []),
+                                        isNumerical: subQIdx >= 20 || q.isNumerical,
+                                        type: (subQIdx >= 20 || q.isNumerical) ? 'NUMERICAL' : (q.type || 'MCQ'),
+                                        options: (subQIdx >= 20 || q.isNumerical) ? [] : (q.options || []),
                                     } : q;
 
                                     return (

@@ -39,14 +39,29 @@ async function generatePaperPdf(paper, options = {}) {
     const sections = Array.isArray(paper.sections) && paper.sections.length > 0 ? paper.sections : null;
     let renderedSectionsHtml = '';
 
+    const isJEE = Boolean(String(examType || title || '').toUpperCase().includes('JEE'));
+
     if (sections && sections.length > 0) {
         let globalQIndex = 1;
         sections.forEach((sec, sIdx) => {
-            const secQs = (sec.questionObjects && sec.questionObjects.length > 0) 
+            let secQs = (sec.questionObjects && sec.questionObjects.length > 0) 
                 ? sec.questionObjects 
                 : questions.filter(q => (q.sectionSubject || q.subject || '').toLowerCase() === (sec.subject || '').toLowerCase());
             
             if (secQs.length === 0) return;
+
+            if (isJEE) {
+                const isNum = (q) => {
+                    const t = (q.type || q.q_type || '').toUpperCase();
+                    return Boolean(q.isNumerical) || t.includes('NUMERICAL') || t.includes('INTEGER') || t === 'NUM' ||
+                           (q.part && q.part.toUpperCase().includes('NUMERICAL')) ||
+                           (q.part && q.part.toUpperCase().includes('SECTION B')) ||
+                           (q.part && q.part.toUpperCase().includes('SECTION-B'));
+                };
+                const secA = secQs.filter(q => !isNum(q)).slice(0, 20).map(q => ({ ...q, isNumerical: false }));
+                const secB = secQs.filter(q => isNum(q)).slice(0, 5).map(q => ({ ...q, isNumerical: true, options: [] }));
+                secQs = [...secA, ...secB];
+            }
 
             renderedSectionsHtml += `
                 <div class="paper-section-block">
@@ -58,10 +73,20 @@ async function generatePaperPdf(paper, options = {}) {
                     <div class="questions-grid">
             `;
 
-            secQs.forEach((q) => {
+            secQs.forEach((q, qSubIdx) => {
                 const qNum = globalQIndex++;
+                const isSectionB = isJEE && (qSubIdx >= 20 || q.isNumerical);
                 const cleanQText = preRenderMath(q.questionText || q.question || '');
-                const opts = q.options || [q.opt_a, q.opt_b, q.opt_c, q.opt_d].filter(Boolean);
+                const opts = (!isSectionB && Array.isArray(q.options) && q.options.length > 0) ? q.options : [q.opt_a, q.opt_b, q.opt_c, q.opt_d].filter(Boolean);
+
+                if (isJEE && qSubIdx === 20) {
+                    renderedSectionsHtml += `
+                        <div style="grid-column: 1 / -1; margin: 15px 0 8px 0; padding: 6px 12px; background: #f1f5f9; border-left: 4px solid #001f6d; font-weight: bold; font-size: 11pt; color: #001f6d;">
+                            PART B (SECTION B - NUMERICAL VALUE QUESTIONS)
+                            <div style="font-size: 9pt; font-weight: normal; color: #475569; font-style: italic;">This section contains 5 Numerical Value Questions. The answer to each question is a NUMERICAL VALUE.</div>
+                        </div>
+                    `;
+                }
 
                 renderedSectionsHtml += `
                     <div class="question-item">
@@ -79,7 +104,13 @@ async function generatePaperPdf(paper, options = {}) {
                     `;
                 }
 
-                if (Array.isArray(opts) && opts.length > 0) {
+                if (isSectionB) {
+                    renderedSectionsHtml += `
+                        <div style="margin-top: 8px; font-weight: bold; color: #001f6d; font-size: 10pt;">
+                            Answer: [ <span style="display: inline-block; width: 140px; border-bottom: 1.5px solid #64748b;"></span> ]
+                        </div>
+                    `;
+                } else if (Array.isArray(opts) && opts.length > 0) {
                     renderedSectionsHtml += `<div class="options-container">`;
                     opts.forEach((opt, optIdx) => {
                         const optLabel = `(${optIdx + 1})`;

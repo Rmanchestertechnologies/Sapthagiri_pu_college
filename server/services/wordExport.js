@@ -554,6 +554,50 @@ async function generatePaperDoc(paper, template = null) {
         });
     }
 
+    const isJEE = Boolean((paper.exam_type || paper.examType || paper.title || '').toUpperCase().includes('JEE'));
+    if (isJEE) {
+        // Enforce strictly max 20 Section A (non-numericals) + max 5 Section B (numericals) per subject
+        const bySub = {};
+        const subOrder = [];
+        questions.forEach(q => {
+            const s = q.sectionSubject || q.subject || 'General';
+            if (!bySub[s]) {
+                bySub[s] = [];
+                subOrder.push(s);
+            }
+            bySub[s].push(q);
+        });
+
+        const clamped = [];
+        subOrder.forEach(s => {
+            const list = bySub[s];
+            const isNum = (q) => {
+                const t = (q.type || q.q_type || '').toUpperCase();
+                return Boolean(q.isNumerical) || t.includes('NUMERICAL') || t.includes('INTEGER') || t === 'NUM' ||
+                       (q.part && q.part.toUpperCase().includes('NUMERICAL')) ||
+                       (q.part && q.part.toUpperCase().includes('SECTION B')) ||
+                       (q.part && q.part.toUpperCase().includes('SECTION-B'));
+            };
+            const secA = list.filter(q => !isNum(q)).slice(0, 20).map(q => ({
+                ...q,
+                isNumerical: false,
+                part: 'SECTION A - MULTIPLE CHOICE QUESTIONS'
+            }));
+            const secB = list.filter(q => isNum(q)).slice(0, 5).map(q => ({
+                ...q,
+                isNumerical: true,
+                type: 'NUMERICAL',
+                options: [],
+                part: 'SECTION B - NUMERICAL VALUE QUESTIONS'
+            }));
+            clamped.push(...secA, ...secB);
+        });
+
+        if (clamped.length > 0) {
+            questions = clamped;
+        }
+    }
+
     // ── 1. HEADER SECTION MATCHING PDF ──
     const logoBuf = getLocalLogoBuffer();
     const instName = "SAPTHAGIRI PRE-UNIVERSITY COLLEGE";
@@ -743,7 +787,8 @@ async function generatePaperDoc(paper, template = null) {
         const isNumerical = qType.includes('NUMERICAL') || qType.includes('INTEGER') || qType === 'NUM' ||
                             Boolean(q.isNumerical) ||
                             (q.part && q.part.toUpperCase().includes('NUMERICAL')) ||
-                            (q.part && q.part.toUpperCase().includes('SECTION-B') && (!q.options || q.options.length === 0));
+                            (q.part && q.part.toUpperCase().includes('SECTION B')) ||
+                            (q.part && q.part.toUpperCase().includes('SECTION-B'));
 
         // In JEE: Show SECTION A (20 Qs) and SECTION B (5 Numericals)
         if (isJEE) {

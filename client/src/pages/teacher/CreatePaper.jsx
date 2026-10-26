@@ -378,10 +378,23 @@ export default function CreatePaper() {
 
     const setTypeAllocationCount = (typeKey, val) => {
         const isJEE = (examType || '').toUpperCase().includes('JEE');
-        const numVal = Math.max(0, parseInt(val, 10) || 0);
+        let numVal = Math.max(0, parseInt(val, 10) || 0);
 
         setSubjectTypeAllocations(prev => {
             const cur = prev[activeSubjectTab] || { ...currentTypeAllocation };
+            if (isJEE) {
+                if (typeKey === 'num') {
+                    numVal = 5; // Section B is strictly and always 5 numericals
+                } else {
+                    // Section A question types (mcq, stmt, ar, match, diag) sum must not exceed 20
+                    const otherSecATotal = ['mcq', 'stmt', 'ar', 'match', 'diag']
+                        .filter(k => k !== typeKey)
+                        .reduce((sum, k) => sum + (cur[k] || 0), 0);
+                    if (numVal + otherSecATotal > 20) {
+                        numVal = Math.max(0, 20 - otherSecATotal);
+                    }
+                }
+            }
             const updated = { ...cur, [typeKey]: numVal };
             if (isJEE) {
                 updated.num = 5; // Enforce compulsory 5 numericals for JEE Section B
@@ -692,11 +705,31 @@ export default function CreatePaper() {
         });
 
         if (isJEE) {
-            // In JEE Main: Ensure Section A (non-numericals) precedes Section B (numericals)
+            // In JEE Main: Enforce strictly max 20 Section A (non-numericals) + max 5 Section B (numericals) per subject
             Object.keys(groups).forEach(sub => {
                 const list = groups[sub];
-                const secA = list.filter(q => !q.isNumerical && !matchesQuestionType(q, 'Numerical / Integer Type') && (q.type || '').toUpperCase() !== 'NUMERICAL');
-                const secB = list.filter(q => q.isNumerical || matchesQuestionType(q, 'Numerical / Integer Type') || (q.type || '').toUpperCase() === 'NUMERICAL');
+                const isNum = (q) => {
+                    const qType = (q.type || q.q_type || '').toUpperCase();
+                    return Boolean(q.isNumerical) || matchesQuestionType(q, 'Numerical / Integer Type') || qType.includes('NUMERICAL') || qType.includes('INTEGER') || qType === 'NUM';
+                };
+                const secA = list.filter(q => !isNum(q))
+                    .slice(0, 20)
+                    .map(q => ({
+                        ...q,
+                        isNumerical: false,
+                        part: 'SECTION A - MULTIPLE CHOICE QUESTIONS',
+                        partDirective: 'This section contains 20 Multiple Choice Questions. Each question has four choices (A), (B), (C), (D). Only one choice is correct.',
+                    }));
+                const secB = list.filter(q => isNum(q))
+                    .slice(0, 5)
+                    .map(q => ({
+                        ...q,
+                        isNumerical: true,
+                        type: 'NUMERICAL',
+                        options: [],
+                        part: 'SECTION B - NUMERICAL VALUE QUESTIONS',
+                        partDirective: 'This section contains 5 Numerical Value Questions. The answer to each question is a NUMERICAL VALUE. No options are provided.',
+                    }));
                 groups[sub] = [...secA, ...secB];
             });
         }
@@ -1718,10 +1751,23 @@ export default function CreatePaper() {
     // Handle Question Click or Swap in Manual Selection
     const handleQuestionClick = (question) => {
         const qId = question._id || question.id;
+        const isJEE = (examType || '').toUpperCase().includes('JEE');
+        const qTypeUpper = (question.type || question.q_type || '').toUpperCase();
+        const isNum = Boolean(question.isNumerical) || matchesQuestionType(question, 'Numerical / Integer Type') || qTypeUpper.includes('NUMERICAL') || qTypeUpper.includes('INTEGER') || qTypeUpper === 'NUM';
+
         const qWithSub = {
             ...question,
             sectionSubject: question.sectionSubject || activeSubjectTab,
             subject: question.subject || activeSubjectTab,
+            ...(isJEE ? {
+                part: isNum ? 'SECTION B - NUMERICAL VALUE QUESTIONS' : 'SECTION A - MULTIPLE CHOICE QUESTIONS',
+                partDirective: isNum
+                    ? 'This section contains 5 Numerical Value Questions. The answer to each question is a NUMERICAL VALUE. No options are provided.'
+                    : 'This section contains 20 Multiple Choice Questions. Each question has four choices (A), (B), (C), (D). Only one choice is correct.',
+                isNumerical: isNum,
+                type: isNum ? 'NUMERICAL' : (question.type || 'MCQ'),
+                options: isNum ? [] : (question.options || []),
+            } : {})
         };
 
         if (swappingQuestionIndex !== null) {
@@ -1736,6 +1782,29 @@ export default function CreatePaper() {
             setTimeout(() => setJustSwappedIndex(null), 1500);
             showToastNotification(`Replaced Q#${replacedIdx + 1} with question from ${question.chapter || 'repository'}!`, 'success');
             return;
+        }
+
+        if (isJEE) {
+            const exists = selectedQuestions.some(q => (q._id || q.id) === qId);
+            if (!exists) {
+                const sub = qWithSub.sectionSubject || activeSubjectTab;
+                const subQs = (selectedQuestionsBySubject[sub] || []);
+                const isItemNum = (q) => {
+                    const t = (q.type || q.q_type || '').toUpperCase();
+                    return Boolean(q.isNumerical) || matchesQuestionType(q, 'Numerical / Integer Type') || t.includes('NUMERICAL') || t.includes('INTEGER') || t === 'NUM';
+                };
+                const curSecA = subQs.filter(q => !isItemNum(q)).length;
+                const curSecB = subQs.filter(q => isItemNum(q)).length;
+
+                if (!isNum && curSecA >= 20) {
+                    showToastNotification(`JEE Limit: Section A is full (strictly 20 questions maximum for ${sub})!`, 'warning');
+                    return;
+                }
+                if (isNum && curSecB >= 5) {
+                    showToastNotification(`JEE Limit: Section B is full (strictly 5 numericals maximum for ${sub})!`, 'warning');
+                    return;
+                }
+            }
         }
 
         setSelectedQuestions(prev => {
@@ -1938,41 +2007,54 @@ export default function CreatePaper() {
                 if (row.num > 0) sampleFromPoolByType(chapter, row.num, 'Numerical / Integer Type', secBPart, marksPerQVal);
             });
 
-            // Format Section A & B directives and ensure Section B numericals have NO options
-            pickedQuestions.forEach((q, idx) => {
-                if (isJEE) {
-                    if (q.part === secBPart || idx >= 20 || q.isNumerical) {
-                        q.part = secBPart;
-                        q.partDirective = secBDir;
-                        q.isNumerical = true;
-                        q.type = 'NUMERICAL';
-                        q.options = [];
-                    } else {
-                        q.part = secAPart;
-                        q.partDirective = secADir;
-                    }
-                } else {
-                    // Standard paper: NO artificial section naming
-                    q.part = '';
-                    q.partDirective = '';
-                }
-            });
+            // Format Section A & B directives and strictly clamp JEE to 20 Section A + 5 Section B
+            let finalPicked = pickedQuestions;
+            if (isJEE) {
+                const pickedSecA = pickedQuestions
+                    .filter(q => q.part === secAPart && !q.isNumerical && (q.type || '').toUpperCase() !== 'NUMERICAL')
+                    .slice(0, 20)
+                    .map(q => ({
+                        ...q,
+                        part: secAPart,
+                        partDirective: secADir,
+                        isNumerical: false,
+                        type: q.type || 'MCQ',
+                    }));
+                const pickedSecB = pickedQuestions
+                    .filter(q => q.part === secBPart || q.isNumerical || (q.type || '').toUpperCase() === 'NUMERICAL')
+                    .slice(0, 5)
+                    .map(q => ({
+                        ...q,
+                        part: secBPart,
+                        partDirective: secBDir,
+                        isNumerical: true,
+                        type: 'NUMERICAL',
+                        options: [],
+                    }));
+                finalPicked = [...pickedSecA, ...pickedSecB];
+            } else {
+                finalPicked = pickedQuestions.map(q => ({
+                    ...q,
+                    part: '',
+                    partDirective: '',
+                }));
+            }
 
-            if (pickedQuestions.length === 0) {
+            if (finalPicked.length === 0) {
                 alert('No questions could be sampled for the specified blueprint. Please verify chapter names.');
                 return;
             }
 
             setSelectedQuestions(prev => {
                 const others = prev.filter(q => (q.sectionSubject || q.subject || '').toLowerCase() !== activeSubjectTab.toLowerCase());
-                return [...others, ...pickedQuestions];
+                return [...others, ...finalPicked];
             });
 
             if (targetMarksVal) {
                 setHeaderConfig(prev => ({ ...prev, maxMarks: String(targetMarksVal) }));
             }
 
-            showToastNotification(`✓ Successfully Generated ${pickedQuestions.length} Questions from Blueprint!`, 'success');
+            showToastNotification(`✓ Successfully Generated ${finalPicked.length} Questions from Blueprint!`, 'success');
             setCurrentStep(4);
         } catch (err) {
             console.error('Error generating from blueprint:', err);
@@ -2291,6 +2373,7 @@ export default function CreatePaper() {
 
     // Prepared paper object for preview renderer
     const currentPaperObject = useMemo(() => {
+        const isJEE = (examType || '').toUpperCase().includes('JEE');
         let displayList = selectedQuestions;
 
         if (previewSectionFilter !== 'all') {
@@ -2303,10 +2386,43 @@ export default function CreatePaper() {
                     sectionName: `Section ${sIdx + 1}: ${sub.toUpperCase()}`,
                     sectionIndex: sIdx + 1,
                     subject: sub,
+                    sectionSubject: sub,
                 }));
                 organized.push(...subQs);
             });
             displayList = organized.length > 0 ? organized : selectedQuestions;
+        }
+
+        if (isJEE) {
+            // Strictly clamp preview to max 20 Section A + max 5 Section B per subject
+            const pcmBySub = {};
+            displayList.forEach(q => {
+                const sub = q.sectionSubject || q.subject || 'General';
+                if (!pcmBySub[sub]) pcmBySub[sub] = [];
+                pcmBySub[sub].push(q);
+            });
+            const clampedPcm = [];
+            Object.keys(pcmBySub).forEach(sub => {
+                const subList = pcmBySub[sub];
+                const isNum = (q) => {
+                    const t = (q.type || q.q_type || '').toUpperCase();
+                    return Boolean(q.isNumerical) || matchesQuestionType(q, 'Numerical / Integer Type') || t.includes('NUMERICAL') || t.includes('INTEGER') || t === 'NUM';
+                };
+                const secA = subList.filter(q => !isNum(q)).slice(0, 20).map(q => ({
+                    ...q,
+                    isNumerical: false,
+                    part: 'SECTION A - MULTIPLE CHOICE QUESTIONS'
+                }));
+                const secB = subList.filter(q => isNum(q)).slice(0, 5).map(q => ({
+                    ...q,
+                    isNumerical: true,
+                    type: 'NUMERICAL',
+                    options: [],
+                    part: 'SECTION B - NUMERICAL VALUE QUESTIONS'
+                }));
+                clampedPcm.push(...secA, ...secB);
+            });
+            displayList = clampedPcm;
         }
 
         return {

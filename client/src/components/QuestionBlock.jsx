@@ -1319,11 +1319,26 @@ export default function QuestionBlock({
                         qType === 'NUM' ||
                         Boolean(q.isNumerical) ||
                         (q.part && q.part.toUpperCase().includes('NUMERICAL')) ||
-                        (q.part && q.part.toUpperCase().includes('SECTION-B') && (!q.options || q.options.length === 0)) ||
-                        (q.sectionName && q.sectionName.toUpperCase().includes('SECTION B') && (!q.options || q.options.length === 0)) ||
+                        (q.part && q.part.toUpperCase().includes('SECTION B')) ||
+                        (q.part && q.part.toUpperCase().includes('SECTION-B')) ||
+                        (q.sectionName && q.sectionName.toUpperCase().includes('SECTION B')) ||
+                        (q.sectionName && q.sectionName.toUpperCase().includes('SECTION-B')) ||
                         (q.num_answer !== undefined && q.num_answer !== null && q.num_answer !== '');
 
     const renderBody = () => {
+        // Section B / Numerical Questions MUST strictly render as BodyNumerical first (never Assertion & Reason, Statement, or Match)
+        if (isNumerical) {
+            return (
+                <BodyNumerical
+                    q={q}
+                    classes={classes}
+                    isTwoCol={effectiveIsTwoCol}
+                    diagramMaxHeight={diagramMaxHeight}
+                    onDiagramResize={onDiagramResize}
+                    displayNum={displayNum}
+                />
+            );
+        }
         if (isAssertion) {
             return (
                 <BodyAssertionReason
@@ -1351,18 +1366,6 @@ export default function QuestionBlock({
         if (isStatement && hasStatements) {
             return (
                 <BodyStatementBased
-                    q={q}
-                    classes={classes}
-                    isTwoCol={effectiveIsTwoCol}
-                    diagramMaxHeight={diagramMaxHeight}
-                    onDiagramResize={onDiagramResize}
-                    displayNum={displayNum}
-                />
-            );
-        }
-        if (isNumerical) {
-            return (
-                <BodyNumerical
                     q={q}
                     classes={classes}
                     isTwoCol={effectiveIsTwoCol}
