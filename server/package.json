@@ -1,7 +1,7 @@
 {
-  "name": "server",
+  "name": "sapthagiri-pu-college-server",
   "version": "1.0.0",
-  "description": "",
+  "description": "Sapthagiri PU College Davanagere - Assessment Platform API",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
@@ -23,8 +23,12 @@
       "/node_modules/(?!(htmlparser2|parse5|html-encoding-sniffer)/)"
     ]
   },
-  "keywords": [],
-  "author": "",
+  "keywords": [
+    "sapthagiri",
+    "assessment",
+    "question-paper-generator"
+  ],
+  "author": "Sapthagiri PU College",
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {

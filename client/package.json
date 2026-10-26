@@ -1,7 +1,8 @@
 {
-  "name": "client",
+  "name": "sapthagiri-pu-college-client",
   "private": true,
-  "version": "0.0.0",
+  "author": "Sapthagiri PU College",
+  "version": "2.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",

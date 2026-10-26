@@ -2,6 +2,7 @@
   "name": "sapthagiri-pu-college-qpg",
   "version": "2.0.0",
   "private": true,
+  "author": "Sapthagiri PU College",
   "description": "Sapthagiri PU College Davanagere - Institutional Question Paper Generator",
   "scripts": {
     "dev": "concurrently \"npm --prefix server run dev\" \"npm --prefix client run dev\"",

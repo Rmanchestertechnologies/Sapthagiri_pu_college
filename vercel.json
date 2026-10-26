@@ -13,7 +13,7 @@
       "destination": "https://sapthagiri-pu-college-api.onrender.com/uploads/$1"
     },
     {
-      "source": "/((?!assets/|SapthagiriLogo.jpg|SapthagiriCampus.webp|ManchesterLogo.jpeg|favicon.*|.*\\.[a-zA-Z0-9]+$).*)",
+      "source": "/((?!assets/|SapthagiriLogo.jpg|SapthagiriCampus.webp|watermark_faded.png|favicon.*|.*\\.[a-zA-Z0-9]+$).*)",
       "destination": "/index.html"
     }
   ]
