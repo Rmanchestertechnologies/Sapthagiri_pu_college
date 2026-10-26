@@ -115,7 +115,7 @@ function applySectionAwareTransform(baseQuestions, transformFn) {
     // Identify sections / subjects in order
     const sectionMap = new Map();
     baseQuestions.forEach((q, idx) => {
-        const key = q.sectionName || q.subject || 'Default';
+        const key = q.part ? `${q.sectionSubject || q.subject || ''}-${q.part}` : (q.sectionName || q.subject || 'Default');
         if (!sectionMap.has(key)) {
             sectionMap.set(key, []);
         }
