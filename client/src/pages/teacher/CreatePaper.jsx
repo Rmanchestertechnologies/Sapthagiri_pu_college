@@ -380,8 +380,8 @@ export default function CreatePaper() {
         setSubjectTypeAllocations(prev => {
             const cur = prev[activeSubjectTab] || { ...currentTypeAllocation };
             const updated = { ...cur, [typeKey]: numVal };
-            if (isJEE && typeKey === 'num' && numVal < 5) {
-                updated.num = 5; // Enforce compulsory 5 numericals for JEE Part B
+            if (isJEE) {
+                updated.num = 5; // Enforce compulsory 5 numericals for JEE Section B
             }
             return {
                 ...prev,
@@ -678,6 +678,7 @@ export default function CreatePaper() {
 
     // Selected questions grouped by subject
     const selectedQuestionsBySubject = useMemo(() => {
+        const isJEE = (examType || '').toUpperCase().includes('JEE');
         const groups = {};
         examSubjects.forEach(sub => { groups[sub] = []; });
         selectedQuestions.forEach(q => {
@@ -686,8 +687,19 @@ export default function CreatePaper() {
             if (!groups[matched]) groups[matched] = [];
             groups[matched].push(q);
         });
+
+        if (isJEE) {
+            // In JEE Main: Ensure Section A (non-numericals) precedes Section B (numericals)
+            Object.keys(groups).forEach(sub => {
+                const list = groups[sub];
+                const secA = list.filter(q => !q.isNumerical && !matchesQuestionType(q, 'Numerical / Integer Type') && (q.type || '').toUpperCase() !== 'NUMERICAL');
+                const secB = list.filter(q => q.isNumerical || matchesQuestionType(q, 'Numerical / Integer Type') || (q.type || '').toUpperCase() === 'NUMERICAL');
+                groups[sub] = [...secA, ...secB];
+            });
+        }
+
         return groups;
-    }, [selectedQuestions, examSubjects]);
+    }, [selectedQuestions, examSubjects, examType]);
 
     // Target Limit for active subject
     const targetLimit = defaultQuotaForSubject;
@@ -1059,7 +1071,11 @@ export default function CreatePaper() {
 
         const selectedNormKeys = new Set((chaptersSelected || []).map(normalizeChapterKey));
         const allSelectedConcepts = new Set(conceptsSelected || []);
-        const alreadyAddedIds = new Set(selectedQuestions.map(q => String(q._id || q.id)));
+        const alreadyAddedIds = new Set(
+            selectedQuestions
+                .filter(q => (q.sectionSubject || q.subject || '').toLowerCase() !== subName.toLowerCase())
+                .map(q => String(q._id || q.id))
+        );
 
         // If typeAlloc is supplied and has allocations, sample by type!
         if (typeAlloc && (typeAlloc.mcq || typeAlloc.stmt || typeAlloc.ar || typeAlloc.match || typeAlloc.diag || typeAlloc.num)) {
@@ -1108,22 +1124,171 @@ export default function CreatePaper() {
             };
 
             if (isJEE) {
-                // Section A: 20 questions
-                const secAMCQ = typeAlloc.mcq || 16;
-                const secAStmt = typeAlloc.stmt || 1;
-                const secAAR = typeAlloc.ar || 1;
-                const secAMatch = typeAlloc.match || 1;
-                const secADiag = typeAlloc.diag || 1;
-                sampleFromPool('Single Correct MCQ', secAMCQ, false);
-                sampleFromPool('Statement Based', secAStmt, false);
-                sampleFromPool('Assertion & Reason (A/R)', secAAR, false);
-                sampleFromPool('Matrix Match', secAMatch, false);
-                sampleFromPool('Diagram Based', secADiag, false);
+                // JEE MAIN STRICT QUOTA: Exactly 20 Section A (Objective/MCQ/Diag/AR/Match/Stmt) + Exactly 5 Section B (Numericals) = 25 Qs
+                const secAQuestions = [];
+                const secBQuestions = [];
+                const pickedSecBIds = new Set();
+                const pickedSecAIds = new Set();
 
-                // Section B: 5 compulsory numericals
-                sampleFromPool('Numerical / Integer Type', 5, true);
+                // 1. Pick exactly 5 Numerical Value Questions for Section B
+                let numCandidates = pool.filter(q => {
+                    const id = String(q._id || q.id);
+                    if (alreadyAddedIds.has(id)) return false;
+                    const rawCh = q.chapter || 'General';
+                    const matchesCh = selectedNormKeys.size === 0 || selectedNormKeys.has(normalizeChapterKey(rawCh)) || rawCh.toLowerCase() === 'general';
+                    return matchesCh && (matchesQuestionType(q, 'Numerical / Integer Type') || q.isNumerical || (q.type && q.type.toUpperCase().includes('NUMERICAL')));
+                });
 
-                return pickedByType;
+                if (numCandidates.length < 5) {
+                    const moreNums = pool.filter(q => {
+                        const id = String(q._id || q.id);
+                        return !alreadyAddedIds.has(id) && (matchesQuestionType(q, 'Numerical / Integer Type') || q.isNumerical || (q.type && q.type.toUpperCase().includes('NUMERICAL')));
+                    });
+                    const diff = moreNums.filter(q => !numCandidates.includes(q));
+                    numCandidates = [...numCandidates, ...diff];
+                }
+
+                numCandidates.sort(() => Math.random() - 0.5);
+
+                for (const q of numCandidates) {
+                    if (secBQuestions.length >= 5) break;
+                    const id = String(q._id || q.id);
+                    pickedSecBIds.add(id);
+                    secBQuestions.push({
+                        ...q,
+                        sectionSubject: subName,
+                        subject: q.subject || subName,
+                        part: 'SECTION B - NUMERICAL VALUE QUESTIONS',
+                        partDirective: 'This section contains 5 Numerical Value Questions. The answer to each question is a NUMERICAL VALUE. No options are provided.',
+                        isNumerical: true,
+                        type: 'NUMERICAL',
+                        options: [],
+                    });
+                }
+
+                // If pool ran short of numerical questions, convert any available pool questions to numericals
+                if (secBQuestions.length < 5) {
+                    const fallbackCandidates = pool.filter(q => {
+                        const id = String(q._id || q.id);
+                        return !alreadyAddedIds.has(id) && !pickedSecBIds.has(id);
+                    });
+                    fallbackCandidates.sort(() => Math.random() - 0.5);
+                    for (const q of fallbackCandidates) {
+                        if (secBQuestions.length >= 5) break;
+                        const id = String(q._id || q.id);
+                        pickedSecBIds.add(id);
+                        secBQuestions.push({
+                            ...q,
+                            sectionSubject: subName,
+                            subject: q.subject || subName,
+                            part: 'SECTION B - NUMERICAL VALUE QUESTIONS',
+                            partDirective: 'This section contains 5 Numerical Value Questions. The answer to each question is a NUMERICAL VALUE. No options are provided.',
+                            isNumerical: true,
+                            type: 'NUMERICAL',
+                            options: [],
+                        });
+                    }
+                }
+
+                // 2. Pick exactly 20 Section A questions based on user's type allocations
+                let reqMCQ = typeAlloc.mcq != null ? Number(typeAlloc.mcq) : 18;
+                let reqStmt = typeAlloc.stmt != null ? Number(typeAlloc.stmt) : 0;
+                let reqAR = typeAlloc.ar != null ? Number(typeAlloc.ar) : 0;
+                let reqMatch = typeAlloc.match != null ? Number(typeAlloc.match) : 0;
+                let reqDiag = typeAlloc.diag != null ? Number(typeAlloc.diag) : 2;
+
+                // Normalize non-MCQ requests if they exceed 20
+                const otherTotal = reqStmt + reqAR + reqMatch + reqDiag;
+                if (otherTotal > 20) {
+                    const factor = 20 / otherTotal;
+                    reqStmt = Math.floor(reqStmt * factor);
+                    reqAR = Math.floor(reqAR * factor);
+                    reqMatch = Math.floor(reqMatch * factor);
+                    reqDiag = Math.floor(reqDiag * factor);
+                }
+                // MCQ fills remainder up to 20
+                reqMCQ = Math.max(0, 20 - (reqStmt + reqAR + reqMatch + reqDiag));
+
+                const sampleSecA = (typeFilterName, count) => {
+                    if (count <= 0) return;
+                    let chapterMatches = pool.filter(q => {
+                        const id = String(q._id || q.id);
+                        if (alreadyAddedIds.has(id) || pickedSecBIds.has(id) || pickedSecAIds.has(id)) return false;
+                        if (matchesQuestionType(q, 'Numerical / Integer Type') || q.isNumerical || (q.type && q.type.toUpperCase().includes('NUMERICAL'))) return false;
+                        const rawCh = q.chapter || 'General';
+                        const matchesCh = selectedNormKeys.size === 0 || selectedNormKeys.has(normalizeChapterKey(rawCh)) || rawCh.toLowerCase() === 'general';
+                        return matchesCh && matchesQuestionType(q, typeFilterName);
+                    });
+
+                    let fullMatches = chapterMatches;
+                    if (chapterMatches.length < count) {
+                        const more = pool.filter(q => {
+                            const id = String(q._id || q.id);
+                            if (alreadyAddedIds.has(id) || pickedSecBIds.has(id) || pickedSecAIds.has(id)) return false;
+                            if (matchesQuestionType(q, 'Numerical / Integer Type') || q.isNumerical || (q.type && q.type.toUpperCase().includes('NUMERICAL'))) return false;
+                            return matchesQuestionType(q, typeFilterName);
+                        });
+                        const diff = more.filter(q => !chapterMatches.includes(q));
+                        fullMatches = [...chapterMatches, ...diff];
+                    }
+
+                    fullMatches.sort(() => Math.random() - 0.5);
+
+                    for (const q of fullMatches) {
+                        if (secAQuestions.length >= 20 || pickedSecAIds.size >= 20) break;
+                        const id = String(q._id || q.id);
+                        pickedSecAIds.add(id);
+                        secAQuestions.push({
+                            ...q,
+                            sectionSubject: subName,
+                            subject: q.subject || subName,
+                            part: 'SECTION A - MULTIPLE CHOICE QUESTIONS',
+                            partDirective: 'This section contains 20 Multiple Choice Questions. Each question has four choices (A), (B), (C), (D). Only one choice is correct.',
+                            isNumerical: false,
+                            type: q.type || 'MCQ',
+                        });
+                    }
+                };
+
+                // Sample Section A types in order
+                if (reqStmt > 0) sampleSecA('Statement Based', reqStmt);
+                if (reqAR > 0) sampleSecA('Assertion & Reason (A/R)', reqAR);
+                if (reqMatch > 0) sampleSecA('Matrix Match', reqMatch);
+                if (reqDiag > 0) sampleSecA('Diagram Based', reqDiag);
+                if (reqMCQ > 0) sampleSecA('Single Correct MCQ', reqMCQ);
+
+                // Backfill Section A up to 20 with Single Correct MCQs if short
+                if (secAQuestions.length < 20) {
+                    sampleSecA('Single Correct MCQ', 20 - secAQuestions.length);
+                }
+
+                // If still short of 20, backfill with ANY non-numerical questions in pool
+                if (secAQuestions.length < 20) {
+                    const fallbackSecACandidates = pool.filter(q => {
+                        const id = String(q._id || q.id);
+                        return !alreadyAddedIds.has(id) && !pickedSecBIds.has(id) && !pickedSecAIds.has(id) && !matchesQuestionType(q, 'Numerical / Integer Type') && !q.isNumerical;
+                    });
+                    fallbackSecACandidates.sort(() => Math.random() - 0.5);
+                    for (const q of fallbackSecACandidates) {
+                        if (secAQuestions.length >= 20) break;
+                        const id = String(q._id || q.id);
+                        pickedSecAIds.add(id);
+                        secAQuestions.push({
+                            ...q,
+                            sectionSubject: subName,
+                            subject: q.subject || subName,
+                            part: 'SECTION A - MULTIPLE CHOICE QUESTIONS',
+                            partDirective: 'This section contains 20 Multiple Choice Questions. Each question has four choices (A), (B), (C), (D). Only one choice is correct.',
+                            isNumerical: false,
+                            type: q.type || 'MCQ',
+                        });
+                    }
+                }
+
+                const finalSecA = secAQuestions.slice(0, 20);
+                const finalSecB = secBQuestions.slice(0, 5);
+
+                return [...finalSecA, ...finalSecB];
             } else {
                 // Non-JEE: Sample according to typeAlloc without section headers!
                 if (typeAlloc.diag > 0) sampleFromPool('Diagram Based', typeAlloc.diag, false);
@@ -1266,51 +1431,76 @@ export default function CreatePaper() {
         }
 
 
-        if (isJEE && targetQuota === 25) {
+        if (isJEE) {
             const secAPart = 'SECTION A - MULTIPLE CHOICE QUESTIONS';
             const secBPart = 'SECTION B - NUMERICAL VALUE QUESTIONS';
-            const secADir = 'This section contains 20 Multiple Choice Questions. Each question has four choices (1), (2), (3), (4). Only one choice is correct.';
+            const secADir = 'This section contains 20 Multiple Choice Questions. Each question has four choices (A), (B), (C), (D). Only one choice is correct.';
             const secBDir = 'This section contains 5 Numerical Value Questions. The answer to each question is a NUMERICAL VALUE. No options are provided.';
 
-            // Look for numerical questions in pool for Section B
-            const numCandidates = pool.filter(q => matchesQuestionType(q, 'Numerical / Integer Type') && !alreadyAddedIds.has(String(q._id || q.id)));
             const secBCount = 5;
             const secACount = 20;
 
-            const finalSecA = [];
             const finalSecB = [];
+            const finalSecA = [];
+            const secBIds = new Set();
+            const secAIds = new Set();
 
-            // Fill Section B with numerical questions if available, else pick from picked
-            for (let i = 0; i < secBCount; i++) {
-                if (i < numCandidates.length) {
-                    finalSecB.push({
-                        ...numCandidates[i],
-                        sectionSubject: subName,
-                        subject: numCandidates[i].subject || subName,
-                        part: secBPart,
-                        partDirective: secBDir,
-                        isNumerical: true,
-                        type: 'NUMERICAL',
-                        options: [],
-                    });
-                } else if (picked[secACount + i]) {
-                    const fallbackQ = picked[secACount + i];
-                    finalSecB.push({
-                        ...fallbackQ,
-                        part: secBPart,
-                        partDirective: secBDir,
-                        isNumerical: true,
-                        type: 'NUMERICAL',
-                        options: [],
-                    });
-                }
+            // 1. Pick 5 numericals for Section B
+            const numCandidates = pool.filter(q => {
+                const id = String(q._id || q.id);
+                if (alreadyAddedIds.has(id)) return false;
+                return matchesQuestionType(q, 'Numerical / Integer Type') || q.isNumerical || (q.type && q.type.toUpperCase().includes('NUMERICAL'));
+            });
+            numCandidates.sort(() => Math.random() - 0.5);
+
+            for (const q of numCandidates) {
+                if (finalSecB.length >= secBCount) break;
+                const id = String(q._id || q.id);
+                secBIds.add(id);
+                finalSecB.push({
+                    ...q,
+                    sectionSubject: subName,
+                    subject: q.subject || subName,
+                    part: secBPart,
+                    partDirective: secBDir,
+                    isNumerical: true,
+                    type: 'NUMERICAL',
+                    options: [],
+                });
             }
 
-            // Fill Section A with 20 questions
-            for (let i = 0; i < secACount; i++) {
-                if (picked[i]) {
+            // 2. Pick 20 non-numerical questions for Section A from picked array
+            for (const q of picked) {
+                if (finalSecA.length >= secACount) break;
+                const id = String(q._id || q.id);
+                if (secBIds.has(id)) continue;
+                if (matchesQuestionType(q, 'Numerical / Integer Type') || q.isNumerical || (q.type && q.type.toUpperCase().includes('NUMERICAL'))) continue;
+                secAIds.add(id);
+                finalSecA.push({
+                    ...q,
+                    sectionSubject: subName,
+                    subject: q.subject || subName,
+                    part: secAPart,
+                    partDirective: secADir,
+                    isNumerical: false,
+                });
+            }
+
+            // Backfill Section A up to 20 if needed
+            if (finalSecA.length < secACount) {
+                const nonNumPool = pool.filter(q => {
+                    const id = String(q._id || q.id);
+                    return !secBIds.has(id) && !secAIds.has(id) && !alreadyAddedIds.has(id) && !matchesQuestionType(q, 'Numerical / Integer Type') && !q.isNumerical;
+                });
+                nonNumPool.sort(() => Math.random() - 0.5);
+                for (const q of nonNumPool) {
+                    if (finalSecA.length >= secACount) break;
+                    const id = String(q._id || q.id);
+                    secAIds.add(id);
                     finalSecA.push({
-                        ...picked[i],
+                        ...q,
+                        sectionSubject: subName,
+                        subject: q.subject || subName,
                         part: secAPart,
                         partDirective: secADir,
                         isNumerical: false,
@@ -1318,7 +1508,31 @@ export default function CreatePaper() {
                 }
             }
 
-            return [...finalSecA, ...finalSecB];
+            // Backfill Section B up to 5 if needed
+            if (finalSecB.length < secBCount) {
+                const remainingPool = pool.filter(q => {
+                    const id = String(q._id || q.id);
+                    return !secBIds.has(id) && !secAIds.has(id) && !alreadyAddedIds.has(id);
+                });
+                remainingPool.sort(() => Math.random() - 0.5);
+                for (const q of remainingPool) {
+                    if (finalSecB.length >= secBCount) break;
+                    const id = String(q._id || q.id);
+                    secBIds.add(id);
+                    finalSecB.push({
+                        ...q,
+                        sectionSubject: subName,
+                        subject: q.subject || subName,
+                        part: secBPart,
+                        partDirective: secBDir,
+                        isNumerical: true,
+                        type: 'NUMERICAL',
+                        options: [],
+                    });
+                }
+            }
+
+            return [...finalSecA.slice(0, 20), ...finalSecB.slice(0, 5)];
         }
 
         return picked.slice(0, targetQuota);
@@ -2964,27 +3178,35 @@ export default function CreatePaper() {
                                             <div className="flex items-center justify-between pt-2 border-t border-amber-200">
                                                 <span className="text-xs font-bold text-navy">Quantity:</span>
                                                 <div className="flex items-center gap-1.5 bg-white px-2 py-1 rounded-xl border border-amber-300 shadow-2xs">
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => setTypeAllocationCount('num', Math.max((examType || '').toUpperCase().includes('JEE') ? 5 : 0, (currentTypeAllocation.num || 0) - 1))}
-                                                        className="w-6 h-6 flex items-center justify-center font-black text-sm text-navy hover:bg-slate-100 rounded cursor-pointer"
-                                                    >
-                                                        -
-                                                    </button>
-                                                    <input
-                                                        type="number"
-                                                        min={(examType || '').toUpperCase().includes('JEE') ? 5 : 0}
-                                                        value={currentTypeAllocation.num ?? ((examType || '').toUpperCase().includes('JEE') ? 5 : 0)}
-                                                        onChange={(e) => setTypeAllocationCount('num', e.target.value)}
-                                                        className="w-12 text-center font-black text-sm text-navy outline-none border-b border-navy/30"
-                                                    />
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => setTypeAllocationCount('num', (currentTypeAllocation.num || 0) + 1)}
-                                                        className="w-6 h-6 flex items-center justify-center font-black text-sm text-navy hover:bg-slate-100 rounded cursor-pointer"
-                                                    >
-                                                        +
-                                                    </button>
+                                                    {(examType || '').toUpperCase().includes('JEE') ? (
+                                                        <span className="text-xs font-black text-amber-800 px-2 py-0.5 bg-amber-50 rounded-lg">
+                                                            5 Compulsory
+                                                        </span>
+                                                    ) : (
+                                                        <>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setTypeAllocationCount('num', Math.max(0, (currentTypeAllocation.num || 0) - 1))}
+                                                                className="w-6 h-6 flex items-center justify-center font-black text-sm text-navy hover:bg-slate-100 rounded cursor-pointer"
+                                                            >
+                                                                -
+                                                            </button>
+                                                            <input
+                                                                type="number"
+                                                                min="0"
+                                                                value={currentTypeAllocation.num ?? 0}
+                                                                onChange={(e) => setTypeAllocationCount('num', e.target.value)}
+                                                                className="w-12 text-center font-black text-sm text-navy outline-none border-b border-navy/30"
+                                                            />
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setTypeAllocationCount('num', (currentTypeAllocation.num || 0) + 1)}
+                                                                className="w-6 h-6 flex items-center justify-center font-black text-sm text-navy hover:bg-slate-100 rounded cursor-pointer"
+                                                            >
+                                                                +
+                                                            </button>
+                                                        </>
+                                                    )}
                                                 </div>
                                             </div>
                                         </div>
@@ -3606,7 +3828,7 @@ export default function CreatePaper() {
 
                                         {/* Numericals */}
                                         <div className={`p-2.5 rounded-xl border ${
-                                            typeBreakdownCurrent.num >= (currentTypeAllocation.num || 0) && (currentTypeAllocation.num || 0) > 0
+                                            typeBreakdownCurrent.num >= ((examType || '').toUpperCase().includes('JEE') ? 5 : (currentTypeAllocation.num || 0)) && ((examType || '').toUpperCase().includes('JEE') || (currentTypeAllocation.num || 0) > 0)
                                                 ? 'bg-emerald-500/20 border-emerald-400/60 text-emerald-200'
                                                 : (examType || '').toUpperCase().includes('JEE')
                                                 ? 'bg-amber-500/20 border-amber-400/60 text-amber-200 ring-1 ring-amber-400'
@@ -3617,8 +3839,10 @@ export default function CreatePaper() {
                                                 {(examType || '').toUpperCase().includes('JEE') && <span className="text-[8px] bg-amber-500 text-navy px-1 py-0.2 rounded font-black">JEE Sec B</span>}
                                             </div>
                                             <div className="text-sm font-black mt-0.5 flex items-center justify-between">
-                                                <span>{typeBreakdownCurrent.num} / {currentTypeAllocation.num || 0}</span>
-                                                {typeBreakdownCurrent.num >= (currentTypeAllocation.num || 0) && (currentTypeAllocation.num || 0) > 0 && <span className="text-emerald-400 font-black">✓</span>}
+                                                <span>{typeBreakdownCurrent.num} / {(examType || '').toUpperCase().includes('JEE') ? 5 : (currentTypeAllocation.num || 0)}</span>
+                                                {typeBreakdownCurrent.num >= ((examType || '').toUpperCase().includes('JEE') ? 5 : (currentTypeAllocation.num || 0)) && (
+                                                    <span className="text-emerald-400 font-black">✓</span>
+                                                )}
                                             </div>
                                         </div>
                                     </div>
