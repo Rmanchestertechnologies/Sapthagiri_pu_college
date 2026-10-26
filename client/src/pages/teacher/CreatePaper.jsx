@@ -782,6 +782,64 @@ export default function CreatePaper() {
         return groups;
     }, [selectedQuestions, examSubjects, examType]);
 
+    // Auto-Sanitize selectedQuestions for JEE Main: Enforce hard ceiling of strictly max 20 Section A + max 5 Section B per subject (total <= 75)
+    useEffect(() => {
+        const isJEE = (examType || '').toUpperCase().includes('JEE');
+        if (!isJEE || !Array.isArray(selectedQuestions) || selectedQuestions.length === 0) return;
+
+        const pcm = {
+            Physics: { secA: [], secB: [] },
+            Chemistry: { secA: [], secB: [] },
+            Mathematics: { secA: [], secB: [] }
+        };
+        let needsPrune = false;
+
+        selectedQuestions.forEach(q => {
+            const rawSub = q.sectionSubject || q.subject || 'General';
+            const norm = normalizeSubjectName(rawSub);
+            const targetSub = pcm[norm] ? norm : 'Mathematics';
+            const qType = (q.type || q.q_type || '').toUpperCase();
+            const isNum = Boolean(q.isNumerical) || matchesQuestionType(q, 'Numerical / Integer Type') || qType.includes('NUMERICAL') || qType.includes('INTEGER') || qType === 'NUM';
+
+            if (isNum) {
+                if (pcm[targetSub].secB.length < 5) {
+                    pcm[targetSub].secB.push({
+                        ...q,
+                        subject: targetSub,
+                        sectionSubject: targetSub,
+                        isNumerical: true,
+                        type: 'NUMERICAL',
+                        options: [],
+                        part: 'SECTION B - NUMERICAL VALUE QUESTIONS'
+                    });
+                } else {
+                    needsPrune = true;
+                }
+            } else {
+                if (pcm[targetSub].secA.length < 20) {
+                    pcm[targetSub].secA.push({
+                        ...q,
+                        subject: targetSub,
+                        sectionSubject: targetSub,
+                        isNumerical: false,
+                        part: 'SECTION A - MULTIPLE CHOICE QUESTIONS'
+                    });
+                } else {
+                    needsPrune = true;
+                }
+            }
+        });
+
+        if (needsPrune || selectedQuestions.length > 75) {
+            const pruned = [
+                ...pcm.Physics.secA, ...pcm.Physics.secB,
+                ...pcm.Chemistry.secA, ...pcm.Chemistry.secB,
+                ...pcm.Mathematics.secA, ...pcm.Mathematics.secB
+            ].slice(0, 75);
+            setSelectedQuestions(pruned);
+        }
+    }, [selectedQuestions, examType]);
+
     // Target Limit for active subject
     const targetLimit = defaultQuotaForSubject;
 
@@ -3739,23 +3797,32 @@ export default function CreatePaper() {
                                                 {activeSubjectTab} Target Quota
                                             </label>
                                             <span className="text-sm font-black text-navy bg-white px-3 py-1 rounded-xl border border-gray-300">
-                                                {autoQtyPerSubject} Questions
+                                                {(examType || '').toUpperCase().includes('JEE') ? 25 : autoQtyPerSubject} Questions
                                             </span>
                                         </div>
-                                        <input
-                                            type="range"
-                                            min={5}
-                                            max={120}
-                                            step={5}
-                                            value={autoQtyPerSubject}
-                                            onChange={(e) => setAutoQtyPerSubject(parseInt(e.target.value, 10))}
-                                            className="w-full accent-navy cursor-pointer"
-                                        />
-                                        <div className="flex justify-between text-[10px] font-bold text-gray-400">
-                                            <span>5 Qs</span>
-                                            <span>Standard ({defaultQuotaForSubject})</span>
-                                            <span>120 Qs</span>
-                                        </div>
+                                        {(examType || '').toUpperCase().includes('JEE') ? (
+                                            <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-xl text-[11px] font-bold text-amber-800 flex items-center gap-2">
+                                                <span>🔒</span>
+                                                <span>Fixed JEE Main Format: Strictly 25 Questions (20 Sec A + 5 Sec B). Total: 75 Qs.</span>
+                                            </div>
+                                        ) : (
+                                            <>
+                                                <input
+                                                    type="range"
+                                                    min={5}
+                                                    max={120}
+                                                    step={5}
+                                                    value={autoQtyPerSubject}
+                                                    onChange={(e) => setAutoQtyPerSubject(parseInt(e.target.value, 10))}
+                                                    className="w-full accent-navy cursor-pointer"
+                                                />
+                                                <div className="flex justify-between text-[10px] font-bold text-gray-400">
+                                                    <span>5 Qs</span>
+                                                    <span>Standard ({defaultQuotaForSubject})</span>
+                                                    <span>120 Qs</span>
+                                                </div>
+                                            </>
+                                        )}
                                     </div>
 
                                     {/* 2. Question Type Filter Dropdown */}

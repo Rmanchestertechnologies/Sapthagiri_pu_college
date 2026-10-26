@@ -43,7 +43,8 @@ export default function A4PaperEngine({
     const isJEEPaper = Boolean(
         String(paper?.examType || paper?.exam_type || paper?.title || '').toUpperCase().includes('JEE') ||
         (Array.isArray(paper?.classes) && paper.classes.some(c => String(c).toUpperCase().includes('JEE'))) ||
-        (paper?.questions && paper.questions.length >= 70 && paper.questions.length <= 85)
+        (paper?.questions && paper.questions.length >= 70 && paper.questions.length <= 85) ||
+        (paper?.questions && paper.questions.some(q => (q.part && (q.part.includes('SECTION B') || q.part.includes('NUMERICAL'))) || q.isNumerical) && (paper?.questions?.length >= 20))
     );
 
     const questions = useMemo(() => {
@@ -226,14 +227,11 @@ export default function A4PaperEngine({
                                     let directiveText = null;
 
                                     if (isJEE) {
-                                        const isNum = Boolean(q.isNumerical || (q.type && q.type.toUpperCase().includes('NUMERICAL')) || (!q.options?.length && q.num_answer));
-                                        const prevIsNum = idx > 0 ? Boolean(visibleQuestions[idx - 1].isNumerical || (visibleQuestions[idx - 1].type && visibleQuestions[idx - 1].type.toUpperCase().includes('NUMERICAL')) || (!visibleQuestions[idx - 1].options?.length && visibleQuestions[idx - 1].num_answer)) : false;
-
                                         if (isSubjectChange || idx === 0) {
                                             showHeader = true;
                                             headerTitle = curSubject ? `${curSubject.toUpperCase()} • PART A (SECTION A)` : 'PART A (SECTION A)';
                                             directiveText = 'This section contains 20 Multiple Choice Questions. Each question has four choices (A), (B), (C), (D). Only one choice is correct.';
-                                        } else if (subQIdx === 20 || (isNum && !prevIsNum && subQIdx >= 18)) {
+                                        } else if (subQIdx === 20) {
                                             showHeader = true;
                                             headerTitle = curSubject ? `${curSubject.toUpperCase()} • PART B (SECTION B - NUMERICALS)` : 'PART B (SECTION B - NUMERICALS)';
                                             directiveText = 'This section contains 5 Numerical Value Questions. The answer to each question is a NUMERICAL VALUE. No options are provided.';
@@ -251,9 +249,10 @@ export default function A4PaperEngine({
 
                                     const effectiveQ = isJEE ? {
                                         ...q,
-                                        isNumerical: subQIdx >= 20 || q.isNumerical,
-                                        type: (subQIdx >= 20 || q.isNumerical) ? 'NUMERICAL' : (q.type || 'MCQ'),
-                                        options: (subQIdx >= 20 || q.isNumerical) ? [] : (q.options || []),
+                                        isNumerical: subQIdx >= 20,
+                                        type: (subQIdx >= 20) ? 'NUMERICAL' : (q.type || 'MCQ'),
+                                        options: (subQIdx >= 20) ? [] : (q.options || []),
+                                        part: (subQIdx >= 20) ? 'SECTION B - NUMERICAL VALUE QUESTIONS' : 'SECTION A - MULTIPLE CHOICE QUESTIONS'
                                     } : q;
 
                                     return (
