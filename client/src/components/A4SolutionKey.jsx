@@ -32,10 +32,16 @@ export default function A4SolutionKey({
     }, [paper, baseQuestions, activeSet]);
 
     const resolvedQuestions = useMemo(() => {
-        return (activePaper?.questions && activePaper.questions.length > 0)
+        const baseList = (activePaper?.questions && activePaper.questions.length > 0)
             ? activePaper.questions
             : baseQuestions;
-    }, [activePaper, baseQuestions]);
+        const isJEE = Boolean(
+            String(paper?.examType || paper?.exam_type || paper?.title || '').toUpperCase().includes('JEE') ||
+            (Array.isArray(paper?.classes) && paper.classes.some(c => String(c).toUpperCase().includes('JEE'))) ||
+            (baseList.length >= 70 && baseList.length <= 85)
+        );
+        return isJEE ? baseList.slice(0, 75) : baseList;
+    }, [activePaper, baseQuestions, paper]);
 
     const paperTitle = activePaper?.title || paper.title || `${paper.subject || 'Academic'} Assessment`;
 

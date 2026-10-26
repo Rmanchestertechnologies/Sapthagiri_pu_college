@@ -394,10 +394,18 @@ export default function PaperRenderer({
     const handleDownloadWord = async () => {
         setDownloadingWord(true);
         try {
-            const activeQs = questions && questions.length > 0 ? questions : (paper?.questions || []);
+            const rawActiveQs = questions && questions.length > 0 ? questions : (paper?.questions || []);
+            const isJEE = Boolean(
+                String(paper?.examType || paper?.exam_type || paper?.title || '').toUpperCase().includes('JEE') ||
+                (Array.isArray(paper?.classes) && paper.classes.some(c => String(c).toUpperCase().includes('JEE'))) ||
+                (rawActiveQs.length >= 70 && rawActiveQs.length <= 85)
+            );
+            const activeQs = isJEE ? rawActiveQs.slice(0, 75) : rawActiveQs;
             const paperData = {
                 ...paper,
                 ...activePaper,
+                examType: isJEE ? 'JEE' : (paper?.examType || paper?.exam_type),
+                exam_type: isJEE ? 'JEE' : (paper?.exam_type || paper?.examType),
                 questions: activeQs,
                 setName: setsActive ? activeSet : (paper?.setName || 'P'),
                 startQNo: settings?.startQNo || 1

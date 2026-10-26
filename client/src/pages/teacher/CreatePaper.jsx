@@ -68,6 +68,19 @@ const QuestionCardOptions = ({ q, options = [], answer = '', showAnswer = true }
     );
 };
 
+// Canonical subject normalizer (strictly maps variations of Maths/Phy/Chem/Bio to canonical names)
+export const normalizeSubjectName = (sub) => {
+    if (!sub) return 'General';
+    const s = String(sub).trim().toLowerCase();
+    if (s.includes('math')) return 'Mathematics';
+    if (s.includes('physic') || s === 'phy') return 'Physics';
+    if (s.includes('chem')) return 'Chemistry';
+    if (s.includes('botan')) return 'Botany';
+    if (s.includes('zool')) return 'Zoology';
+    if (s.includes('bio')) return 'Biology';
+    return sub.trim();
+};
+
 // Robust chapter normalizer for flawless matching (handles singular/plural, whitespace, punctuation)
 const normalizeChapterKey = (str) => {
     if (!str) return '';
@@ -229,12 +242,12 @@ export default function CreatePaper() {
 
     // Multi-Subject Exam Configuration (NEET: Physics, Chemistry, Botany, Zoology; JEE: Physics, Chemistry, Maths; CET: Physics, Chemistry, Maths, Biology)
     const examSubjects = useMemo(() => {
-        if (paperCategory === 'assignment') return [subject || 'Physics'];
+        if (paperCategory === 'assignment') return [normalizeSubjectName(subject || 'Physics')];
         const upperExam = (examType || '').toUpperCase();
         if (upperExam === 'NEET' || upperExam === 'NEET_PCB') {
             return ['Physics', 'Chemistry', 'Botany', 'Zoology'];
         }
-        if (upperExam === 'JEE' || upperExam === 'JEE_PCM') {
+        if (upperExam.includes('JEE') || upperExam === 'JEE' || upperExam === 'JEE_PCM') {
             return ['Physics', 'Chemistry', 'Mathematics'];
         }
         if (upperExam === 'CET' || upperExam === 'CET_PCMB') {
@@ -243,8 +256,8 @@ export default function CreatePaper() {
         if (subject === 'PCM') return ['Physics', 'Chemistry', 'Mathematics'];
         if (subject === 'PCB') return ['Physics', 'Chemistry', 'Biology'];
         if (subject === 'PCMB') return ['Physics', 'Chemistry', 'Mathematics', 'Biology'];
-        if (subject && subject.includes(',')) return subject.split(',').map(s => s.trim()).filter(Boolean);
-        return [subject || 'Physics'];
+        if (subject && subject.includes(',')) return subject.split(',').map(s => normalizeSubjectName(s.trim())).filter(Boolean);
+        return [normalizeSubjectName(subject || 'Physics')];
     }, [examType, subject, paperCategory]);
 
     // Active Subject Tab for multi-subject workflow
@@ -645,7 +658,15 @@ export default function CreatePaper() {
                     if (draft.selectedConcepts && Array.isArray(draft.selectedConcepts)) setSelectedConcepts(draft.selectedConcepts);
                     if (draft.subjectSelections && typeof draft.subjectSelections === 'object') setSubjectSelections(draft.subjectSelections);
                     if (draft.selectedQuestions && Array.isArray(draft.selectedQuestions) && draft.selectedQuestions.length > 0) {
-                        setSelectedQuestions(draft.selectedQuestions);
+                        const isDraftJEE = Boolean(
+                            String(draft.examType || draft.title || '').toUpperCase().includes('JEE') ||
+                            (draft.selectedQuestions.length >= 70 && draft.selectedQuestions.length <= 85)
+                        );
+                        let qs = draft.selectedQuestions;
+                        if (isDraftJEE) {
+                            qs = qs.slice(0, 75);
+                        }
+                        setSelectedQuestions(qs);
                     }
                     if (draft.headerConfig) setHeaderConfig(draft.headerConfig);
                     if (draft.partDirectives) setPartDirectives(draft.partDirectives);
@@ -698,16 +719,29 @@ export default function CreatePaper() {
         const groups = {};
         examSubjects.forEach(sub => { groups[sub] = []; });
         selectedQuestions.forEach(q => {
-            const sub = q.sectionSubject || q.subject || 'General';
-            const matched = examSubjects.find(s => s.toLowerCase() === sub.toLowerCase()) || sub;
+            const rawSub = q.sectionSubject || q.subject || 'General';
+            const normSub = normalizeSubjectName(rawSub);
+            const matched = examSubjects.find(s => s.toLowerCase() === normSub.toLowerCase()) || 
+                            examSubjects.find(s => normalizeSubjectName(s).toLowerCase() === normSub.toLowerCase()) || 
+                            (isJEE ? 'Mathematics' : normSub);
+
+            // For JEE Main, strictly discard questions that do not belong to Physics, Chemistry, or Mathematics
+            if (isJEE && !['Physics', 'Chemistry', 'Mathematics'].includes(matched)) {
+                return;
+            }
+
             if (!groups[matched]) groups[matched] = [];
-            groups[matched].push(q);
+            groups[matched].push({
+                ...q,
+                subject: matched,
+                sectionSubject: matched
+            });
         });
 
         if (isJEE) {
-            // In JEE Main: Enforce strictly max 20 Section A (non-numericals) + max 5 Section B (numericals) per subject
-            Object.keys(groups).forEach(sub => {
-                const list = groups[sub];
+            // In JEE Main: Enforce strictly max 20 Section A (non-numericals) + max 5 Section B (numericals) per subject: Physics, Chemistry, Mathematics
+            ['Physics', 'Chemistry', 'Mathematics'].forEach(sub => {
+                const list = groups[sub] || [];
                 const isNum = (q) => {
                     const qType = (q.type || q.q_type || '').toUpperCase();
                     return Boolean(q.isNumerical) || matchesQuestionType(q, 'Numerical / Integer Type') || qType.includes('NUMERICAL') || qType.includes('INTEGER') || qType === 'NUM';
@@ -716,6 +750,8 @@ export default function CreatePaper() {
                     .slice(0, 20)
                     .map(q => ({
                         ...q,
+                        subject: sub,
+                        sectionSubject: sub,
                         isNumerical: false,
                         part: 'SECTION A - MULTIPLE CHOICE QUESTIONS',
                         partDirective: 'This section contains 20 Multiple Choice Questions. Each question has four choices (A), (B), (C), (D). Only one choice is correct.',
@@ -724,6 +760,8 @@ export default function CreatePaper() {
                     .slice(0, 5)
                     .map(q => ({
                         ...q,
+                        subject: sub,
+                        sectionSubject: sub,
                         isNumerical: true,
                         type: 'NUMERICAL',
                         options: [],
@@ -731,6 +769,13 @@ export default function CreatePaper() {
                         partDirective: 'This section contains 5 Numerical Value Questions. The answer to each question is a NUMERICAL VALUE. No options are provided.',
                     }));
                 groups[sub] = [...secA, ...secB];
+            });
+
+            // Eradicate any non-PCM keys from groups
+            Object.keys(groups).forEach(key => {
+                if (!['Physics', 'Chemistry', 'Mathematics'].includes(key)) {
+                    delete groups[key];
+                }
             });
         }
 
@@ -832,8 +877,17 @@ export default function CreatePaper() {
                     if (p.endQNo) setEndQNo(p.endQNo);
                     if (p.difficultyDistribution) setAutoDist(p.difficultyDistribution);
                     if (Array.isArray(p.questions) && p.questions.length > 0) {
-                        setSelectedQuestions(p.questions);
-                        setTargetCount(p.questions.length);
+                        const isEditJEE = Boolean(
+                            String(p.exam_type || p.examType || p.title || '').toUpperCase().includes('JEE') ||
+                            (Array.isArray(p.classes) && p.classes.some(c => String(c).toUpperCase().includes('JEE'))) ||
+                            (p.questions.length >= 70 && p.questions.length <= 85)
+                        );
+                        let qs = p.questions;
+                        if (isEditJEE) {
+                            qs = qs.slice(0, 75);
+                        }
+                        setSelectedQuestions(qs);
+                        setTargetCount(qs.length);
                         setCurrentStep(3);
                     }
                 }
@@ -875,8 +929,8 @@ export default function CreatePaper() {
                 return true;
             }).map(q => ({
                 ...q,
-                sectionSubject: subToFetch,
-                subject: q.subject || subToFetch,
+                sectionSubject: normalizeSubjectName(subToFetch),
+                subject: normalizeSubjectName(q.subject || subToFetch),
             }));
 
             setQuestionsPoolCache(prev => ({
@@ -1107,9 +1161,10 @@ export default function CreatePaper() {
 
         const selectedNormKeys = new Set((chaptersSelected || []).map(normalizeChapterKey));
         const allSelectedConcepts = new Set(conceptsSelected || []);
+        const normSub = normalizeSubjectName(subName).toLowerCase();
         const alreadyAddedIds = new Set(
             selectedQuestions
-                .filter(q => (q.sectionSubject || q.subject || '').toLowerCase() !== subName.toLowerCase())
+                .filter(q => normalizeSubjectName(q.sectionSubject || q.subject || '').toLowerCase() !== normSub)
                 .map(q => String(q._id || q.id))
         );
 
@@ -1629,8 +1684,16 @@ export default function CreatePaper() {
 
             // Replace questions for this subject in the global basket
             setSelectedQuestions(prev => {
-                const others = prev.filter(q => (q.sectionSubject || q.subject || '').toLowerCase() !== activeSubjectTab.toLowerCase());
-                return [...others, ...finalNewQs];
+                const normActive = normalizeSubjectName(activeSubjectTab).toLowerCase();
+                const others = prev.filter(q => {
+                    const qNorm = normalizeSubjectName(q.sectionSubject || q.subject || '').toLowerCase();
+                    return qNorm !== normActive;
+                });
+                const combined = [...others, ...finalNewQs];
+                if (isJEE) {
+                    return combined.slice(0, 75);
+                }
+                return combined;
             });
             setCurrentStep(4);
 
@@ -1670,8 +1733,8 @@ export default function CreatePaper() {
                             const extraNums = Array.isArray(numRes.data) ? numRes.data : (numRes.data?.questions || []);
                             const cleanNums = extraNums.map(q => ({
                                 ...q,
-                                sectionSubject: sub,
-                                subject: q.subject || sub,
+                                sectionSubject: normalizeSubjectName(sub),
+                                subject: normalizeSubjectName(q.subject || sub),
                                 isNumerical: true,
                                 type: 'NUMERICAL',
                                 options: [],
@@ -1694,8 +1757,8 @@ export default function CreatePaper() {
                             const extraBroad = Array.isArray(broadRes.data) ? broadRes.data : (broadRes.data?.questions || []);
                             const cleanBroad = extraBroad.map(q => ({
                                 ...q,
-                                sectionSubject: sub,
-                                subject: q.subject || sub,
+                                sectionSubject: normalizeSubjectName(sub),
+                                subject: normalizeSubjectName(q.subject || sub),
                             }));
                             const poolIds = new Set(pool.map(q => String(q._id || q.id)));
                             for (const q of cleanBroad) {
@@ -1728,10 +1791,11 @@ export default function CreatePaper() {
                 allPicked.push(...finalSub);
             }
 
-            setSelectedQuestions(allPicked);
+            const cappedPicked = isJEE ? allPicked.slice(0, 75) : allPicked;
+            setSelectedQuestions(cappedPicked);
             setCurrentStep(4);
             if (isJEE) {
-                alert(`✓ Successfully Auto-Generated ${allPicked.length} Questions for JEE Main!\nStrictly 25 Questions per subject (${examSubjects.join(', ')}: 20 Section A + 5 Numericals) totaling exactly ${allPicked.length} questions.`);
+                alert(`✓ Successfully Auto-Generated ${cappedPicked.length} Questions for JEE Main!\nStrictly 25 Questions per subject (${examSubjects.join(', ')}: 20 Section A + 5 Numericals) totaling exactly ${cappedPicked.length} questions.`);
             } else {
                 alert(`✓ Successfully Auto-Generated ${allPicked.length} Questions across all ${examSubjects.length} subjects with concept balance!`);
             }
@@ -1745,7 +1809,11 @@ export default function CreatePaper() {
 
     // Clear active subject selection
     const handleClearActiveSubjectQuestions = () => {
-        setSelectedQuestions(prev => prev.filter(q => (q.sectionSubject || q.subject || '').toLowerCase() !== activeSubjectTab.toLowerCase()));
+        const normActive = normalizeSubjectName(activeSubjectTab).toLowerCase();
+        setSelectedQuestions(prev => prev.filter(q => {
+            const qNorm = normalizeSubjectName(q.sectionSubject || q.subject || '').toLowerCase();
+            return qNorm !== normActive;
+        }));
     };
 
     // Handle Question Click or Swap in Manual Selection
@@ -2289,27 +2357,44 @@ export default function CreatePaper() {
 
         try {
             // Organize questions into strict subject order with section headers
+            const isJEE = (examType || '').toUpperCase().includes('JEE');
             const organizedQuestions = [];
             const sections = [];
-            examSubjects.forEach((sub, sIdx) => {
-                const subQuestions = (selectedQuestionsBySubject[sub] || []).map((q, qIdx) => ({
+            const targetSubjects = isJEE ? ['Physics', 'Chemistry', 'Mathematics'] : examSubjects;
+
+            targetSubjects.forEach((sub, sIdx) => {
+                const rawSubQs = (selectedQuestionsBySubject[sub] || []);
+                const isNum = (q) => {
+                    const t = (q.type || q.q_type || '').toUpperCase();
+                    return Boolean(q.isNumerical) || matchesQuestionType(q, 'Numerical / Integer Type') || t.includes('NUMERICAL') || t.includes('INTEGER') || t === 'NUM';
+                };
+                let subQuestions = rawSubQs;
+                if (isJEE) {
+                    const secA = rawSubQs.filter(q => !isNum(q)).slice(0, 20);
+                    const secB = rawSubQs.filter(q => isNum(q)).slice(0, 5);
+                    subQuestions = [...secA, ...secB];
+                }
+                const mappedSubQuestions = subQuestions.map((q, qIdx) => ({
                     ...q,
                     sectionName: `Section ${sIdx + 1}: ${sub.toUpperCase()}`,
                     sectionIndex: sIdx + 1,
                     subject: sub,
                     sectionSubject: sub,
                 }));
-                organizedQuestions.push(...subQuestions);
+                organizedQuestions.push(...mappedSubQuestions);
                 sections.push({
                     subject: sub,
-                    questions: subQuestions.map(q => q._id || q.id),
-                    questionObjects: subQuestions,
-                    status: subQuestions.length > 0 ? 'SAVED' : 'NOT_STARTED',
+                    questions: mappedSubQuestions.map(q => q._id || q.id),
+                    questionObjects: mappedSubQuestions,
+                    status: mappedSubQuestions.length > 0 ? 'SAVED' : 'NOT_STARTED',
                     updated_at: new Date().toISOString()
                 });
             });
 
-            const finalQuestionsList = organizedQuestions.length > 0 ? organizedQuestions : selectedQuestions;
+            let finalQuestionsList = organizedQuestions.length > 0 ? organizedQuestions : selectedQuestions;
+            if (isJEE) {
+                finalQuestionsList = finalQuestionsList.slice(0, 75);
+            }
 
             const payload = {
                 title: title || `${examType} Examination (${examSubjects.join(' + ')})`,
@@ -2394,27 +2479,38 @@ export default function CreatePaper() {
         }
 
         if (isJEE) {
-            // Strictly clamp preview to max 20 Section A + max 5 Section B per subject
-            const pcmBySub = {};
+            // Strictly clamp preview to max 20 Section A + max 5 Section B per subject for Physics, Chemistry, Mathematics ONLY
+            const pcmBySub = {
+                Physics: [],
+                Chemistry: [],
+                Mathematics: []
+            };
             displayList.forEach(q => {
-                const sub = q.sectionSubject || q.subject || 'General';
-                if (!pcmBySub[sub]) pcmBySub[sub] = [];
-                pcmBySub[sub].push(q);
+                const norm = normalizeSubjectName(q.sectionSubject || q.subject || '');
+                if (pcmBySub[norm]) {
+                    pcmBySub[norm].push(q);
+                } else {
+                    pcmBySub['Mathematics'].push(q);
+                }
             });
             const clampedPcm = [];
-            Object.keys(pcmBySub).forEach(sub => {
-                const subList = pcmBySub[sub];
+            ['Physics', 'Chemistry', 'Mathematics'].forEach(sub => {
+                const subList = pcmBySub[sub] || [];
                 const isNum = (q) => {
                     const t = (q.type || q.q_type || '').toUpperCase();
                     return Boolean(q.isNumerical) || matchesQuestionType(q, 'Numerical / Integer Type') || t.includes('NUMERICAL') || t.includes('INTEGER') || t === 'NUM';
                 };
                 const secA = subList.filter(q => !isNum(q)).slice(0, 20).map(q => ({
                     ...q,
+                    subject: sub,
+                    sectionSubject: sub,
                     isNumerical: false,
                     part: 'SECTION A - MULTIPLE CHOICE QUESTIONS'
                 }));
                 const secB = subList.filter(q => isNum(q)).slice(0, 5).map(q => ({
                     ...q,
+                    subject: sub,
+                    sectionSubject: sub,
                     isNumerical: true,
                     type: 'NUMERICAL',
                     options: [],
@@ -2422,7 +2518,7 @@ export default function CreatePaper() {
                 }));
                 clampedPcm.push(...secA, ...secB);
             });
-            displayList = clampedPcm;
+            displayList = clampedPcm.slice(0, 75);
         }
 
         return {

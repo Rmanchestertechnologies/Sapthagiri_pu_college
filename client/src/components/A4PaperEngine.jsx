@@ -15,6 +15,19 @@ import QuestionBlock from './QuestionBlock';
 import MathRenderer from './MathRenderer';
 import { InstructionCoverPage, PaperHeader, formatMarks, calcTotal } from './PaperRenderer';
 
+// Canonical subject normalizer (strictly maps variations of Maths/Phy/Chem/Bio to canonical names)
+const normalizeSubjectName = (sub) => {
+    if (!sub) return 'General';
+    const s = String(sub).trim().toLowerCase();
+    if (s.includes('math')) return 'Mathematics';
+    if (s.includes('physic') || s === 'phy') return 'Physics';
+    if (s.includes('chem')) return 'Chemistry';
+    if (s.includes('botan')) return 'Botany';
+    if (s.includes('zool')) return 'Zoology';
+    if (s.includes('bio')) return 'Biology';
+    return sub.trim();
+};
+
 export default function A4PaperEngine({
     paper,
     activeTemplate,
@@ -27,27 +40,34 @@ export default function A4PaperEngine({
     singlePageMode = false,
     onDiagramResize,
 }) {
-    const isJEEPaper = Boolean(String(paper?.examType || paper?.exam_type || paper?.title || '').toUpperCase().includes('JEE'));
+    const isJEEPaper = Boolean(
+        String(paper?.examType || paper?.exam_type || paper?.title || '').toUpperCase().includes('JEE') ||
+        (Array.isArray(paper?.classes) && paper.classes.some(c => String(c).toUpperCase().includes('JEE'))) ||
+        (paper?.questions && paper.questions.length >= 70 && paper.questions.length <= 85)
+    );
 
     const questions = useMemo(() => {
         const rawQs = paper?.questions || [];
         if (!isJEEPaper) return rawQs;
 
-        // Strictly enforce JEE Main PCM structure: exactly max 20 Section A + max 5 Section B per subject
-        const bySub = {};
-        const subOrder = [];
+        // Strictly enforce JEE Main PCM structure: exactly max 20 Section A + max 5 Section B per subject (Physics, Chemistry, Mathematics)
+        const pcmBySub = {
+            Physics: [],
+            Chemistry: [],
+            Mathematics: []
+        };
         rawQs.forEach(q => {
-            const s = q.sectionSubject || q.subject || 'General';
-            if (!bySub[s]) {
-                bySub[s] = [];
-                subOrder.push(s);
+            const norm = normalizeSubjectName(q.sectionSubject || q.subject || '');
+            if (pcmBySub[norm]) {
+                pcmBySub[norm].push(q);
+            } else {
+                pcmBySub['Mathematics'].push(q);
             }
-            bySub[s].push(q);
         });
 
         const clamped = [];
-        subOrder.forEach(s => {
-            const list = bySub[s];
+        ['Physics', 'Chemistry', 'Mathematics'].forEach(s => {
+            const list = pcmBySub[s] || [];
             const isNum = (q) => {
                 const t = (q.type || q.q_type || '').toUpperCase();
                 return Boolean(q.isNumerical) || t.includes('NUMERICAL') || t.includes('INTEGER') || t === 'NUM' ||
@@ -57,11 +77,15 @@ export default function A4PaperEngine({
             };
             const secA = list.filter(q => !isNum(q)).slice(0, 20).map(q => ({
                 ...q,
+                subject: s,
+                sectionSubject: s,
                 isNumerical: false,
                 part: 'SECTION A - MULTIPLE CHOICE QUESTIONS'
             }));
             const secB = list.filter(q => isNum(q)).slice(0, 5).map(q => ({
                 ...q,
+                subject: s,
+                sectionSubject: s,
                 isNumerical: true,
                 type: 'NUMERICAL',
                 options: [],
@@ -70,7 +94,8 @@ export default function A4PaperEngine({
             clamped.push(...secA, ...secB);
         });
 
-        return clamped.length > 0 ? clamped : rawQs;
+        const finalClamped = clamped.slice(0, 75);
+        return finalClamped.length > 0 ? finalClamped : rawQs.slice(0, 75);
     }, [paper, isJEEPaper]);
     const classes = useMemo(() => paper?.classes || [], [paper]);
     const totalMarks = useMemo(() => {
@@ -82,7 +107,8 @@ export default function A4PaperEngine({
     const showCover = !isAssignmentPaper && settings.showCoverPage === true;
     const startQNo = settings.startQNo || 1;
     const endQNo = settings.endQNo ?? (startQNo + questions.length - 1);
-    const visibleCount = Math.max(0, endQNo - startQNo + 1);
+    const rawVisibleCount = Math.max(0, endQNo - startQNo + 1);
+    const visibleCount = isJEEPaper ? Math.min(75, rawVisibleCount) : rawVisibleCount;
     const visibleQuestions = useMemo(() => questions.slice(0, visibleCount), [questions, visibleCount]);
 
     const zoomScale = (zoom || 100) / 100;
@@ -176,7 +202,7 @@ export default function A4PaperEngine({
                                 let runningSub = '';
                                 let subQuestionIndex = 0;
                                 const subjectQuestionIndices = visibleQuestions.map((q) => {
-                                    const s = (q.sectionSubject || q.subject || '').toLowerCase();
+                                    const s = normalizeSubjectName(q.sectionSubject || q.subject || '').toLowerCase();
                                     if (s !== runningSub) {
                                         runningSub = s;
                                         subQuestionIndex = 0;
@@ -188,12 +214,11 @@ export default function A4PaperEngine({
 
                                 return visibleQuestions.map((q, idx) => {
                                     const displayNum = startQNo + idx;
-                                    const examTypeStr = String(paper?.examType || paper?.exam_type || '').toUpperCase();
-                                    const isJEE = examTypeStr.includes('JEE');
+                                    const isJEE = isJEEPaper;
                                     const subQIdx = subjectQuestionIndices[idx];
 
-                                    const curSubject = q.sectionSubject || q.subject || '';
-                                    const prevSubject = idx > 0 ? (visibleQuestions[idx - 1].sectionSubject || visibleQuestions[idx - 1].subject || '') : '';
+                                    const curSubject = normalizeSubjectName(q.sectionSubject || q.subject || '');
+                                    const prevSubject = idx > 0 ? normalizeSubjectName(visibleQuestions[idx - 1].sectionSubject || visibleQuestions[idx - 1].subject || '') : '';
                                     const isSubjectChange = Boolean(curSubject && prevSubject && curSubject.toLowerCase() !== prevSubject.toLowerCase());
 
                                     let showHeader = false;

@@ -23,6 +23,18 @@ const {
     TextWrappingType
 } = require('docx');
 
+function normalizeSubjectName(sub) {
+    if (!sub) return 'General';
+    const s = String(sub).trim().toLowerCase();
+    if (s.includes('math')) return 'Mathematics';
+    if (s.includes('physic') || s === 'phy') return 'Physics';
+    if (s.includes('chem')) return 'Chemistry';
+    if (s.includes('botan')) return 'Botany';
+    if (s.includes('zool')) return 'Zoology';
+    if (s.includes('bio')) return 'Biology';
+    return sub.trim();
+}
+
 const NO_BORDERS = {
     top: { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' },
     bottom: { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' },
@@ -554,23 +566,30 @@ async function generatePaperDoc(paper, template = null) {
         });
     }
 
-    const isJEE = Boolean((paper.exam_type || paper.examType || paper.title || '').toUpperCase().includes('JEE'));
+    const isJEE = Boolean(
+        String(paper.exam_type || paper.examType || paper.title || '').toUpperCase().includes('JEE') ||
+        (Array.isArray(paper.classes) && paper.classes.some(c => String(c).toUpperCase().includes('JEE'))) ||
+        (questions.length >= 70 && questions.length <= 85)
+    );
     if (isJEE) {
-        // Enforce strictly max 20 Section A (non-numericals) + max 5 Section B (numericals) per subject
-        const bySub = {};
-        const subOrder = [];
+        // Enforce strictly max 20 Section A (non-numericals) + max 5 Section B (numericals) per subject: Physics, Chemistry, Mathematics
+        const pcmBySub = {
+            Physics: [],
+            Chemistry: [],
+            Mathematics: []
+        };
         questions.forEach(q => {
-            const s = q.sectionSubject || q.subject || 'General';
-            if (!bySub[s]) {
-                bySub[s] = [];
-                subOrder.push(s);
+            const s = normalizeSubjectName(q.sectionSubject || q.subject || '');
+            if (pcmBySub[s]) {
+                pcmBySub[s].push(q);
+            } else {
+                pcmBySub['Mathematics'].push(q);
             }
-            bySub[s].push(q);
         });
 
         const clamped = [];
-        subOrder.forEach(s => {
-            const list = bySub[s];
+        ['Physics', 'Chemistry', 'Mathematics'].forEach(s => {
+            const list = pcmBySub[s] || [];
             const isNum = (q) => {
                 const t = (q.type || q.q_type || '').toUpperCase();
                 return Boolean(q.isNumerical) || t.includes('NUMERICAL') || t.includes('INTEGER') || t === 'NUM' ||
@@ -580,11 +599,15 @@ async function generatePaperDoc(paper, template = null) {
             };
             const secA = list.filter(q => !isNum(q)).slice(0, 20).map(q => ({
                 ...q,
+                subject: s,
+                sectionSubject: s,
                 isNumerical: false,
                 part: 'SECTION A - MULTIPLE CHOICE QUESTIONS'
             }));
             const secB = list.filter(q => isNum(q)).slice(0, 5).map(q => ({
                 ...q,
+                subject: s,
+                sectionSubject: s,
                 isNumerical: true,
                 type: 'NUMERICAL',
                 options: [],
@@ -593,8 +616,11 @@ async function generatePaperDoc(paper, template = null) {
             clamped.push(...secA, ...secB);
         });
 
-        if (clamped.length > 0) {
-            questions = clamped;
+        const finalClamped = clamped.slice(0, 75);
+        if (finalClamped.length > 0) {
+            questions = finalClamped;
+        } else {
+            questions = questions.slice(0, 75);
         }
     }
 
@@ -722,7 +748,6 @@ async function generatePaperDoc(paper, template = null) {
 
     // ── 3. GENERAL INSTRUCTIONS ──
     const examTypeStr = String(paper.examType || paper.exam_type || '').toUpperCase();
-    const isJEE = examTypeStr.includes('JEE');
 
     const instructionText = isJEE
         ? "1. All questions are compulsory. Total 25 questions (100 Marks).  2. Section A contains 20 Multiple Choice Questions (+4 for correct, -1 for incorrect).  3. Section B contains 5 Numerical Value Questions (+4 for correct, 0 for unattempted). No options are provided.  4. Use of calculators or electronic devices is strictly prohibited."
@@ -759,7 +784,7 @@ async function generatePaperDoc(paper, template = null) {
         const q = questions[idx];
         const displayNum = startQNo + idx;
 
-        const curSubject = q.sectionSubject || q.subject || '';
+        const curSubject = normalizeSubjectName(q.sectionSubject || q.subject || '');
         const isSubjectChange = Boolean(curSubject && prevSubject && curSubject.toLowerCase() !== prevSubject.toLowerCase());
 
         if (isSubjectChange) {
