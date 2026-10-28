@@ -30,6 +30,8 @@ const SubjectDetails = () => {
         'Physics': '/physicslogo.jpeg',
         'Chemistry': '/chemistrylogo.jpeg',
         'Biology': '/biologylogo.jpeg',
+        'Botany': '/biologylogo.jpeg',
+        'Zoology': '/biologylogo.jpeg',
         'Maths': '/mathslogo.jpeg',
         'Mathematics': '/mathslogo.jpeg'
     };

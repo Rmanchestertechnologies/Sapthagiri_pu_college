@@ -202,10 +202,21 @@ router.post('/merge', [auth, checkRole(['admin'])], async (req, res) => {
         }
 
         const allPapers = await storage.getPapers();
-        const papers = paperIds.map(id => allPapers.find(p => String(p._id || p.id) === String(id))).filter(Boolean);
+        let papers = paperIds.map(id => allPapers.find(p => String(p._id || p.id) === String(id))).filter(Boolean);
 
         if (papers.length !== paperIds.length) {
-            return res.status(404).json({ msg: `One or more papers not found. Expected ${paperIds.length}, found ${papers.length}.` });
+            for (const id of paperIds) {
+                if (!papers.some(p => String(p._id || p.id) === String(id))) {
+                    try {
+                        const fetched = await storage.getPaperById(id);
+                        if (fetched) papers.push(fetched);
+                    } catch (e) {}
+                }
+            }
+        }
+
+        if (papers.length === 0) {
+            return res.status(404).json({ msg: `None of the requested subject papers were found to merge.` });
         }
 
         // Merge questions from all papers preserving subject sections
@@ -214,7 +225,7 @@ router.post('/merge', [auth, checkRole(['admin'])], async (req, res) => {
         const sectionsMap = {};
 
         for (const paper of papers) {
-            let availableQuestions = [...(paper.questions || [])];
+            let availableQuestions = [...(paper.questionObjects && paper.questionObjects.length > 0 ? paper.questionObjects : (paper.questions || []))];
             if (availableQuestions.length > 0 && typeof availableQuestions[0] === 'string') {
                 try {
                     availableQuestions = await supabaseQuestions.getQuestionsByIds(availableQuestions);

@@ -23,11 +23,13 @@ const DashboardHome = () => {
     const navigate = useNavigate();
 
     // Subject Directory strictly PCMB
-    const subjects = ['Physics', 'Chemistry', 'Mathematics', 'Biology'];
+    const subjects = ['Physics', 'Chemistry', 'Mathematics', 'Biology', 'Botany', 'Zoology'];
     const logoMap = {
         'Physics': '/physicslogo.jpeg',
         'Chemistry': '/chemistrylogo.jpeg',
         'Biology': '/biologylogo.jpeg',
+        'Botany': '/biologylogo.jpeg',
+        'Zoology': '/biologylogo.jpeg',
         'Mathematics': '/mathslogo.jpeg',
         'Maths': '/mathslogo.jpeg'
     };
@@ -165,6 +167,7 @@ const DashboardHome = () => {
 
             alert(`✓ Exam "${commissionForm.title}" successfully commissioned! Ready for subject paper creation.`);
             setShowCommissionModal(false);
+
             setCommissionForm({
                 title: '',
                 examType: 'CET',
@@ -185,6 +188,72 @@ const DashboardHome = () => {
             alert(`Error: ${msg}`);
         }
     };
+
+    const handleMergeExamSubjects = async (exam) => {
+        if (!exam) return;
+        setMerging(true);
+        try {
+            const subAssignments = exam.subjectAssignments || [];
+            const paperIds = [];
+
+            for (const sa of subAssignments) {
+                const subName = sa.subject;
+                let submittedPaper = null;
+                if (sa.submittedPaperId && typeof sa.submittedPaperId === 'object' && (sa.submittedPaperId._id || sa.submittedPaperId.id)) {
+                    submittedPaper = sa.submittedPaperId;
+                } else {
+                    const pId = sa.submittedPaperId ? String(sa.submittedPaperId) : null;
+                    if (pId) {
+                        submittedPaper = allPapers.find(p => String(p._id || p.id) === pId);
+                    }
+                }
+                if (!submittedPaper) {
+                    submittedPaper = allPapers.find(p => {
+                        const matchesExam = (p.examId && String(p.examId) === String(exam._id || exam.id)) ||
+                                            (p.title && p.title.toLowerCase().includes(exam.title.toLowerCase()));
+                        const pSub = (p.subject || '').toLowerCase();
+                        const curSub = subName.toLowerCase();
+                        const matchesSub = pSub.includes(curSub) || curSub.includes(pSub) ||
+                                            (curSub.includes('math') && pSub.includes('math')) ||
+                                            (curSub.includes('bio') && pSub.includes('bio'));
+                        return matchesExam && matchesSub;
+                    });
+                }
+                if (submittedPaper && (submittedPaper._id || submittedPaper.id)) {
+                    paperIds.push(submittedPaper._id || submittedPaper.id);
+                }
+            }
+
+            if (paperIds.length === 0) {
+                alert('No completed subject papers found to merge. Please compile and save at least one subject paper first.');
+                setMerging(false);
+                return;
+            }
+
+            const res = await api.post('/api/exams/merge', {
+                title: `${exam.title} - Grand Assessment`,
+                examType: exam.examType || 'NEET',
+                paperIds: paperIds,
+                duration_minutes: exam.duration_minutes || 180
+            });
+
+            const mergedPaper = res.data?.paper;
+            const targetPaperId = mergedPaper?._id || mergedPaper?.id;
+
+            alert(`✓ Successfully merged ${paperIds.length} subjects into "${exam.title} - Grand Assessment"! Opening assessment preview...`);
+            fetchData();
+            if (targetPaperId) {
+                navigate(`/admin/dashboard/preview/${targetPaperId}`);
+            }
+        } catch (err) {
+            console.error('Error merging exam subjects:', err);
+            const errorMsg = err.response?.data?.msg || err.response?.data?.message || err.message;
+            alert(`Failed to merge subjects: ${errorMsg}`);
+        } finally {
+            setMerging(false);
+        }
+    };
+
 
     const handleDeleteExam = async (rawId) => {
         const examId = rawId?._id || rawId?.id || rawId;
@@ -623,11 +692,30 @@ const DashboardHome = () => {
                 {/* WHEN CLICKED: THE 4 SUBJECT CARDS OPEN WITH TEACHER PAPERS */}
                 {isSubjectDirectoryOpen && (
                     <div className="p-6 pt-0 border-t border-slate-100 animate-fade-in bg-slate-50/30">
-                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 pt-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4 pt-4">
                             {subjects.map(sub => {
                                 const subPapers = allPapers.filter(p => {
-                                    const s = String(p.subject || '').toLowerCase();
-                                    return s.includes(sub.toLowerCase()) || sub.toLowerCase().includes(s);
+                                    const s = String(p.subject || '').toLowerCase().trim();
+                                    const cur = sub.toLowerCase().trim();
+                                    if (cur === 'botany') {
+                                        return s.includes('botan');
+                                    }
+                                    if (cur === 'zoology') {
+                                        return s.includes('zool');
+                                    }
+                                    if (cur === 'biology') {
+                                        return (s === 'biology' || s === 'bio') && !s.includes('botan') && !s.includes('zool');
+                                    }
+                                    if (cur === 'mathematics') {
+                                        return s.includes('math');
+                                    }
+                                    if (cur === 'physics') {
+                                        return s.includes('physic');
+                                    }
+                                    if (cur === 'chemistry') {
+                                        return s.includes('chem');
+                                    }
+                                    return s.includes(cur) || cur.includes(s);
                                 });
                                 return (
                                     <div
