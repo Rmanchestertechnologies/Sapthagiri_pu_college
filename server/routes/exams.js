@@ -419,6 +419,36 @@ router.get('/lab-active', async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────────
+// GET /api/exams/:id
+// Get a single exam by ID
+// ─────────────────────────────────────────────────────────────────
+router.get('/:id', auth, async (req, res) => {
+    try {
+        const exam = await storage.getExamById(req.params.id);
+        if (!exam) return res.status(404).json({ msg: 'Exam not found' });
+        res.json(exam);
+    } catch (err) {
+        console.error('Fetch Exam By ID Error:', err);
+        res.status(500).json({ msg: 'Server error fetching exam: ' + err.message });
+    }
+});
+
+// ─────────────────────────────────────────────────────────────────
+// PUT /api/exams/:id
+// Update an exam by ID
+// ─────────────────────────────────────────────────────────────────
+router.put('/:id', [auth, checkRole(['admin', 'teacher'])], async (req, res) => {
+    try {
+        const updated = await storage.updateExam(req.params.id, req.body);
+        if (!updated) return res.status(404).json({ msg: 'Exam not found' });
+        res.json({ msg: 'Exam updated successfully', exam: updated });
+    } catch (err) {
+        console.error('Update Exam Error:', err);
+        res.status(500).json({ msg: 'Server error updating exam: ' + err.message });
+    }
+});
+
+// ─────────────────────────────────────────────────────────────────
 // ADMIN: Toggle Online Exam Visibility for an exam
 // PUT /api/exams/:id/toggle-online-visibility
 // ─────────────────────────────────────────────────────────────────

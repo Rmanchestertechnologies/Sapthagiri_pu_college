@@ -92,7 +92,7 @@ const UnifiedLogin = () => {
                             <input 
                                 type="email" 
                                 required 
-                                placeholder="Enter College ID / Email"
+                                placeholder="sapthagiripucollegedvg@gmail.com"
                                 value={formData.email} 
                                 onChange={e => setFormData({...formData, email: e.target.value})} 
                                 className="w-full border-2 border-slate-200 p-3.5 pl-11 rounded-2xl bg-slate-50/70 focus:outline-none focus:border-amber-500 focus:bg-white transition-all text-sm font-medium text-slate-800" 
@@ -128,7 +128,7 @@ const UnifiedLogin = () => {
                                 <span>Authenticating...</span>
                             </>
                         ) : (
-                            <span>Access Faculty Portal →</span>
+                            <span>Sign In to Portal →</span>
                         )}
                     </button>
                 </form>

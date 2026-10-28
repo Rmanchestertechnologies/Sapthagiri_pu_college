@@ -71,6 +71,7 @@ const DashboardHome = () => {
     const [selectedViewExam, setSelectedViewExam] = useState(null);
     // Analysis Modal
     const [selectedAnalysisExam, setSelectedAnalysisExam] = useState(null);
+    const [merging, setMerging] = useState(false);
 
     // Expandable Box States (One box when clicked the four will open)
     const [isExamSubjectsOpen, setIsExamSubjectsOpen] = useState(false);
@@ -245,7 +246,7 @@ const DashboardHome = () => {
                         Institutional Assessment Command
                     </h2>
                     <p className="text-xs sm:text-sm text-slate-500 font-medium mt-0.5">
-                        Centralized delegation, real-time question paper compilation, and department faculty progress.
+                        Centralized assessment management, real-time question paper compilation, and department progress.
                     </p>
                 </div>
 
@@ -268,8 +269,8 @@ const DashboardHome = () => {
                 </div>
             </div>
 
-            {/* ── 4 COMPACT EXECUTIVE KPI CARDS ── */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+            {/* ── 3 COMPACT EXECUTIVE KPI CARDS (NO PROFESSORS / FACULTY) ── */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6">
                 <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-4">
                     <div className="w-12 h-12 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center text-xl font-black shadow-inner">
                         📋
@@ -287,16 +288,6 @@ const DashboardHome = () => {
                     <div>
                         <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Questions Ready</div>
                         <div className="text-xl font-black text-navy">{totalReadyQuestions} Qs</div>
-                    </div>
-                </div>
-
-                <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center text-xl font-black shadow-inner">
-                        👥
-                    </div>
-                    <div>
-                        <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">PCMB Faculty</div>
-                        <div className="text-xl font-black text-navy">{facultyCount} Professors</div>
                     </div>
                 </div>
 
@@ -370,7 +361,7 @@ const DashboardHome = () => {
                         ) : commissionedExams.length === 0 ? (
                             <div className="p-12 border-2 border-dashed border-slate-200 rounded-2xl text-center">
                                 <h4 className="font-black text-navy text-base mb-1">No Commissioned Exams Yet</h4>
-                                <p className="text-xs text-gray-500 mb-4">Create your first exam and delegate targets to PCMB faculty.</p>
+                                <p className="text-xs text-gray-500 mb-4">Create your first standardized exam to open subject question targets.</p>
                                 <button
                                     onClick={() => setShowCommissionModal(true)}
                                     className="bg-gold text-navy px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest hover:scale-105 transition shadow cursor-pointer"
@@ -445,6 +436,14 @@ const DashboardHome = () => {
                                                 </div>
                                                 <div className="flex items-center gap-2 flex-wrap">
                                                     <button
+                                                        onClick={() => handleMergeExamSubjects(exam)}
+                                                        disabled={merging}
+                                                        className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-1.5 rounded-xl font-black text-xs uppercase tracking-wider transition flex items-center gap-1.5 cursor-pointer shadow-md border border-emerald-400"
+                                                        title="Merge all completed subject papers into a single grand assessment paper"
+                                                    >
+                                                        <span>⚡</span> {merging ? 'Merging...' : 'Merge All Subjects'}
+                                                    </button>
+                                                    <button
                                                         onClick={() => setSelectedViewExam(exam)}
                                                         className="bg-navy text-gold hover:bg-slate-900 px-3.5 py-1.5 rounded-xl font-bold text-xs uppercase tracking-wider transition flex items-center gap-1.5 cursor-pointer shadow-xs"
                                                     >
@@ -465,15 +464,43 @@ const DashboardHome = () => {
                                                 </div>
                                             </div>
 
-                                            {/* The 4 PCMB Department Cards */}
+                                            {/* The Multi-Subject Department Cards */}
                                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                                                 {subAssignments.map((sa, idx) => {
                                                     const subName = sa.subject;
-                                                    const target = sa.targetQuestions || 60;
-                                                    const count = sa.questionsCount !== undefined
-                                                        ? sa.questionsCount
-                                                        : (sa.submittedPaperId?.questions?.length || 0);
+                                                    const isJEE = (exam.examType || '').toUpperCase().includes('JEE');
+                                                    const isNEET = (exam.examType || '').toUpperCase().includes('NEET');
+                                                    const target = isJEE ? 25 : isNEET ? 45 : (sa.targetQuestions || 60);
+
+                                                    // Find submitted paper either directly or in allPapers
+                                                    let submittedPaper = null;
+                                                    if (sa.submittedPaperId && typeof sa.submittedPaperId === 'object' && (sa.submittedPaperId._id || sa.submittedPaperId.id)) {
+                                                        submittedPaper = sa.submittedPaperId;
+                                                    } else {
+                                                        const pId = sa.submittedPaperId ? String(sa.submittedPaperId) : null;
+                                                        if (pId) {
+                                                            submittedPaper = allPapers.find(p => String(p._id || p.id) === pId);
+                                                        }
+                                                    }
+                                                    if (!submittedPaper) {
+                                                        submittedPaper = allPapers.find(p => {
+                                                            const matchesExam = (p.examId && String(p.examId) === String(exam._id || exam.id)) ||
+                                                                                (p.title && p.title.toLowerCase().includes(exam.title.toLowerCase()));
+                                                            const pSub = (p.subject || '').toLowerCase();
+                                                            const curSub = subName.toLowerCase();
+                                                            const matchesSub = pSub.includes(curSub) || curSub.includes(pSub) ||
+                                                                               (curSub.includes('math') && pSub.includes('math')) ||
+                                                                               (curSub.includes('bio') && pSub.includes('bio'));
+                                                            return matchesExam && matchesSub;
+                                                        });
+                                                    }
+
+                                                    const submittedPaperId = submittedPaper ? (submittedPaper._id || submittedPaper.id) : null;
+                                                    const count = submittedPaper && Array.isArray(submittedPaper.questions)
+                                                        ? submittedPaper.questions.length
+                                                        : (sa.questionsCount || 0);
                                                     const pct = Math.min(100, Math.round((count / target) * 100));
+                                                    const isReady = count >= target || pct >= 100;
 
                                                     const subIcon = subName.toLowerCase().includes('physic') ? '⚛️'
                                                         : subName.toLowerCase().includes('chem') ? '🧪'
@@ -483,7 +510,9 @@ const DashboardHome = () => {
                                                         : '🧬';
 
                                                     return (
-                                                        <div key={idx} className="border border-slate-200 p-4 rounded-2xl bg-white flex flex-col justify-between shadow-xs hover:border-navy transition">
+                                                        <div key={idx} className={`border p-4 rounded-2xl bg-white flex flex-col justify-between shadow-xs transition ${
+                                                            isReady ? 'border-emerald-300 ring-2 ring-emerald-50' : 'border-slate-200 hover:border-navy'
+                                                        }`}>
                                                             <div>
                                                                 <div className="flex justify-between items-center mb-3">
                                                                     <div className="flex items-center gap-2">
@@ -491,19 +520,28 @@ const DashboardHome = () => {
                                                                         <h5 className="text-xs font-black text-navy uppercase">{subName}</h5>
                                                                     </div>
                                                                     <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full ${
-                                                                        pct >= 100 ? 'bg-emerald-100 text-emerald-800' : pct > 0 ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-600'
+                                                                        isReady ? 'bg-emerald-100 text-emerald-800' : count > 0 ? 'bg-blue-100 text-blue-800' : 'bg-amber-100 text-amber-800'
                                                                     }`}>
-                                                                        {pct >= 100 ? 'Ready' : pct > 0 ? 'Working' : 'Pending'}
+                                                                        {isReady ? 'Ready' : count > 0 ? 'In Progress' : 'Pending'}
                                                                     </span>
                                                                 </div>
 
                                                                 <div className="bg-slate-50 p-2.5 rounded-xl border border-gray-100 mb-3 text-left">
-                                                                    <div className="text-[11px] font-bold text-navy truncate">
-                                                                        👤 {sa.teacherName || `Prof. ${subName}`}
+                                                                    <div className="text-[11px] font-black text-navy uppercase tracking-wider flex items-center justify-between">
+                                                                        <span>Format Quota</span>
+                                                                        <span className="text-amber-600 font-bold">
+                                                                            {isJEE ? '20 Sec A + 5 Sec B' : `${target} Qs`}
+                                                                        </span>
                                                                     </div>
-                                                                    <div className="text-[10px] text-blue-600 font-mono truncate mt-0.5">
-                                                                        ✉ {sa.teacherEmail || `${subName.toLowerCase()}@sapthagiri.edu`}
-                                                                    </div>
+                                                                    {submittedPaper ? (
+                                                                        <div className="text-[10px] text-emerald-700 font-bold mt-1 truncate" title={submittedPaper.title}>
+                                                                            ✓ Saved: {submittedPaper.title || `${subName} - ${exam.title}`}
+                                                                        </div>
+                                                                    ) : (
+                                                                        <div className="text-[10px] text-slate-400 font-medium mt-1">
+                                                                            Select & compile {subName} questions
+                                                                        </div>
+                                                                    )}
                                                                 </div>
 
                                                                 <div className="mb-2">
@@ -515,16 +553,42 @@ const DashboardHome = () => {
                                                                         <div
                                                                             style={{ width: `${pct}%` }}
                                                                             className={`h-full rounded-full transition-all duration-500 ${
-                                                                                pct >= 100 ? 'bg-emerald-500' : pct > 0 ? 'bg-blue-600' : 'bg-gray-300'
+                                                                                isReady ? 'bg-emerald-500' : count > 0 ? 'bg-blue-600' : 'bg-gray-300'
                                                                             }`}
                                                                         />
                                                                     </div>
                                                                 </div>
                                                             </div>
 
-                                                            <div className="mt-2 pt-2 border-t border-gray-100 flex justify-between items-center text-[10px] text-gray-400 font-bold uppercase tracking-wider">
-                                                                <span>Target</span>
-                                                                <span className="text-navy font-black">{target} Qs</span>
+                                                            <div className="mt-3 pt-3 border-t border-gray-100 flex flex-col gap-2">
+                                                                {submittedPaperId ? (
+                                                                    <div className="flex items-center gap-2">
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => navigate(`/admin/dashboard/preview/${submittedPaperId}`)}
+                                                                            className="flex-1 bg-navy text-gold hover:bg-slate-900 py-2 px-3 rounded-xl text-xs font-black uppercase tracking-wider transition text-center cursor-pointer shadow-xs"
+                                                                            title="View & Download PDF in single subject form"
+                                                                        >
+                                                                            👁 View / PDF
+                                                                        </button>
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => navigate(`/admin/dashboard/create-paper?examId=${exam._id || exam.id}&paperId=${submittedPaperId}&subject=${subName}&examType=${exam.examType || 'CET'}&examTitle=${encodeURIComponent(exam.title)}`)}
+                                                                            className="bg-slate-100 hover:bg-slate-200 text-navy py-2 px-3 rounded-xl text-xs font-black uppercase tracking-wider transition text-center cursor-pointer"
+                                                                            title="Edit questions for this subject"
+                                                                        >
+                                                                            ✎ Edit
+                                                                        </button>
+                                                                    </div>
+                                                                ) : (
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => navigate(`/admin/dashboard/create-paper?examId=${exam._id || exam.id}&subject=${subName}&examType=${exam.examType || 'CET'}&examTitle=${encodeURIComponent(exam.title)}`)}
+                                                                        className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 px-3 rounded-xl text-xs font-black uppercase tracking-wider transition text-center cursor-pointer shadow-md flex items-center justify-center gap-1.5"
+                                                                    >
+                                                                        <span>✍️</span> Select & Create {subName} Paper →
+                                                                    </button>
+                                                                )}
                                                             </div>
                                                         </div>
                                                     );
@@ -618,7 +682,7 @@ const DashboardHome = () => {
                                             {/* Papers List */}
                                             <div className="space-y-2 mb-4 max-h-[260px] overflow-y-auto pr-1">
                                                 {subPapers.slice(0, 5).map(p => {
-                                                    const teacherName = p.creator?.name || p.teacherName || p.createdBy?.name || 'Faculty Member';
+                                                    const teacherName = 'Sapthagiri PU College';
                                                     const qCount = Array.isArray(p.questions) ? p.questions.length : 0;
                                                     return (
                                                         <div
@@ -629,7 +693,7 @@ const DashboardHome = () => {
                                                                 {p.title || `${sub} Question Paper`}
                                                             </div>
                                                             <div className="flex items-center justify-between text-[10px] text-slate-500 mt-1 font-medium">
-                                                                <span className="truncate max-w-[120px] font-semibold text-slate-700">👤 {teacherName}</span>
+                                                                <span className="truncate max-w-[140px] font-semibold text-slate-600">🏛️ Sapthagiri • {p.classes?.join(', ') || 'Class 12'}</span>
                                                                 <span>📝 {qCount} Qs</span>
                                                             </div>
                                                             <div className="flex items-center gap-1.5 mt-2 pt-1.5 border-t border-slate-200/60">
@@ -684,7 +748,7 @@ const DashboardHome = () => {
                             <div>
                                 <span className="text-[10px] font-black text-gold uppercase tracking-[0.2em] bg-navy px-3 py-1 rounded-full">Admin Commissioning Engine</span>
                                 <h2 className="text-2xl font-black text-navy mt-2 uppercase tracking-tight">Create & Delegate Exam Assignment</h2>
-                                <p className="text-xs text-gray-500 font-medium mt-1">Set the exam title and delegate question targets to authorized PCMB faculty.</p>
+                                <p className="text-xs text-gray-500 font-medium mt-1">Set the exam title and configure standardized subject question targets.</p>
                             </div>
                             <button onClick={() => setShowCommissionModal(false)} className="text-slate/30 hover:text-red-500 bg-white rounded-full w-10 h-10 flex items-center justify-center text-xl font-bold border border-gray-100 shadow transition">✕</button>
                         </div>
@@ -736,66 +800,34 @@ const DashboardHome = () => {
                                 </div>
                             </div>
 
-                            {/* Per-Subject Faculty Assignment */}
-                            <div className="bg-slate-50 border border-slate-200 rounded-3xl p-6 space-y-4">
+                            {/* Multi-Subject Structure & Quotas */}
+                            <div className="bg-slate-50 border border-slate-200 rounded-3xl p-6 space-y-3">
                                 <h4 className="text-xs font-black text-navy uppercase tracking-widest flex items-center gap-2">
-                                    <span>👥</span> Assign Subject Faculty (PCMB Authorized Staff)
+                                    <span>🎯</span> Standardized Multi-Subject Structure
                                 </h4>
-
-                                {(() => {
-                                    let subs = [];
-                                    if (commissionForm.examType === 'NEET') subs = ['Physics', 'Chemistry', 'Botany', 'Zoology'];
-                                    else if (commissionForm.examType === 'JEE') subs = ['Physics', 'Chemistry', 'Mathematics'];
-                                    else subs = ['Physics', 'Chemistry', 'Mathematics', 'Botany', 'Zoology'];
-
-                                    return subs.map(subName => {
-                                        const subTeachers = allTeachers.filter(t => {
-                                            const tSub = (t.subject || '').toLowerCase().replace(/ematics|s$/g, '');
-                                            const sName = subName.toLowerCase().replace(/ematics|s$/g, '');
-                                            if ((sName === 'botany' || sName === 'zoology') && (tSub.includes('bio') || tSub.includes(sName))) return true;
-                                            return tSub === sName || tSub.includes(sName) || sName.includes(tSub);
-                                        });
-
-                                        return (
-                                            <div key={subName} className="bg-white p-4 rounded-2xl border border-gray-200 flex flex-col md:flex-row md:items-center justify-between gap-4">
-                                                <div className="flex items-center gap-3 min-w-[140px]">
-                                                    <span className="w-8 h-8 bg-navy text-gold rounded-xl flex items-center justify-center font-black text-xs">
-                                                        {subName.charAt(0)}
-                                                    </span>
-                                                    <span className="font-black text-sm text-navy uppercase">{subName}</span>
-                                                </div>
-
-                                                <div className="flex-1">
-                                                    <select
-                                                        value={commissionForm.assignedTeachers[subName] || ''}
-                                                        onChange={e => setCommissionForm({
-                                                            ...commissionForm,
-                                                            assignedTeachers: { ...commissionForm.assignedTeachers, [subName]: e.target.value }
-                                                        })}
-                                                        className="w-full border border-gray-200 focus:border-navy rounded-xl px-3 py-2 text-xs font-bold text-navy outline-none bg-gray-50/50 cursor-pointer"
-                                                    >
-                                                        <option value="">-- Assign {subName} Teacher --</option>
-                                                        {subTeachers.map(t => (
-                                                            <option key={t._id || t.id} value={t._id || t.id}>
-                                                                {t.name} ({t.email})
-                                                            </option>
-                                                        ))}
-                                                        {teachersLoading
-                                                            ? <option value="" disabled>Loading {subName} faculty...</option>
-                                                            : subTeachers.length === 0
-                                                                ? <option value="" disabled>No registered {subName} faculty available</option>
-                                                                : null
-                                                        }
-                                                    </select>
-                                                </div>
-
-                                                <div className="text-right text-[11px] font-bold text-slate/50">
-                                                    Target: {commissionForm.targetPerSubject} Qs
-                                                </div>
-                                            </div>
-                                        );
-                                    });
-                                })()}
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                                    <div className={`p-4 rounded-2xl border transition ${
+                                        commissionForm.examType === 'CET' ? 'bg-amber-50/60 border-amber-300 ring-2 ring-amber-100' : 'bg-white border-slate-200'
+                                    }`}>
+                                        <div className="font-black text-navy text-sm">CET (PCMB)</div>
+                                        <div className="text-slate-500 text-xs mt-1">4 Subjects: Physics, Chemistry, Maths, Biology</div>
+                                        <div className="text-amber-700 font-extrabold text-xs mt-2">60 Questions each (240 Qs Total)</div>
+                                    </div>
+                                    <div className={`p-4 rounded-2xl border transition ${
+                                        commissionForm.examType === 'NEET' ? 'bg-amber-50/60 border-amber-300 ring-2 ring-amber-100' : 'bg-white border-slate-200'
+                                    }`}>
+                                        <div className="font-black text-navy text-sm">NEET (PCBZ)</div>
+                                        <div className="text-slate-500 text-xs mt-1">4 Subjects: Physics, Chemistry, Botany, Zoology</div>
+                                        <div className="text-amber-700 font-extrabold text-xs mt-2">45 Questions each (180 Qs Total)</div>
+                                    </div>
+                                    <div className={`p-4 rounded-2xl border transition ${
+                                        commissionForm.examType === 'JEE' ? 'bg-amber-50/60 border-amber-300 ring-2 ring-amber-100' : 'bg-white border-slate-200'
+                                    }`}>
+                                        <div className="font-black text-navy text-sm">JEE Main (PCM)</div>
+                                        <div className="text-slate-500 text-xs mt-1">3 Subjects: Physics, Chemistry, Mathematics</div>
+                                        <div className="text-amber-700 font-extrabold text-xs mt-2">25 Qs each (20 Sec A + 5 Sec B = 75 Qs)</div>
+                                    </div>
+                                </div>
                             </div>
 
                             {/* Submit & Dispatch */}
@@ -803,15 +835,15 @@ const DashboardHome = () => {
                                 <button
                                     type="button"
                                     onClick={() => setShowCommissionModal(false)}
-                                    className="px-6 py-3 rounded-xl border border-gray-200 text-gray-600 font-bold text-xs hover:bg-gray-100 transition"
+                                    className="px-6 py-3 rounded-xl border border-gray-200 text-gray-600 font-bold text-xs hover:bg-gray-100 transition cursor-pointer"
                                 >
                                     Cancel
                                 </button>
                                 <button
                                     type="submit"
-                                    className="px-8 py-3 rounded-xl bg-gold text-navy font-black text-xs uppercase tracking-widest hover:scale-105 transition shadow-lg"
+                                    className="px-8 py-3 rounded-xl bg-gold text-navy font-black text-xs uppercase tracking-widest hover:scale-105 transition shadow-lg cursor-pointer flex items-center gap-2"
                                 >
-                                    Proceed & Dispatch to Faculty
+                                    <span>⚡</span> Commission Exam Now
                                 </button>
                             </div>
                         </form>
@@ -1084,12 +1116,6 @@ const AdminDashboard = () => {
                 { title: 'Exam Blueprints', path: '/admin/dashboard/exam-blueprints', icon: '📐', desc: 'Chapter weightage & patterns' },
                 { title: 'Document Templates', path: '/admin/dashboard/upload-template', icon: '📄', desc: 'Institutional paper formatting' }
             ]
-        },
-        {
-            group: 'Faculty & Access Control',
-            items: [
-                { title: 'Faculty & OMR Access', path: '/admin/dashboard/create-teacher', icon: '👥', desc: 'Manage faculty & toggle OMR permissions' }
-            ]
         }
     ];
 
@@ -1104,7 +1130,7 @@ const AdminDashboard = () => {
         if (location.pathname.includes('previous-year-papers')) return 'Previous Year Papers';
         if (location.pathname.includes('exam-blueprints')) return 'Exam Blueprints';
         if (location.pathname.includes('upload-template')) return 'Templates';
-        if (location.pathname.includes('create-teacher')) return 'Faculty & OMR Access';
+        
         return 'Executive Overview';
     };
 

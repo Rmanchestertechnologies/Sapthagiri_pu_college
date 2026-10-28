@@ -220,16 +220,19 @@ export default function CreatePaper() {
     const examId = searchParams.get('examId');
     const paperId = searchParams.get('paperId');
     const initialCategory = searchParams.get('category') === 'assignment' ? 'assignment' : 'test';
+    const commissionedSubject = searchParams.get('subject');
+    const commissionedExamType = searchParams.get('examType');
+    const commissionedExamTitle = searchParams.get('examTitle');
 
     // Wizard Step: 1 (Configure) -> 2 (Method) -> 3 (Questions / Auto Engine) -> 4 (Preview) -> 5 (Alignment)
-    const [currentStep, setCurrentStep] = useState(paperId ? 3 : 1);
+    const [currentStep, setCurrentStep] = useState((paperId || examId) ? 3 : 1);
 
     // Step 1: Mode & Academic Metadata
     const [paperCategory, setPaperCategory] = useState(initialCategory);
-    const [subject, setSubject] = useState(user?.subject || 'Physics');
+    const [subject, setSubject] = useState(commissionedSubject || user?.subject || 'Physics');
     const [selectedClass, setSelectedClass] = useState('Both');
-    const [examType, setExamType] = useState('NEET_PCB');
-    const [title, setTitle] = useState('');
+    const [examType, setExamType] = useState(commissionedExamType || 'CET');
+    const [title, setTitle] = useState(commissionedSubject && commissionedExamTitle ? `${commissionedSubject} - ${commissionedExamTitle}` : '');
     const [duration, setDuration] = useState('180 Minutes');
     const [targetCount, setTargetCount] = useState(60);
 
@@ -261,7 +264,22 @@ export default function CreatePaper() {
     }, [examType, subject, paperCategory]);
 
     // Active Subject Tab for multi-subject workflow
-    const [activeSubjectTab, setActiveSubjectTab] = useState('Physics');
+    const [activeSubjectTab, setActiveSubjectTab] = useState(commissionedSubject || 'Physics');
+
+    
+    // Sync commissioned exam query params on load
+    useEffect(() => {
+        if (commissionedSubject) {
+            setActiveSubjectTab(commissionedSubject);
+            setSubject(commissionedSubject);
+        }
+        if (commissionedExamType) {
+            setExamType(commissionedExamType);
+        }
+        if (commissionedSubject && commissionedExamTitle) {
+            setTitle(`${commissionedSubject} - ${commissionedExamTitle}`);
+        }
+    }, [commissionedSubject, commissionedExamType, commissionedExamTitle]);
 
     // Make sure activeSubjectTab is always one of examSubjects
     useEffect(() => {
@@ -2408,6 +2426,99 @@ export default function CreatePaper() {
         }
     };
 
+    // Save Single Subject Paper directly into Commissioned Exam & Department Directory
+    const handleSaveSubjectToExam = async () => {
+        const sub = activeSubjectTab;
+        const subQs = (selectedQuestionsBySubject[sub] || []);
+        const isJEE = (examType || '').toUpperCase().includes('JEE');
+        const isNEET = (examType || '').toUpperCase().includes('NEET');
+        const expectedQuota = isJEE ? 25 : isNEET ? 45 : 60;
+
+        let finalSubQuestions = subQs;
+        if (finalSubQuestions.length === 0 && selectedQuestions.length > 0) {
+            finalSubQuestions = selectedQuestions;
+        }
+
+        if (finalSubQuestions.length === 0) {
+            return alert(`Please select or auto-generate questions for ${sub} before saving.`);
+        }
+
+        if (isJEE) {
+            const isNum = (q) => {
+                const t = (q.type || q.q_type || '').toUpperCase();
+                return Boolean(q.isNumerical) || matchesQuestionType(q, 'Numerical / Integer Type') || t.includes('NUMERICAL') || t.includes('INTEGER') || t === 'NUM';
+            };
+            const secA = finalSubQuestions.filter(q => !isNum(q)).slice(0, 20);
+            const secB = finalSubQuestions.filter(q => isNum(q)).slice(0, 5);
+            finalSubQuestions = [...secA, ...secB];
+        } else {
+            finalSubQuestions = finalSubQuestions.slice(0, expectedQuota);
+        }
+
+        setSaving(true);
+        try {
+            const paperTitle = `${sub} - ${commissionedExamTitle || title || 'Assessment'}`;
+            const payload = {
+                title: paperTitle,
+                subject: sub,
+                classes: [selectedClass || '12'],
+                examId: examId,
+                duration: duration || '180 Minutes',
+                isAssignment: false,
+                startQNo: 1,
+                endQNo: finalSubQuestions.length,
+                questions: finalSubQuestions.map(q => q._id || q.id),
+                questionObjects: finalSubQuestions,
+                status: 'Approved',
+                exam_type: examType,
+                examType: examType,
+            };
+
+            let res;
+            if (paperId) {
+                res = await api.put(`/api/papers/${paperId}`, payload);
+            } else {
+                res = await api.post('/api/papers', payload);
+            }
+
+            const savedPaper = res.data;
+            const savedPaperId = savedPaper?._id || savedPaper?.id || paperId;
+
+            // Update the online exam's subject assignments with this submittedPaperId
+            try {
+                const examDetailsRes = await api.get(`/api/exams/${examId}`);
+                const ex = examDetailsRes.data;
+                if (ex && Array.isArray(ex.subjectAssignments)) {
+                    const updatedAssignments = ex.subjectAssignments.map(sa => {
+                        const saSub = (sa.subject || '').toLowerCase();
+                        const curSub = sub.toLowerCase();
+                        if (saSub === curSub || (curSub.includes('math') && saSub.includes('math')) || (curSub.includes('bio') && saSub.includes('bio')) || (curSub.includes('physic') && saSub.includes('physic')) || (curSub.includes('chem') && saSub.includes('chem'))) {
+                            return {
+                                ...sa,
+                                submittedPaperId: String(savedPaperId),
+                                questionsCount: finalSubQuestions.length,
+                                status: finalSubQuestions.length >= (sa.targetQuestions || expectedQuota) ? 'Completed' : 'In Progress'
+                            };
+                        }
+                        return sa;
+                    });
+                    await api.put(`/api/exams/${examId}`, { subjectAssignments: updatedAssignments });
+                }
+            } catch (linkErr) {
+                console.warn('Exam subject link warning:', linkErr.message);
+            }
+
+            alert(`✓ ${sub} paper successfully saved to "${commissionedExamTitle || title}"!\nStored in the ${sub} Subject Directory as "${paperTitle}".`);
+            navigate('/admin/dashboard');
+        } catch (err) {
+            console.error('Error saving subject paper:', err);
+            const serverMsg = err.response?.data?.msg || err.response?.data?.message || err.message;
+            alert('Failed to save subject paper: ' + serverMsg);
+        } finally {
+            setSaving(false);
+        }
+    };
+
     // Finalize and Save Paper (supports unified multi-subject merged paper)
     const handleFinalizeAndSave = async () => {
         if (selectedQuestions.length === 0) return alert('No questions selected.');
@@ -2633,6 +2744,18 @@ export default function CreatePaper() {
                 </div>
 
                 {/* Step Indicators */}
+                {examId && (
+                    <button
+                        type="button"
+                        onClick={handleSaveSubjectToExam}
+                        disabled={saving}
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white font-black px-4 py-2 rounded-xl text-xs uppercase tracking-wider shadow-md hover:shadow-lg transition flex items-center gap-1.5 cursor-pointer border border-emerald-400 mr-2"
+                        title={`Save all ${activeSubjectTab} questions directly into ${commissionedExamTitle || 'this exam'}`}
+                    >
+                        <span>💾</span>
+                        <span>{saving ? 'Saving...' : `Save ${activeSubjectTab} to ${commissionedExamTitle || 'Exam'}`}</span>
+                    </button>
+                )}
                 <div className="hidden md:flex items-center gap-2 mr-4">
                     {[
                         { num: 1, label: 'Scope & Setup' },
@@ -4724,14 +4847,25 @@ export default function CreatePaper() {
                                 >
                                     <span>⚙️</span> Alignment Controls →
                                 </button>
-                                <button
-                                    type="button"
-                                    onClick={handleFinalizeAndSave}
+                                {examId ? (
+                                    <button
+                                        type="button"
+                                        onClick={handleSaveSubjectToExam}
+                                        disabled={saving}
+                                        className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2 rounded-xl font-black text-xs uppercase tracking-wider transition shadow-lg flex items-center gap-1.5 cursor-pointer border-2 border-emerald-400"
+                                    >
+                                        <span>💾</span> {saving ? 'Saving...' : `Save ${activeSubjectTab} to ${commissionedExamTitle || 'Exam'}`}
+                                    </button>
+                                ) : (
+                                    <button
+                                        type="button"
+                                        onClick={handleFinalizeAndSave}
                                     disabled={saving}
                                     className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2 rounded-xl font-black text-xs uppercase tracking-wider transition shadow flex items-center gap-1.5 cursor-pointer"
                                 >
                                     <span>✓</span> {saving ? 'Saving...' : (examSubjects.length > 1 ? 'Merge & Finalize Exam Paper' : `Save ${paperCategory === 'assignment' ? 'Assignment' : 'Paper'}`)}
                                 </button>
+                                )}
                             </div>
                         </div>
 

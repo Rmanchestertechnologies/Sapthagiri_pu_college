@@ -168,7 +168,7 @@ const SubjectDetails = () => {
                     )}
                     <div>
                         <h3 className="font-black text-2xl text-navy uppercase tracking-tight">{subject} Division</h3>
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Departmental Asset & Faculty Control</p>
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Departmental Question Paper Archive</p>
                     </div>
                 </div>
                 <div className="flex items-center gap-3">
@@ -187,22 +187,7 @@ const SubjectDetails = () => {
                 </div>
             </div>
             
-            <div className="flex gap-3 p-1.5 bg-gray-200/80 rounded-2xl w-fit">
-                <button 
-                    onClick={() => setActiveTab('papers')}
-                    className={`px-8 py-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all ${activeTab === 'papers' ? 'bg-navy text-gold shadow-md' : 'text-slate-600 hover:text-navy'}`}
-                >
-                    Question Papers ({papers.length})
-                </button>
-                <button 
-                    onClick={() => setActiveTab('teachers')}
-                    className={`px-8 py-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all ${activeTab === 'teachers' ? 'bg-navy text-gold shadow-md' : 'text-slate-600 hover:text-navy'}`}
-                >
-                    Faculty List ({teachers.length})
-                </button>
-            </div>
-
-            {activeTab === 'papers' && (
+            {true && (
                 <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-gray-100 animate-fade-in-up">
                     <div className="flex justify-between items-center mb-8">
                         <h3 className="text-sm font-black text-navy flex items-center gap-3 uppercase tracking-widest">
@@ -214,7 +199,7 @@ const SubjectDetails = () => {
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         {papers.map(p => {
                             const creator = teachers.find(t => t._id === p.teacherId) || allTeachers.find(t => t._id === p.teacherId);
-                            const creatorName = creator ? creator.name : 'Faculty Member';
+                            const creatorName = 'Sapthagiri PU College';
 
                             return (
                                 <div key={p._id} className="border-2 border-gray-100 p-6 rounded-3xl shadow-sm hover:shadow-xl hover:border-gold transition-all bg-white flex flex-col justify-between h-full relative group">
@@ -232,7 +217,7 @@ const SubjectDetails = () => {
                                         
                                         <div className="space-y-2 text-xs font-semibold text-slate-600 border-t border-gray-100 pt-3">
                                             <div className="flex justify-between">
-                                                <span className="text-slate-400">Created By:</span>
+                                                <span className="text-slate-400">Institution:</span>
                                                 <span className="font-bold text-navy">{creatorName}</span>
                                             </div>
                                             <div className="flex justify-between">
@@ -286,51 +271,6 @@ const SubjectDetails = () => {
                                 </button>
                             </div>
                         )}
-                    </div>
-                </div>
-            )}
-
-            {activeTab === 'teachers' && (
-                <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-gray-100 animate-fade-in-up">
-                    <h3 className="text-sm font-black mb-6 text-navy flex items-center gap-3 uppercase tracking-widest">
-                        <span className="bg-gold text-navy w-8 h-8 rounded-xl flex items-center justify-center text-sm font-black shadow">{teachers.length}</span>
-                        Authorized Department Faculty
-                    </h3>
-                    <div className="overflow-x-auto">
-                        <table className="w-full border-collapse">
-                            <thead>
-                                <tr className="text-navy/60 text-xs font-black uppercase tracking-wider border-b-2 border-gray-100">
-                                    <th className="p-4 text-left w-12">#</th>
-                                    <th className="p-4 text-left">Faculty Name</th>
-                                    <th className="p-4 text-left">Official Email</th>
-                                    <th className="p-4 text-center w-28">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {teachers.map((t, index) => (
-                                    <tr key={t._id || t.id} className="border-b border-gray-50 hover:bg-gray-50/60 transition">
-                                        <td className="p-4 text-slate-400 font-black text-xs">{String(index + 1).padStart(2, '0')}</td>
-                                        <td className="p-4 font-black text-navy text-sm">{t.name}</td>
-                                        <td className="p-4 text-slate-600 font-medium text-xs">{t.email}</td>
-                                        <td className="p-4 text-center">
-                                            <button 
-                                                onClick={() => handleDeleteTeacher(t._id || t.id)} 
-                                                className="bg-red-50 text-red-600 font-black text-[10px] uppercase tracking-wider hover:bg-red-600 hover:text-white px-3 py-1.5 rounded-lg transition"
-                                            >
-                                                Revoke
-                                            </button>
-                                        </td>
-                                    </tr>
-                                ))}
-                                {teachers.length === 0 && (
-                                    <tr>
-                                        <td colSpan="4" className="text-center p-12 text-slate-400 font-bold uppercase tracking-widest text-xs italic">
-                                            No faculty currently assigned to this division.
-                                        </td>
-                                    </tr>
-                                )}
-                            </tbody>
-                        </table>
                     </div>
                 </div>
             )}
