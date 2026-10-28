@@ -127,40 +127,23 @@ const DashboardHome = () => {
             if (commissionForm.examType === 'NEET') {
                 subjectsNeeded = ['Physics', 'Chemistry', 'Botany', 'Zoology'];
             } else if (commissionForm.examType === 'CET') {
-                subjectsNeeded = ['Physics', 'Chemistry', 'Mathematics', 'Botany', 'Zoology'];
+                subjectsNeeded = ['Physics', 'Chemistry', 'Mathematics', 'Biology'];
             } else if (commissionForm.examType === 'JEE') {
                 subjectsNeeded = ['Physics', 'Chemistry', 'Mathematics'];
             } else {
-                subjectsNeeded = ['Physics', 'Chemistry', 'Mathematics', 'Botany', 'Zoology'];
+                subjectsNeeded = ['Physics', 'Chemistry', 'Mathematics', 'Biology'];
             }
 
-            const isSubMatch = (tSub, sName) => {
-                if (!tSub || !sName) return false;
-                const a = tSub.toLowerCase().replace(/ematics|s$/g, '');
-                const b = sName.toLowerCase().replace(/ematics|s$/g, '');
-                if ((b === 'botany' || b === 'zoology') && (a.includes('bio') || a.includes(b))) return true;
-                return a === b || a.includes(b) || b.includes(a);
-            };
+            const defaultTarget = commissionForm.examType === 'JEE' ? 25 : commissionForm.examType === 'NEET' ? 45 : 60;
 
-            for (const subName of subjectsNeeded) {
-                const assignedTeacherId = commissionForm.assignedTeachers[subName];
-                const teacherObj = allTeachers.find(t => String(t._id || t.id) === String(assignedTeacherId)) ||
-                                   allTeachers.find(t => isSubMatch(t.subject, subName));
-                if (!teacherObj || !(teacherObj._id || teacherObj.id)) {
-                    return alert(`Please assign a faculty member for ${subName}.`);
-                }
-            }
-
+            // Universal college access - no faculty assignments required
             const subjectAssignments = subjectsNeeded.map(subName => {
-                const assignedTeacherId = commissionForm.assignedTeachers[subName];
-                const teacherObj = allTeachers.find(t => String(t._id || t.id) === String(assignedTeacherId)) ||
-                                   allTeachers.find(t => isSubMatch(t.subject, subName));
                 return {
                     subject: subName,
-                    teacherId: teacherObj._id || teacherObj.id,
-                    teacherName: teacherObj.name,
-                    teacherEmail: teacherObj.email,
-                    targetQuestions: commissionForm.targetPerSubject || 60,
+                    teacherId: user?.id || 'admin',
+                    teacherName: 'Sapthagiri PU College',
+                    teacherEmail: 'sapthagiripucollegedvg@gmail.com',
+                    targetQuestions: defaultTarget,
                     status: 'Pending'
                 };
             });
@@ -169,11 +152,7 @@ const DashboardHome = () => {
                 title: commissionForm.title,
                 examType: commissionForm.examType,
                 classes: commissionForm.classes,
-                subjectAssignments: subjectAssignments.map(a => ({
-                    subject: a.subject,
-                    teacherId: a.teacherId,
-                    teacherIdLength: String(a.teacherId || '').length
-                }))
+                subjectAssignments
             });
 
             const res = await api.post('/api/exams/commission', {
@@ -184,7 +163,7 @@ const DashboardHome = () => {
                 duration_minutes: 180
             });
 
-            alert(`✓ Exam "${commissionForm.title}" successfully commissioned! Access granted to assigned faculty.`);
+            alert(`✓ Exam "${commissionForm.title}" successfully commissioned! Ready for subject paper creation.`);
             setShowCommissionModal(false);
             setCommissionForm({
                 title: '',
@@ -325,7 +304,7 @@ const DashboardHome = () => {
                                     {activeExam?.title || 'Commissioned Examination Targets'}
                                 </h3>
                                 <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2.5 py-0.5 rounded-md">
-                                    Class {activeExam?.classes?.join(', ') || '12'}
+                                    {activeExam?.classes && activeExam.classes.length > 1 ? 'Class 11 & 12' : `Class ${activeExam?.classes?.[0] || '12'}`}
                                 </span>
                             </div>
                             <p className="text-xs text-slate-500 font-medium">
@@ -573,7 +552,7 @@ const DashboardHome = () => {
                                                                         </button>
                                                                         <button
                                                                             type="button"
-                                                                            onClick={() => navigate(`/admin/dashboard/create-paper?examId=${exam._id || exam.id}&paperId=${submittedPaperId}&subject=${subName}&examType=${exam.examType || 'CET'}&examTitle=${encodeURIComponent(exam.title)}`)}
+                                                                            onClick={() => navigate(`/admin/dashboard/create-paper?examId=${exam._id || exam.id}&paperId=${submittedPaperId}&subject=${subName}&examType=${exam.examType || 'CET'}&examTitle=${encodeURIComponent(exam.title)}&classes=${encodeURIComponent(exam.classes ? (exam.classes.includes('11') && exam.classes.includes('12') ? 'Both' : exam.classes[0]) : '12')}`)}
                                                                             className="bg-slate-100 hover:bg-slate-200 text-navy py-2 px-3 rounded-xl text-xs font-black uppercase tracking-wider transition text-center cursor-pointer"
                                                                             title="Edit questions for this subject"
                                                                         >
@@ -583,7 +562,7 @@ const DashboardHome = () => {
                                                                 ) : (
                                                                     <button
                                                                         type="button"
-                                                                        onClick={() => navigate(`/admin/dashboard/create-paper?examId=${exam._id || exam.id}&subject=${subName}&examType=${exam.examType || 'CET'}&examTitle=${encodeURIComponent(exam.title)}`)}
+                                                                        onClick={() => navigate(`/admin/dashboard/create-paper?examId=${exam._id || exam.id}&subject=${subName}&examType=${exam.examType || 'CET'}&examTitle=${encodeURIComponent(exam.title)}&classes=${encodeURIComponent(exam.classes ? (exam.classes.includes('11') && exam.classes.includes('12') ? 'Both' : exam.classes[0]) : '12')}`)}
                                                                         className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 px-3 rounded-xl text-xs font-black uppercase tracking-wider transition text-center cursor-pointer shadow-md flex items-center justify-center gap-1.5"
                                                                     >
                                                                         <span>✍️</span> Select & Create {subName} Paper →
@@ -790,12 +769,27 @@ const DashboardHome = () => {
                                 <div>
                                     <label className="block text-xs font-black text-navy uppercase tracking-wider mb-2">Target Class</label>
                                     <select
-                                        value={commissionForm.classes[0]}
-                                        onChange={e => setCommissionForm({ ...commissionForm, classes: [e.target.value] })}
+                                        value={
+                                            (Array.isArray(commissionForm.classes) && (
+                                                (commissionForm.classes.includes('11') && commissionForm.classes.includes('12')) ||
+                                                commissionForm.classes.includes('Both')
+                                            ))
+                                                ? 'Both'
+                                                : (commissionForm.classes[0] || '12')
+                                        }
+                                        onChange={e => {
+                                            const val = e.target.value;
+                                            if (val === 'Both') {
+                                                setCommissionForm({ ...commissionForm, classes: ['11', '12'] });
+                                            } else {
+                                                setCommissionForm({ ...commissionForm, classes: [val] });
+                                            }
+                                        }}
                                         className="w-full border-2 border-gray-200 focus:border-navy rounded-2xl px-4 py-3 text-sm font-bold text-navy outline-none bg-white cursor-pointer"
                                     >
                                         <option value="12">Class 12</option>
                                         <option value="11">Class 11</option>
+                                        <option value="Both">Both Class 11 & 12</option>
                                     </select>
                                 </div>
                             </div>

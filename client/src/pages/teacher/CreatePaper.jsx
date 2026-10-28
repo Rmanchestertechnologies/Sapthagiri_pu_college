@@ -223,6 +223,7 @@ export default function CreatePaper() {
     const commissionedSubject = searchParams.get('subject');
     const commissionedExamType = searchParams.get('examType');
     const commissionedExamTitle = searchParams.get('examTitle');
+    const commissionedClass = searchParams.get('classes') || searchParams.get('class');
 
     // Wizard Step: 1 (Configure) -> 2 (Method) -> 3 (Questions / Auto Engine) -> 4 (Preview) -> 5 (Alignment)
     const [currentStep, setCurrentStep] = useState((paperId || examId) ? 3 : 1);
@@ -230,7 +231,7 @@ export default function CreatePaper() {
     // Step 1: Mode & Academic Metadata
     const [paperCategory, setPaperCategory] = useState(initialCategory);
     const [subject, setSubject] = useState(commissionedSubject || user?.subject || 'Physics');
-    const [selectedClass, setSelectedClass] = useState('Both');
+    const [selectedClass, setSelectedClass] = useState(commissionedClass || 'Both');
     const [examType, setExamType] = useState(commissionedExamType || 'CET');
     const [title, setTitle] = useState(commissionedSubject && commissionedExamTitle ? `${commissionedSubject} - ${commissionedExamTitle}` : '');
     const [duration, setDuration] = useState('180 Minutes');
@@ -904,9 +905,23 @@ export default function CreatePaper() {
                 const res = await api.get(`/api/exams/${examId}`);
                 const exam = res.data;
                 if (exam) {
-                    setTitle(exam.title || '');
-                    setExamType(exam.examType || 'NEET');
-                    if (exam.classes && exam.classes.length > 0) setSelectedClass(exam.classes[0]);
+                    if (commissionedSubject && exam.title) {
+                        setTitle(`${commissionedSubject} - ${exam.title}`);
+                    } else if (exam.title) {
+                        setTitle(exam.title);
+                    }
+                    if (exam.examType) setExamType(exam.examType);
+                    if (commissionedClass) {
+                        setSelectedClass(commissionedClass);
+                    } else if (exam.classes && exam.classes.length > 0) {
+                        if (exam.classes.includes('11') && exam.classes.includes('12')) {
+                            setSelectedClass('Both');
+                        } else if (exam.classes.includes('Both')) {
+                            setSelectedClass('Both');
+                        } else {
+                            setSelectedClass(exam.classes[0]);
+                        }
+                    }
                 }
             } catch (err) {
                 console.error('Error fetching exam metadata:', err);
@@ -2390,7 +2405,7 @@ export default function CreatePaper() {
                 const initPayload = {
                     title: title || `${examType} Examination Draft (${examSubjects.join(' + ')})`,
                     subject: examSubjects.length === 1 ? examSubjects[0] : (subject || examSubjects.join(', ')),
-                    classes: [selectedClass],
+                    classes: selectedClass === 'Both' ? ['11', '12'] : [selectedClass || '12'],
                     exam_type: examType,
                     examType: examType,
                     status: 'DRAFT',
@@ -2461,7 +2476,7 @@ export default function CreatePaper() {
             const payload = {
                 title: paperTitle,
                 subject: sub,
-                classes: [selectedClass || '12'],
+                classes: selectedClass === 'Both' ? ['11', '12'] : [selectedClass || '12'],
                 examId: examId,
                 duration: duration || '180 Minutes',
                 isAssignment: false,
@@ -2568,7 +2583,7 @@ export default function CreatePaper() {
             const payload = {
                 title: title || `${examType} Examination (${examSubjects.join(' + ')})`,
                 subject: examSubjects.length === 1 ? examSubjects[0] : (subject || examSubjects.join(', ')),
-                classes: [selectedClass],
+                classes: selectedClass === 'Both' ? ['11', '12'] : [selectedClass || '12'],
                 examId: examId || undefined,
                 duration: duration || (paperCategory === 'assignment' ? null : '180 Minutes'),
                 isAssignment: paperCategory === 'assignment',
@@ -2694,7 +2709,7 @@ export default function CreatePaper() {
             _id: paperId || 'new-paper',
             title: title || (paperCategory === 'assignment' ? `${subject} Assignment` : `${examType} Examination (${examSubjects.join(' + ')})`),
             subject: examSubjects.length === 1 ? examSubjects[0] : (subject || examSubjects.join(', ')),
-            classes: [selectedClass],
+            classes: selectedClass === 'Both' ? ['11', '12'] : [selectedClass || '12'],
             duration: headerConfig?.timeAllowed || duration || null,
             questions: displayList,
             examType: paperCategory === 'assignment' ? 'ASSIGNMENT' : examType,

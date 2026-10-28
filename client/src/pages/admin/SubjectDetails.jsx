@@ -98,7 +98,7 @@ const SubjectDetails = () => {
             if (commissionForm.examType === 'NEET') {
                 subjectsNeeded = ['Physics', 'Chemistry', 'Botany', 'Zoology'];
             } else if (commissionForm.examType === 'CET') {
-                subjectsNeeded = ['Physics', 'Chemistry', 'Mathematics', 'Botany', 'Zoology'];
+                subjectsNeeded = ['Physics', 'Chemistry', 'Mathematics', 'Biology'];
             } else if (commissionForm.examType === 'JEE') {
                 subjectsNeeded = ['Physics', 'Chemistry', 'Mathematics'];
             } else {
@@ -108,13 +108,11 @@ const SubjectDetails = () => {
             const defaultTarget = commissionForm.examType === 'JEE' ? 25 : commissionForm.examType === 'NEET' ? 45 : 60;
 
             const subjectAssignments = subjectsNeeded.map(subName => {
-                const assignedTeacherId = commissionForm.assignedTeachers[subName];
-                const teacherObj = allTeachers.find(t => (t._id || t.id) === assignedTeacherId) || allTeachers.find(t => (t.subject || '').toLowerCase().includes(subName.toLowerCase()));
                 return {
                     subject: subName,
-                    teacherId: teacherObj ? (teacherObj._id || teacherObj.id) : undefined,
-                    teacherName: teacherObj ? teacherObj.name : `Prof. ${subName} Faculty`,
-                    teacherEmail: teacherObj ? teacherObj.email : `${subName.toLowerCase()}@sapthagiripucollege.edu.in`,
+                    teacherId: user?.id || 'admin',
+                    teacherName: 'Sapthagiri PU College',
+                    teacherEmail: 'sapthagiripucollegedvg@gmail.com',
                     targetQuestions: commissionForm.targetPerSubject || defaultTarget,
                     difficultyDistribution: commissionForm.difficultyDistribution,
                     status: 'Not Started'
@@ -206,7 +204,7 @@ const SubjectDetails = () => {
                                     <div className="mb-6">
                                         <div className="flex items-center justify-between gap-2 mb-3">
                                             <span className="text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full bg-navy/5 text-navy border border-navy/10">
-                                                {p.classes?.join(', ') || 'Class 12'}
+                                                {p.classes && p.classes.length > 1 ? 'Class 11 & 12' : `Class ${p.classes?.[0] || '12'}`}
                                             </span>
                                             <span className={`px-3 py-0.5 rounded-full text-[10px] font-black tracking-widest uppercase ${p.status === 'Approved' ? 'bg-emerald-100 text-emerald-800' : p.status === 'Rejected' ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800'}`}>
                                                 {p.status || 'Pending Approval'}
@@ -323,12 +321,27 @@ const SubjectDetails = () => {
                                 <div>
                                     <label className="block text-xs font-black text-navy uppercase tracking-wider mb-2">Target Class</label>
                                     <select
-                                        value={commissionForm.classes[0]}
-                                        onChange={e => setCommissionForm({ ...commissionForm, classes: [e.target.value] })}
+                                        value={
+                                            (Array.isArray(commissionForm.classes) && (
+                                                (commissionForm.classes.includes('11') && commissionForm.classes.includes('12')) ||
+                                                commissionForm.classes.includes('Both')
+                                            ))
+                                                ? 'Both'
+                                                : (commissionForm.classes[0] || '12')
+                                        }
+                                        onChange={e => {
+                                            const val = e.target.value;
+                                            if (val === 'Both') {
+                                                setCommissionForm({ ...commissionForm, classes: ['11', '12'] });
+                                            } else {
+                                                setCommissionForm({ ...commissionForm, classes: [val] });
+                                            }
+                                        }}
                                         className="w-full border-2 border-gray-200 focus:border-navy rounded-2xl px-4 py-2.5 text-xs font-bold text-navy outline-none bg-white cursor-pointer"
                                     >
                                         <option value="12">Class 12</option>
                                         <option value="11">Class 11</option>
+                                        <option value="Both">Both Class 11 & 12</option>
                                     </select>
                                 </div>
                             </div>
