@@ -6,7 +6,7 @@ import PaperAnalysisModal from '../../components/PaperAnalysisModal';
 
 const SubjectDetails = () => {
     const { subject } = useParams();
-    const { logout } = useContext(AuthContext);
+    const { user, logout } = useContext(AuthContext);
     const navigate = useNavigate();
 
     const [teachers, setTeachers] = useState([]);
@@ -110,7 +110,7 @@ const SubjectDetails = () => {
             const subjectAssignments = subjectsNeeded.map(subName => {
                 return {
                     subject: subName,
-                    teacherId: user?.id || 'admin',
+                    teacherId: (user && (user._id || user.id)) ? (user._id || user.id) : 'sapthagiri-admin',
                     teacherName: 'Sapthagiri PU College',
                     teacherEmail: 'sapthagiripucollegedvg@gmail.com',
                     targetQuestions: commissionForm.targetPerSubject || defaultTarget,

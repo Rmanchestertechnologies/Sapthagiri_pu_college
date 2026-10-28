@@ -19,7 +19,7 @@ import CreatePaper from '../teacher/CreatePaper';
 import api from '../../api';
 
 const DashboardHome = () => {
-    const { logout } = useContext(AuthContext);
+    const { user, logout } = useContext(AuthContext);
     const navigate = useNavigate();
 
     // Subject Directory strictly PCMB
@@ -140,7 +140,7 @@ const DashboardHome = () => {
             const subjectAssignments = subjectsNeeded.map(subName => {
                 return {
                     subject: subName,
-                    teacherId: user?.id || 'admin',
+                    teacherId: (user && (user._id || user.id)) ? (user._id || user.id) : 'sapthagiri-admin',
                     teacherName: 'Sapthagiri PU College',
                     teacherEmail: 'sapthagiripucollegedvg@gmail.com',
                     targetQuestions: defaultTarget,
@@ -1085,7 +1085,7 @@ const AdminNotificationBell = () => {
 
 const AdminDashboard = () => {
 
-    const { logout } = useContext(AuthContext);
+    const { user, logout } = useContext(AuthContext);
     const navigate = useNavigate();
     const location = useLocation();
     const [isSideboxOpen, setIsSideboxOpen] = useState(false);
