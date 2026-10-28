@@ -37,8 +37,7 @@ function normalizeLatex(raw) {
     str = str.replace(/\\\(([\s\S]*?)\\\)/g, '$$$1$$');
 
     // 4. Auto-wrap naked/unwrapped LaTeX commands not already surrounded by $
-    // (e.g. \frac{1}{2}, \sqrt{3}, \alpha, \beta, \theta, \pm, \times, \leq, \geq, \int)
-    const nakedLatexRegex = /(?<!\$)\\(?:frac|sqrt|pm|times|div|leq|geq|neq|approx|rightarrow|infty|sum|int|partial|theta|alpha|beta|gamma|lambda|omega|Delta|mu|sigma|cdot|circ|text)\b[^{$\n]*(?:\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\})*(?!\$)/g;
+    const nakedLatexRegex = /(?<!\$)\\(?:dfrac|cfrac|frac|sqrt|pm|times|div|leq|geq|neq|approx|rightarrow|infty|sum|int|partial|theta|alpha|beta|gamma|lambda|omega|Delta|mu|sigma|epsilon|varepsilon|rho|phi|pi|tau|psi|eta|nu|xi|cdot|circ|text|mathrm|mathbf)\b[^{$\n]*(?:\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\})*(?!\$)/g;
     str = str.replace(nakedLatexRegex, (match) => `$${match}$`);
 
     return str.trim();

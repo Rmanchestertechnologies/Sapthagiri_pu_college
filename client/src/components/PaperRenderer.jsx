@@ -395,8 +395,16 @@ export default function PaperRenderer({
         setDownloadingWord(true);
         try {
             const rawActiveQs = questions && questions.length > 0 ? questions : (paper?.questions || []);
-            const isJEE = Boolean(
-                String(paper?.examType || paper?.exam_type || paper?.title || '').toUpperCase().includes('JEE') ||
+            const examTypeStr = String(paper?.examType || paper?.exam_type || paper?.title || '').toUpperCase();
+            const isExplicitNonJEE = examTypeStr.includes('NEET') ||
+                                     examTypeStr.includes('CET') ||
+                                     examTypeStr.includes('KCET') ||
+                                     String(paper?.subject || '').toUpperCase().includes('BOTANY') ||
+                                     String(paper?.subject || '').toUpperCase().includes('ZOOLOGY') ||
+                                     (rawActiveQs.length > 85);
+
+            const isJEE = !isExplicitNonJEE && Boolean(
+                examTypeStr.includes('JEE') ||
                 (Array.isArray(paper?.classes) && paper.classes.some(c => String(c).toUpperCase().includes('JEE'))) ||
                 (rawActiveQs.length >= 70 && rawActiveQs.length <= 85)
             );

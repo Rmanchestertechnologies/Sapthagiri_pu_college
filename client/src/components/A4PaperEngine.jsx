@@ -40,11 +40,18 @@ export default function A4PaperEngine({
     singlePageMode = false,
     onDiagramResize,
 }) {
-    const isJEEPaper = Boolean(
-        String(paper?.examType || paper?.exam_type || paper?.title || '').toUpperCase().includes('JEE') ||
+    const examTypeStr = String(paper?.examType || paper?.exam_type || paper?.title || '').toUpperCase();
+    const isExplicitNonJEE = examTypeStr.includes('NEET') ||
+                             examTypeStr.includes('CET') ||
+                             examTypeStr.includes('KCET') ||
+                             String(paper?.subject || '').toUpperCase().includes('BOTANY') ||
+                             String(paper?.subject || '').toUpperCase().includes('ZOOLOGY') ||
+                             (paper?.questions && paper.questions.length > 85);
+
+    const isJEEPaper = !isExplicitNonJEE && Boolean(
+        examTypeStr.includes('JEE') ||
         (Array.isArray(paper?.classes) && paper.classes.some(c => String(c).toUpperCase().includes('JEE'))) ||
-        (paper?.questions && paper.questions.length >= 70 && paper.questions.length <= 85) ||
-        (paper?.questions && paper.questions.some(q => (q.part && (q.part.includes('SECTION B') || q.part.includes('NUMERICAL'))) || q.isNumerical) && (paper?.questions?.length >= 20))
+        (paper?.questions && paper.questions.length >= 70 && paper.questions.length <= 85)
     );
 
     const questions = useMemo(() => {
@@ -237,10 +244,12 @@ export default function A4PaperEngine({
                                             directiveText = 'This section contains 5 Numerical Value Questions. The answer to each question is a NUMERICAL VALUE. No options are provided.';
                                         }
                                     } else {
-                                        // Normal paper (KCET, NEET, Board, General):
-                                        // NO section A, B, C, D banners!
-                                        // Only show subject banner if multi-subject exam transitions to another subject
-                                        if (isSubjectChange) {
+                                        // Multi-subject exam (NEET, CET, KCET, Composite):
+                                        const isMultiSubject = Boolean(
+                                            (paper?.subject && (paper.subject.includes('•') || paper.subject.includes(','))) ||
+                                            (paper?.questions && paper.questions.length > 50)
+                                        );
+                                        if (isSubjectChange || (idx === 0 && isMultiSubject && curSubject)) {
                                             showHeader = true;
                                             headerTitle = `SUBJECT: ${curSubject.toUpperCase()}`;
                                             directiveText = null;

@@ -40,8 +40,16 @@ export default function A4AnswerKey({
         if (activePaper?.questions && activePaper.questions.length > 0) baseList = activePaper.questions;
         else baseList = localQuestions.length > 0 ? localQuestions : (paper.questions || []);
 
-        const isJEE = Boolean(
-            String(paper?.examType || paper?.exam_type || paper?.title || '').toUpperCase().includes('JEE') ||
+        const examTypeStr = String(paper?.examType || paper?.exam_type || paper?.title || '').toUpperCase();
+        const isExplicitNonJEE = examTypeStr.includes('NEET') ||
+                                 examTypeStr.includes('CET') ||
+                                 examTypeStr.includes('KCET') ||
+                                 String(paper?.subject || '').toUpperCase().includes('BOTANY') ||
+                                 String(paper?.subject || '').toUpperCase().includes('ZOOLOGY') ||
+                                 (baseList.length > 85);
+
+        const isJEE = !isExplicitNonJEE && Boolean(
+            examTypeStr.includes('JEE') ||
             (Array.isArray(paper?.classes) && paper.classes.some(c => String(c).toUpperCase().includes('JEE'))) ||
             (baseList.length >= 70 && baseList.length <= 85)
         );

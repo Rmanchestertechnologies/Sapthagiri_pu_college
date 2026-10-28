@@ -43,17 +43,15 @@ const KATEX_CONFIG = {
 function formatCleanUnicodeMath(str) {
     if (!str) return '';
     return str
-        .replace(/\\frac\s*\{([^}]+)\}\s*\{([^}]+)\}/g, '$1/$2')
-        .replace(/\\frac\s+([a-zA-Z0-9])\s+([a-zA-Z0-9])/g, '$1/$2')
+        .replace(/\\(?:frac|dfrac|cfrac)\s*\{([^}]+)\}\s*\{([^}]+)\}/g, '$1/$2')
+        .replace(/\\(?:frac|dfrac|cfrac)\s+([a-zA-Z0-9])\s+([a-zA-Z0-9])/g, '$1/$2')
         .replace(/\\times/g, '×')
         .replace(/\\pm/g, '±')
         .replace(/\\mp/g, '∓')
         .replace(/\\div/g, '÷')
         .replace(/\\cdot/g, '·')
         .replace(/\\sqrt\s*\{([^}]+)\}/g, '√($1)')
-        .replace(/\\mathrm\s*\{([^}]+)\}/g, '$1')
-        .replace(/\\text\s*\{([^}]+)\}/g, '$1')
-        .replace(/\\mathbf\s*\{([^}]+)\}/g, '$1')
+        .replace(/\\(?:mathrm|mathbf|text|mathit)\s*\{([^}]+)\}/g, '$1')
         .replace(/\\([a-zA-Z]+)/g, '')
         .replace(/[{}]/g, '')
         .trim();
@@ -75,7 +73,7 @@ function safeRenderKatex(rawMath, displayMode = false) {
         .trim();
 
     // Strip leading / trailing quotes or stray punctuation that break math mode
-    math = math.replace(/^['"`:,;]+/, '').replace(/['"`:,;]+$/, '').trim();
+    math = math.replace(/^[\$'"`,;:]+/, '').replace(/[\$'"`,;:]+$/, '').trim();
 
     // Auto-fix broken missing \frac syntax e.g. \sigma}2\epsilon_0 -> \frac{\sigma}{2\epsilon_0}
     math = math.replace(/(?:^|\s)(?:\\([a-zA-Z]+)|([a-zA-Z0-9]+))\}(?:\{([^}]+)\}|([^\s}]+))/g, (m, sym, plain, denomBrace, denomPlain) => {
@@ -137,21 +135,21 @@ function processMathOnly(text) {
         return ` \\frac{${num}}{${den}}`;
     });
 
-    // 1) Auto-wrap naked LaTeX math commands if not surrounded by $
-    const nakedLatexRegex = /(?<!\$)\\(?:frac|sqrt|pm|times|div|leq|geq|neq|approx|rightarrow|infty|sum|int|partial|theta|alpha|beta|gamma|lambda|omega|Delta|mu|sigma|epsilon|rho|phi|pi|tau|psi|eta|nu|xi|cdot|circ|text)\b[^{$\n]*(?:\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\})*(?!\$)/g;
-    result = result.replace(nakedLatexRegex, (match) => `$${match}$`);
+    // 1) Render display math: $$...$$
+    result = result.replace(/\$\$([\s\S]*?)\$\$/g, (_match, math) => safeRenderKatex(math, true));
 
-    // 2) Render display math: $$...$$
-    result = result.replace(/\$\$([\s\S]*?)\$\$/g, (_match, math) => safeRenderKatex(math, false));
+    // 2) Render display math: \[...\]
+    result = result.replace(/\\\[([\s\S]*?)\\\]/g, (_match, math) => safeRenderKatex(math, true));
 
-    // 3) Render display math: \[...\]
-    result = result.replace(/\\\[([\s\S]*?)\\\]/g, (_match, math) => safeRenderKatex(math, false));
-
-    // 4) Render inline math: $...$ (handles multiline inline math cleanly)
+    // 3) Render inline math: $...$
     result = result.replace(/\$([\s\S]+?)\$/g, (_match, math) => safeRenderKatex(math, false));
 
-    // 5) Render inline math: \(...\)
+    // 4) Render inline math: \(...\)
     result = result.replace(/\\\(([\s\S]*?)\\\)/g, (_match, math) => safeRenderKatex(math, false));
+
+    // 5) Render naked LaTeX math commands that were not delimited
+    const nakedLatexRegex = /\\(?:dfrac|cfrac|frac|sqrt|pm|times|div|leq|geq|neq|approx|rightarrow|infty|sum|int|partial|theta|alpha|beta|gamma|lambda|omega|Delta|mu|sigma|epsilon|varepsilon|rho|phi|pi|tau|psi|eta|nu|xi|cdot|circ|text|mathrm|mathbf)\b[^{$\n]*(?:\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\})*/g;
+    result = result.replace(nakedLatexRegex, (match) => safeRenderKatex(match, false));
 
     return result;
 }
