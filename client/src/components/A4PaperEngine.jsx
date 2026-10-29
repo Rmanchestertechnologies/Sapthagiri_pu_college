@@ -262,7 +262,12 @@ export default function A4PaperEngine({
                                         type: (subQIdx >= 20) ? 'NUMERICAL' : (q.type || 'MCQ'),
                                         options: (subQIdx >= 20) ? [] : (q.options || []),
                                         part: (subQIdx >= 20) ? 'SECTION B - NUMERICAL VALUE QUESTIONS' : 'SECTION A - MULTIPLE CHOICE QUESTIONS'
-                                    } : q;
+                                    } : {
+                                        ...q,
+                                        isNumerical: false,
+                                        num_answer: null,
+                                        type: (q.type === 'NUMERICAL' || q.q_type === 'numerical') ? 'MCQ' : (q.type || 'MCQ')
+                                    };
 
                                     return (
                                         <React.Fragment key={q._id || displayNum}>
@@ -315,6 +320,7 @@ export default function A4PaperEngine({
                                                     extraStyle={{ marginBottom: '0px' }}
                                                     diagramMaxHeight={settings.diagramMaxHeight}
                                                     onDiagramResize={onDiagramResize}
+                                                    examType={paper?.examType || 'NEET'}
                                                 />
                                             </div>
                                         </React.Fragment>

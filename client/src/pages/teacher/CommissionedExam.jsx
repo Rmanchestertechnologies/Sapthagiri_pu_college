@@ -105,14 +105,14 @@ export default function CommissionedExam() {
     // chapterQuotas: { [chapterName]: number }
     const [chapterQuotas, setChapterQuotas] = useState({});
 
-    // Step 5: From each type how many questions
+    // Step 5: From each type how many questions (Defaults strictly to 100% MCQs for NEET & CET)
     // typeAllocations: { mcq: number, ar: number, match: number, diag: number, stmt: number, numerical: number }
     const [typeAllocations, setTypeAllocations] = useState({
-        mcq: 20,
-        ar: 5,
-        match: 5,
-        diag: 5,
-        stmt: 5,
+        mcq: 45,
+        ar: 0,
+        match: 0,
+        diag: 0,
+        stmt: 0,
         numerical: 0,
     });
 
@@ -249,10 +249,57 @@ export default function CommissionedExam() {
     };
 
     // Sync Step 5 type allocations to match the Step 4 chapter total
-    const syncTypesToChapterTotal = () => {
+    const syncTypesToChapterTotal = (forceAllMcq = false) => {
         const target = totalChapterQuestions > 0 ? totalChapterQuestions : 45;
         const isJEE = selectedExamPattern === 'JEE';
         
+        let numQs = isJEE ? Math.min(5, Math.floor(target * 0.2)) : 0;
+        let remaining = target - numQs;
+
+        // Strictly 100% Single Correct MCQs for NEET & CET (unless faculty explicitly chooses mixed)
+        if (forceAllMcq || selectedExamPattern === 'NEET' || selectedExamPattern === 'CET') {
+            setTypeAllocations({
+                mcq: remaining,
+                ar: 0,
+                match: 0,
+                diag: 0,
+                stmt: 0,
+                numerical: numQs,
+            });
+            return;
+        }
+
+        const mcqQs = Math.max(0, Math.round(remaining * 0.7));
+        const arQs = Math.max(0, Math.round(remaining * 0.1));
+        const matchQs = Math.max(0, Math.round(remaining * 0.08));
+        const diagQs = Math.max(0, Math.round(remaining * 0.06));
+        const stmtQs = Math.max(0, target - (mcqQs + arQs + matchQs + diagQs + numQs));
+
+        setTypeAllocations({
+            mcq: mcqQs,
+            ar: arQs,
+            match: matchQs,
+            diag: diagQs,
+            stmt: stmtQs,
+            numerical: numQs,
+        });
+    };
+
+    const setAllMCQPreset = () => {
+        const target = totalChapterQuestions > 0 ? totalChapterQuestions : 45;
+        setTypeAllocations({
+            mcq: target,
+            ar: 0,
+            match: 0,
+            diag: 0,
+            stmt: 0,
+            numerical: 0,
+        });
+    };
+
+    const setBalancedMixPreset = () => {
+        const target = totalChapterQuestions > 0 ? totalChapterQuestions : 45;
+        const isJEE = selectedExamPattern === 'JEE';
         let numQs = isJEE ? Math.min(5, Math.floor(target * 0.2)) : 0;
         let remaining = target - numQs;
 
@@ -320,7 +367,19 @@ export default function CommissionedExam() {
             const res = await api.get(`/api/questions?${queryParams.toString()}`);
             const pool = Array.isArray(res.data?.questions) ? res.data.questions : (Array.isArray(res.data) ? res.data : []);
 
-            const matched = pool.filter(q => {
+            // For NEET & CET: Strictly filter out any questions that are numerical or free-response
+            const isJee = selectedExamPattern === 'JEE';
+            const poolClean = pool.filter(q => {
+                if (!isJee) {
+                    const isNum = (q.type || '').toUpperCase().includes('NUMERICAL') || 
+                                  (q.q_type || '').toLowerCase().includes('numerical') ||
+                                  (!q.options?.length && !q.opt_a && !q.opt_b && q.num_answer);
+                    if (isNum) return false;
+                }
+                return true;
+            });
+
+            const matched = poolClean.filter(q => {
                 const qCh = q.chapter || '';
                 const qCpt = q.concept || '';
                 const chMatch = selectedChapters.length === 0 || selectedChapters.some(c => c.toLowerCase() === qCh.toLowerCase());
@@ -328,7 +387,7 @@ export default function CommissionedExam() {
                 return chMatch && cptMatch;
             });
 
-            const candidatePool = matched.length >= 10 ? matched : pool;
+            const candidatePool = matched.length >= 10 ? matched : poolClean;
             setFetchedQuestions(candidatePool);
 
             if (fetchMode === 'auto') {
@@ -339,7 +398,7 @@ export default function CommissionedExam() {
                 const getQCategory = (q) => {
                     const t = (q.type || q.q_type || '').toUpperCase();
                     const txt = `${q.questionText || q.question || ''}`;
-                    if (t === 'NUMERICAL') return 'numerical';
+                    if (isJee && (t === 'NUMERICAL' || (!q.options?.length && !q.opt_a && !q.opt_b && q.num_answer))) return 'numerical';
                     if (t === 'ASSERTION_REASON' || /Assertion\s*(?:\(A\))?[:\-]/i.test(txt)) return 'ar';
                     if (t === 'MATCH_FOLLOWING' || t.includes('MATCH') || /Column\s*(?:I|1|A)\b/i.test(txt)) return 'match';
                     if (t === 'STATEMENT_BASED' || /Statement\s*(?:I|1|A)\b/i.test(txt)) return 'stmt';
@@ -353,12 +412,13 @@ export default function CommissionedExam() {
                     match: poolCopy.filter(q => getQCategory(q) === 'match'),
                     diag: poolCopy.filter(q => getQCategory(q) === 'diag'),
                     stmt: poolCopy.filter(q => getQCategory(q) === 'stmt'),
-                    numerical: poolCopy.filter(q => getQCategory(q) === 'numerical'),
+                    numerical: isJee ? poolCopy.filter(q => getQCategory(q) === 'numerical') : [],
                     mcq: poolCopy.filter(q => getQCategory(q) === 'mcq'),
                 };
 
                 const pickedIds = new Set();
                 const pickFromBucket = (cat, count) => {
+                    if (!count || count <= 0) return 0;
                     const available = (buckets[cat] || []).filter(q => !pickedIds.has(q._id || q.id));
                     const selected = available.slice(0, count);
                     selected.forEach(q => pickedIds.add(q._id || q.id));
@@ -366,8 +426,8 @@ export default function CommissionedExam() {
                     return selected.length;
                 };
 
-                // Pick according to user's Step 5 typeAllocations:
-                if (patternConfig.supportsNumerical && typeAllocations.numerical > 0) {
+                // Pick strictly according to user's Step 5 typeAllocations:
+                if (isJee && patternConfig.supportsNumerical && typeAllocations.numerical > 0) {
                     pickFromBucket('numerical', typeAllocations.numerical);
                 }
                 if (typeAllocations.ar > 0) {
@@ -386,17 +446,29 @@ export default function CommissionedExam() {
                     pickFromBucket('mcq', typeAllocations.mcq);
                 }
 
-                // If any quota remains due to shortage in a specific type, backfill with remaining candidatePool
+                // If any quota remains due to shortage in a specific type, ONLY backfill with standard MCQs!
+                // NEVER backfill with numericals, and NEVER backfill with AR/Match if they were not requested!
                 const targetTotal = totalChapterQuestions > 0 ? totalChapterQuestions : (patternConfig.defaultTotal || 45);
                 if (picked.length < targetTotal) {
-                    const remaining = poolCopy.filter(q => !pickedIds.has(q._id || q.id));
-                    picked.push(...remaining.slice(0, targetTotal - picked.length));
+                    const remainingMCQs = buckets.mcq.filter(q => !pickedIds.has(q._id || q.id));
+                    const needed = targetTotal - picked.length;
+                    const backfill = remainingMCQs.slice(0, needed);
+                    backfill.forEach(q => pickedIds.add(q._id || q.id));
+                    picked.push(...backfill);
                 }
 
                 // Ensure options exist and are populated for 100% of questions:
                 picked.forEach(q => {
                     const cat = getQCategory(q);
-                    // Ensure type attribute is strictly set so PaperRenderer renders the proper body!
+                    // For NEET & CET: strictly eliminate any numerical indicators!
+                    if (!isJee) {
+                        q.isNumerical = false;
+                        q.num_answer = null;
+                        delete q.num_answer;
+                        if ((q.type || '').toUpperCase().includes('NUMERICAL')) {
+                            q.type = 'MCQ';
+                        }
+                    }
                     if (cat === 'ar') {
                         q.type = 'ASSERTION_REASON';
                         const validOpts = (q.options || []).filter(o => o && String(o).trim().length > 0);
@@ -1047,15 +1119,35 @@ export default function CommissionedExam() {
                 {currentStep === 5 && (
                     <div className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-200 space-y-6 animate-fade-in">
                         <div className="border-b border-slate-100 pb-5">
-                            <span className="text-[10px] font-black text-gold uppercase tracking-[0.2em] bg-navy px-3 py-1 rounded-full">
-                                Step 5 of 7
-                            </span>
-                            <h2 className="text-2xl font-black text-navy uppercase tracking-tight mt-2">
-                                Questions From Each Question Type
-                            </h2>
-                            <p className="text-xs text-slate-500 font-semibold mt-1">
-                                Allocate how many questions for each type. Dynamic balancing engine balances categories to match your {totalChapterQuestions} chapter question total.
-                            </p>
+                            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                                <div>
+                                    <span className="text-[10px] font-black text-gold uppercase tracking-[0.2em] bg-navy px-3 py-1 rounded-full">
+                                        Step 5 of 7
+                                    </span>
+                                    <h2 className="text-2xl font-black text-navy uppercase tracking-tight mt-2">
+                                        Questions From Each Question Type
+                                    </h2>
+                                    <p className="text-xs text-slate-500 font-semibold mt-1">
+                                        Allocate how many questions for each type. Auto-fetch strictly adheres to these numbers ({totalChapterQuestions} total).
+                                    </p>
+                                </div>
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={setAllMCQPreset}
+                                        className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black transition cursor-pointer shadow-sm flex items-center gap-1.5"
+                                    >
+                                        <span>🎯</span> 100% Single Correct MCQs ({totalChapterQuestions})
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={setBalancedMixPreset}
+                                        className="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 border border-slate-200"
+                                    >
+                                        <span>⚖️</span> Mixed Format
+                                    </button>
+                                </div>
+                            </div>
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

@@ -1358,6 +1358,7 @@ export default function QuestionBlock({
     extraStyle = {},
     diagramMaxHeight = '180px',
     onDiagramResize,
+    examType = 'NEET',
 }) {
     if (!q) return null;
 
@@ -1376,16 +1377,16 @@ export default function QuestionBlock({
     const hasStatements = (Array.isArray(q.statements) && q.statements.length > 0) || (stmtData.statements && stmtData.statements.length >= 2);
     const isStatement = qType.includes('STATEMENT') || hasStatements;
 
-    const isNumerical = qType.includes('NUMERICAL') ||
-                        qType.includes('INTEGER') ||
-                        qType === 'NUM' ||
-                        Boolean(q.isNumerical) ||
-                        (q.part && q.part.toUpperCase().includes('NUMERICAL')) ||
-                        (q.part && q.part.toUpperCase().includes('SECTION B')) ||
-                        (q.part && q.part.toUpperCase().includes('SECTION-B')) ||
-                        (q.sectionName && q.sectionName.toUpperCase().includes('SECTION B')) ||
-                        (q.sectionName && q.sectionName.toUpperCase().includes('SECTION-B')) ||
-                        (q.num_answer !== undefined && q.num_answer !== null && q.num_answer !== '');
+    // Numerical questions are strictly JEE Main only (NEET and CET never have numericals)
+    const isJeeExam = (examType || q.examType || '').toUpperCase().includes('JEE');
+    const isNumerical = isJeeExam && (
+        qType.includes('NUMERICAL') ||
+        qType.includes('INTEGER') ||
+        Boolean(q.isNumerical) ||
+        (q.part && q.part.toUpperCase().includes('NUMERICAL')) ||
+        (q.part && q.part.toUpperCase().includes('SECTION B')) ||
+        (q.sectionName && q.sectionName.toUpperCase().includes('SECTION B'))
+    );
 
     const renderBody = () => {
         // Section B / Numerical Questions MUST strictly render as BodyNumerical first (never Assertion & Reason, Statement, or Match)
