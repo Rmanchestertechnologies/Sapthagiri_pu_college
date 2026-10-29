@@ -51,8 +51,22 @@ function formatCleanUnicodeMath(str) {
         .replace(/\\div/g, '÷')
         .replace(/\\cdot/g, '·')
         .replace(/\\sqrt\s*\{([^}]+)\}/g, '√($1)')
+        .replace(/\\pi/g, 'π')
+        .replace(/\\omega/g, 'ω')
+        .replace(/\\nu/g, 'ν')
+        .replace(/\\lambda/g, 'λ')
+        .replace(/\\mu/g, 'μ')
+        .replace(/\\theta/g, 'θ')
+        .replace(/\\alpha/g, 'α')
+        .replace(/\\beta/g, 'β')
+        .replace(/\\gamma/g, 'γ')
+        .replace(/\\sigma/g, 'σ')
+        .replace(/\\epsilon/g, 'ε')
+        .replace(/\\Delta/g, 'Δ')
+        .replace(/\\phi/g, 'φ')
+        .replace(/\\(?:sin|cos|tan|log|ln)\b/g, (m) => m.slice(1))
         .replace(/\\(?:mathrm|mathbf|text|mathit)\s*\{([^}]+)\}/g, '$1')
-        .replace(/\\([a-zA-Z]+)/g, '')
+        .replace(/\\([a-zA-Z]+)/g, '$1')
         .replace(/[{}]/g, '')
         .trim();
 }
@@ -101,7 +115,7 @@ function safeRenderKatex(rawMath, displayMode = false) {
         const rendered = katex.renderToString(math, {
             displayMode,
             throwOnError: false,
-            output: 'htmlAndMathml'
+            output: 'html'
         });
         // If KaTeX produced a parse error span, suppress it and return clean fallback text
         if (rendered.includes('class="katex-error"') || rendered.includes('color:#cc0000')) {
@@ -115,6 +129,7 @@ function safeRenderKatex(rawMath, displayMode = false) {
 
 /**
  * Converts a raw text string with LaTeX math delimiters into rendered HTML.
+ * Uses unique placeholders to avoid regex destruction on rendered KaTeX tags.
  */
 function processMathOnly(text) {
     if (!text || typeof text !== 'string') return '';
@@ -154,21 +169,33 @@ function processMathOnly(text) {
         return ` \\frac{${num}}{${den}}`;
     });
 
+    const mathBlocks = [];
+    const saveMath = (math, isDisplay) => {
+        const id = `___MATH_BLOCK_${mathBlocks.length}___`;
+        mathBlocks.push(safeRenderKatex(math, isDisplay));
+        return id;
+    };
+
     // 1) Render display math: $$...$$
-    result = result.replace(/\$\$([\s\S]*?)\$\$/g, (_match, math) => safeRenderKatex(math, true));
+    result = result.replace(/\$\$([\s\S]*?)\$\$/g, (_match, math) => saveMath(math, true));
 
     // 2) Render display math: \[...\]
-    result = result.replace(/\\\[([\s\S]*?)\\\]/g, (_match, math) => safeRenderKatex(math, true));
+    result = result.replace(/\\\[([\s\S]*?)\\\]/g, (_match, math) => saveMath(math, true));
 
     // 3) Render inline math: $...$
-    result = result.replace(/\$([\s\S]+?)\$/g, (_match, math) => safeRenderKatex(math, false));
+    result = result.replace(/\$([\s\S]+?)\$/g, (_match, math) => saveMath(math, false));
 
     // 4) Render inline math: \(...\)
-    result = result.replace(/\\\(([\s\S]*?)\\\)/g, (_match, math) => safeRenderKatex(math, false));
+    result = result.replace(/\\\(([\s\S]*?)\\\)/g, (_match, math) => saveMath(math, false));
 
-    // 5) Render naked LaTeX math commands that were not delimited
+    // 5) Render naked LaTeX math commands only in remaining plain text
     const nakedLatexRegex = /\\(?:dfrac|cfrac|frac|sqrt|pm|times|div|leq|geq|neq|approx|rightarrow|infty|sum|int|partial|theta|alpha|beta|gamma|lambda|omega|Delta|mu|sigma|epsilon|varepsilon|rho|phi|pi|tau|psi|eta|nu|xi|cdot|circ|text|mathrm|mathbf)\b[^{$\n]*(?:\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\})*/g;
-    result = result.replace(nakedLatexRegex, (match) => safeRenderKatex(match, false));
+    result = result.replace(nakedLatexRegex, (match) => saveMath(match, false));
+
+    // Restore protected math blocks
+    mathBlocks.forEach((rendered, idx) => {
+        result = result.replace(`___MATH_BLOCK_${idx}___`, () => rendered);
+    });
 
     return result;
 }

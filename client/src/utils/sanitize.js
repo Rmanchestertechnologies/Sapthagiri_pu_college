@@ -71,7 +71,10 @@ export function cleanOptionText(text) {
         .replace(/&nbsp;/g, ' ')
         .trim();
     // Strip leading duplicate option indicators like (A), (1), A., 1., (a), A-, 1-, A:, 1:, [A], [1]
-    str = str.replace(/^\s*(?:\([A-Da-d1-4]\)|\[[A-Da-d1-4]\]|[A-Da-d1-4][\.\:\-\)])\s+/i, '');
+    // only if NOT part of a matching pair mapping like a-(iv), a-(1), 1-(i), (1)-(ii)
+    if (!/^(?:\(?[a-d1-4]\)?\s*[-–—]\s*\(?[i|v|x|0-9])/i.test(str)) {
+        str = str.replace(/^\s*(?:\([A-Da-d1-4]\)|\[[A-Da-d1-4]\]|[A-Da-d1-4][\.\:\-\)])\s+/i, '');
+    }
 
     // Clean trailing stray unclosed braces e.g. "40.8 eV.}", "54.4 eV}", "0.49\, A}"
     const openBraces = (str.match(/\{/g) || []).length;

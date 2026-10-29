@@ -433,8 +433,10 @@ export function cleanOptionText(text) {
         .replace(/&nbsp;/g, ' ')
         .trim();
     // Strip leading duplicate option indicators like (A), (1), A., 1., (a), A-, 1-, A:, 1:, [A], [1]
-    // only if followed by actual option content
-    str = str.replace(/^\s*(?:\([A-Da-d1-4]\)|\[[A-Da-d1-4]\]|[A-Da-d1-4][\.\:\-\)])\s*(?=\S)/i, '');
+    // only if NOT part of a matching pair mapping like a-(iv), a-(1), 1-(i), (1)-(ii)
+    if (!/^(?:\(?[a-d1-4]\)?\s*[-–—]\s*\(?[i|v|x|0-9])/i.test(str)) {
+        str = str.replace(/^\s*(?:\([A-Da-d1-4]\)|\[[A-Da-d1-4]\]|[A-Da-d1-4][\.\:\-\)])\s*(?=\S)/i, '');
+    }
 
     // Clean stray closing braces from OCR / LaTeX like "40.8 eV.}", "54.4 eV}", "0.49\, A}"
     const openBraces = (str.match(/\{/g) || []).length;
@@ -559,10 +561,17 @@ function BodyMCQ({ q, classes, isTwoCol, diagramMaxHeight = '180px', onDiagramRe
     const rawQText = cleanQuestionText(q.questionText || q.question || '');
     const { cleanText: qText, diagramUrl: imageUrl } = extractDiagramFromText(rawQText, q.imageUrl || q.image_url);
     const rawOptions = extractOptionsIfMissing(q);
-    const options = rawOptions.filter(opt => {
+    let options = rawOptions.filter(opt => {
         const raw = typeof opt === 'object' ? (opt.text || opt.optionText || opt.value || opt.option || '') : String(opt || '');
         return raw.trim().length > 0;
     });
+    // Fallback: check q.opt_a, q.opt_b, q.opt_c, q.opt_d if options array was empty
+    if (options.length < 2) {
+        const directOpts = [q.opt_a, q.opt_b, q.opt_c, q.opt_d, q.option_a, q.option_b, q.option_c, q.option_d].filter(o => o && String(o).trim().length > 0);
+        if (directOpts.length >= 2) {
+            options = directOpts;
+        }
+    }
     const isSideBySide = shouldRenderSideBySide(q, isTwoCol, imageUrl);
     const labels = getQuestionOptionLabels(q, optionFormat);
     const qId = q._id || q.id || displayNum;
@@ -700,7 +709,11 @@ function BodyMCQ({ q, classes, isTwoCol, diagramMaxHeight = '180px', onDiagramRe
  */
 function BodyAssertionReason({ q, classes, isTwoCol, diagramMaxHeight = '180px', onDiagramResize, displayNum, optionFormat = 'numeric' }) {
     const { assertion, reason } = parseAssertionReason(q);
-    const opts = q.options && q.options.length > 0 ? q.options : AR_OPTIONS;
+    const validOpts = (q.options || []).filter(opt => {
+        const raw = typeof opt === 'object' ? (opt.text || opt.optionText || opt.value || opt.option || '') : String(opt || '');
+        return raw.trim().length > 0;
+    });
+    const opts = validOpts.length >= 4 ? validOpts : AR_OPTIONS;
     const rawQText = cleanQuestionText(q.questionText || q.question || '');
     const { cleanText: qText, diagramUrl: imageUrl } = extractDiagramFromText(rawQText, q.imageUrl || q.image_url);
     const qId = q._id || q.id || displayNum;
@@ -1076,10 +1089,14 @@ function BodyMatchFollowing({ q, classes, isTwoCol, diagramMaxHeight = '180px', 
         pairs = parsedPairs.filter(p => p && ((p.left && p.left.trim()) || (p.right && p.right.trim())));
     }
     const rawOpts = extractOptionsIfMissing(q);
-    const opts = (rawOpts.length > 0 ? rawOpts : (q.options || [])).filter(opt => {
+    let opts = (rawOpts.length > 0 ? rawOpts : (q.options || [])).filter(opt => {
         const raw = typeof opt === 'object' ? (opt.text || opt.optionText || opt.value || opt.option || '') : String(opt || '');
         return raw.trim().length > 0;
     });
+    if (opts.length < 2 && q.match_options && typeof q.match_options === 'object') {
+        const moArr = [q.match_options.A, q.match_options.B, q.match_options.C, q.match_options.D].filter(Boolean);
+        if (moArr.length >= 2) opts = moArr;
+    }
     const rawQText = cleanQuestionText(pairs.length > 0 ? (introText || '') : (q.questionText || q.question || ''));
     const { cleanText: qText, diagramUrl: imageUrl } = extractDiagramFromText(rawQText, q.imageUrl || q.image_url);
     const labels = getQuestionOptionLabels(q, optionFormat);

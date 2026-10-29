@@ -335,14 +335,113 @@ export default function CommissionedExam() {
                 const picked = [];
                 const poolCopy = [...candidatePool];
 
+                // Helper to classify question into type bucket
+                const getQCategory = (q) => {
+                    const t = (q.type || q.q_type || '').toUpperCase();
+                    const txt = `${q.questionText || q.question || ''}`;
+                    if (t === 'NUMERICAL') return 'numerical';
+                    if (t === 'ASSERTION_REASON' || /Assertion\s*(?:\(A\))?[:\-]/i.test(txt)) return 'ar';
+                    if (t === 'MATCH_FOLLOWING' || t.includes('MATCH') || /Column\s*(?:I|1|A)\b/i.test(txt)) return 'match';
+                    if (t === 'STATEMENT_BASED' || /Statement\s*(?:I|1|A)\b/i.test(txt)) return 'stmt';
+                    if (t === 'DIAGRAM_BASED' || q.imageUrl || q.image_url || /\{\{IMG::|!\[|<img/i.test(txt)) return 'diag';
+                    return 'mcq';
+                };
+
+                // Group pool into type buckets
+                const buckets = {
+                    ar: poolCopy.filter(q => getQCategory(q) === 'ar'),
+                    match: poolCopy.filter(q => getQCategory(q) === 'match'),
+                    diag: poolCopy.filter(q => getQCategory(q) === 'diag'),
+                    stmt: poolCopy.filter(q => getQCategory(q) === 'stmt'),
+                    numerical: poolCopy.filter(q => getQCategory(q) === 'numerical'),
+                    mcq: poolCopy.filter(q => getQCategory(q) === 'mcq'),
+                };
+
+                const pickedIds = new Set();
+                const pickFromBucket = (cat, count) => {
+                    const available = (buckets[cat] || []).filter(q => !pickedIds.has(q._id || q.id));
+                    const selected = available.slice(0, count);
+                    selected.forEach(q => pickedIds.add(q._id || q.id));
+                    picked.push(...selected);
+                    return selected.length;
+                };
+
+                // Pick according to user's Step 5 typeAllocations:
                 if (patternConfig.supportsNumerical && typeAllocations.numerical > 0) {
-                    const nums = poolCopy.filter(q => (q.type || '').toUpperCase() === 'NUMERICAL');
-                    picked.push(...nums.slice(0, typeAllocations.numerical));
+                    pickFromBucket('numerical', typeAllocations.numerical);
+                }
+                if (typeAllocations.ar > 0) {
+                    pickFromBucket('ar', typeAllocations.ar);
+                }
+                if (typeAllocations.match > 0) {
+                    pickFromBucket('match', typeAllocations.match);
+                }
+                if (typeAllocations.diag > 0) {
+                    pickFromBucket('diag', typeAllocations.diag);
+                }
+                if (typeAllocations.stmt > 0) {
+                    pickFromBucket('stmt', typeAllocations.stmt);
+                }
+                if (typeAllocations.mcq > 0) {
+                    pickFromBucket('mcq', typeAllocations.mcq);
                 }
 
-                const nonNums = poolCopy.filter(q => (q.type || '').toUpperCase() !== 'NUMERICAL');
-                const needed = (totalChapterQuestions > 0 ? totalChapterQuestions : 45) - picked.length;
-                picked.push(...nonNums.slice(0, Math.max(0, needed)));
+                // If any quota remains due to shortage in a specific type, backfill with remaining candidatePool
+                const targetTotal = totalChapterQuestions > 0 ? totalChapterQuestions : (patternConfig.defaultTotal || 45);
+                if (picked.length < targetTotal) {
+                    const remaining = poolCopy.filter(q => !pickedIds.has(q._id || q.id));
+                    picked.push(...remaining.slice(0, targetTotal - picked.length));
+                }
+
+                // Ensure options exist and are populated for 100% of questions:
+                picked.forEach(q => {
+                    const cat = getQCategory(q);
+                    // Ensure type attribute is strictly set so PaperRenderer renders the proper body!
+                    if (cat === 'ar') {
+                        q.type = 'ASSERTION_REASON';
+                        const validOpts = (q.options || []).filter(o => o && String(o).trim().length > 0);
+                        if (validOpts.length < 4) {
+                            q.options = [
+                                'Both Assertion and Reason are correct and Reason is the correct explanation of Assertion.',
+                                'Both Assertion and Reason are correct but Reason is not the correct explanation of Assertion.',
+                                'Assertion is correct but Reason is incorrect.',
+                                'Assertion is incorrect but Reason is correct.'
+                            ];
+                        }
+                    } else if (cat === 'stmt') {
+                        q.type = 'STATEMENT_BASED';
+                        const validOpts = (q.options || []).filter(o => o && String(o).trim().length > 0);
+                        if (validOpts.length < 4) {
+                            q.options = [
+                                'Both Statement I and Statement II are correct.',
+                                'Both Statement I and Statement II are incorrect.',
+                                'Statement I is correct but Statement II is incorrect.',
+                                'Statement I is incorrect but Statement II is correct.'
+                            ];
+                        }
+                    } else if (cat === 'match') {
+                        q.type = 'MATCH_FOLLOWING';
+                        if (!q.options || q.options.filter(o => o && String(o).trim().length > 0).length < 2) {
+                            const rawOpts = extractOptionsIfMissing(q);
+                            if (rawOpts.length >= 2) {
+                                q.options = rawOpts;
+                            } else if (q.match_options && typeof q.match_options === 'object') {
+                                const moArr = [q.match_options.A, q.match_options.B, q.match_options.C, q.match_options.D].filter(Boolean);
+                                if (moArr.length >= 2) q.options = moArr;
+                            }
+                        }
+                    } else {
+                        if (!q.options || q.options.filter(o => o && String(o).trim().length > 0).length < 2) {
+                            const extracted = extractOptionsIfMissing(q);
+                            if (extracted.length >= 2) {
+                                q.options = extracted;
+                            } else {
+                                const directOpts = [q.opt_a, q.opt_b, q.opt_c, q.opt_d].filter(o => o && String(o).trim().length > 0);
+                                if (directOpts.length >= 2) q.options = directOpts;
+                            }
+                        }
+                    }
+                });
 
                 setSelectedQuestions(picked);
                 setCurrentStep(7); // Proceed to Step 7: Preview & Save
