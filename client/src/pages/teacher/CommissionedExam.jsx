@@ -353,6 +353,33 @@ export default function CommissionedExam() {
         });
     };
 
+    // Helper to shuffle array and disperse special question types evenly across the paper
+    const shuffleAndDisperse = (arr, getCategory) => {
+        if (!arr || arr.length <= 1) return arr;
+        // 1. Standard Fisher-Yates shuffle
+        const a = [...arr];
+        for (let i = a.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [a[i], a[j]] = [a[j], a[i]];
+        }
+
+        // 2. Dispersal pass: avoid consecutive clusters of identical special types (e.g. 5 match in a row)
+        for (let i = 1; i < a.length; i++) {
+            const prevCat = getCategory(a[i - 1]);
+            const curCat = getCategory(a[i]);
+            if (curCat !== 'mcq' && curCat === prevCat) {
+                // Find another question with a different category further down to swap with
+                const swapIdx = a.findIndex((item, idx) => idx > i && getCategory(item) !== curCat);
+                if (swapIdx !== -1) {
+                    const temp = a[i];
+                    a[i] = a[swapIdx];
+                    a[swapIdx] = temp;
+                }
+            }
+        }
+        return a;
+    };
+
     // Step 6: Execute Question Fetch
     const executeFetch = async () => {
         setStepLoading(true);
@@ -360,9 +387,12 @@ export default function CommissionedExam() {
         try {
             const queryParams = new URLSearchParams({
                 subject: selectedSubject,
-                limit: '1000',
+                limit: '2000',
             });
             if (selectedClass !== 'Both') queryParams.append('classes', selectedClass);
+            if (selectedChapters.length > 0) {
+                queryParams.append('chapter', selectedChapters.join(','));
+            }
 
             const res = await api.get(`/api/questions?${queryParams.toString()}`);
             const pool = Array.isArray(res.data?.questions) ? res.data.questions : (Array.isArray(res.data) ? res.data : []);
@@ -379,15 +409,15 @@ export default function CommissionedExam() {
                 return true;
             });
 
-            const matched = poolClean.filter(q => {
-                const qCh = q.chapter || '';
-                const qCpt = q.concept || '';
-                const chMatch = selectedChapters.length === 0 || selectedChapters.some(c => c.toLowerCase() === qCh.toLowerCase());
-                const cptMatch = selectedConcepts.length === 0 || selectedConcepts.some(c => c.toLowerCase() === qCpt.toLowerCase());
-                return chMatch && cptMatch;
-            });
+            // If selectedChapters was specified, ensure questions strictly match selected chapters:
+            const poolInChapters = selectedChapters.length > 0 
+                ? poolClean.filter(q => {
+                    const qCh = (q.chapter || '').toLowerCase();
+                    return selectedChapters.some(c => c.toLowerCase() === qCh);
+                })
+                : poolClean;
 
-            const candidatePool = matched.length >= 10 ? matched : poolClean;
+            const candidatePool = poolInChapters.length > 0 ? poolInChapters : poolClean;
             setFetchedQuestions(candidatePool);
 
             if (fetchMode === 'auto') {
@@ -406,14 +436,27 @@ export default function CommissionedExam() {
                     return 'mcq';
                 };
 
-                // Group pool into type buckets
+                // Group pool into type buckets, prioritizing selectedConcepts if any
+                const matchesConcept = (q) => {
+                    if (selectedConcepts.length === 0) return true;
+                    const qCpt = (q.concept || '').toLowerCase();
+                    return selectedConcepts.some(c => c.toLowerCase() === qCpt);
+                };
+
+                // Sort pool so questions matching chosen concepts come first
+                const prioritizedPool = [...poolCopy].sort((a, b) => {
+                    const aMatch = matchesConcept(a) ? 1 : 0;
+                    const bMatch = matchesConcept(b) ? 1 : 0;
+                    return bMatch - aMatch;
+                });
+
                 const buckets = {
-                    ar: poolCopy.filter(q => getQCategory(q) === 'ar'),
-                    match: poolCopy.filter(q => getQCategory(q) === 'match'),
-                    diag: poolCopy.filter(q => getQCategory(q) === 'diag'),
-                    stmt: poolCopy.filter(q => getQCategory(q) === 'stmt'),
-                    numerical: isJee ? poolCopy.filter(q => getQCategory(q) === 'numerical') : [],
-                    mcq: poolCopy.filter(q => getQCategory(q) === 'mcq'),
+                    ar: prioritizedPool.filter(q => getQCategory(q) === 'ar'),
+                    match: prioritizedPool.filter(q => getQCategory(q) === 'match'),
+                    diag: prioritizedPool.filter(q => getQCategory(q) === 'diag'),
+                    stmt: prioritizedPool.filter(q => getQCategory(q) === 'stmt'),
+                    numerical: isJee ? prioritizedPool.filter(q => getQCategory(q) === 'numerical') : [],
+                    mcq: prioritizedPool.filter(q => getQCategory(q) === 'mcq'),
                 };
 
                 const pickedIds = new Set();
@@ -446,8 +489,7 @@ export default function CommissionedExam() {
                     pickFromBucket('mcq', typeAllocations.mcq);
                 }
 
-                // If any quota remains due to shortage in a specific type, ONLY backfill with standard MCQs!
-                // NEVER backfill with numericals, and NEVER backfill with AR/Match if they were not requested!
+                // If any quota remains due to shortage in a specific type, ONLY backfill with standard MCQs from the selected chapters!
                 const targetTotal = totalChapterQuestions > 0 ? totalChapterQuestions : (patternConfig.defaultTotal || 45);
                 if (picked.length < targetTotal) {
                     const remainingMCQs = buckets.mcq.filter(q => !pickedIds.has(q._id || q.id));
@@ -502,6 +544,8 @@ export default function CommissionedExam() {
                                 if (moArr.length >= 2) q.options = moArr;
                             }
                         }
+                    } else if (cat === 'diag') {
+                        q.type = 'DIAGRAM_BASED';
                     } else {
                         if (!q.options || q.options.filter(o => o && String(o).trim().length > 0).length < 2) {
                             const extracted = extractOptionsIfMissing(q);
@@ -515,7 +559,24 @@ export default function CommissionedExam() {
                     }
                 });
 
-                setSelectedQuestions(picked);
+                // Shuffle questions so types are interleaved and distributed naturally throughout the paper!
+                let finalOrdered = [];
+                if (isJee) {
+                    const nonNumericals = picked.filter(q => getQCategory(q) !== 'numerical');
+                    const numericals = picked.filter(q => getQCategory(q) === 'numerical');
+                    const shuffledNonNum = shuffleAndDisperse(nonNumericals, getQCategory);
+                    finalOrdered = [...shuffledNonNum, ...numericals];
+                } else {
+                    finalOrdered = shuffleAndDisperse(picked, getQCategory);
+                }
+
+                // Re-assign display questionNumber
+                finalOrdered = finalOrdered.map((q, idx) => ({
+                    ...q,
+                    questionNumber: idx + 1
+                }));
+
+                setSelectedQuestions(finalOrdered);
                 setCurrentStep(7); // Proceed to Step 7: Preview & Save
             }
         } catch (err) {
@@ -525,6 +586,34 @@ export default function CommissionedExam() {
             setStepLoading(false);
             setLoadingMessage('');
         }
+    };
+
+    // On-demand re-shuffle for Step 7 Preview
+    const handleReshuffleQuestions = () => {
+        if (!selectedQuestions || selectedQuestions.length <= 1) return;
+        const isJee = selectedExamPattern === 'JEE';
+        const getQCategory = (q) => {
+            const t = (q.type || q.q_type || '').toUpperCase();
+            const txt = `${q.questionText || q.question || ''}`;
+            if (isJee && (t === 'NUMERICAL' || (!q.options?.length && !q.opt_a && !q.opt_b && q.num_answer))) return 'numerical';
+            if (t === 'ASSERTION_REASON' || /Assertion\s*(?:\(A\))?[:\-]/i.test(txt)) return 'ar';
+            if (t === 'MATCH_FOLLOWING' || t.includes('MATCH') || /Column\s*(?:I|1|A)\b/i.test(txt)) return 'match';
+            if (t === 'STATEMENT_BASED' || /Statement\s*(?:I|1|A)\b/i.test(txt)) return 'stmt';
+            if (t === 'DIAGRAM_BASED' || q.imageUrl || q.image_url || /\{\{IMG::|!\[|<img/i.test(txt)) return 'diag';
+            return 'mcq';
+        };
+
+        let shuffled = [];
+        if (isJee) {
+            const nonNumericals = selectedQuestions.filter(q => getQCategory(q) !== 'numerical');
+            const numericals = selectedQuestions.filter(q => getQCategory(q) === 'numerical');
+            const shuffledNonNum = shuffleAndDisperse(nonNumericals, getQCategory);
+            shuffled = [...shuffledNonNum, ...numericals];
+        } else {
+            shuffled = shuffleAndDisperse(selectedQuestions, getQCategory);
+        }
+
+        setSelectedQuestions(shuffled.map((q, idx) => ({ ...q, questionNumber: idx + 1 })));
     };
 
     // Step 7: Save Paper Draft
@@ -1412,6 +1501,14 @@ export default function CommissionedExam() {
                                     className="bg-navy text-gold hover:bg-navy/90 px-3.5 py-1.5 rounded-xl font-black text-xs uppercase tracking-wider shadow-xs flex items-center gap-1 cursor-pointer"
                                 >
                                     <span>💡</span> Solutions Guide
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={handleReshuffleQuestions}
+                                    title="Disperse and shuffle question types across the exam"
+                                    className="bg-indigo-600 hover:bg-indigo-700 text-white px-3.5 py-1.5 rounded-xl font-black text-xs uppercase tracking-wider shadow-xs flex items-center gap-1 cursor-pointer"
+                                >
+                                    <span>🎲</span> Reshuffle Order
                                 </button>
                             </div>
 
