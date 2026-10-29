@@ -86,10 +86,31 @@ function mapSupabaseToQuestion(row, usageMap = null) {
     if (!row) return null;
 
     const rawQuestion = row.question || '';
+    const rawSolution = row.solution_text || '';
     const rawAssertion = row.assertion || '';
     const rawReason = row.reason || '';
     const qTypeLower = (row.q_type || '').toLowerCase();
 
+    // 0. Extract QBP_DATA payload if present in solution or question
+    let qbpData = null;
+    const qbpMatch = rawSolution.match(/\[QBP_DATA:([^\]]+)\]/) || rawQuestion.match(/\[QBP_DATA:([^\]]+)\]/);
+    if (qbpMatch) {
+        try {
+            qbpData = JSON.parse(Buffer.from(qbpMatch[1], 'base64').toString('utf8'));
+        } catch (e) {}
+    }
+
+    // 1. Column A and Column B extraction (for match the following)
+    let colA = (Array.isArray(row.column_a) && row.column_a.length > 0) ? [...row.column_a] : [];
+    let colB = (Array.isArray(row.column_b) && row.column_b.length > 0) ? [...row.column_b] : [];
+    if (colA.length === 0 && qbpData && Array.isArray(qbpData.columnA) && qbpData.columnA.length > 0) {
+        colA = [...qbpData.columnA];
+    }
+    if (colB.length === 0 && qbpData && Array.isArray(qbpData.columnB) && qbpData.columnB.length > 0) {
+        colB = [...qbpData.columnB];
+    }
+
+    // 2. Options Extraction
     const rawOptions = [];
     if (row.opt_a) rawOptions.push(row.opt_a);
     if (row.opt_b) rawOptions.push(row.opt_b);
@@ -121,7 +142,67 @@ function mapSupabaseToQuestion(row, usageMap = null) {
         } catch (e) {}
     }
 
-    const options = rawOptions.map(cleanDifficultyTags).filter(Boolean);
+    // Fallback: extract matchOptions from QBP_DATA if options still empty
+    if (rawOptions.length === 0 && qbpData && qbpData.matchOptions && typeof qbpData.matchOptions === 'object') {
+        const mo = qbpData.matchOptions;
+        const moArr = [mo.A || mo.a, mo.B || mo.b, mo.C || mo.c, mo.D || mo.d].filter(Boolean);
+        if (moArr.length >= 2) rawOptions.push(...moArr);
+    }
+
+    // Fallback: parse predef_options if present
+    if (rawOptions.length === 0 && row.predef_options && typeof row.predef_options === 'string') {
+        const poMatches = row.predef_options.match(/(?:^|\n)\s*[A-D1-4][:\.\)]\s*([^\n]+)/gi);
+        if (poMatches && poMatches.length >= 2) {
+            poMatches.forEach(m => {
+                const cleaned = m.replace(/^\s*[A-D1-4][:\.\)]\s*/, '').trim();
+                if (cleaned) rawOptions.push(cleaned);
+            });
+        }
+    }
+
+    let options = rawOptions.map(cleanDifficultyTags).filter(Boolean);
+
+    let cleanQuestion = cleanDifficultyTags(rawQuestion || '');
+
+    // Fallback: extract embedded (A), (B), (C), (D) options from question text if options empty
+    if (options.length === 0 && cleanQuestion) {
+        const embeddedOptRegex = /(?:\n\s*|^)(?:\([A-Da-d1-4]\)|[A-Da-d1-4][\.\:\-])\s+([\s\S]*?)(?=(?:\n\s*(?:\([A-Da-d1-4]\)|[A-Da-d1-4][\.\:\-])\s+)|$)/g;
+        const found = [];
+        let m;
+        let firstIndex = -1;
+        while ((m = embeddedOptRegex.exec(cleanQuestion)) !== null) {
+            if (firstIndex === -1) firstIndex = m.index;
+            found.push(m[1].trim());
+        }
+        if (found.length >= 3 && firstIndex > 10) {
+            options = found.map(cleanDifficultyTags).filter(Boolean);
+            cleanQuestion = cleanQuestion.substring(0, firstIndex).trim();
+        }
+    }
+
+    // Format Columns in cleanQuestion for Match Questions if missing
+    if (colA.length > 0 && colB.length > 0) {
+        const hasColumnsInText = /(?:\n|^)\s*(?:\*\*)?(?:Column|List)\s*[-:]?\s*(?:I|1|A)\b[\s\S]*?(?:\n|^)\s*(?:\*\*)?(?:Column|List)\s*[-:]?\s*(?:II|2|B)\b/i.test(cleanQuestion);
+        if (!hasColumnsInText) {
+            const colLabelsLeft = ['(a)', '(b)', '(c)', '(d)', '(e)', '(f)'];
+            const colLabelsRight = ['(i)', '(ii)', '(iii)', '(iv)', '(v)', '(vi)'];
+            const leftSection = colA.map((item, idx) => `${colLabelsLeft[idx] || `${idx + 1}.`} ${cleanDifficultyTags(item)}`).join('\n');
+            const rightSection = colB.map((item, idx) => `${colLabelsRight[idx] || `${idx + 1}.`} ${cleanDifficultyTags(item)}`).join('\n');
+            cleanQuestion = `${cleanQuestion.trim()}\n\n**Column I**\n${leftSection}\n\n**Column II**\n${rightSection}`;
+        }
+    }
+
+    // Build matchPairs array
+    const matchPairs = [];
+    if (colA.length > 0 && colB.length > 0) {
+        const maxMatchLen = Math.max(colA.length, colB.length);
+        for (let i = 0; i < maxMatchLen; i++) {
+            matchPairs.push({
+                left: cleanDifficultyTags(colA[i] || ''),
+                right: cleanDifficultyTags(colB[i] || '')
+            });
+        }
+    }
 
     // Skip only strictly binary true/false format questions (2 options where options are strictly True & False)
     const isStrictTF = (
@@ -141,24 +222,25 @@ function mapSupabaseToQuestion(row, usageMap = null) {
     const isAR = (
         qTypeLower.includes('assertion') || 
         Boolean(rawAssertion && rawReason) || 
-        (/Assertion\s*(?:\(A\))?/i.test(rawQuestion) && /Reason\s*(?:\(R\))?/i.test(rawQuestion))
+        (/Assertion\s*(?:\(A\))?/i.test(cleanQuestion) && /Reason\s*(?:\(R\))?/i.test(cleanQuestion))
     );
     const isStatement = (
         qTypeLower.includes('statement') || 
-        (/Statement\s*(?:I|1)\s*[:\-]/i.test(rawQuestion) && /Statement\s*(?:II|2)\s*[:\-]/i.test(rawQuestion))
+        (/Statement\s*(?:I|1)\s*[:\-]/i.test(cleanQuestion) && /Statement\s*(?:II|2)\s*[:\-]/i.test(cleanQuestion))
     );
     const isMatch = (
         qTypeLower.includes('match') || 
-        Boolean(row.column_a && row.column_a.length > 0) || 
-        /(?:Column|List)\s*I[\s\S]*(?:Column|List)\s*II/i.test(rawQuestion) ||
-        /Match (?:List|the following|Column)/i.test(rawQuestion)
+        colA.length > 0 || 
+        matchPairs.length > 0 ||
+        /(?:Column|List)\s*I[\s\S]*(?:Column|List)\s*II/i.test(cleanQuestion) ||
+        /Match (?:List|the following|Column)/i.test(cleanQuestion)
     );
     const isNumeric = (
         qTypeLower.includes('numerical') || 
         (!options.length && Boolean(row.num_answer || row.correct_option))
     );
     const hasOptImages = options.length > 0 && options.every(opt => /\{\{IMG::|!\[|\[DIAGRAM:|<img|https?:\/\/.*?\.(png|jpg|jpeg|webp|svg|gif)|data:image\//i.test(String(opt)));
-    const hasDiag = Boolean(row.image_url || row.imageUrl || /\{\{IMG::|!\[/i.test(rawQuestion) || hasOptImages);
+    const hasDiag = Boolean(row.image_url || row.imageUrl || /\{\{IMG::|!\[/i.test(cleanQuestion) || hasOptImages);
 
     if (isAR) {
         type = 'ASSERTION_REASON';
@@ -172,6 +254,36 @@ function mapSupabaseToQuestion(row, usageMap = null) {
         type = 'DIAGRAM_BASED';
     } else {
         type = 'MCQ';
+    }
+
+    // Default standard options for Assertion-Reason & Statement questions if options still empty
+    if (type === 'ASSERTION_REASON' && options.length === 0) {
+        const isStatementType = /Statement\s*(?:I|1)/i.test(cleanQuestion);
+        if (isStatementType) {
+            options = [
+                'Both Statement I and Statement II are correct',
+                'Both Statement I and Statement II are incorrect',
+                'Statement I is correct but Statement II is incorrect',
+                'Statement I is incorrect but Statement II is correct'
+            ];
+        } else {
+            options = [
+                'Both (A) and (R) are true and (R) is the correct explanation of (A)',
+                'Both (A) and (R) are true but (R) is not the correct explanation of (A)',
+                '(A) is true but (R) is false',
+                '(A) is false but (R) is true'
+            ];
+        }
+    } else if (type === 'STATEMENT_BASED' && options.length === 0) {
+        options = [
+            'Both Statement I and Statement II are correct',
+            'Both Statement I and Statement II are incorrect',
+            'Statement I is correct but Statement II is incorrect',
+            'Statement I is incorrect but Statement II is correct'
+        ];
+    } else if (type === 'MCQ' && options.length === 0) {
+        // If still no options and not numerical, treat as numerical / free-response
+        type = 'NUMERICAL';
     }
 
     let answer = row.correct_option || row.num_answer || '';
@@ -192,8 +304,7 @@ function mapSupabaseToQuestion(row, usageMap = null) {
     if (classesList.length === 0) classesList.push('JEE', 'NEET');
 
     const level = extractDifficulty(row.solution_text, row.question);
-    const cleanSolution = cleanDifficultyTags(row.solution_text || '');
-    const cleanQuestion = cleanDifficultyTags(row.question || '');
+    const cleanSolution = cleanDifficultyTags(rawSolution || '');
 
     const qIdStr = (row.id || '').toString();
     const usage = (usageMap && usageMap.get(qIdStr)) || null;
@@ -222,8 +333,9 @@ function mapSupabaseToQuestion(row, usageMap = null) {
         optionsTranslation: Array.isArray(row.options_translation) ? row.options_translation.map(cleanDifficultyTags) : [],
         assertion: cleanDifficultyTags(row.assertion || ''),
         reason: cleanDifficultyTags(row.reason || ''),
-        column_a: row.column_a || [],
-        column_b: row.column_b || [],
+        column_a: colA.map(cleanDifficultyTags),
+        column_b: colB.map(cleanDifficultyTags),
+        matchPairs: matchPairs,
         match_options: row.match_options || {},
         sourceType: 'REGULAR',
         sourceExam: Array.isArray(row.exams) ? row.exams.join(', ') : '',
