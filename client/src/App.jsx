@@ -6,7 +6,6 @@ import { setLoadingCallback } from './api';
 import UnifiedLogin from './pages/auth/UnifiedLogin';
 import AdminDashboard from './pages/admin/AdminDashboard';
 import TeacherDashboard from './pages/teacher/TeacherDashboard';
-import CreatePaper from './pages/teacher/CreatePaper';
 import CommissionedExam from './pages/teacher/CommissionedExam';
 import ExamInstructions from './pages/exam/ExamInstructions';
 import ExamEngine from './pages/exam/ExamEngine';

@@ -15,7 +15,7 @@ import AssignmentGenerator from '../teacher/AssignmentGenerator';
 import PaperAnalysisModal from '../../components/PaperAnalysisModal';
 import MathRenderer from '../../components/MathRenderer';
 import TeacherOmr from '../teacher/omr/TeacherOmr';
-import CreatePaper from '../teacher/CreatePaper';
+import CommissionedExam from '../teacher/CommissionedExam';
 import api from '../../api';
 
 const DashboardHome = () => {
@@ -1390,7 +1390,7 @@ const AdminDashboard = () => {
             <div className="flex-1 p-6 sm:p-10 max-w-7xl mx-auto w-full">
                 <Routes>
                     <Route path="/" element={<DashboardHome />} />
-                    <Route path="create-paper" element={<CreatePaper />} />
+                    <Route path="create-paper" element={<CommissionedExam />} />
                     <Route path="omr/*" element={<TeacherOmr />} />
                     <Route path="cbt-exams" element={<ExamManagement />} />
                     <Route path="results" element={<AdminResults />} />
