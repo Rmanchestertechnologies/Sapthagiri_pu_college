@@ -815,10 +815,20 @@ export function repairBrokenLatexFraction(str) {
 
 /** Parse match the following from text when matchPairs array is empty */
 function parseMatchFromText(q) {
-    if (Array.isArray(q.matchPairs) && q.matchPairs.length > 0) {
-        return { introText: cleanQuestionText(q.questionText || q.question || ''), pairs: q.matchPairs };
+    let rawText = q.questionText || q.question || '';
+    if (!rawText) return { introText: '', pairs: [] };
+
+    // 0. If matchPairs already provided in question object
+    if (Array.isArray(q.matchPairs) && q.matchPairs.length >= 2) {
+        let intro = cleanQuestionText(rawText)
+            .replace(/(?:\*\*|\b)(?:Column|List)\s*[-:]?\s*(?:I|1|A)\b[\s\S]*$/i, '')
+            .trim();
+        return {
+            introText: intro || 'Match Column I with Column II:',
+            pairs: q.matchPairs
+        };
     }
-    if (Array.isArray(q.column_a) && q.column_a.length > 0 && Array.isArray(q.column_b) && q.column_b.length > 0) {
+    if (Array.isArray(q.column_a) && q.column_a.length >= 2 && Array.isArray(q.column_b) && q.column_b.length >= 2) {
         const maxL = Math.max(q.column_a.length, q.column_b.length);
         const pairs = [];
         for (let i = 0; i < maxL; i++) {
@@ -827,63 +837,59 @@ function parseMatchFromText(q) {
                 right: q.column_b[i] || ''
             });
         }
-        return { introText: cleanQuestionText(q.questionText || q.question || ''), pairs };
+        let intro = cleanQuestionText(rawText)
+            .replace(/(?:\*\*|\b)(?:Column|List)\s*[-:]?\s*(?:I|1|A)\b[\s\S]*$/i, '')
+            .trim();
+        return {
+            introText: intro || 'Match Column I with Column II:',
+            pairs
+        };
     }
-    let txt = cleanQuestionText(q.questionText || q.question || '');
+
+    let txt = cleanQuestionText(rawText);
     if (!txt) return { introText: '', pairs: [] };
+
+    // 1. Identify and extract introductory sentence BEFORE the actual column tables
+    let introText = '';
+    // Case A: "Match ... Column I ... with ... Column II."
+    const introSentenceMatch = txt.match(/^([\s\S]*?Match\s+[^\n\.\:]*?\b(?:Column|List)\s*[-:]?\s*(?:I|1|A)\b[^\n\.\:]*?\bwith\b[^\n\.\:]*?\b(?:Column|List)\s*[-:]?\s*(?:II|2|B)\b[^\n]*?[\.\:\n])/i);
+    if (introSentenceMatch) {
+        introText = introSentenceMatch[1].trim();
+        txt = txt.substring(introSentenceMatch[0].length).trim();
+    } else {
+        // Case B: "Match the following:" or "Match the work function with its value in joule."
+        const genericIntro = txt.match(/^([\s\S]*?Match\s+[^\n\.\:]*?[\.\:\n])/i);
+        if (genericIntro && genericIntro[1].length < 150) {
+            introText = genericIntro[1].trim();
+            txt = txt.substring(genericIntro[0].length).trim();
+        }
+    }
 
     // Clean up bold asterisks around headers e.g. **Column I** -> Column I
     txt = txt.replace(/\*\*(Column|List)\s*[-:]?\s*(I|II|1|2|A|B)\*\*/gi, '$1 $2');
 
-    // 1. Strip and preserve introductory sentence like "Match Column-I with Column-II" or "Match the items in Column I with Column II:"
-    const introSentenceRegex = /^([\s\S]*?Match\s+[a-zA-Z\s\-']*\b(?:Column|List)\s*[-:]?\s*(?:I|1|A)\b[a-zA-Z\s\-']*?\bwith\b[a-zA-Z\s\-']*?\b(?:Column|List)\s*[-:]?\s*(?:II|2|B)\b[\.:\-]?)(\s+|$)/i;
-    let introText = '';
-    let remainder = txt;
+    // 2. Locate the Column I and Column II headers
+    const col1HeaderRegex = /(?:\b)(?:Column|List)\s*[-:]?\s*(?:I|1|A)\b[:\-\s]*/i;
+    const col2HeaderRegex = /(?:\b)(?:Column|List)\s*[-:]?\s*(?:II|2|B)\b[:\-\s]*/i;
 
-    const introMatch = txt.match(introSentenceRegex);
-    if (introMatch) {
-        introText = introMatch[1].trim();
-        remainder = txt.substring(introMatch[0].length).trim();
-    } else {
-        const genIntroMatch = txt.match(/^([\s\S]*?Match\s+(?:the\s+following(?:\s+columns|\s+items)?)?[\.:\-]?)(\s+|$)/i);
-        if (genIntroMatch && genIntroMatch[1].length < 120) {
-            introText = genIntroMatch[1].trim();
-            remainder = txt.substring(genIntroMatch[0].length).trim();
-        }
+    const col1Match = txt.match(col1HeaderRegex);
+    const col2Match = txt.match(col2HeaderRegex);
+
+    if (!col1Match || !col2Match || col1Match.index >= col2Match.index) {
+        return { introText: introText || txt, pairs: [] };
     }
 
-    let rawCol1 = '';
-    let rawCol2 = '';
-
-    const col1HeaderRegex = /^(?:Column|List)\s*[-:]?\s*(?:I|1|A)\b[:\-\s]*/i;
-    const col2SplitRegex = /(?:Column|List)\s*[-:]?\s*(?:II|2|B)\b[:\-\s]*([\s\S]*?)(?=(?:Choose\s+the\s+correct|Select\s+the\s+correct|Options:?|\([a-d1-4]\)\s*[A-D]|\([A-D]\)\s*\(?[A-D0-9]|Codes\s*:?|$))/i;
-
-    if (col1HeaderRegex.test(remainder)) {
-        const withoutCol1 = remainder.replace(col1HeaderRegex, '').trim();
-        const splitMatch = withoutCol1.match(col2SplitRegex);
-        if (splitMatch) {
-            rawCol1 = withoutCol1.substring(0, splitMatch.index).trim();
-            rawCol2 = splitMatch[1].trim();
-        }
-    } else {
-        const splitMatch = remainder.match(col2SplitRegex);
-        if (splitMatch) {
-            rawCol1 = remainder.substring(0, splitMatch.index).trim();
-            rawCol2 = splitMatch[1].trim();
-        } else {
-            // Fallback: search in full txt if intro was not stripped
-            const fallbackRegex = /(?:Column|List)\s*[-:]?\s*(?:I|1|A)\b([\s\S]*?)(?:Column|List)\s*[-:]?\s*(?:II|2|B)\b([\s\S]*?)(?=(?:Choose\s+the\s+correct|Select\s+the\s+correct|Options:?|\([a-d1-4]\)\s*[A-D]|\([A-D]\)\s*\(?[A-D0-9]|Codes\s*:?|$))/i;
-            const fbMatch = txt.match(fallbackRegex);
-            if (fbMatch) {
-                introText = txt.substring(0, fbMatch.index).trim();
-                rawCol1 = fbMatch[1].trim();
-                rawCol2 = fbMatch[2].trim();
-            }
-        }
+    if (!introText && col1Match.index > 0) {
+        introText = txt.substring(0, col1Match.index).trim();
     }
 
-    if (!rawCol1 || !rawCol2) {
-        return { introText: txt, pairs: [] };
+    let rawCol1 = txt.substring(col1Match.index + col1Match[0].length, col2Match.index).trim();
+    let rawCol2 = txt.substring(col2Match.index + col2Match[0].length).trim();
+
+    // Strip trailing options/codes from rawCol2 if present
+    const endMatch = rawCol2.match(/(?:Choose\s+the\s+correct|Select\s+the\s+correct|Options:?|\([a-d1-4]\)\s*[A-D]|\([A-D]\)\s*\(?[A-D0-9]|Codes\s*:?)/i);
+    if (endMatch) {
+        rawCol2 = rawCol2.substring(0, endMatch.index).trim();
     }
 
     // Auto-repair any broken fraction syntax in both columns
@@ -992,7 +998,7 @@ function parseMatchFromText(q) {
         };
     }
 
-    return { introText: txt, pairs: [] };
+    return { introText: introText || txt, pairs: [] };
 }
 
 /** Parse statement-based questions from text */
@@ -1132,7 +1138,9 @@ function BodyMatchFollowing({ q, classes, isTwoCol, diagramMaxHeight = '180px', 
             leftKeys.map((k, i) => `${k}-(${romanLabels[(i + 3) % pairCount] || ((i + 3) % pairCount + 1)})`).join(', '),
         ];
     }
-    const rawQText = cleanQuestionText(pairs.length > 0 ? (introText || '') : (q.questionText || q.question || ''));
+    const rawQText = cleanQuestionText(pairs.length > 0 ? (introText || '') : (q.questionText || q.question || ''))
+        .replace(/(?:\*\*|\b)(?:Column|List)\s*[-:]?\s*(?:I|1|A)\b[\s\S]*$/i, '')
+        .trim();
     const { cleanText: qText, diagramUrl: imageUrl } = extractDiagramFromText(rawQText, q.imageUrl || q.image_url);
     const labels = getQuestionOptionLabels(q, optionFormat);
     const qId = q._id || q.id || displayNum;
@@ -1407,7 +1415,7 @@ export default function QuestionBlock({
 
     const matchData = parseMatchFromText(q);
     const hasMatchPairs = (Array.isArray(q.matchPairs) && q.matchPairs.length > 0) || (matchData.pairs && matchData.pairs.length >= 2);
-    const isMatch = qType.includes('MATCH') || hasMatchPairs;
+    const isMatch = qType.includes('MATCH') || hasMatchPairs || /(?:Column|List)\s*[-:]?\s*(?:I|1|A)\b[\s\S]*(?:Column|List)\s*[-:]?\s*(?:II|2|B)\b/i.test(qTextRaw);
 
     const isAssertion = qType.includes('ASSERTION') || (/Assertion\s*(?:\(A\))?/i.test(qTextRaw) && /Reason\s*(?:\(R\))?/i.test(qTextRaw));
 
@@ -1453,7 +1461,7 @@ export default function QuestionBlock({
                 />
             );
         }
-        if (isMatch && hasMatchPairs) {
+        if (isMatch) {
             return (
                 <BodyMatchFollowing
                     q={q}
