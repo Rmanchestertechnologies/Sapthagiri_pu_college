@@ -47,9 +47,10 @@ export function calcTotal(questions = [], classes = []) {
 
 // ─── Default settings ─────────────────────────────────────────────────────────
 export const DEFAULT_SETTINGS = {
-    fontFamily: 'Georgia, "Times New Roman", serif',
+    fontFamily: '"Times New Roman", Times, Georgia, serif',
     fontSize: '13px',
     lineHeight: '1.42',
+    optionFormat: 'alpha', // 'alpha' -> (A), (B), (C), (D) | 'numeric' -> (1), (2), (3), (4)
     columns: 1,
     columnGap: '18px',
     showMarks: false,
@@ -126,11 +127,18 @@ export function SettingsPanel({ settings, setSettings, totalQuestions = 0 }) {
                     </select>
                 </SettingField>
 
-                {/* ── Typography ── */}
+                {/* ── Typography & Options ── */}
+                <SettingField label="Option Label Style">
+                    <select style={selectStyle} value={settings.optionFormat || 'alpha'} onChange={e => update('optionFormat', e.target.value)}>
+                        <option value="alpha">(A), (B), (C), (D) - Alphabetic</option>
+                        <option value="numeric">(1), (2), (3), (4) - Numeric</option>
+                    </select>
+                </SettingField>
+
                 <SettingField label="Font Style">
                     <select style={selectStyle} value={settings.fontFamily} onChange={e => update('fontFamily', e.target.value)}>
+                        <option value='"Times New Roman", Times, Georgia, serif'>Times New Roman (Standard)</option>
                         <option value='Georgia, "Times New Roman", serif'>Georgia (Classic)</option>
-                        <option value='"Times New Roman", Times, serif'>Times New Roman</option>
                         <option value='Calibri, Candara, Segoe, sans-serif'>Calibri</option>
                         <option value='Arial, Helvetica, sans-serif'>Arial</option>
                         <option value="'Inter', system-ui, sans-serif">Inter (Modern)</option>
@@ -142,6 +150,8 @@ export function SettingsPanel({ settings, setSettings, totalQuestions = 0 }) {
                         <option value="12px">Compact (12px)</option>
                         <option value="13px">Standard (13px)</option>
                         <option value="14px">Large (14px)</option>
+                        <option value="15px">Extra Large (15px)</option>
+                        <option value="16px">Display / Accessible (16px)</option>
                     </select>
                 </SettingField>
 
@@ -254,19 +264,8 @@ export function PaperHeader({
     setName = 'P',
     headerConfig = null,
 }) {
-    // Clean assignment title
-    let displayTitle = title;
-    if (isAssignment) {
-        if (!displayTitle || /assessment|test|exam|jee|neet|cet|paper/i.test(displayTitle)) {
-            displayTitle = `${subject || ''} ASSIGNMENT`.trim().toUpperCase();
-        } else {
-            // Strip out any accidental CET/NEET/JEE references
-            displayTitle = displayTitle.replace(/\b(jee|neet|cet|kcet|bitsat|mains|advanced|board)\b/gi, '').replace(/\s+/g, ' ').trim();
-            if (!/assignment/i.test(displayTitle)) {
-                displayTitle = `${displayTitle} ASSIGNMENT`.trim();
-            }
-        }
-    }
+    // Strictly preserve user-defined title or exam type without hardcoded placeholders or auto-generated default overrides
+    const displayTitle = (title || headerConfig?.title || (isAssignment ? `${subject || 'ACADEMIC'} ASSIGNMENT` : `${subject || 'ACADEMIC'} EXAMINATION`)).trim();
 
     const currentSet = (setName || 'P').toUpperCase();
 
@@ -275,7 +274,24 @@ export function PaperHeader({
     const subTitle = headerConfig?.subTitle || 'DAVANAGERE • THE LAND OF OPPORTUNITY';
     const subjectCode = headerConfig?.subjectCode ? ` (Code: ${headerConfig.subjectCode})` : '';
     const displaySubject = (headerConfig?.subject || subject || 'General') + subjectCode;
-    const displayClass = headerConfig?.streamClass || (classes && classes.length > 0 ? `PUC ${classes.join(', ')}` : 'PUC Science');
+
+    // Strict Class Display: 11th -> "11th", 12th -> "12th", Both -> "11th & 12th"
+    const classArray = Array.isArray(classes) ? classes : [classes].filter(Boolean);
+    const classStrings = classArray.map(c => String(c).toLowerCase()).join(' ');
+    const has11 = classStrings.includes('11') || classStrings.includes('first') || classStrings.includes('puc-i') || classStrings.includes('both');
+    const has12 = classStrings.includes('12') || classStrings.includes('second') || classStrings.includes('puc-ii') || classStrings.includes('both');
+
+    let displayClass = '11th & 12th';
+    if (has11 && has12) {
+        displayClass = '11th & 12th';
+    } else if (has11) {
+        displayClass = '11th';
+    } else if (has12) {
+        displayClass = '12th';
+    } else if (classArray.length > 0) {
+        displayClass = classArray.join(', ');
+    }
+
     const displayDuration = headerConfig?.timeAllowed || duration || '3 Hours 15 Minutes';
     const displayMarks = headerConfig?.maxMarks || totalMarks || '70';
     const instructions = headerConfig?.generalInstructions || [];
@@ -309,7 +325,7 @@ export function PaperHeader({
                             {subTitle}
                         </div>
                         <div style={{ fontSize: '13px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#000', marginTop: '4px' }}>
-                            {displayTitle || (isAssignment ? `${subject} ASSIGNMENT` : (title || `${subject} Examination`))}
+                            {displayTitle}
                         </div>
                     </div>
                     {!isAssignment && (
@@ -347,6 +363,7 @@ export function PaperHeader({
                 /* Pure clean Assignment header */
                 <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #777', paddingTop: '4px', fontWeight: 700, fontSize: '11.5px', marginTop: '4px' }}>
                     <span>Subject: <strong>{displaySubject}</strong></span>
+                    <span>Class: <strong>{displayClass}</strong></span>
                     <span>Student Name: _____________________</span>
                     <span>Roll No: ________</span>
                     <span>Date: _________</span>
@@ -368,6 +385,7 @@ export default function PaperRenderer({
     onProceedToAlignment,
     onProceedToFinalize,
     onDiagramResize,
+    onShuffleQuestions,
 }) {
     const [internalSettings, setInternalSettings] = useState(DEFAULT_SETTINGS);
     const settings = externalSettings || internalSettings;
@@ -517,6 +535,49 @@ export default function PaperRenderer({
                         <span>{settings.columns === 2 ? '📰 2-Columns (Dense)' : '📄 Single Column'}</span>
                         <span className="text-[10px] bg-navy text-gold px-1.5 py-0.5 rounded">Switch</span>
                     </button>
+
+                    {/* Dynamic Option Style Toggle (A, B, C, D vs 1, 2, 3, 4) */}
+                    <button
+                        type="button"
+                        onClick={() => setSettings(s => ({ ...s, optionFormat: s.optionFormat === 'numeric' ? 'alpha' : 'numeric' }))}
+                        className="bg-slate-100 hover:bg-slate-200 text-navy px-3 py-1.5 rounded-xl font-bold text-xs border border-slate-300 transition cursor-pointer flex items-center gap-1.5"
+                        title="Toggle option numbering style: (A, B, C, D) vs (1, 2, 3, 4)"
+                    >
+                        <span>{settings.optionFormat === 'numeric' ? '🔢 (1, 2, 3, 4)' : '🔤 (A, B, C, D)'}</span>
+                        <span className="text-[10px] bg-navy text-gold px-1.5 py-0.5 rounded font-black">Style</span>
+                    </button>
+
+                    {/* Font Size Selector */}
+                    <div className="hidden lg:flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-300">
+                        <span className="text-[10px] font-black text-navy px-1">Size:</span>
+                        {['12px', '13px', '14px', '15px', '16px'].map(sz => (
+                            <button
+                                key={sz}
+                                type="button"
+                                onClick={() => setSettings(s => ({ ...s, fontSize: sz }))}
+                                className={`px-2 py-0.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                                    settings.fontSize === sz ? 'bg-navy text-gold shadow-xs' : 'text-slate-700 hover:bg-slate-200'
+                                }`}
+                                title={`Set font size to ${sz}`}
+                            >
+                                {sz.replace('px', '')}
+                            </button>
+                        ))}
+                    </div>
+
+                    {/* Fisher-Yates Section-Aware Question Shuffling */}
+                    {onShuffleQuestions && (
+                        <button
+                            type="button"
+                            onClick={onShuffleQuestions}
+                            className="bg-slate-100 hover:bg-slate-200 text-navy px-3 py-1.5 rounded-xl font-bold text-xs border border-slate-300 transition cursor-pointer flex items-center gap-1.5"
+                            title="Shuffle question order within sections (Fisher-Yates)"
+                        >
+                            <span>🔀</span>
+                            <span>Shuffle</span>
+                        </button>
+                    )}
+
                     <span className="text-xs font-bold text-gray-500">
                         {questions.length} Questions
                     </span>

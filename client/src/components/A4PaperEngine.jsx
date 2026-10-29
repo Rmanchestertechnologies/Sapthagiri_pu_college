@@ -310,6 +310,7 @@ export default function A4PaperEngine({
                                                     isTwoCol={isTwoCol}
                                                     fontSize={settings.fontSize}
                                                     lineHeight={settings.lineHeight}
+                                                    optionFormat={settings.optionFormat || 'alpha'}
                                                     formatMarks={formatMarks}
                                                     extraStyle={{ marginBottom: '0px' }}
                                                     diagramMaxHeight={settings.diagramMaxHeight}
@@ -389,6 +390,11 @@ export default function A4PaperEngine({
 
             {/* ── CSS STYLES FOR ON-SCREEN AND PRINT ── */}
             <style>{`
+                :root {
+                    --paper-font-family: ${settings.fontFamily || '"Times New Roman", Times, Georgia, serif'};
+                    --paper-font-size: ${settings.fontSize || '13px'};
+                    --paper-line-height: ${settings.lineHeight || '1.42'};
+                }
                 .a4-sheet-page {
                     width: 794px;
                     min-height: 1123px;
@@ -398,6 +404,9 @@ export default function A4PaperEngine({
                     margin: 0 auto 28px auto;
                     box-sizing: border-box;
                     position: relative;
+                    font-family: var(--paper-font-family) !important;
+                    font-size: var(--paper-font-size) !important;
+                    line-height: var(--paper-line-height) !important;
                 }
                 .a4-cover-page {
                     page-break-after: always;
@@ -410,6 +419,31 @@ export default function A4PaperEngine({
                     color: #000000;
                     position: relative;
                     z-index: 1;
+                    font-family: var(--paper-font-family) !important;
+                    font-size: var(--paper-font-size) !important;
+                    line-height: var(--paper-line-height) !important;
+                }
+                .question-block {
+                    font-size: var(--paper-font-size) !important;
+                    font-family: var(--paper-font-family) !important;
+                    line-height: var(--paper-line-height) !important;
+                }
+                .question-block .math-renderer {
+                    font-size: 1em !important;
+                }
+                .question-block strong,
+                .question-block b {
+                    font-family: inherit;
+                    color: #000000;
+                }
+                /* Ensure digits/numbers don't turn italic, while preserving scientific/biological nomenclature */
+                .katex .mord:not(.mathnormal) {
+                    font-style: normal !important;
+                }
+                i.scientific-name, em.scientific-name,
+                i.binomial-name, em.binomial-name,
+                .scientific-name, .binomial-name {
+                    font-style: italic !important;
                 }
                 .a4-subtle-running-header {
                     display: flex;
@@ -634,6 +668,14 @@ export default function A4PaperEngine({
                         overflow: visible !important;
                         position: relative !important;
                         z-index: 1 !important;
+                        font-family: var(--paper-font-family) !important;
+                        font-size: var(--paper-font-size) !important;
+                        line-height: var(--paper-line-height) !important;
+                    }
+                    .question-block {
+                        font-size: var(--paper-font-size) !important;
+                        font-family: var(--paper-font-family) !important;
+                        line-height: var(--paper-line-height) !important;
                     }
                     .no-print {
                         display: none !important;

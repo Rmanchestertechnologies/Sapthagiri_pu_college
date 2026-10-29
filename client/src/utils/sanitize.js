@@ -39,24 +39,60 @@ export function safeHtml(dirty) {
 }
 
 /**
- * Returns the option label for a given index based on exam type.
- * JEE → A, B, C, D   |   NEET / CET → 1, 2, 3, 4
+ * Returns the option label for a given index based on exam type or explicit optionFormat.
  * @param {number} idx - 0-based option index
  * @param {string[]} classes - array of exam classes on the question (e.g. ['JEE'] or ['NEET'])
+ * @param {string} optionFormat - 'alpha' | 'numeric' | null
  * @returns {string} - label string like 'A' or '1'
  */
-export function optionLabel(idx, classes = []) {
+export function optionLabel(idx, classes = [], optionFormat = null) {
+    if (optionFormat === 'numeric' || optionFormat === '1234') {
+        return String(idx + 1);
+    }
+    if (optionFormat === 'alpha' || optionFormat === 'ABCD') {
+        return String.fromCharCode(65 + idx);
+    }
     const isJEE = Array.isArray(classes) && classes.some(c => String(c).toUpperCase() === 'JEE');
     return isJEE ? String.fromCharCode(65 + idx) : String(idx + 1);
 }
 
 /**
- * Detects the exact option labels used by a question (e.g. ['A', 'B', 'C', 'D'] vs ['1', '2', '3', '4'])
+ * Strips leading option prefixes (e.g., '(A) ', '1. ', 'A: ', '[1] ') from option strings.
  */
-export function getQuestionOptionLabels(q) {
-    if (!q) return ['A', 'B', 'C', 'D'];
+export function cleanOptionText(text) {
+    if (!text) return '';
+    let str = String(text)
+        .replace(/&#x27;/g, "'")
+        .replace(/&#39;/g, "'")
+        .replace(/&quot;/g, '"')
+        .replace(/&amp;/g, '&')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&nbsp;/g, ' ')
+        .trim();
+    // Strip leading duplicate option indicators like (A), (1), A., 1., (a), A-, 1-, A:, 1:, [A], [1]
+    // only if followed by space and actual content
+    str = str.replace(/^\s*(?:\([A-Da-d1-4]\)|\[[A-Da-d1-4]\]|[A-Da-d1-4][\.\:\-\)])\s+/i, '');
+    return str.trim();
+}
+
+/**
+ * Detects or generates the exact option labels used by a question (e.g. ['A', 'B', 'C', 'D'] vs ['1', '2', '3', '4'])
+ * Honors explicit optionFormat ('alpha' vs 'numeric') when provided.
+ */
+export function getQuestionOptionLabels(q, optionFormat = null) {
+    if (!q) {
+        return optionFormat === 'numeric' ? ['1', '2', '3', '4'] : ['A', 'B', 'C', 'D'];
+    }
     const options = Array.isArray(q.options) ? q.options : [];
     const count = options.length || 4;
+
+    if (optionFormat === 'numeric' || optionFormat === '1234') {
+        return Array.from({ length: count }, (_, i) => String(i + 1));
+    }
+    if (optionFormat === 'alpha' || optionFormat === 'ABCD') {
+        return Array.from({ length: count }, (_, i) => String.fromCharCode(65 + i));
+    }
 
     // 1. If options array contains objects with explicit label property (e.g. { label: '1', text: '...' })
     const explicitLabels = options
@@ -220,11 +256,11 @@ export function parseAnswerIndices(rawAns, options = []) {
  * - If question options are numeric (1, 2, 3, 4) and answer is 1 & 2 / AB / Both A and B -> returns "12" or "1, 2"
  * - If question options are alphabetic (A, B, C, D) and answer is 1 & 2 / AB / Both A and B -> returns "AB" or "A, B"
  */
-export function getResolvedAnswerLabel(q) {
+export function getResolvedAnswerLabel(q, optionFormat = null) {
     if (!q) return 'N/A';
     const rawAns = q.answer ?? q.correct_option ?? q.correctAnswer ?? '';
     const options = Array.isArray(q.options) ? q.options : [];
-    const labels = getQuestionOptionLabels(q);
+    const labels = getQuestionOptionLabels(q, optionFormat);
 
     const indices = parseAnswerIndices(rawAns, options);
     if (indices.length > 0) {

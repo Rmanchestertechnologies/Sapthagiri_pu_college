@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import MathRenderer from './MathRenderer';
-import { getResolvedAnswerLabel, getQuestionOptionLabels, isOptionCorrect } from '../utils/sanitize';
+import { getResolvedAnswerLabel, getQuestionOptionLabels, isOptionCorrect, cleanOptionText } from '../utils/sanitize';
 import { generatePaperSet } from '../utils/pqrsGenerator';
 
 export default function A4SolutionKey({
@@ -11,6 +11,7 @@ export default function A4SolutionKey({
     onClose,
 }) {
     const [activeSet, setActiveSet] = useState(setName || paper?.setName || 'P');
+    const [zoom, setZoom] = useState(100);
 
     // Sync activeSet if setName prop changes
     React.useEffect(() => {
@@ -95,6 +96,31 @@ export default function A4SolutionKey({
                         </h3>
                     </div>
                     <div className="flex items-center gap-2">
+                        {/* Zoom Controls */}
+                        <div className="flex items-center bg-gray-100 rounded-xl p-1 gap-1">
+                            <button
+                                onClick={() => setZoom(z => Math.max(60, z - 15))}
+                                className="px-2 py-0.5 text-xs font-black text-gray-700 hover:bg-white rounded-lg transition"
+                                title="Zoom Out"
+                            >
+                                −
+                            </button>
+                            <span className="text-xs font-bold text-navy px-1">{zoom}%</span>
+                            <button
+                                onClick={() => setZoom(z => Math.min(150, z + 15))}
+                                className="px-2 py-0.5 text-xs font-black text-gray-700 hover:bg-white rounded-lg transition"
+                                title="Zoom In"
+                            >
+                                +
+                            </button>
+                            <button
+                                onClick={() => setZoom(100)}
+                                className="px-2 py-0.5 text-[10px] font-bold bg-white text-gray-700 rounded-lg shadow-sm cursor-pointer"
+                            >
+                                Reset
+                            </button>
+                        </div>
+
                         <button
                             onClick={handlePrint}
                             className="bg-navy text-gold hover:bg-gold hover:text-navy px-4 py-2 rounded-xl font-black text-xs uppercase tracking-wider transition shadow cursor-pointer flex items-center gap-1.5"
@@ -129,18 +155,20 @@ export default function A4SolutionKey({
                                 minHeight: 'auto',
                                 boxSizing: 'border-box',
                                 fontFamily: 'Calibri, "Segoe UI", Arial, sans-serif',
+                                transform: zoom === 100 ? 'none' : `scale(${zoom / 100})`,
+                                transformOrigin: 'top center',
                             }}
                         >
                             {/* Official Sapthagiri PU College Crest Watermark - Non-intrusive background layer */}
                             <div 
-                                className="a4-watermark-wrapper"
+                                className="a4-watermark-wrapper pointer-events-none select-none"
                                 style={{
-                                    position: 'fixed',
+                                    position: 'absolute',
                                     top: 0,
                                     left: 0,
-                                    width: '100vw',
-                                    height: '100vh',
-                                    pointerEvents: 'none',
+                                    right: 0,
+                                    bottom: 0,
+                                    overflow: 'hidden',
                                     zIndex: 0,
                                     display: 'flex',
                                     alignItems: 'center',
@@ -205,8 +233,28 @@ export default function A4SolutionKey({
                                         const labels = getQuestionOptionLabels(q);
                                         const qText = q.questionText || q.question || '';
                                         const diagramImg = q.imageUrl || q.image_url;
-                                        const explanation = q.solutionText || q.solution || q.explanation || '';
+                                        const explanation = q.solutionText || q.solution_text || q.solution || q.explanation || '';
                                         const options = Array.isArray(q.options) ? q.options : [];
+                                        const qType = String(q.type || q.q_type || '').toUpperCase();
+                                        const isNumerical = qType.includes('NUMERICAL') || qType.includes('INTEGER') || Boolean(q.isNumerical) || (q.num_answer !== undefined && q.num_answer !== null && q.num_answer !== '');
+                                        const isAssertion = qType.includes('ASSERTION') || (/Assertion\s*(?:\(A\))?/i.test(qText) && /Reason\s*(?:\(R\))?/i.test(qText));
+
+                                        // Extract assertion / reason if applicable
+                                        let assertion = '';
+                                        let reason = '';
+                                        if (isAssertion) {
+                                            const aMatch = qText.match(/Assertion\s*(?:\(A\))?\s*[:\-]?\s*([\s\S]*?)(?=Reason\s*(?:\(R\))?[:\-]|$)/i);
+                                            const rMatch = qText.match(/Reason\s*(?:\(R\))?\s*[:\-]?\s*([\s\S]*)$/i);
+                                            assertion = aMatch ? aMatch[1].trim() : qText;
+                                            reason = rMatch ? rMatch[1].trim() : '';
+                                        }
+
+                                        // Match the following pairs if applicable
+                                        const matchPairs = (Array.isArray(q.matchPairs) && q.matchPairs.length > 0)
+                                            ? q.matchPairs
+                                            : (Array.isArray(q.column_a) && Array.isArray(q.column_b) && q.column_a.length > 0)
+                                                ? q.column_a.map((left, pi) => ({ left, right: q.column_b[pi] || '' }))
+                                                : [];
 
                                         return (
                                             <div
@@ -218,15 +266,60 @@ export default function A4SolutionKey({
                                                     <span className="font-bold text-sm text-navy">
                                                         Question {currentQNo}
                                                     </span>
-                                                    <span className="bg-emerald-100 text-emerald-800 text-xs font-bold px-3 py-1 rounded-md border border-emerald-200">
-                                                        Correct Answer: ({answerLabel})
-                                                    </span>
+                                                    {isNumerical ? (
+                                                        <span className="bg-blue-100 text-blue-900 text-xs font-black px-3 py-1 rounded-md border border-blue-200">
+                                                            Correct Value: {q.num_answer ?? q.answer ?? 'N/A'}
+                                                        </span>
+                                                    ) : (
+                                                        <span className="bg-emerald-100 text-emerald-800 text-xs font-bold px-3 py-1 rounded-md border border-emerald-200">
+                                                            Correct Answer: ({answerLabel})
+                                                        </span>
+                                                    )}
                                                 </div>
 
-                                                {/* Question Text */}
-                                                <div className="text-xs text-slate-800 font-normal leading-relaxed">
-                                                    <MathRenderer inline text={qText} />
-                                                </div>
+                                                {/* Question Text / Assertion-Reason Structure */}
+                                                {isAssertion && assertion ? (
+                                                    <div className="space-y-1.5 text-xs text-slate-800">
+                                                        <div className="line-relaxed">
+                                                            <strong className="text-navy mr-1.5">Assertion (A):</strong>
+                                                            <MathRenderer inline text={assertion} />
+                                                        </div>
+                                                        {reason && (
+                                                            <div className="line-relaxed">
+                                                                <strong className="text-navy mr-1.5">Reason (R):</strong>
+                                                                <MathRenderer inline text={reason} />
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                ) : (
+                                                    <div className="text-xs text-slate-800 font-normal leading-relaxed">
+                                                        <MathRenderer inline text={qText} />
+                                                    </div>
+                                                )}
+
+                                                {/* Match the Following Pairs Table if present */}
+                                                {matchPairs.length > 0 && (
+                                                    <div className="my-2 border border-slate-200 rounded-xl overflow-hidden bg-white text-xs">
+                                                        <div className="grid grid-cols-2 bg-slate-100 font-black text-[11px] text-navy px-3 py-1.5 border-b border-slate-200 uppercase">
+                                                            <span>Column I</span>
+                                                            <span>Column II</span>
+                                                        </div>
+                                                        <div className="divide-y divide-slate-100">
+                                                            {matchPairs.map((p, pi) => (
+                                                                <div key={pi} className="grid grid-cols-2 px-3 py-1.5 text-[11px]">
+                                                                    <div className="pr-2 flex items-start gap-1.5">
+                                                                        <strong className="text-navy">({String.fromCharCode(65 + pi)})</strong>
+                                                                        <MathRenderer inline text={typeof p === 'object' ? (p.left || '') : String(p)} />
+                                                                    </div>
+                                                                    <div className="pl-2 border-l border-slate-100 flex items-start gap-1.5">
+                                                                        <strong className="text-navy">({pi + 1})</strong>
+                                                                        <MathRenderer inline text={typeof p === 'object' ? (p.right || '') : ''} />
+                                                                    </div>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
 
                                                 {/* Diagram if present */}
                                                 {diagramImg && (
@@ -240,11 +333,12 @@ export default function A4SolutionKey({
                                                     </div>
                                                 )}
 
-                                                {/* Options summary */}
-                                                {options.length > 0 && (
+                                                {/* Options summary (only for non-numerical) */}
+                                                {!isNumerical && options.length > 0 && (
                                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 pt-1 text-[11px] text-slate-600">
                                                         {options.map((opt, oi) => {
                                                             const isCorrect = isOptionCorrect(q, oi);
+                                                            const optText = cleanOptionText(typeof opt === 'object' ? (opt.text || opt.option || '') : String(opt || ''));
                                                             return (
                                                                 <div
                                                                     key={oi}
@@ -256,7 +350,7 @@ export default function A4SolutionKey({
                                                                 >
                                                                     <span className="font-semibold">({labels[oi] || String.fromCharCode(65 + oi)})</span>
                                                                     <div className="flex-1 min-w-0">
-                                                                        <MathRenderer inline text={typeof opt === 'object' ? (opt.text || '') : String(opt)} />
+                                                                        <MathRenderer inline text={optText} />
                                                                     </div>
                                                                     {isCorrect && <span className="text-emerald-700 font-bold">✓</span>}
                                                                 </div>
@@ -265,16 +359,16 @@ export default function A4SolutionKey({
                                                     </div>
                                                 )}
 
-                                                {/* Explanation Box with full KaTeX Math Rendering */}
+                                                {/* Explanation Box with full KaTeX Math Rendering & Step-by-Step line breaks */}
                                                 <div className="bg-white p-3.5 rounded-xl border border-slate-200 text-xs text-slate-700 space-y-1">
-                                                    <span className="font-bold text-navy block">Explanation:</span>
+                                                    <span className="font-bold text-navy block uppercase text-[10px] tracking-wider">Step-by-Step Solution & Explanation:</span>
                                                     {explanation ? (
-                                                        <div className="leading-relaxed">
-                                                            <MathRenderer inline text={explanation} />
+                                                        <div className="leading-relaxed text-slate-800" style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                                                            <MathRenderer text={explanation} />
                                                         </div>
                                                     ) : (
                                                         <p className="text-slate-400 italic text-[11px]">
-                                                            Option ({answerLabel}) is the verified correct answer.
+                                                            {isNumerical ? `The verified answer is ${q.num_answer ?? q.answer}.` : `Option (${answerLabel}) is the verified correct answer.`}
                                                         </p>
                                                     )}
                                                 </div>

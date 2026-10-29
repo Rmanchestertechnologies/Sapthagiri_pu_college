@@ -608,6 +608,7 @@ export default function CreatePaper() {
     const [saving, setSaving] = useState(false);
     const [showReviewSelectedModal, setShowReviewSelectedModal] = useState(false);
     const [editingQuestionModal, setEditingQuestionModal] = useState(null);
+    const [selectionValidationError, setSelectionValidationError] = useState(null);
 
     // Default Institutional Header & Part Directives
     const DEFAULT_HEADER_CONFIG = {
@@ -654,13 +655,76 @@ export default function CreatePaper() {
     const [editorTab, setEditorTab] = useState('split'); // 'split' | 'edit' | 'preview'
     const [activeEditorField, setActiveEditorField] = useState('questionText');
 
+    // Validation for Step 1 mandatory chapter & concept selection per subject
+    const validateSubjectRequirements = () => {
+        const missing = [];
+        examSubjects.forEach(sub => {
+            const subSel = subjectSelections[sub] || { chapters: [], concepts: [] };
+            const hasChapter = Array.isArray(subSel.chapters) && subSel.chapters.length > 0;
+            const hasConcept = Array.isArray(subSel.concepts) && subSel.concepts.length > 0;
+            if (!hasChapter || !hasConcept) {
+                missing.push({
+                    subject: sub,
+                    missingChapters: !hasChapter,
+                    missingConcepts: !hasConcept,
+                });
+            }
+        });
+        return missing;
+    };
+
+    const handleNavigateStep = (targetStep) => {
+        if (currentStep === 1 && targetStep > 1) {
+            const missing = validateSubjectRequirements();
+            if (missing.length > 0) {
+                setSelectionValidationError(missing);
+                return;
+            }
+        }
+        setSelectionValidationError(null);
+        setCurrentStep(targetStep);
+    };
+
     // Standard Step Wizard Navigation Handlers
     const handlePrevStep = () => {
         setCurrentStep(prev => Math.max(1, prev - 1));
     };
 
     const handleNextStep = () => {
-        setCurrentStep(prev => Math.min(5, prev + 1));
+        handleNavigateStep(Math.min(5, currentStep + 1));
+    };
+
+    // Fisher-Yates Section-Aware Question Shuffling (Step 4)
+    const handleShuffleQuestions = () => {
+        if (!selectedQuestions || selectedQuestions.length <= 1) return;
+        const bySub = {};
+        examSubjects.forEach(sub => { bySub[sub] = []; });
+        selectedQuestions.forEach(q => {
+            const rawSub = q.sectionSubject || q.subject || examSubjects[0] || 'General';
+            const normSub = normalizeSubjectName(rawSub);
+            const matched = examSubjects.find(s => s.toLowerCase() === normSub.toLowerCase()) || examSubjects[0] || 'General';
+            if (!bySub[matched]) bySub[matched] = [];
+            bySub[matched].push(q);
+        });
+
+        const shuffled = [];
+        examSubjects.forEach(sub => {
+            const list = [...(bySub[sub] || [])];
+            for (let i = list.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [list[i], list[j]] = [list[j], list[i]];
+            }
+            shuffled.push(...list);
+        });
+
+        setSelectedQuestions(shuffled.length === selectedQuestions.length ? shuffled : (() => {
+            const copy = [...selectedQuestions];
+            for (let i = copy.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [copy[i], copy[j]] = [copy[j], copy[i]];
+            }
+            return copy;
+        })());
     };
 
     // Toast notification helper with auto-dismiss
@@ -2839,7 +2903,7 @@ export default function CreatePaper() {
                         <button
                             key={st.num}
                             type="button"
-                            onClick={() => setCurrentStep(st.num)}
+                            onClick={() => handleNavigateStep(st.num)}
                             className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition cursor-pointer ${
                                 currentStep === st.num
                                     ? 'bg-gold text-navy shadow-lg scale-105 ring-2 ring-gold/40'
@@ -2977,23 +3041,36 @@ export default function CreatePaper() {
                                         const isTabActive = activeSubjectTab === sub;
                                         const subSel = subjectSelections[sub] || { chapters: [], concepts: [] };
                                         const chCount = subSel.chapters.length;
+                                        const cptCount = subSel.concepts.length;
+                                        const isMissing = selectionValidationError && selectionValidationError.some(item => item.subject === sub);
 
                                         return (
                                             <button
                                                 key={sub}
                                                 type="button"
-                                                onClick={() => setActiveSubjectTab(sub)}
+                                                onClick={() => {
+                                                    setActiveSubjectTab(sub);
+                                                    if (isMissing) {
+                                                        setSelectionValidationError(prev => prev ? prev.filter(item => item.subject !== sub) : null);
+                                                    }
+                                                }}
                                                 className={`px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition cursor-pointer flex items-center gap-2 ${
-                                                    isTabActive
-                                                        ? 'bg-navy text-gold ring-2 ring-gold shadow-md scale-105'
-                                                        : 'bg-white text-slate-700 border border-gray-300 hover:bg-slate-100'
+                                                    isMissing
+                                                        ? 'bg-red-50 text-red-700 border-2 border-red-500 shadow-sm animate-pulse'
+                                                        : isTabActive
+                                                            ? 'bg-navy text-gold ring-2 ring-gold shadow-md scale-105'
+                                                            : 'bg-white text-slate-700 border border-gray-300 hover:bg-slate-100'
                                                 }`}
                                             >
                                                 <span>Section {sIdx + 1}: {sub}</span>
                                                 <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
-                                                    chCount > 0 ? 'bg-emerald-600 text-white' : 'bg-gray-200 text-gray-700'
+                                                    isMissing
+                                                        ? 'bg-red-600 text-white'
+                                                        : chCount > 0 && cptCount > 0
+                                                            ? 'bg-emerald-600 text-white'
+                                                            : 'bg-gray-200 text-gray-700'
                                                 }`}>
-                                                    {chCount > 0 ? `${chCount} Ch` : 'All Ch'}
+                                                    {isMissing ? '⚠️ Incomplete' : chCount > 0 ? `${chCount} Ch` : '0 Ch'}
                                                 </span>
                                             </button>
                                         );
@@ -3184,7 +3261,7 @@ export default function CreatePaper() {
                                 </div>
                             </div>
                             <button
-                                onClick={() => setCurrentStep(2)}
+                                onClick={() => handleNavigateStep(2)}
                                 className="bg-gold text-navy hover:scale-105 px-8 py-3 rounded-xl font-black text-xs uppercase tracking-widest transition shadow-lg flex items-center justify-center gap-2 cursor-pointer"
                             >
                                 <span>Proceed to Method</span>
@@ -4959,6 +5036,7 @@ export default function CreatePaper() {
                                 onProceedToAlignment={() => setCurrentStep(5)}
                                 onProceedToFinalize={handleFinalizeAndSave}
                                 onDiagramResize={handleDiagramResize}
+                                onShuffleQuestions={handleShuffleQuestions}
                             />
                         </div>
                     </div>
@@ -5029,6 +5107,7 @@ export default function CreatePaper() {
                                 showSettingsPanel={true}
                                 onProceedToFinalize={handleFinalizeAndSave}
                                 onDiagramResize={handleDiagramResize}
+                                onShuffleQuestions={handleShuffleQuestions}
                             />
                         </div>
                     </div>
@@ -5058,6 +5137,69 @@ export default function CreatePaper() {
                             setSelectedQuestions(updatedQs);
                         }}
                     />
+                )}
+
+                {/* ── MODAL: INCOMPLETE SELECTION VALIDATION ALERT ── */}
+                {selectionValidationError && selectionValidationError.length > 0 && (
+                    <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-xs animate-fade-in no-print">
+                        <div className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-8 shadow-2xl border-2 border-red-500 space-y-5">
+                            <div className="flex items-start gap-3">
+                                <div className="w-12 h-12 rounded-2xl bg-red-100 text-red-600 flex items-center justify-center text-2xl font-black shrink-0">
+                                    ⚠️
+                                </div>
+                                <div>
+                                    <h3 className="text-base font-black text-red-700 uppercase tracking-tight">
+                                        Incomplete Selection
+                                    </h3>
+                                    <p className="text-xs text-gray-700 font-medium mt-1 leading-relaxed">
+                                        Please select at least one Chapter and Concept for each subject before proceeding.
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div className="space-y-2 bg-red-50/80 p-4 rounded-2xl border border-red-200">
+                                <span className="text-[10px] font-black uppercase tracking-wider text-red-900 block">
+                                    Required Selections Missing:
+                                </span>
+                                <div className="space-y-1.5">
+                                    {selectionValidationError.map(item => (
+                                        <div key={item.subject} className="flex items-center justify-between bg-white px-3.5 py-2.5 rounded-xl border border-red-300 text-xs shadow-2xs">
+                                            <span className="font-black text-navy">{item.subject}</span>
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-[11px] font-bold text-red-600">
+                                                    {item.missingChapters && item.missingConcepts
+                                                        ? 'Missing Chapters & Concepts'
+                                                        : item.missingChapters
+                                                            ? 'Missing Chapter'
+                                                            : 'Missing Concept'}
+                                                </span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setActiveSubjectTab(item.subject);
+                                                        setSelectionValidationError(null);
+                                                    }}
+                                                    className="bg-red-600 hover:bg-red-700 text-white px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition cursor-pointer"
+                                                >
+                                                    Select →
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className="flex justify-end pt-1">
+                                <button
+                                    type="button"
+                                    onClick={() => setSelectionValidationError(null)}
+                                    className="bg-navy hover:bg-navy/90 text-gold px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition cursor-pointer shadow-md"
+                                >
+                                    Dismiss & Complete Selection
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                 )}
 
                 {/* ── MODAL: ANALYSIS ── */}
