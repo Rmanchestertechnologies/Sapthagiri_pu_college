@@ -616,6 +616,28 @@ export default function CommissionedExam() {
         setSelectedQuestions(shuffled.map((q, idx) => ({ ...q, questionNumber: idx + 1 })));
     };
 
+    // Step 7: Live Diagram Resize Sync across questions
+    const handleDiagramResize = (qIdOrNum, newHeight, diagramKey = 'main') => {
+        setSelectedQuestions(prev => {
+            if (!Array.isArray(prev)) return prev;
+            return prev.map((q, idx) => {
+                const isMatch = (q._id && String(q._id) === String(qIdOrNum)) || 
+                                (q.id && String(q.id) === String(qIdOrNum)) ||
+                                (idx + 1 === Number(qIdOrNum));
+                if (!isMatch) return q;
+                const nextSizes = {
+                    ...(q.customDiagramSizes || {}),
+                    [diagramKey]: newHeight,
+                };
+                return {
+                    ...q,
+                    ...(diagramKey === 'main' ? { customDiagramHeight: newHeight } : {}),
+                    customDiagramSizes: nextSizes,
+                };
+            });
+        });
+    };
+
     // Step 7: Save Paper Draft
     const handleSaveDraft = async () => {
         setSavingPaper(true);
@@ -1532,6 +1554,7 @@ export default function CommissionedExam() {
                                 setSettings={setSettings}
                                 showSettingsPanel={true}
                                 onProceedToFinalize={handleSaveDraft}
+                                onDiagramResize={handleDiagramResize}
                             />
                         </div>
 

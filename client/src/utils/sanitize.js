@@ -70,10 +70,15 @@ export function cleanOptionText(text) {
         .replace(/&gt;/g, '>')
         .replace(/&nbsp;/g, ' ')
         .trim();
-    // Strip leading duplicate option indicators like (A), (1), A., 1., (a), A-, 1-, A:, 1:, [A], [1]
-    // only if NOT part of a matching pair mapping like a-(iv), a-(1), 1-(i), (1)-(ii)
-    if (!/^(?:\(?[a-d1-4]\)?\s*[-–—]\s*\(?[i|v|x|0-9])/i.test(str)) {
-        str = str.replace(/^\s*(?:\([A-Da-d1-4]\)|\[[A-Da-d1-4]\]|[A-Da-d1-4][\.\:\-\)])\s+/i, '');
+
+    // Check if this option is a matching combination mapping like:
+    // "a-(iv)", "A-1", "A-P", "A-(P)", "A \to P", "A -> 2", "(a)-(ii), (b)-(iv)"
+    const isMatchingCombo = /^(?:\(?[A-Da-d1-4]\)?\s*(?:[-–—:]|\\to|\\rightarrow|->)\s*\(?[A-Za-z0-9ivxIVX]+\)?)/i.test(str);
+    if (!isMatchingCombo) {
+        str = str.replace(/^\s*(?:\([A-Da-d1-4]\)|\[[A-Da-d1-4]\]|[A-Da-d1-4][\.\:\-\)])\s*(?=\S)/i, '');
+    } else {
+        // If option starts with outer option index like "(1) A-iv, B-ii" or "(A) A-P, B-Q", strip only the outer index
+        str = str.replace(/^\s*(?:\([1-4A-D]\)|\[[1-4A-D]\]|[1-4A-D][\.\:\)])\s+(?=\(?[A-Da-d1-4]\)?\s*[-–—:->\\])/i, '');
     }
 
     // Clean trailing stray unclosed braces e.g. "40.8 eV.}", "54.4 eV}", "0.49\, A}"
@@ -104,6 +109,27 @@ export function extractOptionsIfMissing(q) {
     }
 
     const textToSearch = `${q.questionText || q.question || ''}\n${q.raw_question || ''}\n${q.solution_text || q.solution || ''}`;
+
+    // IMPORTANT: For MATCH_FOLLOWING questions, (A), (B), (C), (D) in the question text
+    // are items of Column I, NEVER multiple-choice options!
+    const isMatch = q.type === 'MATCH_FOLLOWING' || 
+                    q.questionType === 'MATCH_FOLLOWING' ||
+                    /(?:Column|List)\s*[-:]?\s*(?:I|1|A)\b/i.test(textToSearch);
+
+    if (isMatch) {
+        // Look specifically for combination codes after Codes/Options/Choose
+        const codesSection = textToSearch.match(/(?:Codes?|Options?|Choose the correct[^:]*:)[\s\n]*([\s\S]*)$/i);
+        const searchIn = codesSection ? codesSection[1] : textToSearch;
+        const comboMatch = searchIn.match(/(?:^|\n|\s)\(?[1A]\)[\.\:\-\s]+([\s\S]*?)(?:^|\n|\s)\(?[2B]\)[\.\:\-\s]+([\s\S]*?)(?:^|\n|\s)\(?[3C]\)[\.\:\-\s]+([\s\S]*?)(?:^|\n|\s)\(?[4D]\)[\.\:\-\s]+([\s\S]*?)(?=(?:\n\s*(?:Answer|Solution|Key|Explanation)|\n\s*\d+\.|$))/i);
+        if (comboMatch) {
+            const c1 = comboMatch[1].trim();
+            if (/[-–—:\\]|\b(?:i{1,4}|iv|v|vi|p|q|r|s)\b/i.test(c1)) {
+                return [comboMatch[1].trim(), comboMatch[2].trim(), comboMatch[3].trim(), comboMatch[4].trim()];
+            }
+        }
+        return validOpts; // Do not falsely parse Column I items as options!
+    }
+
     const optMatchNum = textToSearch.match(/(?:^|\n|\s)\(?[1]\)[\.\:\-\s]+([\s\S]*?)(?:^|\n|\s)\(?[2]\)[\.\:\-\s]+([\s\S]*?)(?:^|\n|\s)\(?[3]\)[\.\:\-\s]+([\s\S]*?)(?:^|\n|\s)\(?[4]\)[\.\:\-\s]+([\s\S]*?)(?=(?:\n\s*(?:Answer|Solution|Key|Explanation)|\n\s*\d+\.|$))/i);
     if (optMatchNum) {
         return [optMatchNum[1].trim(), optMatchNum[2].trim(), optMatchNum[3].trim(), optMatchNum[4].trim()];

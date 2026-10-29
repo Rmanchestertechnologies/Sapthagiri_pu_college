@@ -506,7 +506,6 @@ export default function A4PaperEngine({
                 }
                 .resizable-diagram-wrap img {
                     max-width: 100% !important;
-                    height: auto !important;
                     background-color: transparent !important;
                     mix-blend-mode: multiply !important;
                     position: relative !important;

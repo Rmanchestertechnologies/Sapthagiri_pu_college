@@ -164,8 +164,15 @@ function mapSupabaseToQuestion(row, usageMap = null) {
 
     let cleanQuestion = cleanDifficultyTags(rawQuestion || '');
 
+    const isLikelyMatch = (
+        qTypeLower.includes('match') || 
+        colA.length > 0 || 
+        /(?:Column|List)\s*[-:]?\s*(?:I|1|A)\b/i.test(cleanQuestion)
+    );
+
     // Fallback: extract embedded (A), (B), (C), (D) options from question text if options empty
-    if (options.length === 0 && cleanQuestion) {
+    // NOTE: For Match questions, (A), (B), (C), (D) in question text are Column I items, NOT options!
+    if (options.length === 0 && cleanQuestion && !isLikelyMatch) {
         const embeddedOptRegex = /(?:\n\s*|^)(?:\([A-Da-d1-4]\)|[A-Da-d1-4][\.\:\-])\s+([\s\S]*?)(?=(?:\n\s*(?:\([A-Da-d1-4]\)|[A-Da-d1-4][\.\:\-])\s+)|$)/g;
         const found = [];
         let m;
@@ -177,6 +184,22 @@ function mapSupabaseToQuestion(row, usageMap = null) {
         if (found.length >= 3 && firstIndex > 10) {
             options = found.map(cleanDifficultyTags).filter(Boolean);
             cleanQuestion = cleanQuestion.substring(0, firstIndex).trim();
+        }
+    } else if (options.length === 0 && cleanQuestion && isLikelyMatch) {
+        // Look specifically for combination codes after Codes/Options/Choose
+        const codesSection = cleanQuestion.match(/(?:Codes?|Options?|Choose the correct[^:]*:)[\s\n]*([\s\S]*)$/i);
+        if (codesSection) {
+            const codesText = codesSection[1];
+            const embeddedComboRegex = /(?:\n\s*|^)(?:\([A-Da-d1-4]\)|[A-Da-d1-4][\.\:\-])\s+([\s\S]*?)(?=(?:\n\s*(?:\([A-Da-d1-4]\)|[A-Da-d1-4][\.\:\-])\s+)|$)/g;
+            const combos = [];
+            let cm;
+            while ((cm = embeddedComboRegex.exec(codesText)) !== null) {
+                combos.push(cm[1].trim());
+            }
+            if (combos.length >= 2) {
+                options = combos.map(cleanDifficultyTags).filter(Boolean);
+                cleanQuestion = cleanQuestion.substring(0, codesSection.index).trim();
+            }
         }
     }
 
@@ -280,6 +303,16 @@ function mapSupabaseToQuestion(row, usageMap = null) {
             'Both Statement I and Statement II are incorrect',
             'Statement I is correct but Statement II is incorrect',
             'Statement I is incorrect but Statement II is correct'
+        ];
+    } else if (type === 'MATCH_FOLLOWING' && options.length === 0) {
+        const pairCount = matchPairs.length || colA.length || 4;
+        const leftKeys = Array.from({ length: pairCount }, (_, idx) => String.fromCharCode(65 + idx));
+        const roman = ['i', 'ii', 'iii', 'iv', 'v', 'vi'];
+        options = [
+            leftKeys.map((k, i) => `${k}-(${roman[i] || (i + 1)})`).join(', '),
+            leftKeys.map((k, i) => `${k}-(${roman[(i + 1) % pairCount] || ((i + 1) % pairCount + 1)})`).join(', '),
+            leftKeys.map((k, i) => `${k}-(${roman[(i + 2) % pairCount] || ((i + 2) % pairCount + 1)})`).join(', '),
+            leftKeys.map((k, i) => `${k}-(${roman[(i + 3) % pairCount] || ((i + 3) % pairCount + 1)})`).join(', ')
         ];
     } else if (type === 'MCQ' && options.length === 0) {
         // If still no options and not numerical, treat as numerical / free-response

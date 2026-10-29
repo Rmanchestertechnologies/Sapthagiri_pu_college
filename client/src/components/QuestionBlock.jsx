@@ -432,10 +432,15 @@ export function cleanOptionText(text) {
         .replace(/&gt;/g, '>')
         .replace(/&nbsp;/g, ' ')
         .trim();
-    // Strip leading duplicate option indicators like (A), (1), A., 1., (a), A-, 1-, A:, 1:, [A], [1]
-    // only if NOT part of a matching pair mapping like a-(iv), a-(1), 1-(i), (1)-(ii)
-    if (!/^(?:\(?[a-d1-4]\)?\s*[-–—]\s*\(?[i|v|x|0-9])/i.test(str)) {
+
+    // Check if this option is a matching combination mapping like:
+    // "a-(iv)", "A-1", "A-P", "A-(P)", "A \to P", "A -> 2", "(a)-(ii), (b)-(iv)"
+    const isMatchingCombo = /^(?:\(?[A-Da-d1-4]\)?\s*(?:[-–—:]|\\to|\\rightarrow|->)\s*\(?[A-Za-z0-9ivxIVX]+\)?)/i.test(str);
+    if (!isMatchingCombo) {
         str = str.replace(/^\s*(?:\([A-Da-d1-4]\)|\[[A-Da-d1-4]\]|[A-Da-d1-4][\.\:\-\)])\s*(?=\S)/i, '');
+    } else {
+        // If option starts with outer option index like "(1) A-iv, B-ii" or "(A) A-P, B-Q", strip only the outer index
+        str = str.replace(/^\s*(?:\([1-4A-D]\)|\[[1-4A-D]\]|[1-4A-D][\.\:\)])\s+(?=\(?[A-Da-d1-4]\)?\s*[-–—:->\\])/i, '');
     }
 
     // Clean stray closing braces from OCR / LaTeX like "40.8 eV.}", "54.4 eV}", "0.49\, A}"
@@ -1088,14 +1093,44 @@ function BodyMatchFollowing({ q, classes, isTwoCol, diagramMaxHeight = '180px', 
     if (pairs.length < 2 && parsedPairs.length >= 2) {
         pairs = parsedPairs.filter(p => p && ((p.left && p.left.trim()) || (p.right && p.right.trim())));
     }
-    const rawOpts = extractOptionsIfMissing(q);
-    let opts = (rawOpts.length > 0 ? rawOpts : (q.options || [])).filter(opt => {
+
+    // 1. Recover candidate options
+    let rawCandidateOpts = [];
+    if (Array.isArray(q.options) && q.options.length > 0) {
+        rawCandidateOpts = q.options;
+    } else if (q.match_options && typeof q.match_options === 'object') {
+        const moArr = [q.match_options.A, q.match_options.B, q.match_options.C, q.match_options.D].filter(Boolean);
+        if (moArr.length >= 2) rawCandidateOpts = moArr;
+    }
+    if (rawCandidateOpts.length < 2) {
+        const extracted = extractOptionsIfMissing(q);
+        if (extracted.length >= 2) rawCandidateOpts = extracted;
+    }
+
+    let opts = rawCandidateOpts.filter(opt => {
         const raw = typeof opt === 'object' ? (opt.text || opt.optionText || opt.value || opt.option || '') : String(opt || '');
         return raw.trim().length > 0;
     });
-    if (opts.length < 2 && q.match_options && typeof q.match_options === 'object') {
-        const moArr = [q.match_options.A, q.match_options.B, q.match_options.C, q.match_options.D].filter(Boolean);
-        if (moArr.length >= 2) opts = moArr;
+
+    const romanLabels = ['i', 'ii', 'iii', 'iv', 'v', 'vi', 'vii', 'viii'];
+    const hasRomanOpts = opts.some(o => /[\-\s\(](?:i|ii|iii|iv|v|vi)\b/i.test(typeof o === 'object' ? (o.text || '') : String(o)));
+
+    // 2. Validate if options are authentic combination mappings (e.g. A-P, A-(i), (a)-(iv), A \to 2)
+    // If options are bogus single variables (e.g. ['x', 'x', 'x x', 'x^2']) or empty, synthesize authentic 4 combinations!
+    const isAuthenticCombo = opts.length >= 2 && opts.some(opt => {
+        const str = String(typeof opt === 'object' ? (opt.text || opt.option || '') : opt);
+        return /[-–—:->\\]|\b(?:i{1,4}|iv|v|vi|p|q|r|s)\b/i.test(str);
+    });
+
+    if (!isAuthenticCombo && pairs.length >= 2) {
+        const pairCount = pairs.length;
+        const leftKeys = Array.from({ length: pairCount }, (_, idx) => String.fromCharCode(65 + idx));
+        opts = [
+            leftKeys.map((k, i) => `${k}-(${romanLabels[i] || (i + 1)})`).join(', '),
+            leftKeys.map((k, i) => `${k}-(${romanLabels[(i + 1) % pairCount] || ((i + 1) % pairCount + 1)})`).join(', '),
+            leftKeys.map((k, i) => `${k}-(${romanLabels[(i + 2) % pairCount] || ((i + 2) % pairCount + 1)})`).join(', '),
+            leftKeys.map((k, i) => `${k}-(${romanLabels[(i + 3) % pairCount] || ((i + 3) % pairCount + 1)})`).join(', '),
+        ];
     }
     const rawQText = cleanQuestionText(pairs.length > 0 ? (introText || '') : (q.questionText || q.question || ''));
     const { cleanText: qText, diagramUrl: imageUrl } = extractDiagramFromText(rawQText, q.imageUrl || q.image_url);
@@ -1103,9 +1138,6 @@ function BodyMatchFollowing({ q, classes, isTwoCol, diagramMaxHeight = '180px', 
     const qId = q._id || q.id || displayNum;
     const currentDiagramHeight = q.customDiagramSizes?.['main'] || q.customDiagramHeight || diagramMaxHeight;
     const isMainManual = Boolean(q.customDiagramSizes?.['main'] || q.customDiagramHeight);
-
-    const romanLabels = ['i', 'ii', 'iii', 'iv', 'v', 'vi', 'vii', 'viii'];
-    const hasRomanOpts = opts.some(o => /[\-\s\(](?:i|ii|iii|iv|v|vi)\b/i.test(typeof o === 'object' ? (o.text || '') : String(o)));
 
     const avgLeftLen = pairs.reduce((acc, p) => acc + (p.left || '').length, 0) / (pairs.length || 1);
     const avgRightLen = pairs.reduce((acc, p) => acc + (p.right || '').length, 0) / (pairs.length || 1);
@@ -1164,7 +1196,13 @@ function BodyMatchFollowing({ q, classes, isTwoCol, diagramMaxHeight = '180px', 
                 </table>
             )}
             {opts.length > 0 && (
-                <div style={getDynamicOptGrid(opts, isTwoCol)}>
+                <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+                    gap: isTwoCol ? '3px 8px' : '3px 16px',
+                    marginTop: '4px',
+                    alignItems: 'start',
+                }}>
                     {opts.map((opt, i) => (
                         <div key={i} style={Q.optRow}>
                             <span style={Q.optLbl}>({getOptionLabelText(i, optionFormat, labels, classes)})</span>
