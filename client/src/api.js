@@ -14,7 +14,11 @@ export const setLoadingCallback = (cb) => { loadingCallback = cb; };
 
 // ── Request Interceptor: Attach token from localStorage if present ──────────
 api.interceptors.request.use((config) => {
-    loadingCallback(true);
+    // Only fire global loader if explicitly requested via showGlobalLoader: true
+    // This prevents background polling (notifications, stats) from flashing the loader repeatedly
+    if (config.showGlobalLoader) {
+        loadingCallback(true);
+    }
     const token = localStorage.getItem('token');
     if (token) {
         config.headers['Authorization'] = `Bearer ${token}`;
@@ -29,7 +33,9 @@ api.interceptors.request.use((config) => {
 // ── Response Interceptor: Handle token expiry globally ─────────────────────
 api.interceptors.response.use(
     (response) => {
-        loadingCallback(false);
+        if (response.config?.showGlobalLoader) {
+            loadingCallback(false);
+        }
         return response;
     },
     (error) => {

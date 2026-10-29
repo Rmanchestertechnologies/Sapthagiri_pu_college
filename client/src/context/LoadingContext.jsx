@@ -21,29 +21,43 @@ export const LoadingProvider = ({ children }) => {
 
     return (
         <LoadingContext.Provider value={{ showLoader, hideLoader, isLoading }}>
-            {/* Smooth 3-dot bouncing loader replacing the top yellow progress bar */}
+            {/* Centered smooth 3-dot bouncing loader - centered on screen, does not persist once loaded */}
             {isLoading && (
                 <div
                     style={{
                         position: 'fixed',
-                        top: '18px',
-                        right: '24px',
+                        inset: 0,
                         zIndex: 99999,
                         display: 'flex',
                         alignItems: 'center',
-                        gap: '6px',
-                        background: 'rgba(255, 255, 255, 0.96)',
-                        padding: '7px 14px',
-                        borderRadius: '9999px',
-                        boxShadow: '0 4px 16px rgba(0, 31, 109, 0.15)',
-                        border: '1px solid #e2e8f0',
+                        justifyContent: 'center',
+                        background: 'rgba(255, 255, 255, 0.45)',
+                        backdropFilter: 'blur(3px)',
                         pointerEvents: 'none'
                     }}
                 >
-                    <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#001f6d', animation: 'sap-bounce 0.6s infinite alternate' }} />
-                    <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#f59e0b', animation: 'sap-bounce 0.6s infinite alternate 0.2s' }} />
-                    <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#0284c7', animation: 'sap-bounce 0.6s infinite alternate 0.4s' }} />
-                    <span style={{ fontSize: '11px', fontWeight: 800, color: '#001f6d', textTransform: 'uppercase', letterSpacing: '0.05em', marginLeft: '4px' }}>Loading</span>
+                    <div
+                        style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            gap: '12px',
+                            background: '#ffffff',
+                            padding: '24px 36px',
+                            borderRadius: '24px',
+                            boxShadow: '0 12px 36px rgba(0, 31, 109, 0.18)',
+                            border: '2px solid rgba(245, 158, 11, 0.4)',
+                        }}
+                    >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: '#001f6d', animation: 'sap-bounce 0.6s infinite alternate' }} />
+                            <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: '#f59e0b', animation: 'sap-bounce 0.6s infinite alternate 0.2s' }} />
+                            <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: '#0284c7', animation: 'sap-bounce 0.6s infinite alternate 0.4s' }} />
+                        </div>
+                        <span style={{ fontSize: '12px', fontWeight: 800, color: '#001f6d', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                            Loading...
+                        </span>
+                    </div>
                 </div>
             )}
             {children}

@@ -73,7 +73,7 @@ function App() {
                         } />
                         <Route path="/admin/create-paper" element={
                             <ProtectedRoute role="admin">
-                                <CreatePaper />
+                                <CommissionedExam />
                             </ProtectedRoute>
                         } />
                         <Route path="/admin/commissioned-exam" element={
@@ -95,7 +95,7 @@ function App() {
                         } />
                         <Route path="/teacher/create-paper" element={
                             <ProtectedRoute role="teacher">
-                                <CreatePaper />
+                                <CommissionedExam />
                             </ProtectedRoute>
                         } />
                         <Route path="/teacher/commissioned-exam" element={

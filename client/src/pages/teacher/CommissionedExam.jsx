@@ -7,7 +7,7 @@ import PaperRenderer, { DEFAULT_SETTINGS } from '../../components/PaperRenderer'
 import A4AnswerKey from '../../components/A4AnswerKey';
 import A4SolutionKey from '../../components/A4SolutionKey';
 import Loader from '../../components/Loader';
-import { getQuestionOptionLabels, optionLabel, cleanOptionText } from '../../utils/sanitize';
+import { getQuestionOptionLabels, optionLabel, cleanOptionText, extractOptionsIfMissing } from '../../utils/sanitize';
 
 const EXAM_PATTERNS = {
     NEET: {
@@ -42,6 +42,16 @@ const EXAM_PATTERNS = {
         marksPerQ: 1,
         supportsNumerical: false,
     },
+    CUSTOM: {
+        id: 'CUSTOM',
+        title: 'Custom Single / Multi-Subject Assessment',
+        badge: 'Unlimited / Custom',
+        subjects: ['Physics', 'Chemistry', 'Mathematics', 'Biology', 'Botany', 'Zoology'],
+        defaultQuotaPerSubject: 100, // Unlimited default
+        totalQuestions: 100,
+        marksPerQ: 1,
+        supportsNumerical: true,
+    }
 };
 
 const normalizeSubjectName = (sub) => {
@@ -61,24 +71,30 @@ export default function CommissionedExam() {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
 
-    // Query params if launched from an existing commissioned exam or assignment
+    // Query params
     const paramExamType = searchParams.get('examType');
     const paramSubject = searchParams.get('subject');
     const paramExamId = searchParams.get('examId');
+    const paramPaperId = searchParams.get('paperId');
+    const isAssignment = searchParams.get('category') === 'assignment';
 
     // Stepper State:
-    // 0: Exam Type Selection & Subject Block Split
-    // 1: Chapter Selection
-    // 2: Concept / Sub-Topic Selection
-    // 3: Question Count per Chapter
-    // 4: Question Type Distribution & Dynamic Balancing Engine
-    // 5: Fetch Mode Selection (Auto Fetch vs Manual Fetch)
-    // 6: Alignment & Preview (with Bottom-Right Fixed Save Button & Merge Exam)
-    const [currentStep, setCurrentStep] = useState(paramExamType && paramSubject ? 1 : 0);
+    // 0: Scope, Exam Type & Unlimited Question Target
+    // 1: Dedicated Chapter Selection Page
+    // 2: Dedicated Concept / Sub-Topic Selection Page
+    // 3: Dedicated Question Count per Chapter Page (Unlimited Capacity)
+    // 4: Dedicated Question Type Distribution & Dynamic Balancing Engine
+    // 5: Dedicated Fetch Mode Selection (Auto Fetch vs Manual Fetch)
+    // 6: Dedicated Alignment & Preview Page (Fixed Bottom-Right Save & Merge Exam)
+    const [currentStep, setCurrentStep] = useState(paramPaperId ? 6 : (paramExamType && paramSubject ? 1 : 0));
     const [selectedExamPattern, setSelectedExamPattern] = useState(paramExamType || 'NEET');
     const [selectedSubject, setSelectedSubject] = useState(paramSubject || user?.subject || 'Physics');
     const [selectedClass, setSelectedClass] = useState('Both'); // '11' | '12' | 'Both'
     const [examTitle, setExamTitle] = useState('');
+    
+    // UNLIMITED QUESTION TARGET: allows teachers to set any question count with NO 60 question limit!
+    const [targetQuestionCount, setTargetQuestionCount] = useState(60);
+    const [isUnlimitedMode, setIsUnlimitedMode] = useState(false);
 
     // Transition Loader state
     const [stepLoading, setStepLoading] = useState(false);
@@ -94,17 +110,16 @@ export default function CommissionedExam() {
     const [selectedConcepts, setSelectedConcepts] = useState([]);
     const [conceptSearch, setConceptSearch] = useState('');
 
-    // Page 3: Question Count per Chapter
+    // Page 3: Question Count per Chapter (Unlimited)
     const [chapterQuotas, setChapterQuotas] = useState({});
 
     // Page 4: Question Type Distribution & Dynamic Balancing Engine
-    // types: mcq, ar, match, diag, stmt, numerical
     const [typeAllocations, setTypeAllocations] = useState({
-        mcq: 35,
-        ar: 4,
-        match: 2,
-        diag: 2,
-        stmt: 2,
+        mcq: 45,
+        ar: 5,
+        match: 4,
+        diag: 3,
+        stmt: 3,
         numerical: 0,
     });
 
@@ -132,28 +147,53 @@ export default function CommissionedExam() {
     const [selectedDraftIdsToMerge, setSelectedDraftIdsToMerge] = useState([]);
 
     const patternConfig = EXAM_PATTERNS[selectedExamPattern] || EXAM_PATTERNS.NEET;
-    const targetSubjectTotal = patternConfig.defaultQuotaPerSubject;
+    const effectiveTargetTotal = isUnlimitedMode ? Math.max(10, selectedQuestions.length || 100) : (targetQuestionCount || patternConfig.defaultQuotaPerSubject);
 
-    // Load templates
+    // Load templates & check existing paper/exam on mount
     useEffect(() => {
-        const loadTemplates = async () => {
+        const loadInitialData = async () => {
             try {
                 const res = await api.get('/api/templates');
                 if (res.data && res.data.length > 0) {
                     setActiveTemplate(res.data[0]);
                 }
+
+                // If loading assigned commissioned exam
+                if (paramExamId) {
+                    const examRes = await api.get(`/api/exams/${paramExamId}`);
+                    const exam = examRes.data;
+                    if (exam) {
+                        if (exam.title) setExamTitle(exam.title);
+                        if (exam.examType) setSelectedExamPattern(exam.examType);
+                    }
+                }
+
+                // If loading existing paper for editing
+                if (paramPaperId) {
+                    const paperRes = await api.get(`/api/papers/${paramPaperId}`);
+                    const p = paperRes.data;
+                    if (p) {
+                        if (p.title) setExamTitle(p.title);
+                        if (p.subject) setSelectedSubject(p.subject);
+                        if (p.examType) setSelectedExamPattern(p.examType);
+                        if (Array.isArray(p.questions) && p.questions.length > 0) {
+                            setSelectedQuestions(p.questions);
+                            setTargetQuestionCount(p.questions.length);
+                        }
+                    }
+                }
             } catch (err) {
-                console.error('Error fetching templates:', err);
+                console.error('Error in initial load:', err);
             }
         };
-        loadTemplates();
-    }, []);
+        loadInitialData();
+    }, [paramExamId, paramPaperId]);
 
-    // Load chapters & concepts when subject changes or entering Step 1
+    // Fetch chapters & concepts for the selected subject
     const fetchMetadata = async (subj) => {
         const normSub = normalizeSubjectName(subj);
         setStepLoading(true);
-        setLoadingMessage(`Fetching ${normSub} chapter repository...`);
+        setLoadingMessage(`Loading ${normSub} chapter repository...`);
         try {
             const res = await api.get(`/api/questions/meta?subject=${encodeURIComponent(normSub)}&classes=${encodeURIComponent(selectedClass === 'Both' ? '' : selectedClass)}`);
             const chs = Array.isArray(res.data?.chapters) ? res.data.chapters : [];
@@ -168,52 +208,18 @@ export default function CommissionedExam() {
         }
     };
 
-    // Auto-update default allocations when pattern changes
-    useEffect(() => {
-        if (selectedExamPattern === 'JEE') {
-            setTypeAllocations({
-                mcq: 15,
-                ar: 2,
-                match: 1,
-                diag: 1,
-                stmt: 1,
-                numerical: 5, // Exactly 5 numericals for JEE Section B
-            });
-        } else if (selectedExamPattern === 'CET') {
-            setTypeAllocations({
-                mcq: 48,
-                ar: 4,
-                match: 2,
-                diag: 3,
-                stmt: 3,
-                numerical: 0, // Zero numericals for CET
-            });
-        } else {
-            // NEET
-            setTypeAllocations({
-                mcq: 35,
-                ar: 4,
-                match: 2,
-                diag: 2,
-                stmt: 2,
-                numerical: 0, // Zero numericals for NEET
-            });
-        }
-    }, [selectedExamPattern]);
-
-    // Handle Subject Selection in Step 0
+    // When subject is picked in Step 0
     const handleSelectSubjectBlock = async (sub) => {
         const norm = normalizeSubjectName(sub);
         setSelectedSubject(norm);
         await fetchMetadata(norm);
-        // Pre-select all chapters or leave open
-        setCurrentStep(1);
+        setCurrentStep(1); // Proceed to Dedicated Chapter Selection Page
     };
 
-    // Step 3: Auto-distribute question counts evenly across selected chapters
+    // Step 3: Even distribution helper (uses effectiveTargetTotal with NO limit of 60)
     const handleDistributeEvenly = () => {
         if (selectedChapters.length === 0) return;
-        const total = targetSubjectTotal;
+        const total = effectiveTargetTotal;
         const count = selectedChapters.length;
         const base = Math.floor(total / count);
         const remainder = total % count;
@@ -225,8 +231,7 @@ export default function CommissionedExam() {
         setChapterQuotas(newQuotas);
     };
 
-    // Page 4 Dynamic Balancing Logic:
-    // If user changes a type, automatically adjust the largest category (MCQ) so the sum equals targetSubjectTotal
+    // Step 4 Dynamic Balancing Logic
     const handleTypeCountChange = (typeKey, delta) => {
         setTypeAllocations(prev => {
             const currentVal = prev[typeKey] || 0;
@@ -236,22 +241,18 @@ export default function CommissionedExam() {
             const change = newVal - currentVal;
             const updated = { ...prev, [typeKey]: newVal };
 
-            // Find other categories that can absorb the change
             const otherKeys = Object.keys(updated).filter(k => k !== typeKey && (patternConfig.supportsNumerical || k !== 'numerical'));
-            // Sort by highest value to decrement from largest category
             otherKeys.sort((a, b) => updated[b] - updated[a]);
 
             let remainingChange = change;
             for (const key of otherKeys) {
                 if (remainingChange === 0) break;
                 if (remainingChange > 0) {
-                    // We increased typeKey, so decrement from other keys
                     const availableToDec = updated[key];
                     const dec = Math.min(availableToDec, remainingChange);
                     updated[key] -= dec;
                     remainingChange -= dec;
                 } else {
-                    // We decreased typeKey, so increment other keys (add to largest category)
                     const inc = Math.abs(remainingChange);
                     updated[key] += inc;
                     remainingChange = 0;
@@ -262,22 +263,21 @@ export default function CommissionedExam() {
         });
     };
 
-    // Fetch Questions (Auto or Manual)
+    // Step 5: Execute Question Fetch (Unlimited Capacity)
     const executeFetch = async () => {
         setStepLoading(true);
-        setLoadingMessage('Fetching questions from Supabase repository...');
+        setLoadingMessage('Fetching questions from question repository...');
         try {
-            // Build query params
+            // Fetch up to 1000 questions so unlimited selections never run dry
             const queryParams = new URLSearchParams({
                 subject: selectedSubject,
-                limit: '250',
+                limit: '1000',
             });
             if (selectedClass !== 'Both') queryParams.append('classes', selectedClass);
 
             const res = await api.get(`/api/questions?${queryParams.toString()}`);
             const pool = Array.isArray(res.data?.questions) ? res.data.questions : (Array.isArray(res.data) ? res.data : []);
 
-            // Filter strictly by selected chapters & concepts
             const matched = pool.filter(q => {
                 const qCh = q.chapter || '';
                 const qCpt = q.concept || '';
@@ -290,23 +290,20 @@ export default function CommissionedExam() {
             setFetchedQuestions(candidatePool);
 
             if (fetchMode === 'auto') {
-                // Auto-pick questions matching typeAllocations and chapterQuotas
                 const picked = [];
                 const poolCopy = [...candidatePool];
 
-                // Pick numericals if JEE
                 if (patternConfig.supportsNumerical && typeAllocations.numerical > 0) {
                     const nums = poolCopy.filter(q => (q.type || '').toUpperCase() === 'NUMERICAL');
                     picked.push(...nums.slice(0, typeAllocations.numerical));
                 }
 
-                // Pick other types
                 const nonNums = poolCopy.filter(q => (q.type || '').toUpperCase() !== 'NUMERICAL');
-                const needed = targetSubjectTotal - picked.length;
-                picked.push(...nonNums.slice(0, needed));
+                const needed = effectiveTargetTotal - picked.length;
+                picked.push(...nonNums.slice(0, Math.max(0, needed)));
 
                 setSelectedQuestions(picked);
-                setCurrentStep(6); // Proceed to preview
+                setCurrentStep(6); // Dedicated Preview & Alignment Page
             }
         } catch (err) {
             console.error('Error fetching questions:', err);
@@ -317,7 +314,7 @@ export default function CommissionedExam() {
         }
     };
 
-    // Save persistent draft to backend
+    // Save Paper Draft
     const handleSaveDraft = async () => {
         setSavingPaper(true);
         try {
@@ -343,7 +340,7 @@ export default function CommissionedExam() {
         }
     };
 
-    // Load existing drafts for Merge Exam
+    // Merge Exam Engine
     const handleOpenMergeModal = async () => {
         try {
             const res = await api.get('/api/papers');
@@ -355,7 +352,6 @@ export default function CommissionedExam() {
         }
     };
 
-    // Merge Exam Engine: Combines completed subject papers into one master exam
     const handleExecuteMerge = async () => {
         if (selectedDraftIdsToMerge.length < 2) {
             alert('Please select at least 2 subject papers to merge.');
@@ -393,9 +389,9 @@ export default function CommissionedExam() {
                 settings,
             };
 
-            const res = await api.post('/api/papers', masterPaper);
+            await api.post('/api/papers', masterPaper);
             setShowMergeModal(false);
-            alert(`Master Exam successfully compiled and saved with ${mergedQuestions.length} questions across ${papersToMerge.length} subjects!`);
+            alert(`Master Exam compiled successfully with ${mergedQuestions.length} questions across ${papersToMerge.length} subjects!`);
             navigate(`/teacher/dashboard/saved-papers`);
         } catch (err) {
             console.error('Error merging exam:', err);
@@ -406,7 +402,6 @@ export default function CommissionedExam() {
         }
     };
 
-    // Build current paper object for PaperRenderer
     const currentPaperObject = useMemo(() => ({
         title: examTitle || `${selectedSubject} - ${selectedExamPattern} Assessment`,
         subject: selectedSubject,
@@ -421,7 +416,7 @@ export default function CommissionedExam() {
 
     return (
         <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
-            {/* Top Navigation Bar */}
+            {/* Top Navigation Bar with Step Pill Indicators */}
             <header className="bg-navy text-white px-6 py-4 shadow-lg border-b-2 border-gold flex items-center justify-between sticky top-0 z-40">
                 <div className="flex items-center gap-3">
                     <button
@@ -433,7 +428,7 @@ export default function CommissionedExam() {
                     <div>
                         <div className="flex items-center gap-2">
                             <span className="bg-gold text-navy text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-widest">
-                                Commissioned Exam
+                                Step-by-Step Generator
                             </span>
                             <h1 className="text-base font-black text-white uppercase tracking-tight">
                                 {selectedExamPattern} &bull; {selectedSubject}
@@ -442,51 +437,117 @@ export default function CommissionedExam() {
                     </div>
                 </div>
 
-                {/* Progress Indicators */}
-                <div className="hidden lg:flex items-center gap-2">
-                    {['Exam & Subject', 'Chapters', 'Concepts', 'Quotas', 'Distribution', 'Fetch', 'Preview & Save'].map((stepLabel, idx) => (
+                {/* Progress Step Indicators */}
+                <div className="hidden lg:flex items-center gap-1.5">
+                    {[
+                        '1. Scope & Target',
+                        '2. Chapters',
+                        '3. Concepts',
+                        '4. Quotas',
+                        '5. Question Types',
+                        '6. Question Fetch',
+                        '7. Preview & Save',
+                    ].map((stepLabel, idx) => (
                         <div
                             key={idx}
                             onClick={() => idx < currentStep && setCurrentStep(idx)}
                             className={`px-3 py-1 rounded-xl text-[11px] font-black uppercase tracking-wider transition cursor-pointer flex items-center gap-1 ${
                                 currentStep === idx
-                                    ? 'bg-gold text-navy shadow-md ring-2 ring-gold/40'
-                                    : (idx < currentStep ? 'bg-white/20 text-white hover:bg-white/30' : 'bg-white/5 text-slate-400 opacity-60')
+                                    ? 'bg-gold text-navy shadow-md ring-2 ring-gold/40 scale-105'
+                                    : (idx < currentStep ? 'bg-white/20 text-white hover:bg-white/30' : 'bg-white/5 text-slate-400 opacity-50')
                             }`}
                         >
-                            <span>{idx + 1}.</span>
                             <span>{stepLabel}</span>
                         </div>
                     ))}
                 </div>
             </header>
 
-            {/* Transition Loader */}
-            {stepLoading && <Loader fullPage={true} text={loadingMessage || 'Loading Repository...'} />}
+            {/* Centered Step-Transition Loader */}
+            {stepLoading && <Loader fullPage={true} text={loadingMessage || 'Loading...'} />}
 
-            {/* Main Stepper Body */}
             <main className="flex-1 max-w-6xl w-full mx-auto p-4 md:p-8 space-y-6">
 
                 {/* ══════════════════════════════════════════════════════════════
-                    STEP 0: EXAM TYPE SELECTION & SUBJECT BLOCK SPLIT
+                    PAGE 0: EXAM TYPE, SUBJECT & UNLIMITED QUESTION TARGET
                 ══════════════════════════════════════════════════════════════ */}
                 {currentStep === 0 && (
                     <div className="space-y-8 animate-fade-in">
                         <div className="text-center max-w-2xl mx-auto space-y-2">
                             <span className="text-[10px] font-black text-gold uppercase tracking-[0.2em] bg-navy px-3 py-1 rounded-full">
-                                Institutional Blueprint
+                                Dedicated Step 1
                             </span>
                             <h2 className="text-3xl font-black text-navy uppercase tracking-tight">
-                                Commissioned Examination Workflow
+                                Examination Scope & Subject Allocation
                             </h2>
                             <p className="text-xs text-slate-500 font-semibold">
-                                Select target exam blueprint and choose your subject block to commence standardized chapter allocation.
+                                Select exam blueprint, choose your subject block, and set target question count with no 60-question limit.
                             </p>
                         </div>
 
-                        {/* Exam Pattern Cards */}
+                        {/* Unlimited Question Target Setting Bar */}
+                        <div className="bg-white p-6 rounded-3xl border-2 border-gold/40 shadow-sm space-y-4">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                <div>
+                                    <h4 className="text-sm font-black text-navy uppercase tracking-wider">
+                                        Question Capacity (Unlimited Support)
+                                    </h4>
+                                    <p className="text-xs text-slate-500 font-medium">
+                                        Set any number of questions for this paper. Not limited to 60 questions.
+                                    </p>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    {[25, 45, 60, 100, 150].map(cnt => (
+                                        <button
+                                            key={cnt}
+                                            type="button"
+                                            onClick={() => {
+                                                setTargetQuestionCount(cnt);
+                                                setIsUnlimitedMode(false);
+                                            }}
+                                            className={`px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer ${
+                                                targetQuestionCount === cnt && !isUnlimitedMode
+                                                    ? 'bg-navy text-gold shadow-md'
+                                                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                                            }`}
+                                        >
+                                            {cnt} Qs
+                                        </button>
+                                    ))}
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsUnlimitedMode(true)}
+                                        className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition cursor-pointer ${
+                                            isUnlimitedMode
+                                                ? 'bg-emerald-600 text-white shadow-md'
+                                                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                                        }`}
+                                    >
+                                        ♾️ Unlimited Mode
+                                    </button>
+                                </div>
+                            </div>
+
+                            {!isUnlimitedMode && (
+                                <div className="flex items-center gap-3">
+                                    <span className="text-xs font-bold text-navy">Custom Target Input:</span>
+                                    <input
+                                        type="number"
+                                        min="1"
+                                        max="500"
+                                        value={targetQuestionCount}
+                                        onChange={(e) => setTargetQuestionCount(Math.max(1, parseInt(e.target.value) || 1))}
+                                        className="w-24 text-center font-black text-sm py-1.5 border border-slate-300 rounded-xl bg-white focus:ring-2 focus:ring-gold outline-none"
+                                    />
+                                    <span className="text-xs text-slate-500 font-semibold">Questions (type any number)</span>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Exam Pattern & Subject Cards */}
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                            {Object.values(EXAM_PATTERNS).map(pattern => {
+                            {['NEET', 'JEE', 'CET'].map(patternKey => {
+                                const pattern = EXAM_PATTERNS[patternKey];
                                 const isSelected = selectedExamPattern === pattern.id;
                                 return (
                                     <div
@@ -502,17 +563,16 @@ export default function CommissionedExam() {
                                                     {pattern.badge}
                                                 </span>
                                                 <span className="text-xs font-bold text-slate-400">
-                                                    {pattern.totalQuestions} Qs Total
+                                                    {pattern.subjects.length} Subject Blocks
                                                 </span>
                                             </div>
                                             <h3 className="text-xl font-black text-navy mb-1">{pattern.id}</h3>
                                             <p className="text-xs text-slate-500 font-medium mb-4">{pattern.title}</p>
                                         </div>
 
-                                        {/* Subject Blocks for this Exam */}
                                         <div>
                                             <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-2">
-                                                Select Subject Block ({pattern.subjects.length} Blocks):
+                                                Click Subject to Proceed:
                                             </span>
                                             <div className="grid grid-cols-2 gap-2">
                                                 {pattern.subjects.map(sub => (
@@ -539,20 +599,20 @@ export default function CommissionedExam() {
                 )}
 
                 {/* ══════════════════════════════════════════════════════════════
-                    PAGE 1: CHAPTER SELECTION
+                    PAGE 1: DEDICATED CHAPTER SELECTION
                 ══════════════════════════════════════════════════════════════ */}
                 {currentStep === 1 && (
                     <div className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-200 space-y-6 animate-fade-in">
                         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-5">
                             <div>
                                 <span className="text-[10px] font-black text-gold uppercase tracking-[0.2em] bg-navy px-3 py-1 rounded-full">
-                                    Page 1 of 5
+                                    Dedicated Step 2
                                 </span>
                                 <h2 className="text-2xl font-black text-navy uppercase tracking-tight mt-2">
                                     Chapter Selection &bull; {selectedSubject}
                                 </h2>
                                 <p className="text-xs text-slate-500 font-semibold mt-1">
-                                    Select the syllabus chapters strictly belonging to {selectedSubject}. ({selectedChapters.length} Selected)
+                                    Displaying syllabus chapters strictly mapped to {selectedSubject}. ({selectedChapters.length} Selected)
                                 </p>
                             </div>
 
@@ -574,7 +634,6 @@ export default function CommissionedExam() {
                             </div>
                         </div>
 
-                        {/* Search Input */}
                         <div className="relative">
                             <input
                                 type="text"
@@ -585,7 +644,6 @@ export default function CommissionedExam() {
                             />
                         </div>
 
-                        {/* Chapters Grid */}
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 max-h-[460px] overflow-y-auto pr-2">
                             {availableChapters
                                 .filter(ch => ch.toLowerCase().includes(chapterSearch.toLowerCase()))
@@ -618,14 +676,13 @@ export default function CommissionedExam() {
                                 })}
                         </div>
 
-                        {/* Navigation Footer */}
                         <div className="flex justify-between items-center pt-4 border-t border-slate-100">
                             <button
                                 type="button"
                                 onClick={() => setCurrentStep(0)}
                                 className="text-xs font-bold text-slate-500 hover:text-navy cursor-pointer"
                             >
-                                ← Change Subject
+                                ← Back to Setup
                             </button>
                             <button
                                 type="button"
@@ -638,27 +695,27 @@ export default function CommissionedExam() {
                                 }}
                                 className="bg-navy hover:bg-navy/90 text-gold font-black text-xs uppercase tracking-wider px-6 py-2.5 rounded-xl shadow-md transition cursor-pointer"
                             >
-                                Proceed to Concepts →
+                                Proceed to Concepts (Step 3) →
                             </button>
                         </div>
                     </div>
                 )}
 
                 {/* ══════════════════════════════════════════════════════════════
-                    PAGE 2: CONCEPT / SUB-TOPIC SELECTION
+                    PAGE 2: DEDICATED CONCEPT / SUB-TOPIC SELECTION
                 ══════════════════════════════════════════════════════════════ */}
                 {currentStep === 2 && (
                     <div className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-200 space-y-6 animate-fade-in">
                         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-5">
                             <div>
                                 <span className="text-[10px] font-black text-gold uppercase tracking-[0.2em] bg-navy px-3 py-1 rounded-full">
-                                    Page 2 of 5
+                                    Dedicated Step 3
                                 </span>
                                 <h2 className="text-2xl font-black text-navy uppercase tracking-tight mt-2">
                                     Concept & Sub-Topic Selection
                                 </h2>
                                 <p className="text-xs text-slate-500 font-semibold mt-1">
-                                    Narrow syllabus scope to target concepts within {selectedChapters.length} chosen chapters. ({selectedConcepts.length} Selected)
+                                    Select specific concepts belonging strictly to {selectedChapters.length} chosen chapters. ({selectedConcepts.length} Selected)
                                 </p>
                             </div>
 
@@ -680,7 +737,6 @@ export default function CommissionedExam() {
                             </div>
                         </div>
 
-                        {/* Search Input */}
                         <div className="relative">
                             <input
                                 type="text"
@@ -691,7 +747,6 @@ export default function CommissionedExam() {
                             />
                         </div>
 
-                        {/* Concepts Grid */}
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 max-h-[460px] overflow-y-auto pr-2">
                             {availableConcepts
                                 .filter(cpt => cpt.toLowerCase().includes(conceptSearch.toLowerCase()))
@@ -724,7 +779,6 @@ export default function CommissionedExam() {
                                 })}
                         </div>
 
-                        {/* Navigation Footer */}
                         <div className="flex justify-between items-center pt-4 border-t border-slate-100">
                             <button
                                 type="button"
@@ -741,27 +795,27 @@ export default function CommissionedExam() {
                                 }}
                                 className="bg-navy hover:bg-navy/90 text-gold font-black text-xs uppercase tracking-wider px-6 py-2.5 rounded-xl shadow-md transition cursor-pointer"
                             >
-                                Proceed to Question Count →
+                                Proceed to Question Quota (Step 4) →
                             </button>
                         </div>
                     </div>
                 )}
 
                 {/* ══════════════════════════════════════════════════════════════
-                    PAGE 3: QUESTION COUNT PER CHAPTER
+                    PAGE 3: DEDICATED QUESTION COUNT PER CHAPTER (UNLIMITED)
                 ══════════════════════════════════════════════════════════════ */}
                 {currentStep === 3 && (
                     <div className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-200 space-y-6 animate-fade-in">
                         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-5">
                             <div>
                                 <span className="text-[10px] font-black text-gold uppercase tracking-[0.2em] bg-navy px-3 py-1 rounded-full">
-                                    Page 3 of 5
+                                    Dedicated Step 4
                                 </span>
                                 <h2 className="text-2xl font-black text-navy uppercase tracking-tight mt-2">
-                                    Question Count per Chapter
+                                    Question Count per Chapter (Unlimited)
                                 </h2>
                                 <p className="text-xs text-slate-500 font-semibold mt-1">
-                                    Specify the exact number of questions required from each chosen chapter.
+                                    Specify the exact number of questions required from each chosen chapter. Add as many as needed.
                                 </p>
                             </div>
 
@@ -771,24 +825,23 @@ export default function CommissionedExam() {
                                     onClick={handleDistributeEvenly}
                                     className="bg-gold text-navy text-xs font-black px-4 py-2 rounded-xl shadow-xs hover:bg-amber-400 transition cursor-pointer"
                                 >
-                                    ⚡ Auto Distribute ({targetSubjectTotal} Total)
+                                    ⚡ Distribute Evenly ({effectiveTargetTotal} Total)
                                 </button>
                             </div>
                         </div>
 
-                        {/* Chapters Quota Table */}
                         <div className="space-y-3 max-h-[460px] overflow-y-auto pr-2">
                             {selectedChapters.map((ch, idx) => (
                                 <div key={idx} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-200">
                                     <div>
                                         <h4 className="text-xs font-black text-navy">{ch}</h4>
-                                        <span className="text-[10px] font-semibold text-slate-400">Target allocation</span>
+                                        <span className="text-[10px] font-semibold text-slate-400">Custom chapter allocation</span>
                                     </div>
                                     <div className="flex items-center gap-2">
                                         <button
                                             type="button"
                                             onClick={() => setChapterQuotas(prev => ({ ...prev, [ch]: Math.max(0, (prev[ch] || 0) - 1) }))}
-                                            className="w-8 h-8 rounded-lg bg-white border border-slate-300 font-black text-xs hover:bg-slate-100"
+                                            className="w-8 h-8 rounded-lg bg-white border border-slate-300 font-black text-xs hover:bg-slate-100 cursor-pointer"
                                         >
                                             -
                                         </button>
@@ -804,7 +857,7 @@ export default function CommissionedExam() {
                                         <button
                                             type="button"
                                             onClick={() => setChapterQuotas(prev => ({ ...prev, [ch]: (prev[ch] || 0) + 1 }))}
-                                            className="w-8 h-8 rounded-lg bg-white border border-slate-300 font-black text-xs hover:bg-slate-100"
+                                            className="w-8 h-8 rounded-lg bg-white border border-slate-300 font-black text-xs hover:bg-slate-100 cursor-pointer"
                                         >
                                             +
                                         </button>
@@ -813,15 +866,13 @@ export default function CommissionedExam() {
                             ))}
                         </div>
 
-                        {/* Summary Bar */}
                         <div className="bg-navy text-white p-4 rounded-2xl flex items-center justify-between">
-                            <span className="text-xs font-bold text-gold">Total Subject Allocation:</span>
+                            <span className="text-xs font-bold text-gold">Total Chapter Sum:</span>
                             <span className="text-base font-black">
-                                {Object.values(chapterQuotas).reduce((a, b) => a + b, 0)} / {targetSubjectTotal} Questions
+                                {Object.values(chapterQuotas).reduce((a, b) => a + b, 0)} Questions
                             </span>
                         </div>
 
-                        {/* Navigation Footer */}
                         <div className="flex justify-between items-center pt-4 border-t border-slate-100">
                             <button
                                 type="button"
@@ -835,20 +886,20 @@ export default function CommissionedExam() {
                                 onClick={() => setCurrentStep(4)}
                                 className="bg-navy hover:bg-navy/90 text-gold font-black text-xs uppercase tracking-wider px-6 py-2.5 rounded-xl shadow-md transition cursor-pointer"
                             >
-                                Proceed to Question Types →
+                                Proceed to Question Types (Step 5) →
                             </button>
                         </div>
                     </div>
                 )}
 
                 {/* ══════════════════════════════════════════════════════════════
-                    PAGE 4: QUESTION TYPE DISTRIBUTION & DYNAMIC BALANCING ENGINE
+                    PAGE 4: DEDICATED QUESTION TYPE DISTRIBUTION & DYNAMIC BALANCING
                 ══════════════════════════════════════════════════════════════ */}
                 {currentStep === 4 && (
                     <div className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-200 space-y-6 animate-fade-in">
                         <div className="border-b border-slate-100 pb-5">
                             <span className="text-[10px] font-black text-gold uppercase tracking-[0.2em] bg-navy px-3 py-1 rounded-full">
-                                Page 4 of 5
+                                Dedicated Step 5
                             </span>
                             <h2 className="text-2xl font-black text-navy uppercase tracking-tight mt-2">
                                 Question Type Distribution & Dynamic Balancing Engine
@@ -858,7 +909,6 @@ export default function CommissionedExam() {
                             </p>
                         </div>
 
-                        {/* Types Grid */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             {[
                                 { key: 'mcq', label: 'Single Correct MCQ', desc: 'Standard 4-choice multiple choice' },
@@ -898,15 +948,13 @@ export default function CommissionedExam() {
                             ))}
                         </div>
 
-                        {/* Balancing Summary Bar */}
                         <div className="bg-emerald-50 border border-emerald-300 p-4 rounded-2xl flex items-center justify-between text-emerald-900">
                             <span className="text-xs font-bold">Dynamic Balance Engine Active:</span>
                             <span className="text-sm font-black">
-                                Total: {Object.values(typeAllocations).reduce((a, b) => a + b, 0)} / {targetSubjectTotal} Qs
+                                Total: {Object.values(typeAllocations).reduce((a, b) => a + b, 0)} Questions
                             </span>
                         </div>
 
-                        {/* Navigation Footer */}
                         <div className="flex justify-between items-center pt-4 border-t border-slate-100">
                             <button
                                 type="button"
@@ -920,30 +968,29 @@ export default function CommissionedExam() {
                                 onClick={() => setCurrentStep(5)}
                                 className="bg-navy hover:bg-navy/90 text-gold font-black text-xs uppercase tracking-wider px-6 py-2.5 rounded-xl shadow-md transition cursor-pointer"
                             >
-                                Proceed to Fetch Mode →
+                                Proceed to Question Acquisition (Step 6) →
                             </button>
                         </div>
                     </div>
                 )}
 
                 {/* ══════════════════════════════════════════════════════════════
-                    PAGE 5: FETCH MODE SELECTION
+                    PAGE 5: DEDICATED FETCH MODE & QUESTION SELECTION
                 ══════════════════════════════════════════════════════════════ */}
                 {currentStep === 5 && (
                     <div className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-200 space-y-6 animate-fade-in">
                         <div className="border-b border-slate-100 pb-5">
                             <span className="text-[10px] font-black text-gold uppercase tracking-[0.2em] bg-navy px-3 py-1 rounded-full">
-                                Page 5 of 5
+                                Dedicated Step 6
                             </span>
                             <h2 className="text-2xl font-black text-navy uppercase tracking-tight mt-2">
-                                Fetch Mode Selection
+                                Question Acquisition & Fetch Mode
                             </h2>
                             <p className="text-xs text-slate-500 font-semibold mt-1">
-                                Choose between 1-Click Auto Fetch Generator or Manual Question Inspector.
+                                Choose between 1-Click Auto Fetch or Manual Question Selector (with no limit of 60 questions).
                             </p>
                         </div>
 
-                        {/* Mode Choice Cards */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div
                                 onClick={() => setFetchMode('auto')}
@@ -954,12 +1001,15 @@ export default function CommissionedExam() {
                                 <div className="text-2xl mb-2">⚡</div>
                                 <h3 className="text-base font-black text-navy mb-1">Auto Fetch Mode</h3>
                                 <p className="text-xs text-slate-500 font-medium">
-                                    Instant 1-click question generation adhering to the configured blueprint, question types, and chapter quotas.
+                                    Instant 1-click question generation adhering to the configured distribution and chapter quotas.
                                 </p>
                             </div>
 
                             <div
-                                onClick={() => setFetchMode('manual')}
+                                onClick={() => {
+                                    setFetchMode('manual');
+                                    executeFetch();
+                                }}
                                 className={`p-6 rounded-3xl border-2 transition cursor-pointer ${
                                     fetchMode === 'manual' ? 'border-gold bg-amber-50/40 ring-4 ring-gold/20 shadow-md' : 'border-slate-200 hover:border-navy'
                                 }`}
@@ -967,15 +1017,14 @@ export default function CommissionedExam() {
                                 <div className="text-2xl mb-2">✍️</div>
                                 <h3 className="text-base font-black text-navy mb-1">Manual Fetch Mode</h3>
                                 <p className="text-xs text-slate-500 font-medium">
-                                    Hand-pick each question with interactive filters, search bar, and segregated Numerical vs Non-Numerical tabs for JEE.
+                                    Hand-pick each question with search, filters, and segregated Numerical vs Non-Numerical tabs for JEE.
                                 </p>
                             </div>
                         </div>
 
-                        {/* Manual Mode Inspector Sub-view */}
+                        {/* Manual Fetch Questions List with ZERO question limit */}
                         {fetchMode === 'manual' && (
                             <div className="space-y-4 pt-4 border-t border-slate-200">
-                                {/* JEE Sub-Tabs Exception */}
                                 {patternConfig.supportsNumerical && (
                                     <div className="flex items-center gap-2 bg-slate-100 p-1.5 rounded-2xl w-fit">
                                         <button
@@ -994,18 +1043,76 @@ export default function CommissionedExam() {
                                                 manualTab === 'numerical' ? 'bg-navy text-gold shadow-md' : 'text-slate-600 hover:text-navy'
                                             }`}
                                         >
-                                            Tab 2: Numerical Section (Sec B)
+                                            Tab 2: Numerical Section (JEE Sec B)
                                         </button>
                                     </div>
                                 )}
 
-                                <p className="text-xs font-bold text-slate-500">
-                                    Click questions to toggle selection into this paper. ({selectedQuestions.length} / {targetSubjectTotal} selected)
-                                </p>
+                                <div className="flex items-center justify-between">
+                                    <input
+                                        type="text"
+                                        placeholder="Search question pool..."
+                                        value={manualSearch}
+                                        onChange={(e) => setManualSearch(e.target.value)}
+                                        className="w-72 border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-navy outline-none"
+                                    />
+                                    <span className="text-xs font-black text-emerald-800 bg-emerald-100 px-3 py-1.5 rounded-xl">
+                                        {selectedQuestions.length} Questions Selected (Unlimited Capacity)
+                                    </span>
+                                </div>
+
+                                <div className="space-y-3 max-h-[460px] overflow-y-auto pr-2">
+                                    {fetchedQuestions
+                                        .filter(q => {
+                                            const isNum = (q.type || '').toUpperCase() === 'NUMERICAL';
+                                            if (patternConfig.supportsNumerical) {
+                                                if (manualTab === 'numerical') return isNum;
+                                                return !isNum;
+                                            }
+                                            return !isNum; // Hide numericals completely for NEET and CET
+                                        })
+                                        .filter(q => (q.questionText || q.question || '').toLowerCase().includes(manualSearch.toLowerCase()))
+                                        .map((q, idx) => {
+                                            const isSelected = selectedQuestions.some(sq => (sq._id || sq.id) === (q._id || q.id));
+                                            return (
+                                                <div
+                                                    key={idx}
+                                                    onClick={() => {
+                                                        setSelectedQuestions(prev => {
+                                                            const exists = prev.some(sq => (sq._id || sq.id) === (q._id || q.id));
+                                                            if (exists) return prev.filter(sq => (sq._id || sq.id) !== (q._id || q.id));
+                                                            return [...prev, q];
+                                                        });
+                                                    }}
+                                                    className={`p-4 rounded-2xl border-2 transition cursor-pointer flex items-start justify-between gap-4 ${
+                                                        isSelected ? 'bg-amber-50/50 border-gold shadow-md' : 'bg-white border-slate-200 hover:border-slate-300'
+                                                    }`}
+                                                >
+                                                    <div className="flex-1">
+                                                        <div className="flex items-center gap-2 mb-1.5">
+                                                            <span className="bg-navy text-gold text-[9px] font-black px-2 py-0.5 rounded-full uppercase">
+                                                                {q.type || 'MCQ'}
+                                                            </span>
+                                                            <span className="text-[10px] text-slate-400 font-bold">
+                                                                {q.chapter}
+                                                            </span>
+                                                        </div>
+                                                        <div className="text-xs font-semibold text-slate-900 leading-relaxed">
+                                                            <MathRenderer inline text={q.questionText || q.question || ''} />
+                                                        </div>
+                                                    </div>
+                                                    <span className={`w-6 h-6 rounded-lg flex items-center justify-center text-xs font-black shrink-0 ${
+                                                        isSelected ? 'bg-gold text-navy shadow-xs' : 'border border-slate-300'
+                                                    }`}>
+                                                        {isSelected ? '✓' : '+'}
+                                                    </span>
+                                                </div>
+                                            );
+                                        })}
+                                </div>
                             </div>
                         )}
 
-                        {/* Navigation Footer */}
                         <div className="flex justify-between items-center pt-4 border-t border-slate-100">
                             <button
                                 type="button"
@@ -1016,22 +1123,31 @@ export default function CommissionedExam() {
                             </button>
                             <button
                                 type="button"
-                                onClick={executeFetch}
+                                onClick={() => {
+                                    if (fetchMode === 'auto') {
+                                        executeFetch();
+                                    } else {
+                                        if (selectedQuestions.length === 0) {
+                                            alert('Please select at least one question before proceeding to preview.');
+                                            return;
+                                        }
+                                        setCurrentStep(6);
+                                    }
+                                }}
                                 className="bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs uppercase tracking-wider px-8 py-3 rounded-xl shadow-lg transition cursor-pointer flex items-center gap-2"
                             >
                                 <span>🚀</span>
-                                <span>{fetchMode === 'auto' ? 'Execute Auto Fetch & Preview' : 'Load Manual Questions'}</span>
+                                <span>{fetchMode === 'auto' ? 'Execute Auto Fetch & Preview' : 'Proceed to Preview & Save (Step 7)'}</span>
                             </button>
                         </div>
                     </div>
                 )}
 
                 {/* ══════════════════════════════════════════════════════════════
-                    PAGE 6: ALIGNMENT & PREVIEW (WITH BOTTOM-RIGHT FIXED SAVE & MERGE)
+                    PAGE 6: DEDICATED PREVIEW, ALIGNMENT & MERGE EXAM
                 ══════════════════════════════════════════════════════════════ */}
                 {currentStep === 6 && (
-                    <div className="space-y-6 animate-fade-in relative pb-24">
-                        {/* Top Alignment & Auxiliary Bar */}
+                    <div className="space-y-6 animate-fade-in relative pb-28">
                         <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm no-print">
                             <div className="flex items-center gap-2">
                                 <button
@@ -1039,7 +1155,7 @@ export default function CommissionedExam() {
                                     onClick={() => setCurrentStep(5)}
                                     className="bg-slate-100 hover:bg-slate-200 text-navy px-3.5 py-1.5 rounded-xl font-bold text-xs"
                                 >
-                                    ← Back to Setup
+                                    ← Edit Questions
                                 </button>
                                 <button
                                     type="button"
@@ -1068,7 +1184,7 @@ export default function CommissionedExam() {
                             </div>
                         </div>
 
-                        {/* Paginated Paper Preview */}
+                        {/* Paginated Paper Renderer */}
                         <div className="w-full flex justify-center">
                             <PaperRenderer
                                 paper={currentPaperObject}
@@ -1080,7 +1196,7 @@ export default function CommissionedExam() {
                             />
                         </div>
 
-                        {/* PRIMARY SAVE BUTTON FIXED STRICTLY IN BOTTOM-RIGHT CORNER */}
+                        {/* FIXED PRIMARY SAVE BUTTON STRICTLY IN BOTTOM-RIGHT CORNER */}
                         <div className="fixed bottom-6 right-6 z-50">
                             <button
                                 type="button"
@@ -1133,7 +1249,6 @@ export default function CommissionedExam() {
                             </button>
                         </div>
 
-                        {/* List of drafts */}
                         <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
                             {existingDrafts.length === 0 ? (
                                 <p className="text-xs text-slate-400 font-bold text-center py-6">No saved subject drafts found.</p>
@@ -1174,7 +1289,7 @@ export default function CommissionedExam() {
                             <div className="flex items-center gap-2">
                                 <button
                                     onClick={() => setShowMergeModal(false)}
-                                    className="px-4 py-2 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-100"
+                                    className="px-4 py-2 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-100 cursor-pointer"
                                 >
                                     Cancel
                                 </button>
