@@ -45,19 +45,19 @@ export function safeHtml(dirty) {
  * @param {string} optionFormat - 'alpha' | 'numeric' | null
  * @returns {string} - label string like 'A' or '1'
  */
-export function optionLabel(idx, classes = [], optionFormat = null) {
+export function optionLabel(idx, classes = [], optionFormat = 'numeric') {
     if (optionFormat === 'numeric' || optionFormat === '1234') {
         return String(idx + 1);
     }
     if (optionFormat === 'alpha' || optionFormat === 'ABCD') {
         return String.fromCharCode(65 + idx);
     }
-    const isJEE = Array.isArray(classes) && classes.some(c => String(c).toUpperCase() === 'JEE');
-    return isJEE ? String.fromCharCode(65 + idx) : String(idx + 1);
+    return String(idx + 1);
 }
 
 /**
- * Strips leading option prefixes (e.g., '(A) ', '1. ', 'A: ', '[1] ') from option strings.
+ * Strips leading option prefixes (e.g., '(A) ', '1. ', 'A: ', '[1] ') from option strings,
+ * and fixes trailing OCR / LaTeX artifact braces like "40.8 eV.}", "54.4 eV}", "0.49\, A}".
  */
 export function cleanOptionText(text) {
     if (!text) return '';
@@ -71,9 +71,47 @@ export function cleanOptionText(text) {
         .replace(/&nbsp;/g, ' ')
         .trim();
     // Strip leading duplicate option indicators like (A), (1), A., 1., (a), A-, 1-, A:, 1:, [A], [1]
-    // only if followed by space and actual content
     str = str.replace(/^\s*(?:\([A-Da-d1-4]\)|\[[A-Da-d1-4]\]|[A-Da-d1-4][\.\:\-\)])\s+/i, '');
+
+    // Clean trailing stray unclosed braces e.g. "40.8 eV.}", "54.4 eV}", "0.49\, A}"
+    const openBraces = (str.match(/\{/g) || []).length;
+    const closeBraces = (str.match(/\}/g) || []).length;
+    if (closeBraces > openBraces) {
+        str = str.replace(/([0-9a-zA-Z\s\.,\\_]+)\}\s*$/, '$1');
+        if ((str.match(/\}/g) || []).length > openBraces) {
+            str = str.replace(/\}\s*$/, '');
+        }
+    }
+    str = str.replace(/\\,\s*A\}?/g, ' \\text{ A}');
     return str.trim();
+}
+
+/**
+ * Safely recovers options if q.options is empty or contains empty strings.
+ */
+export function extractOptionsIfMissing(q) {
+    if (!q) return [];
+    let opts = Array.isArray(q.options) ? q.options : [];
+    const validOpts = opts.filter(o => {
+        const t = typeof o === 'object' ? (o.text || o.optionText || o.option || o.value || '') : String(o || '');
+        return t.trim().length > 0;
+    });
+    if (validOpts.length >= 2) {
+        return opts;
+    }
+
+    const textToSearch = `${q.questionText || q.question || ''}\n${q.raw_question || ''}\n${q.solution_text || q.solution || ''}`;
+    const optMatchNum = textToSearch.match(/(?:^|\n|\s)\(?[1]\)[\.\:\-\s]+([\s\S]*?)(?:^|\n|\s)\(?[2]\)[\.\:\-\s]+([\s\S]*?)(?:^|\n|\s)\(?[3]\)[\.\:\-\s]+([\s\S]*?)(?:^|\n|\s)\(?[4]\)[\.\:\-\s]+([\s\S]*?)(?=(?:\n\s*(?:Answer|Solution|Key|Explanation)|\n\s*\d+\.|$))/i);
+    if (optMatchNum) {
+        return [optMatchNum[1].trim(), optMatchNum[2].trim(), optMatchNum[3].trim(), optMatchNum[4].trim()];
+    }
+
+    const optMatchAlpha = textToSearch.match(/(?:^|\n|\s)\(?[A]\)[\.\:\-\s]+([\s\S]*?)(?:^|\n|\s)\(?[B]\)[\.\:\-\s]+([\s\S]*?)(?:^|\n|\s)\(?[C]\)[\.\:\-\s]+([\s\S]*?)(?:^|\n|\s)\(?[D]\)[\.\:\-\s]+([\s\S]*?)(?=(?:\n\s*(?:Answer|Solution|Key|Explanation)|\n\s*\d+\.|$))/i);
+    if (optMatchAlpha) {
+        return [optMatchAlpha[1].trim(), optMatchAlpha[2].trim(), optMatchAlpha[3].trim(), optMatchAlpha[4].trim()];
+    }
+
+    return validOpts;
 }
 
 /**

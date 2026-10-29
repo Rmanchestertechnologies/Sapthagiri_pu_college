@@ -318,7 +318,24 @@ const TeacherDashboardHome = () => {
                 <div className="h-px flex-1 bg-gray-200"></div>
             </div>
 
-            <div className={`grid grid-cols-2 sm:grid-cols-3 ${hasOmr ? 'lg:grid-cols-6' : 'lg:grid-cols-5'} gap-4`}>
+            <div className={`grid grid-cols-2 sm:grid-cols-3 ${hasOmr ? 'lg:grid-cols-7' : 'lg:grid-cols-6'} gap-4`}>
+                {/* Commissioned Exam */}
+                <Link
+                    to="/teacher/commissioned-exam"
+                    className="bg-navy p-5 rounded-2xl shadow-xl text-center border-2 border-gold hover:scale-[1.02] transition-all flex flex-col items-center justify-center gap-3 group min-h-[160px] relative overflow-hidden"
+                >
+                    <div className="absolute top-2 right-2 px-2 py-0.5 bg-gold text-navy text-[8px] font-black uppercase rounded-full tracking-widest">
+                        Official
+                    </div>
+                    <div className="bg-gold text-navy w-12 h-12 rounded-xl flex items-center justify-center text-2xl font-black shadow-md group-hover:rotate-12 transition-transform duration-300">
+                        📋
+                    </div>
+                    <div>
+                        <h2 className="text-sm font-black text-white">Commissioned Exam</h2>
+                        <p className="text-[10px] text-gold/80 mt-1 font-bold uppercase tracking-wider">Sequential Multi-Step</p>
+                    </div>
+                </Link>
+
                 {/* Question Bank */}
                 <Link
                     to="/teacher/dashboard/add-question"
@@ -607,9 +624,6 @@ const TeacherDashboard = () => {
                             <span>←</span> Back to Dashboard
                         </button>
                     )}
-
-                    {/* Teacher Notification Bell */}
-                    <TeacherNotificationBell />
 
                     <div className="w-px h-7 bg-gold/20 mx-1"></div>
                     <button

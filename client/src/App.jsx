@@ -7,6 +7,7 @@ import UnifiedLogin from './pages/auth/UnifiedLogin';
 import AdminDashboard from './pages/admin/AdminDashboard';
 import TeacherDashboard from './pages/teacher/TeacherDashboard';
 import CreatePaper from './pages/teacher/CreatePaper';
+import CommissionedExam from './pages/teacher/CommissionedExam';
 import ExamInstructions from './pages/exam/ExamInstructions';
 import ExamEngine from './pages/exam/ExamEngine';
 import Scorecard from './pages/exam/Scorecard';
@@ -75,6 +76,11 @@ function App() {
                                 <CreatePaper />
                             </ProtectedRoute>
                         } />
+                        <Route path="/admin/commissioned-exam" element={
+                            <ProtectedRoute role="admin">
+                                <CommissionedExam />
+                            </ProtectedRoute>
+                        } />
                         <Route path="/admin/bridge" element={
                             <ProtectedRoute role="admin">
                                 <BridgeApp />
@@ -90,6 +96,11 @@ function App() {
                         <Route path="/teacher/create-paper" element={
                             <ProtectedRoute role="teacher">
                                 <CreatePaper />
+                            </ProtectedRoute>
+                        } />
+                        <Route path="/teacher/commissioned-exam" element={
+                            <ProtectedRoute role="teacher">
+                                <CommissionedExam />
                             </ProtectedRoute>
                         } />
                         <Route path="/teacher/omr" element={<Navigate to="/teacher/dashboard/omr" replace />} />

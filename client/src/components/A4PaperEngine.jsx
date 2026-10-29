@@ -310,7 +310,7 @@ export default function A4PaperEngine({
                                                     isTwoCol={isTwoCol}
                                                     fontSize={settings.fontSize}
                                                     lineHeight={settings.lineHeight}
-                                                    optionFormat={settings.optionFormat || 'alpha'}
+                                                    optionFormat={settings.optionFormat || 'numeric'}
                                                     formatMarks={formatMarks}
                                                     extraStyle={{ marginBottom: '0px' }}
                                                     diagramMaxHeight={settings.diagramMaxHeight}
@@ -509,14 +509,22 @@ export default function A4PaperEngine({
                 .diagram-resize-toolbar {
                     display: flex !important;
                 }
-                .katex-display {
+                .katex-display, .katex, .math-renderer {
                     display: inline-block !important;
-                    overflow-x: auto !important;
-                    overflow-y: hidden !important;
+                    overflow: visible !important;
                     max-width: 100% !important;
                     margin: 1px 4px !important;
                     text-align: left !important;
                     vertical-align: middle !important;
+                    scrollbar-width: none !important;
+                    -ms-overflow-style: none !important;
+                }
+                .katex-display::-webkit-scrollbar,
+                .katex::-webkit-scrollbar,
+                .math-renderer::-webkit-scrollbar {
+                    display: none !important;
+                    width: 0 !important;
+                    height: 0 !important;
                 }
                 .katex-display > .katex {
                     text-align: left !important;
@@ -524,6 +532,14 @@ export default function A4PaperEngine({
                 .katex {
                     text-rendering: auto !important;
                     font-size: 1em !important;
+                }
+                /* Suppress formula extender handles or slider widgets */
+                .formula-extender,
+                .formula-handle,
+                .math-extender,
+                .katex-extender,
+                .math-slider-handle {
+                    display: none !important;
                 }
 
                 @media print {

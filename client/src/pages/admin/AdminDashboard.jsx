@@ -339,22 +339,29 @@ const DashboardHome = () => {
                     </div>
                 </div>
 
-                <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center text-xl font-black shadow-inner">
-                        ⚡
+                <div
+                    onClick={() => {
+                        setIsExamSubjectsOpen(true);
+                        const el = document.getElementById('commissioned-exams-section');
+                        if (el) el.scrollIntoView({ behavior: 'smooth' });
+                    }}
+                    className="bg-white p-5 rounded-2xl border border-gold/40 shadow-xs flex items-center gap-4 cursor-pointer hover:border-gold hover:shadow-md transition-all group"
+                >
+                    <div className="w-12 h-12 rounded-xl bg-gold/15 text-navy flex items-center justify-center text-xl font-black shadow-inner group-hover:scale-110 transition-transform">
+                        📋
                     </div>
                     <div>
-                        <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">CBT Engine</div>
-                        <div className="text-xl font-black text-emerald-600 flex items-center gap-1.5">
-                            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
-                            <span>Live &amp; Online</span>
+                        <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Commissioned Exam</div>
+                        <div className="text-xl font-black text-navy flex items-center gap-1.5">
+                            <span>{activeExam ? `${activeExam.examType} Active` : 'Start Blueprint'}</span>
+                            <span className="text-xs text-gold font-bold">→</span>
                         </div>
                     </div>
                 </div>
             </div>
 
             {/* ── SECTION 1: COMMISSIONED EXAMS & PCMB TARGETS (ONE BOX - CLICK TO EXPAND 4 SUBJECTS) ── */}
-            <div className="bg-white rounded-3xl shadow-sm border border-slate-200/80 overflow-hidden transition-all duration-300">
+            <div id="commissioned-exams-section" className="bg-white rounded-3xl shadow-sm border border-slate-200/80 overflow-hidden transition-all duration-300">
                 {/* Master Box Header (Click to Open/Close) */}
                 <div
                     onClick={() => setIsExamSubjectsOpen(!isExamSubjectsOpen)}

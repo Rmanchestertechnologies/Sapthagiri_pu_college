@@ -288,6 +288,11 @@ export default function CreatePaper() {
     // Step 1: Mode & Academic Metadata
     const [paperCategory, setPaperCategory] = useState(initialCategory);
     const [subject, setSubject] = useState(commissionedSubject || user?.subject || 'Physics');
+    const [selectedCustomSubjects, setSelectedCustomSubjects] = useState(() => {
+        if (commissionedSubject) return [normalizeSubjectName(commissionedSubject)];
+        if (user?.subject) return [normalizeSubjectName(user.subject)];
+        return ['Physics'];
+    });
     const [selectedClass, setSelectedClass] = useState(commissionedClass || 'Both');
     const [examType, setExamType] = useState(commissionedExamType || 'CET');
     const [title, setTitle] = useState(commissionedSubject && commissionedExamTitle ? `${commissionedSubject} - ${commissionedExamTitle}` : '');
@@ -303,7 +308,9 @@ export default function CreatePaper() {
 
     // Multi-Subject Exam Configuration (NEET: Physics, Chemistry, Botany, Zoology; JEE: Physics, Chemistry, Maths; CET: Physics, Chemistry, Maths, Biology)
     const examSubjects = useMemo(() => {
-        if (paperCategory === 'assignment') return [normalizeSubjectName(subject || 'Physics')];
+        if (paperCategory === 'assignment') {
+            return selectedCustomSubjects.length > 0 ? selectedCustomSubjects : [normalizeSubjectName(subject || 'Physics')];
+        }
         const upperExam = (examType || '').toUpperCase();
         if (upperExam === 'NEET' || upperExam === 'NEET_PCB') {
             return ['Physics', 'Chemistry', 'Botany', 'Zoology'];
@@ -314,12 +321,15 @@ export default function CreatePaper() {
         if (upperExam === 'CET' || upperExam === 'CET_PCMB') {
             return ['Physics', 'Chemistry', 'Mathematics', 'Biology'];
         }
+        if (selectedCustomSubjects.length > 0) {
+            return selectedCustomSubjects;
+        }
         if (subject === 'PCM') return ['Physics', 'Chemistry', 'Mathematics'];
         if (subject === 'PCB') return ['Physics', 'Chemistry', 'Biology'];
         if (subject === 'PCMB') return ['Physics', 'Chemistry', 'Mathematics', 'Biology'];
         if (subject && subject.includes(',')) return subject.split(',').map(s => normalizeSubjectName(s.trim())).filter(Boolean);
         return [normalizeSubjectName(subject || 'Physics')];
-    }, [examType, subject, paperCategory]);
+    }, [examType, subject, paperCategory, selectedCustomSubjects]);
 
     // Active Subject Tab for multi-subject workflow
     const [activeSubjectTab, setActiveSubjectTab] = useState(commissionedSubject || 'Physics');
@@ -2880,18 +2890,6 @@ export default function CreatePaper() {
                 </div>
 
                 {/* Step Indicators */}
-                {examId && (
-                    <button
-                        type="button"
-                        onClick={handleSaveSubjectToExam}
-                        disabled={saving}
-                        className="bg-emerald-600 hover:bg-emerald-700 text-white font-black px-4 py-2 rounded-xl text-xs uppercase tracking-wider shadow-md hover:shadow-lg transition flex items-center gap-1.5 cursor-pointer border border-emerald-400 mr-2"
-                        title={`Save all ${activeSubjectTab} questions directly into ${commissionedExamTitle || 'this exam'}`}
-                    >
-                        <span>💾</span>
-                        <span>{saving ? 'Saving...' : `Save ${activeSubjectTab} to ${commissionedExamTitle || 'Exam'}`}</span>
-                    </button>
-                )}
                 <div className="hidden md:flex items-center gap-2 mr-4">
                     {[
                         { num: 1, label: 'Scope & Setup' },
@@ -3022,6 +3020,50 @@ export default function CreatePaper() {
                                     onChange={(e) => setDuration(e.target.value)}
                                     className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-xs font-bold text-navy outline-none bg-white focus:ring-2 focus:ring-gold"
                                 />
+                            </div>
+                        </div>
+
+                        {/* Multi-Subject Selection Controls (Physics, Chemistry, Mathematics, Biology, Botany, Zoology) */}
+                        <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2.5">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                <label className="text-[11px] font-black uppercase tracking-wider text-navy">
+                                    Multi-Subject Multi-Select ({selectedCustomSubjects.length} Selected):
+                                </label>
+                                <span className="text-[10px] text-slate-500 font-bold">
+                                    Click subjects to toggle. Chapters and question repositories are strictly segregated with zero cross-subject leakage.
+                                </span>
+                            </div>
+                            <div className="flex items-center gap-2 flex-wrap">
+                                {['Physics', 'Chemistry', 'Mathematics', 'Biology', 'Botany', 'Zoology'].map(sub => {
+                                    const isIncluded = selectedCustomSubjects.includes(sub);
+                                    return (
+                                        <button
+                                            key={sub}
+                                            type="button"
+                                            onClick={() => {
+                                                if (isIncluded) {
+                                                    if (selectedCustomSubjects.length > 1) {
+                                                        const next = selectedCustomSubjects.filter(s => s !== sub);
+                                                        setSelectedCustomSubjects(next);
+                                                        if (activeSubjectTab === sub) setActiveSubjectTab(next[0]);
+                                                    }
+                                                } else {
+                                                    const next = [...selectedCustomSubjects, sub];
+                                                    setSelectedCustomSubjects(next);
+                                                    setActiveSubjectTab(sub);
+                                                }
+                                            }}
+                                            className={`px-3.5 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition cursor-pointer flex items-center gap-1.5 ${
+                                                isIncluded
+                                                    ? 'bg-navy text-gold shadow-md ring-2 ring-gold/40'
+                                                    : 'bg-white text-slate-700 border border-slate-300 hover:bg-slate-100'
+                                            }`}
+                                        >
+                                            <span>{isIncluded ? '✓' : '+'}</span>
+                                            <span>{sub}</span>
+                                        </button>
+                                    );
+                                })}
                             </div>
                         </div>
 
@@ -5042,6 +5084,21 @@ export default function CreatePaper() {
                     </div>
                 )}
 
+                {/* ── PRIMARY SAVE BUTTON FIXED IN BOTTOM-RIGHT CORNER ── */}
+                {(currentStep === 4 || currentStep === 5) && (
+                    <div className="fixed bottom-6 right-6 z-50">
+                        <button
+                            type="button"
+                            onClick={examId ? handleSaveSubjectToExam : handleFinalizeAndSave}
+                            disabled={saving}
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs uppercase tracking-widest px-8 py-3.5 rounded-2xl shadow-2xl flex items-center gap-2.5 border-2 border-emerald-400 hover:scale-105 transition-all cursor-pointer"
+                        >
+                            <span className="text-lg">💾</span>
+                            <span>{saving ? 'Saving Paper...' : (examId ? `Save ${activeSubjectTab} to Exam` : (examSubjects.length > 1 ? 'Merge & Finalize Exam Paper' : `Save ${paperCategory === 'assignment' ? 'Assignment' : 'Paper'}`))}</span>
+                        </button>
+                    </div>
+                )}
+
                 {/* ══════════════════════════════════════════════════════════════
                     STEP 5: ALIGNMENT & FINE-TUNING
                 ══════════════════════════════════════════════════════════════ */}
@@ -5110,6 +5167,21 @@ export default function CreatePaper() {
                                 onShuffleQuestions={handleShuffleQuestions}
                             />
                         </div>
+                    </div>
+                )}
+
+                {/* ── PRIMARY SAVE BUTTON FIXED IN BOTTOM-RIGHT CORNER ── */}
+                {(currentStep === 4 || currentStep === 5) && (
+                    <div className="fixed bottom-6 right-6 z-50">
+                        <button
+                            type="button"
+                            onClick={examId ? handleSaveSubjectToExam : handleFinalizeAndSave}
+                            disabled={saving}
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs uppercase tracking-widest px-8 py-3.5 rounded-2xl shadow-2xl flex items-center gap-2.5 border-2 border-emerald-400 hover:scale-105 transition-all cursor-pointer"
+                        >
+                            <span className="text-lg">💾</span>
+                            <span>{saving ? 'Saving Paper...' : (examId ? `Save ${activeSubjectTab} to Exam` : (examSubjects.length > 1 ? 'Merge & Finalize Exam Paper' : `Save ${paperCategory === 'assignment' ? 'Assignment' : 'Paper'}`))}</span>
+                        </button>
                     </div>
                 )}
 

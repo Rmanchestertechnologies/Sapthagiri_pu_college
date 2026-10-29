@@ -107,3 +107,8 @@ body {
   100% { background-position: 200% 0%; }
 }
 
+
+@keyframes sap-bounce {
+  0% { transform: translateY(0); opacity: 0.5; }
+  100% { transform: translateY(-8px); opacity: 1; }
+}

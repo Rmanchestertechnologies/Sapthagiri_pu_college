@@ -14,7 +14,7 @@
 import React from 'react';
 import MathRenderer from './MathRenderer';
 import ResizableDiagram from './ResizableDiagram';
-import { optionLabel, getQuestionOptionLabels } from '../utils/sanitize';
+import { optionLabel, getQuestionOptionLabels, extractOptionsIfMissing } from '../utils/sanitize';
 
 /**
  * Dynamic option grid calculator based on length and complexity:
@@ -435,6 +435,17 @@ export function cleanOptionText(text) {
     // Strip leading duplicate option indicators like (A), (1), A., 1., (a), A-, 1-, A:, 1:, [A], [1]
     // only if followed by actual option content
     str = str.replace(/^\s*(?:\([A-Da-d1-4]\)|\[[A-Da-d1-4]\]|[A-Da-d1-4][\.\:\-\)])\s*(?=\S)/i, '');
+
+    // Clean stray closing braces from OCR / LaTeX like "40.8 eV.}", "54.4 eV}", "0.49\, A}"
+    const openBraces = (str.match(/\{/g) || []).length;
+    const closeBraces = (str.match(/\}/g) || []).length;
+    if (closeBraces > openBraces) {
+        str = str.replace(/([0-9a-zA-Z\s\.,\\_]+)\}\s*$/, '$1');
+        if ((str.match(/\}/g) || []).length > openBraces) {
+            str = str.replace(/\}\s*$/, '');
+        }
+    }
+    str = str.replace(/\\,\s*A\}?/g, ' \\text{ A}');
     return str.trim();
 }
 
@@ -544,10 +555,14 @@ function extractDiagramFromText(rawText, existingImageUrl) {
 /**
  * MCQ Body with Intelligent Diagram Placement & Resizing
  */
-function BodyMCQ({ q, classes, isTwoCol, diagramMaxHeight = '180px', onDiagramResize, displayNum, optionFormat = 'alpha' }) {
+function BodyMCQ({ q, classes, isTwoCol, diagramMaxHeight = '180px', onDiagramResize, displayNum, optionFormat = 'numeric' }) {
     const rawQText = cleanQuestionText(q.questionText || q.question || '');
     const { cleanText: qText, diagramUrl: imageUrl } = extractDiagramFromText(rawQText, q.imageUrl || q.image_url);
-    const options = Array.isArray(q.options) ? q.options : [];
+    const rawOptions = extractOptionsIfMissing(q);
+    const options = rawOptions.filter(opt => {
+        const raw = typeof opt === 'object' ? (opt.text || opt.optionText || opt.value || opt.option || '') : String(opt || '');
+        return raw.trim().length > 0;
+    });
     const isSideBySide = shouldRenderSideBySide(q, isTwoCol, imageUrl);
     const labels = getQuestionOptionLabels(q, optionFormat);
     const qId = q._id || q.id || displayNum;
@@ -683,7 +698,7 @@ function BodyMCQ({ q, classes, isTwoCol, diagramMaxHeight = '180px', onDiagramRe
 /**
  * Assertion & Reason Body
  */
-function BodyAssertionReason({ q, classes, isTwoCol, diagramMaxHeight = '180px', onDiagramResize, displayNum, optionFormat = 'alpha' }) {
+function BodyAssertionReason({ q, classes, isTwoCol, diagramMaxHeight = '180px', onDiagramResize, displayNum, optionFormat = 'numeric' }) {
     const { assertion, reason } = parseAssertionReason(q);
     const opts = q.options && q.options.length > 0 ? q.options : AR_OPTIONS;
     const rawQText = cleanQuestionText(q.questionText || q.question || '');
@@ -1053,10 +1068,18 @@ function parseStatementsFromText(q) {
 /**
  * Match the Following Body
  */
-function BodyMatchFollowing({ q, classes, isTwoCol, diagramMaxHeight = '180px', onDiagramResize, displayNum, optionFormat = 'alpha' }) {
+function BodyMatchFollowing({ q, classes, isTwoCol, diagramMaxHeight = '180px', onDiagramResize, displayNum, optionFormat = 'numeric' }) {
     const { introText, pairs: parsedPairs } = parseMatchFromText(q);
-    const pairs = (Array.isArray(q.matchPairs) && q.matchPairs.length > 0) ? q.matchPairs : parsedPairs;
-    const opts = q.options || [];
+    let pairs = (Array.isArray(q.matchPairs) && q.matchPairs.length > 0) ? q.matchPairs : parsedPairs;
+    pairs = pairs.filter(p => p && ((p.left && p.left.trim()) || (p.right && p.right.trim())));
+    if (pairs.length < 2 && parsedPairs.length >= 2) {
+        pairs = parsedPairs.filter(p => p && ((p.left && p.left.trim()) || (p.right && p.right.trim())));
+    }
+    const rawOpts = extractOptionsIfMissing(q);
+    const opts = (rawOpts.length > 0 ? rawOpts : (q.options || [])).filter(opt => {
+        const raw = typeof opt === 'object' ? (opt.text || opt.optionText || opt.value || opt.option || '') : String(opt || '');
+        return raw.trim().length > 0;
+    });
     const rawQText = cleanQuestionText(pairs.length > 0 ? (introText || '') : (q.questionText || q.question || ''));
     const { cleanText: qText, diagramUrl: imageUrl } = extractDiagramFromText(rawQText, q.imageUrl || q.image_url);
     const labels = getQuestionOptionLabels(q, optionFormat);
@@ -1142,7 +1165,7 @@ function BodyMatchFollowing({ q, classes, isTwoCol, diagramMaxHeight = '180px', 
 /**
  * Statement-Based Body
  */
-function BodyStatementBased({ q, classes, isTwoCol, diagramMaxHeight = '180px', onDiagramResize, displayNum, optionFormat = 'alpha' }) {
+function BodyStatementBased({ q, classes, isTwoCol, diagramMaxHeight = '180px', onDiagramResize, displayNum, optionFormat = 'numeric' }) {
     const { introText, statements: parsedStmts, outroText } = parseStatementsFromText(q);
     const statements = (Array.isArray(q.statements) && q.statements.length > 0) 
         ? q.statements.map((s, idx) => ({ label: `Statement ${idx + 1}:`, text: typeof s === 'object' ? (s.text || '') : String(s) }))
@@ -1313,7 +1336,7 @@ export default function QuestionBlock({
     isTwoCol = false,
     fontSize = '13px',
     lineHeight = '1.45',
-    optionFormat = 'alpha',
+    optionFormat = 'numeric',
     formatMarks,
     extraStyle = {},
     diagramMaxHeight = '180px',

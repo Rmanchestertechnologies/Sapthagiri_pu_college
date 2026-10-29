@@ -50,7 +50,7 @@ export const DEFAULT_SETTINGS = {
     fontFamily: '"Times New Roman", Times, Georgia, serif',
     fontSize: '13px',
     lineHeight: '1.42',
-    optionFormat: 'alpha', // 'alpha' -> (A), (B), (C), (D) | 'numeric' -> (1), (2), (3), (4)
+    optionFormat: 'numeric', // Default to (1), (2), (3), (4) | toggleable to (A), (B), (C), (D)
     columns: 1,
     columnGap: '18px',
     showMarks: false,
