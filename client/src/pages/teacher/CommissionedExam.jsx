@@ -81,7 +81,7 @@ export default function CommissionedExam() {
     // Step 7: Preview, Alignment & Save (Fixed bottom-right Save & Merge)
     const paramExamTitle = searchParams.get('examTitle');
     const paramClasses = searchParams.get('classes');
-    const [currentStep, setCurrentStep] = useState(paramPaperId ? 7 : 1);
+    const [currentStep, setCurrentStep] = useState(paramPaperId ? 7 : (paramSubject ? 2 : 1));
     const [selectedExamPattern, setSelectedExamPattern] = useState(paramExamType || 'NEET');
     const [selectedSubject, setSelectedSubject] = useState(paramSubject || user?.subject || 'Physics');
     const [selectedClass, setSelectedClass] = useState(paramClasses || 'Both'); // '11' | '12' | 'Both'
@@ -187,6 +187,14 @@ export default function CommissionedExam() {
         loadInitialData();
     }, [paramExamId, paramPaperId]);
 
+    // Automatically load subject metadata on mount or when subject changes
+    useEffect(() => {
+        const sub = paramSubject || selectedSubject;
+        if (sub) {
+            fetchMetadata(sub);
+        }
+    }, [paramSubject, selectedClass]);
+
     // Fetch chapters and concepts for selected subject
     const fetchMetadata = async (subj) => {
         const normSub = normalizeSubjectName(subj);
@@ -216,12 +224,13 @@ export default function CommissionedExam() {
         }
     };
 
-    // When subject is picked in Step 1
-    const handleSelectSubjectBlock = async (sub) => {
+    // When subject is picked in Step 1, immediately advance to Step 2
+    const handleSelectSubjectBlock = (sub, patternId = null) => {
         const norm = normalizeSubjectName(sub);
+        if (patternId) setSelectedExamPattern(patternId);
         setSelectedSubject(norm);
-        await fetchMetadata(norm);
-        setCurrentStep(2); // Goes to Step 2: Chapter Selection
+        setCurrentStep(2); // Immediately jump to Chapter Selection (Step 2)
+        fetchMetadata(norm);
     };
 
     // Step 4: Auto-distribute evenly across selected chapters (defaults to 10 per chapter or custom)
@@ -588,51 +597,25 @@ export default function CommissionedExam() {
                                                 Click Subject Block to Open:
                                             </span>
                                             <div className="grid grid-cols-2 gap-2">
-                                                {pattern.subjects.map(sub => {
-                                                    const isSubActive = isSelected && selectedSubject.toLowerCase() === sub.toLowerCase();
-                                                    return (
-                                                        <button
-                                                            key={sub}
-                                                            type="button"
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                setSelectedExamPattern(pattern.id);
-                                                                handleSelectSubjectBlock(sub);
-                                                            }}
-                                                            className={`text-xs font-black py-2.5 px-3 rounded-xl transition text-center shadow-2xs cursor-pointer border ${
-                                                                isSubActive
-                                                                    ? 'bg-navy text-gold border-gold ring-2 ring-gold/40'
-                                                                    : 'bg-navy/5 hover:bg-navy hover:text-gold text-navy border-navy/10'
-                                                            }`}
-                                                        >
-                                                            {sub}
-                                                        </button>
-                                                    );
-                                                })}
+                                                {pattern.subjects.map(sub => (
+                                                    <button
+                                                        key={sub}
+                                                        type="button"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            handleSelectSubjectBlock(sub, pattern.id);
+                                                        }}
+                                                        className="bg-navy/5 hover:bg-navy hover:text-gold text-navy text-xs font-black py-2.5 px-3 rounded-xl transition text-center border border-navy/10 shadow-2xs cursor-pointer flex items-center justify-between"
+                                                    >
+                                                        <span>{sub}</span>
+                                                        <span className="text-xs">→</span>
+                                                    </button>
+                                                ))}
                                             </div>
                                         </div>
                                     </div>
                                 );
                             })}
-                        </div>
-
-                        {/* Active Selection Confirmation Bar */}
-                        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-slate-50 border border-slate-200 rounded-2xl p-4 mt-6">
-                            <div className="flex items-center gap-3">
-                                <span className="w-10 h-10 rounded-xl bg-navy text-gold flex items-center justify-center font-black text-sm shadow-xs">✓</span>
-                                <div>
-                                    <div className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">Ready to Begin:</div>
-                                    <div className="text-sm font-black text-navy">{selectedExamPattern} &bull; {selectedSubject} ({selectedClass === 'Both' ? 'Class 11 & 12' : `Class ${selectedClass}`})</div>
-                                </div>
-                            </div>
-                            <button
-                                type="button"
-                                onClick={() => handleSelectSubjectBlock(selectedSubject)}
-                                className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs uppercase tracking-wider px-8 py-3 rounded-xl shadow-md transition cursor-pointer flex items-center justify-center gap-2"
-                            >
-                                <span>Proceed to Chapter Selection (Step 2)</span>
-                                <span>→</span>
-                            </button>
                         </div>
                     </div>
                 )}
