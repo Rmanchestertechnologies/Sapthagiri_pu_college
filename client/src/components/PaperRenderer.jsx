@@ -265,7 +265,7 @@ export function PaperHeader({
     headerConfig = null,
 }) {
     // Strictly preserve user-defined title or exam type without hardcoded placeholders or auto-generated default overrides
-    const displayTitle = (title || headerConfig?.title || (isAssignment ? `${subject || 'ACADEMIC'} ASSIGNMENT` : `${subject || 'ACADEMIC'} EXAMINATION`)).trim();
+    const displayTitle = (title || headerConfig?.title || (isAssignment ? 'ASSIGNMENT' : 'EXAMINATION')).trim();
 
     const currentSet = (setName || 'P').toUpperCase();
 

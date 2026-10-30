@@ -83,7 +83,7 @@ export default function CommissionedExam() {
     const paramClasses = searchParams.get('classes');
     const [currentStep, setCurrentStep] = useState(paramPaperId ? 7 : (paramSubject ? 2 : 1));
     const [selectedExamPattern, setSelectedExamPattern] = useState(paramExamType || 'NEET');
-    const [selectedSubject, setSelectedSubject] = useState(paramSubject || user?.subject || 'Physics');
+    const [selectedSubject, setSelectedSubject] = useState(paramSubject || user?.subject || '');
     const [selectedClass, setSelectedClass] = useState(paramClasses || 'Both'); // '11' | '12' | 'Both'
     const [examTitle, setExamTitle] = useState(paramExamTitle || '');
 
@@ -643,8 +643,8 @@ export default function CommissionedExam() {
         setSavingPaper(true);
         try {
             const paperData = {
-                title: examTitle || `${selectedSubject} - ${selectedExamPattern} Examination`,
-                subject: selectedSubject,
+                title: examTitle || `${selectedExamPattern} Examination`,
+                subject: selectedSubject || 'General',
                 examType: selectedExamPattern,
                 classes: selectedClass === 'Both' ? ['11', '12'] : [selectedClass],
                 questions: selectedQuestions.map((q, idx) => ({ ...q, questionNumber: idx + 1 })),
@@ -727,8 +727,8 @@ export default function CommissionedExam() {
     };
 
     const currentPaperObject = useMemo(() => ({
-        title: examTitle || `${selectedSubject} - ${selectedExamPattern} Assessment`,
-        subject: selectedSubject,
+        title: examTitle || `${selectedExamPattern} Examination`,
+        subject: selectedSubject || 'General',
         examType: selectedExamPattern,
         classes: selectedClass === 'Both' ? ['11', '12'] : [selectedClass],
         questions: selectedQuestions.map((q, idx) => ({ ...q, questionNumber: idx + 1 })),
@@ -764,7 +764,7 @@ export default function CommissionedExam() {
                                 Exam Generator
                             </span>
                             <h1 className="text-base font-black text-white uppercase tracking-tight">
-                                {selectedExamPattern} &bull; {selectedSubject}
+                                {examTitle ? examTitle : 'Question Paper Generator'}
                             </h1>
                         </div>
                     </div>
