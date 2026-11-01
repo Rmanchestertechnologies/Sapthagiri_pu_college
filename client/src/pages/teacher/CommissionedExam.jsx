@@ -31,7 +31,7 @@ const EXAM_PATTERNS = {
     CET: {
         id: 'CET',
         title: 'KCET (Karnataka Common Entrance Test)',
-        badge: 'State Entrance',
+        badge: 'Exclusively JEE & NEET Questions (0 CET Qs)',
         subjects: ['Physics', 'Chemistry', 'Mathematics', 'Biology'],
         defaultTotal: 60,
         marksPerQ: 1,
@@ -389,6 +389,7 @@ export default function CommissionedExam() {
                 subject: selectedSubject,
                 limit: '2000',
             });
+            if (selectedExamPattern) queryParams.append('examType', selectedExamPattern);
             if (selectedClass !== 'Both') queryParams.append('classes', selectedClass);
             if (selectedChapters.length > 0) {
                 queryParams.append('chapter', selectedChapters.join(','));
@@ -400,6 +401,20 @@ export default function CommissionedExam() {
             // For NEET & CET: Strictly filter out any questions that are numerical or free-response
             const isJee = selectedExamPattern === 'JEE';
             const poolClean = pool.filter(q => {
+                // Strictly 0 CET questions: Exclude ANY question containing CET or KCET
+                const qExams = (Array.isArray(q.classes) ? q.classes : []).concat(Array.isArray(q.exams) ? q.exams : []);
+                const srcExam = String(q.sourceExam || '').toUpperCase();
+                const qText = String(q.questionText || q.question || '').toUpperCase();
+
+                const isCet = qExams.some(e => ['CET', 'KCET'].includes(String(e).toUpperCase())) ||
+                              srcExam.includes('CET') ||
+                              srcExam.includes('KCET') ||
+                              qText.includes('[KCET') ||
+                              qText.includes('(KCET') ||
+                              qText.includes('[CET') ||
+                              qText.includes('(CET');
+                if (isCet) return false;
+
                 if (!isJee) {
                     const isNum = (q.type || '').toUpperCase().includes('NUMERICAL') || 
                                   (q.q_type || '').toLowerCase().includes('numerical') ||
@@ -1555,6 +1570,7 @@ export default function CommissionedExam() {
                                 showSettingsPanel={true}
                                 onProceedToFinalize={handleSaveDraft}
                                 onDiagramResize={handleDiagramResize}
+                                onPaperUpdated={(updatedPaper) => setSelectedQuestions(updatedPaper.questions || [])}
                             />
                         </div>
 

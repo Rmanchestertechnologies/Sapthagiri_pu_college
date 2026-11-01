@@ -210,10 +210,10 @@ const AdminQuestionBank = () => {
             {/* Filter Bar */}
             <div className="grid grid-cols-2 md:grid-cols-5 gap-4 p-6 bg-gray-50 rounded-3xl border border-gray-100">
                 <select className="border border-gray-200 p-3 rounded-xl text-xs bg-white font-bold" value={filters.examType} onChange={e => setFilters({...filters, examType: e.target.value})}>
-                    <option value="">All Exams</option>
+                    <option value="">All Exams (JEE & NEET)</option>
                     <option value="JEE">JEE</option>
                     <option value="NEET">NEET</option>
-                    <option value="CET">CET</option>
+                    <option value="CET">CET Exam (NEET & JEE Questions Only)</option>
                 </select>
 
                 <select className="border border-gray-200 p-3 rounded-xl text-xs bg-white font-bold" value={filters.subject} onChange={e => setFilters({...filters, subject: e.target.value})}>

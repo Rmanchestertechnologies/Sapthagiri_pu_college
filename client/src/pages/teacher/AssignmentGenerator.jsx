@@ -434,6 +434,7 @@ const AssignmentGenerator = () => {
                             settings={{ ...settings, startQNo, endQNo }}
                             setSettings={setSettings}
                             showSettingsPanel={showSettings}
+                            onPaperUpdated={(updatedPaper) => setSelectedQuestions(updatedPaper.questions || [])}
                         />
                     </div>
                 </div>

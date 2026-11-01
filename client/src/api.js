@@ -36,6 +36,33 @@ api.interceptors.response.use(
         if (response.config?.showGlobalLoader) {
             loadingCallback(false);
         }
+
+        // Strict Institutional Guard: ZERO CET/KCET questions across the entire frontend
+        if (response.config?.url && response.config.url.includes('/api/questions')) {
+            const isCetQuestion = (q) => {
+                if (!q) return true;
+                const exams = (Array.isArray(q.classes) ? q.classes : []).concat(Array.isArray(q.exams) ? q.exams : []);
+                const srcExam = String(q.sourceExam || '').toUpperCase();
+                const qText = String(q.questionText || q.question || '').toUpperCase();
+                return exams.some(e => ['CET', 'KCET'].includes(String(e).toUpperCase())) ||
+                       srcExam.includes('CET') ||
+                       srcExam.includes('KCET') ||
+                       qText.includes('[KCET') ||
+                       qText.includes('(KCET') ||
+                       qText.includes('[CET') ||
+                       qText.includes('(CET');
+            };
+
+            if (Array.isArray(response.data)) {
+                response.data = response.data.filter(q => !isCetQuestion(q));
+            } else if (response.data && Array.isArray(response.data.questions)) {
+                response.data.questions = response.data.questions.filter(q => !isCetQuestion(q));
+                if (response.data.pagination) {
+                    response.data.pagination.total = response.data.questions.length;
+                }
+            }
+        }
+
         return response;
     },
     (error) => {

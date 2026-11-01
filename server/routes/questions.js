@@ -94,8 +94,10 @@ router.post('/', [auth, checkRole(['admin', 'teacher']), upload.fields([{ name: 
 // @access  Teacher / Admin
 router.get('/', [auth, checkRole(['admin', 'teacher'])], async (req, res) => {
     try {
-        const { classes, chapter, concept, type, subject, search, level, usage, source } = req.query;
+        const { classes, chapter, concept, type, subject, search, level, usage, source, examType, exam } = req.query;
         let filters = {};
+        if (examType) filters.examType = examType;
+        if (exam) filters.exam = exam;
 
         // Subject-level access control — teachers can access their own subject or mixed subjects for paper generation
         if (req.user.role === 'teacher') {
@@ -147,7 +149,7 @@ router.get('/', [auth, checkRole(['admin', 'teacher'])], async (req, res) => {
 // @access  Teacher / Admin
 router.post('/chapter-distribution', [auth, checkRole(['admin', 'teacher'])], async (req, res) => {
     try {
-        const { classes, chapterQuotas, difficultyDistribution, sources, concepts, subject: reqSub } = req.body;
+        const { classes, chapterQuotas, difficultyDistribution, sources, concepts, subject: reqSub, examType, exam } = req.body;
         const subject = reqSub || (req.user.role === 'teacher' ? req.user.subject : 'Physics');
 
         if (!chapterQuotas || typeof chapterQuotas !== 'object' || Object.keys(chapterQuotas).length === 0) {
@@ -160,7 +162,8 @@ router.post('/chapter-distribution', [auth, checkRole(['admin', 'teacher'])], as
             chapterQuotas,
             difficultyDistribution: difficultyDistribution || { easy: 40, medium: 40, hard: 20 },
             sources: Array.isArray(sources) && sources.length > 0 ? sources : ['subject', 'qbp_control'],
-            concepts: concepts || []
+            concepts: concepts || [],
+            examType: examType || exam || 'CET'
         });
 
         res.json(result);

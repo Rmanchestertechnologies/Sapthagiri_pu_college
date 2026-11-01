@@ -11,7 +11,7 @@
  *  - Zoom & View controls
  */
 import React, { useMemo } from 'react';
-import QuestionBlock from './QuestionBlock';
+import QuestionBlock, { formatOptionKey } from './QuestionBlock';
 import MathRenderer from './MathRenderer';
 import { InstructionCoverPage, PaperHeader, formatMarks, calcTotal } from './PaperRenderer';
 
@@ -39,6 +39,9 @@ export default function A4PaperEngine({
     fitMode = 'actual',
     singlePageMode = false,
     onDiagramResize,
+    onEditQuestion,
+    onSwapQuestion,
+    onQuestionLayoutChange,
 }) {
     const examTypeStr = String(paper?.examType || paper?.exam_type || paper?.title || '').toUpperCase();
     const isExplicitNonJEE = examTypeStr.includes('NEET') ||
@@ -199,134 +202,199 @@ export default function A4PaperEngine({
                         {/* ── Questions Flow Immediately On Page 1 (1 Column or 2 Columns) ── */}
                         <div
                             className="a4-questions-flow"
-                            style={isTwoCol ? {
+                            style={isTwoCol && settings.displayMode !== '6. Only Answers & Solutions' && settings.displayMode !== '7. Only Answers' ? {
                                 columnCount: 2,
                                 columnGap: settings.columnGap || '20px',
                                 columnRule: '1px solid #e0e0e0',
                             } : {}}
                         >
-                            {(() => {
-                                // Precalculate index within subject for each question
-                                let runningSub = '';
-                                let subQuestionIndex = 0;
-                                const subjectQuestionIndices = visibleQuestions.map((q) => {
-                                    const s = normalizeSubjectName(q.sectionSubject || q.subject || '').toLowerCase();
-                                    if (s !== runningSub) {
-                                        runningSub = s;
-                                        subQuestionIndex = 0;
-                                    } else {
-                                        subQuestionIndex++;
-                                    }
-                                    return subQuestionIndex;
-                                });
-
-                                return visibleQuestions.map((q, idx) => {
-                                    const displayNum = startQNo + idx;
-                                    const isJEE = isJEEPaper;
-                                    const subQIdx = subjectQuestionIndices[idx];
-
-                                    const curSubject = normalizeSubjectName(q.sectionSubject || q.subject || '');
-                                    const prevSubject = idx > 0 ? normalizeSubjectName(visibleQuestions[idx - 1].sectionSubject || visibleQuestions[idx - 1].subject || '') : '';
-                                    const isSubjectChange = Boolean(curSubject && prevSubject && curSubject.toLowerCase() !== prevSubject.toLowerCase());
-
-                                    let showHeader = false;
-                                    let headerTitle = '';
-                                    let directiveText = null;
-
-                                    if (isJEE) {
-                                        if (isSubjectChange || idx === 0) {
-                                            showHeader = true;
-                                            headerTitle = curSubject ? `${curSubject.toUpperCase()} • PART A (SECTION A)` : 'PART A (SECTION A)';
-                                            directiveText = 'This section contains 20 Multiple Choice Questions. Each question has four choices (A), (B), (C), (D). Only one choice is correct.';
-                                        } else if (subQIdx === 20) {
-                                            showHeader = true;
-                                            headerTitle = curSubject ? `${curSubject.toUpperCase()} • PART B (SECTION B - NUMERICALS)` : 'PART B (SECTION B - NUMERICALS)';
-                                            directiveText = 'This section contains 5 Numerical Value Questions. The answer to each question is a NUMERICAL VALUE. No options are provided.';
+                            {/* Mode 6: Only Answers & Solutions */}
+                            {settings.displayMode === '6. Only Answers & Solutions' ? (
+                                <div className="a4-only-solutions-flow" style={{ marginTop: '12px' }}>
+                                    <div style={{ textAlign: 'center', borderBottom: '2px solid #001f6d', paddingBottom: '6px', marginBottom: '14px' }}>
+                                        <h2 style={{ fontSize: '15px', fontWeight: 900, textTransform: 'uppercase', color: '#001f6d', margin: 0 }}>
+                                            Answers & Detailed Solutions
+                                        </h2>
+                                        <div style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', marginTop: '2px' }}>
+                                            {paper?.title || 'Examination'} • Solutions Guide
+                                        </div>
+                                    </div>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                        {visibleQuestions.map((q, idx) => (
+                                            <div key={q._id || idx} style={{ borderBottom: '1px solid #e2e8f0', paddingBottom: '8px', breakInside: 'avoid' }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '3px' }}>
+                                                    <span style={{ fontWeight: 900, color: '#001f6d', fontSize: '12px' }}>Q.{startQNo + idx}.</span>
+                                                    <span style={{ backgroundColor: '#dcfce7', color: '#166534', border: '1px solid #86efac', padding: '1px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 800 }}>
+                                                        Answer: Option ({formatOptionKey(q, settings.optionFormat)})
+                                                    </span>
+                                                </div>
+                                                <div style={{ fontSize: '11.5px', color: '#1e293b', backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '6px', padding: '6px 10px' }}>
+                                                    <div style={{ fontWeight: 800, color: '#15803d', fontSize: '11px', marginBottom: '2px' }}>Solution:</div>
+                                                    <MathRenderer inline text={q.solutionText || q.solution_text || q.solution || 'Detailed step-by-step verified solution.'} />
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            ) : settings.displayMode === '7. Only Answers' ? (
+                                /* Mode 7: Only Answers Grid */
+                                <div className="a4-only-answers-flow" style={{ marginTop: '14px' }}>
+                                    <div style={{ textAlign: 'center', borderBottom: '2px solid #001f6d', paddingBottom: '6px', marginBottom: '14px' }}>
+                                        <h2 style={{ fontSize: '15px', fontWeight: 900, textTransform: 'uppercase', color: '#001f6d', margin: 0 }}>
+                                            Answer Key Sheet
+                                        </h2>
+                                        <div style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', marginTop: '2px' }}>
+                                            {paper?.title || 'Examination'} • Final Answer Key
+                                        </div>
+                                    </div>
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '6px', border: '1.5px solid #cbd5e1', padding: '10px', borderRadius: '8px', backgroundColor: '#f8fafc' }}>
+                                        {visibleQuestions.map((q, idx) => (
+                                            <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 8px', borderBottom: '1px solid #e2e8f0', fontSize: '11.5px' }}>
+                                                <span style={{ fontWeight: 800, color: '#001f6d' }}>Q.{startQNo + idx}</span>
+                                                <span style={{ fontWeight: 900, color: '#166534', backgroundColor: '#dcfce7', border: '1px solid #86efac', padding: '1px 8px', borderRadius: '4px' }}>
+                                                    ({formatOptionKey(q, settings.optionFormat)})
+                                                </span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            ) : (
+                                /* Standard Questions Flow (Modes 1, 2, 3, 4, 5) */
+                                (() => {
+                                    let runningSub = '';
+                                    let subQuestionIndex = 0;
+                                    const subjectQuestionIndices = visibleQuestions.map((q) => {
+                                        const s = normalizeSubjectName(q.sectionSubject || q.subject || '').toLowerCase();
+                                        if (s !== runningSub) {
+                                            runningSub = s;
+                                            subQuestionIndex = 0;
+                                        } else {
+                                            subQuestionIndex++;
                                         }
-                                    } else {
-                                        // Multi-subject exam (NEET, CET, KCET, Composite):
-                                        const isMultiSubject = Boolean(
-                                            (paper?.subject && (paper.subject.includes('•') || paper.subject.includes(','))) ||
-                                            (paper?.questions && paper.questions.length > 50)
-                                        );
-                                        if (isSubjectChange || (idx === 0 && isMultiSubject && curSubject)) {
-                                            showHeader = true;
-                                            headerTitle = `SUBJECT: ${curSubject.toUpperCase()}`;
-                                            directiveText = null;
+                                        return subQuestionIndex;
+                                    });
+
+                                    const qGap = settings.questionSpacing === 'No Spacing' ? '0px' :
+                                                 settings.questionSpacing === '5' ? '5px' :
+                                                 settings.questionSpacing === '10' ? '10px' :
+                                                 settings.questionSpacing === '15' ? '15px' :
+                                                 (isTwoCol ? '8px' : '10px');
+
+                                    return visibleQuestions.map((q, idx) => {
+                                        const displayNum = startQNo + idx;
+                                        const isJEE = isJEEPaper;
+                                        const subQIdx = subjectQuestionIndices[idx];
+
+                                        const curSubject = normalizeSubjectName(q.sectionSubject || q.subject || '');
+                                        const prevSubject = idx > 0 ? normalizeSubjectName(visibleQuestions[idx - 1].sectionSubject || visibleQuestions[idx - 1].subject || '') : '';
+                                        const isSubjectChange = Boolean(curSubject && prevSubject && curSubject.toLowerCase() !== prevSubject.toLowerCase());
+
+                                        let showHeader = false;
+                                        let headerTitle = '';
+                                        let directiveText = null;
+
+                                        if (isJEE) {
+                                            if (isSubjectChange || idx === 0) {
+                                                showHeader = true;
+                                                headerTitle = curSubject ? (curSubject.toUpperCase() + ' • PART A (SECTION A)') : 'PART A (SECTION A)';
+                                                directiveText = 'This section contains 20 Multiple Choice Questions. Each question has four choices (A), (B), (C), (D). Only one choice is correct.';
+                                            } else if (subQIdx === 20) {
+                                                showHeader = true;
+                                                headerTitle = curSubject ? (curSubject.toUpperCase() + ' • PART B (SECTION B - NUMERICALS)') : 'PART B (SECTION B - NUMERICALS)';
+                                                directiveText = 'This section contains 5 Numerical Value Questions. The answer to each question is a NUMERICAL VALUE. No options are provided.';
+                                            }
+                                        } else {
+                                            const isMultiSubject = Boolean(
+                                                (paper?.subject && (paper.subject.includes('•') || paper.subject.includes(','))) ||
+                                                (paper?.questions && paper.questions.length > 50)
+                                            );
+                                            if (isSubjectChange || (idx === 0 && isMultiSubject && curSubject)) {
+                                                showHeader = true;
+                                                headerTitle = 'SUBJECT: ' + curSubject.toUpperCase();
+                                                directiveText = null;
+                                            }
                                         }
-                                    }
 
-                                    const effectiveQ = isJEE ? {
-                                        ...q,
-                                        isNumerical: subQIdx >= 20,
-                                        type: (subQIdx >= 20) ? 'NUMERICAL' : (q.type || 'MCQ'),
-                                        options: (subQIdx >= 20) ? [] : (q.options || []),
-                                        part: (subQIdx >= 20) ? 'SECTION B - NUMERICAL VALUE QUESTIONS' : 'SECTION A - MULTIPLE CHOICE QUESTIONS'
-                                    } : {
-                                        ...q,
-                                        isNumerical: false,
-                                        num_answer: null,
-                                        type: (q.type === 'NUMERICAL' || q.q_type === 'numerical') ? 'MCQ' : (q.type || 'MCQ')
-                                    };
+                                        const effectiveQ = isJEE ? {
+                                            ...q,
+                                            isNumerical: subQIdx >= 20,
+                                            type: (subQIdx >= 20) ? 'NUMERICAL' : (q.type || 'MCQ'),
+                                            options: (subQIdx >= 20) ? [] : (q.options || []),
+                                            part: (subQIdx >= 20) ? 'SECTION B - NUMERICAL VALUE QUESTIONS' : 'SECTION A - MULTIPLE CHOICE QUESTIONS'
+                                        } : {
+                                            ...q,
+                                            isNumerical: false,
+                                            num_answer: null,
+                                            type: (q.type === 'NUMERICAL' || q.q_type === 'numerical') ? 'MCQ' : (q.type || 'MCQ')
+                                        };
 
-                                    return (
-                                        <React.Fragment key={q._id || displayNum}>
-                                            {showHeader && (
+                                        return (
+                                            <React.Fragment key={q._id || displayNum}>
+                                                {showHeader && (
+                                                    <div
+                                                        className="part-header-directive-block"
+                                                        style={{
+                                                            margin: idx === 0 ? '4px 0 10px 0' : '16px 0 10px 0',
+                                                            padding: '6px 12px',
+                                                            backgroundColor: '#f8fafc',
+                                                            borderLeft: '4px solid #001f6d',
+                                                            borderTop: '1px solid #cbd5e1',
+                                                            borderBottom: '1px solid #cbd5e1',
+                                                            breakInside: 'avoid',
+                                                            pageBreakInside: 'avoid',
+                                                            breakAfter: 'avoid',
+                                                            columnSpan: isTwoCol ? 'all' : 'none',
+                                                        }}
+                                                    >
+                                                        <div style={{ fontWeight: 900, fontSize: '12px', textTransform: 'uppercase', color: '#001f6d', letterSpacing: '0.04em' }}>
+                                                            {headerTitle}
+                                                        </div>
+                                                        {directiveText && (
+                                                            <div style={{ fontSize: '10.5px', fontWeight: 600, color: '#334155', marginTop: '2px', fontStyle: 'italic', whiteSpace: 'pre-line' }}>
+                                                                {directiveText}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )}
                                                 <div
-                                                    className="part-header-directive-block"
+                                                    className="question-print-item"
                                                     style={{
-                                                        margin: idx === 0 ? '4px 0 10px 0' : '16px 0 10px 0',
-                                                        padding: '6px 12px',
-                                                        backgroundColor: '#f8fafc',
-                                                        borderLeft: '4px solid #001f6d',
-                                                        borderTop: '1px solid #cbd5e1',
-                                                        borderBottom: '1px solid #cbd5e1',
-                                                        breakInside: 'avoid',
-                                                        pageBreakInside: 'avoid',
-                                                        breakAfter: 'avoid',
-                                                        columnSpan: isTwoCol ? 'all' : 'none',
+                                                        breakInside: settings.paper2ColumnQuestionBreak !== false ? 'avoid' : 'auto',
+                                                        WebkitColumnBreakInside: settings.paper2ColumnQuestionBreak !== false ? 'avoid' : 'auto',
+                                                        pageBreakInside: settings.paper2ColumnQuestionBreak !== false ? 'avoid' : 'auto',
+                                                        marginBottom: qGap,
                                                     }}
                                                 >
-                                                    <div style={{ fontWeight: 900, fontSize: '12px', textTransform: 'uppercase', color: '#001f6d', letterSpacing: '0.04em' }}>
-                                                        {headerTitle}
-                                                    </div>
-                                                    {directiveText && (
-                                                        <div style={{ fontSize: '10.5px', fontWeight: 600, color: '#334155', marginTop: '2px', fontStyle: 'italic', whiteSpace: 'pre-line' }}>
-                                                            {directiveText}
-                                                        </div>
-                                                    )}
+                                                    <QuestionBlock
+                                                        q={effectiveQ}
+                                                        displayNum={displayNum}
+                                                        classes={classes}
+                                                        showMarks={settings.showMarks}
+                                                        singleColMode={!isTwoCol}
+                                                        isTwoCol={isTwoCol}
+                                                        fontSize={settings.fontSize}
+                                                        lineHeight={settings.lineHeight}
+                                                        optionFormat={settings.optionFormat || '(1) (2) (3) (4)'}
+                                                        formatMarks={formatMarks}
+                                                        extraStyle={{ marginBottom: '0px' }}
+                                                        diagramMaxHeight={settings.diagramMaxHeight}
+                                                        onDiagramResize={onDiagramResize}
+                                                        examType={paper?.examType || 'NEET'}
+                                                        onEdit={onEditQuestion ? () => onEditQuestion(effectiveQ, idx, displayNum) : undefined}
+                                                        onSwap={onSwapQuestion ? () => onSwapQuestion(effectiveQ, idx, displayNum) : undefined}
+                                                        showQuestionNumbers={settings.showQuestionNumbers !== false}
+                                                        imageBelowQuestion={Boolean(settings.imageBelowQuestion)}
+                                                        displayMode={settings.displayMode || '1. Questions'}
+                                                        optionSpacing={settings.optionSpacing || 'Default'}
+                                                        questionSpacing={settings.questionSpacing || 'Default'}
+                                                        onLayoutChange={onQuestionLayoutChange ? (changes) => onQuestionLayoutChange(idx, changes) : undefined}
+                                                    />
                                                 </div>
-                                            )}
-                                            <div
-                                                className="question-print-item"
-                                                style={{
-                                                    breakInside: 'avoid',
-                                                    WebkitColumnBreakInside: 'avoid',
-                                                    pageBreakInside: 'avoid',
-                                                    marginBottom: settings.questionSpacing || (isTwoCol ? '8px' : '10px'),
-                                                }}
-                                            >
-                                                <QuestionBlock
-                                                    q={effectiveQ}
-                                                    displayNum={displayNum}
-                                                    classes={classes}
-                                                    showMarks={settings.showMarks}
-                                                    singleColMode={!isTwoCol}
-                                                    isTwoCol={isTwoCol}
-                                                    fontSize={settings.fontSize}
-                                                    lineHeight={settings.lineHeight}
-                                                    optionFormat={settings.optionFormat || 'numeric'}
-                                                    formatMarks={formatMarks}
-                                                    extraStyle={{ marginBottom: '0px' }}
-                                                    diagramMaxHeight={settings.diagramMaxHeight}
-                                                    onDiagramResize={onDiagramResize}
-                                                    examType={paper?.examType || 'NEET'}
-                                                />
-                                            </div>
-                                        </React.Fragment>
-                                    );
-                                });
-                            })()}
+                                            </React.Fragment>
+                                        );
+                                    });
+                                })()
+                            )}
                         </div>
 
                         {/* End of Paper Marker */}
@@ -335,6 +403,38 @@ export default function A4PaperEngine({
                         </div>
                     </div>
                 </div>
+
+                {/* Mode 4: Questions after Answers & Solutions Sheet */}
+                {settings.displayMode === '4. Questions after Answers & Solutions' && (
+                    <div className="a4-sheet-page a4-solutions-page" style={{ position: 'relative', pageBreakBefore: 'always', breakBefore: 'page', marginTop: '28px' }}>
+                        <div className="a4-page-content" style={{ fontFamily: settings.fontFamily, fontSize: '11px', lineHeight: '1.4', padding: '12mm' }}>
+                            <div style={{ textAlign: 'center', borderBottom: '2px solid #001f6d', paddingBottom: '6px', marginBottom: '14px' }}>
+                                <h2 style={{ fontSize: '16px', fontWeight: 900, textTransform: 'uppercase', color: '#001f6d', margin: 0 }}>
+                                    Answers & Detailed Solutions
+                                </h2>
+                                <div style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', marginTop: '2px' }}>
+                                    {paper?.title || 'Examination'} • Answer Key & Step-by-Step Solutions
+                                </div>
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                {visibleQuestions.map((q, idx) => (
+                                    <div key={q._id || idx} style={{ borderBottom: '1px solid #e2e8f0', paddingBottom: '8px', breakInside: 'avoid' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '3px' }}>
+                                            <span style={{ fontWeight: 900, color: '#001f6d', fontSize: '12px' }}>Q.{startQNo + idx}.</span>
+                                            <span style={{ backgroundColor: '#dcfce7', color: '#166534', border: '1px solid #86efac', padding: '1px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 800 }}>
+                                                Answer: Option ({formatOptionKey(q, settings.optionFormat)})
+                                            </span>
+                                        </div>
+                                        <div style={{ fontSize: '11.5px', color: '#1e293b', backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '6px', padding: '6px 10px' }}>
+                                            <div style={{ fontWeight: 800, color: '#15803d', fontSize: '11px', marginBottom: '2px' }}>Solution:</div>
+                                            <MathRenderer inline text={q.solutionText || q.solution_text || q.solution || 'Detailed step-by-step verified solution.'} />
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                )}
 
                 {/* Optional Scheme of Valuation Sheet on Last Page */}
                 {(paper?.includeSchemeOnLastPage || settings?.includeSchemeOnLastPage) && (

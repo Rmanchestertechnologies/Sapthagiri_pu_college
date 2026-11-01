@@ -51,6 +51,9 @@ function cacheQuestionDb(id, dbKey) {
 function cleanDifficultyTags(text) {
     if (!text || typeof text !== 'string') return '';
     return text
+        .replace(/\[\s*(?:KCET|CET)[\s\w\-,\(\)]*\d{0,4}\s*\]/gi, '')
+        .replace(/\(\s*(?:KCET|CET)[\s\w\-,\(\)]*\d{0,4}\s*\)/gi, '')
+        .replace(/\b(?:KCET|CET)\s*[-:]?\s*\d{4}\b/gi, '')
         .replace(/\[(?:QPV_|QBP_)?DIFFICULTY:\s*[^\]]+\]/gi, '')
         .replace(/\[(?:QPV|QBP)_[A-Za-z0-9_]+:[^\]]*\]/gi, '')
         .replace(/\s*\[\s*(?:JEE|NEET|CET|AIPMT|CBSE|KCET|BITSAT|AIIMS|MHT-?CET|IIT|ADVANCED|MAIN)[\s\w\-,\(\)]*\d{4}\s*\]\s*$/i, '')
@@ -327,10 +330,8 @@ function mapSupabaseToQuestion(row, usageMap = null) {
         }
     }
 
-    const classesList = [];
-    if (Array.isArray(row.exams) && row.exams.length > 0) {
-        classesList.push(...row.exams);
-    }
+    const cleanExamsList = (Array.isArray(row.exams) ? row.exams : []).filter(e => !['KCET', 'CET'].includes(String(e).toUpperCase()));
+    const classesList = [...cleanExamsList];
     if (row.klass && !classesList.includes(row.klass)) {
         classesList.push(`Class ${row.klass}`);
     }
@@ -371,7 +372,7 @@ function mapSupabaseToQuestion(row, usageMap = null) {
         matchPairs: matchPairs,
         match_options: row.match_options || {},
         sourceType: 'REGULAR',
-        sourceExam: Array.isArray(row.exams) ? row.exams.join(', ') : '',
+        sourceExam: cleanExamsList.length > 0 ? cleanExamsList.join(', ') : 'JEE, NEET',
         createdBy: row.created_by,
         createdByName: row.created_by_name || 'Admin',
         createdAt: row.created_at || new Date().toISOString(),
@@ -614,6 +615,23 @@ function buildQueryFilters(filters) {
     whereClauses.push("NOT (q.opt_a ILIKE 'true' AND q.opt_b ILIKE 'false')");
     whereClauses.push("NOT (q.opt_a ILIKE 'false' AND q.opt_b ILIKE 'true')");
 
+    // STRICT INSTITUTIONAL RULE:
+    // ZERO CET/KCET questions for CET, NEET, JEE, ALL OF THEM!
+    // Under no circumstances may any question containing CET or KCET be fetched.
+    whereClauses.push("NOT (q.exams && ARRAY['KCET', 'CET', 'kcet', 'cet', 'K-CET', 'Karnataka CET']::text[])");
+
+    // All questions must be fetched exclusively from the JEE and/or NEET pools:
+    const reqExam = (filters.examType || filters.exam || '').toString().trim().toUpperCase();
+
+    if (reqExam === 'JEE') {
+        whereClauses.push("q.exams && ARRAY['JEE', 'JEE Main', 'JEE Advanced']::text[]");
+    } else if (reqExam === 'NEET') {
+        whereClauses.push("q.exams && ARRAY['NEET', 'NEET/JEE']::text[]");
+    } else {
+        // For CET exam, or any general query: fetch ONLY JEE and NEET questions (0 CET questions)
+        whereClauses.push("q.exams && ARRAY['JEE', 'JEE Main', 'JEE Advanced', 'NEET', 'NEET/JEE']::text[]");
+    }
+
     return { whereClauses, values };
 }
 
@@ -727,8 +745,13 @@ async function getQuestions(filters = {}, page = 1, limit = 50) {
                 qbpQuery = qbpQuery.order('created_at', { ascending: false }).range(0, requestedLimit - 1);
                 const qbpRes = await qbpQuery;
                 if (qbpRes.data && qbpRes.data.length > 0) {
-                    qbpTotal = qbpRes.count || qbpRes.data.length;
-                    qbpRows = qbpRes.data;
+                    const filteredQbp = qbpRes.data.filter(r => {
+                        const exams = Array.isArray(r.exams) ? r.exams : [];
+                        const isPureCet = exams.length > 0 && exams.every(e => ['KCET', 'CET'].includes(String(e).toUpperCase()));
+                        return !isPureCet;
+                    });
+                    qbpTotal = filteredQbp.length;
+                    qbpRows = filteredQbp;
                     for (const r of qbpRows) {
                         cacheQuestionDb(r.id, 'qbp_control');
                     }
@@ -811,9 +834,9 @@ async function getSubjectMetadata(subject = '', klass = null) {
             targetPools.map(async (entry) => {
                 try {
                     const [countRes, chaptersRes, conceptsRes] = await Promise.all([
-                        entry.pool.query('SELECT count(*)::bigint as total FROM public.questions;'),
-                        entry.pool.query('SELECT DISTINCT chapter FROM public.questions WHERE chapter IS NOT NULL ORDER BY chapter;'),
-                        entry.pool.query('SELECT DISTINCT chapter, topic as name FROM public.questions WHERE chapter IS NOT NULL AND topic IS NOT NULL ORDER BY chapter, topic;')
+                        entry.pool.query("SELECT count(*)::bigint as total FROM public.questions q WHERE NOT (q.exams && ARRAY['KCET', 'CET', 'kcet', 'cet']::text[]) AND (q.exams && ARRAY['JEE', 'JEE Main', 'JEE Advanced', 'NEET', 'NEET/JEE']::text[]);"),
+                        entry.pool.query("SELECT DISTINCT chapter FROM public.questions q WHERE chapter IS NOT NULL AND NOT (q.exams && ARRAY['KCET', 'CET', 'kcet', 'cet']::text[]) AND (q.exams && ARRAY['JEE', 'JEE Main', 'JEE Advanced', 'NEET', 'NEET/JEE']::text[]) ORDER BY chapter;"),
+                        entry.pool.query("SELECT DISTINCT chapter, topic as name FROM public.questions q WHERE chapter IS NOT NULL AND topic IS NOT NULL AND NOT (q.exams && ARRAY['KCET', 'CET', 'kcet', 'cet']::text[]) AND (q.exams && ARRAY['JEE', 'JEE Main', 'JEE Advanced', 'NEET', 'NEET/JEE']::text[]) ORDER BY chapter, topic;")
                     ]);
 
                     return {
@@ -1078,7 +1101,8 @@ async function getQuestionsWithChapterQuotas({
     chapterQuotas = {},
     difficultyDistribution = { easy: 40, medium: 40, hard: 20 },
     sources = ['subject', 'qbp_control'],
-    concepts = []
+    concepts = [],
+    examType = 'CET'
 }) {
     const normSub = normalizeSubject(subject);
     const normKlass = normalizeClass(classes);
@@ -1100,7 +1124,8 @@ async function getQuestionsWithChapterQuotas({
             subject: normSub,
             classes: normKlass,
             chapter: chapterName,
-            source: sourceParam
+            source: sourceParam,
+            examType: examType || 'CET'
         };
         if (Array.isArray(concepts) && concepts.length > 0) {
             chapterFilters.concept = concepts;

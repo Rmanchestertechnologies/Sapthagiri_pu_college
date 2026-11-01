@@ -456,18 +456,213 @@ export function cleanOptionText(text) {
     return str.trim();
 }
 
-export function getOptionLabelText(idx, optionFormat = 'alpha', customLabels = null, classes = []) {
-    if (optionFormat === 'numeric' || optionFormat === '1234') {
+export function getOptionLabelText(idx, optionFormat = '(1) (2) (3) (4)', customLabels = null, classes = []) {
+    const fmt = String(optionFormat || '').toLowerCase();
+    if (fmt.includes('1') || fmt === 'numeric' || fmt === '1234') {
         return String(idx + 1);
     }
-    if (optionFormat === 'alpha' || optionFormat === 'ABCD') {
-        return String.fromCharCode(65 + idx);
+    if (fmt.includes('(a) (b) (c) (d)') || fmt === 'lower' || fmt === 'abcd_lower') {
+        return String.fromCharCode(97 + idx); // 'a', 'b', 'c', 'd'
+    }
+    if (fmt.includes('a') || fmt === 'alpha' || fmt === 'abcd') {
+        return String.fromCharCode(65 + idx); // 'A', 'B', 'C', 'D'
     }
     if (customLabels && customLabels[idx]) {
         return customLabels[idx];
     }
     return optionLabel(idx, classes, optionFormat);
 }
+
+export function formatOptionKey(q, optionFormat = '(1) (2) (3) (4)') {
+    if (!q) return '1';
+    if (q.num_answer || q.type === 'NUMERICAL') {
+        return String(q.num_answer || 'Numerical');
+    }
+    const raw = String(q.correct_option || q.answer || q.key || '1').trim();
+    let idx = 0;
+    if (/^[1-4]$/.test(raw)) {
+        idx = parseInt(raw, 10) - 1;
+    } else if (/^[A-Da-d]$/.test(raw)) {
+        idx = raw.toUpperCase().charCodeAt(0) - 65;
+    } else {
+        const opts = q.options || [];
+        const found = opts.findIndex(o => {
+            const str = typeof o === 'object' ? (o.text || o.option || '') : String(o);
+            return str.trim() === raw;
+        });
+        if (found >= 0) idx = found;
+    }
+    return getOptionLabelText(idx, optionFormat);
+}
+
+export function QuestionGearPopup({
+    imageAlignment,
+    optionsPerLine,
+    currentDiagramHeight = 180,
+    onAlignmentChange,
+    onOptionsPerLineChange,
+    onDiagramSizeDelta,
+    onClose,
+}) {
+    return (
+        <div
+            className="no-print"
+            style={{
+                position: 'absolute',
+                top: '26px',
+                right: '0px',
+                zIndex: 60,
+                backgroundColor: '#ffffff',
+                border: '1.5px solid #001f6d',
+                borderRadius: '12px',
+                padding: '12px 14px',
+                boxShadow: '0 12px 28px rgba(0, 0, 0, 0.22)',
+                width: '320px',
+                fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+                textAlign: 'left',
+            }}
+            onClick={(e) => e.stopPropagation()}
+        >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', borderBottom: '1px solid #e2e8f0', paddingBottom: '4px' }}>
+                <span style={{ fontSize: '11px', fontWeight: 900, color: '#001f6d', letterSpacing: '0.04em' }}>
+                    ⚙️ QUESTION DISPLAY SETTINGS
+                </span>
+                <button
+                    type="button"
+                    onClick={onClose}
+                    style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '13px', fontWeight: 900, color: '#64748b' }}
+                >
+                    ✕
+                </button>
+            </div>
+
+            {/* 1. IMAGE ALIGNMENT */}
+            <div style={{ marginBottom: '10px' }}>
+                <div style={{ fontSize: '10px', fontWeight: 900, color: '#334155', textTransform: 'uppercase', marginBottom: '4px', letterSpacing: '0.04em' }}>
+                    IMAGE ALIGNMENT
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '4px' }}>
+                    {['Left', 'Right', 'Top', 'Below', 'Center'].map((align) => {
+                        const isActive = String(imageAlignment || '').toLowerCase() === align.toLowerCase();
+                        return (
+                            <button
+                                key={align}
+                                type="button"
+                                onClick={() => onAlignmentChange(align)}
+                                style={{
+                                    padding: '4px 2px',
+                                    fontSize: '10.5px',
+                                    fontWeight: 800,
+                                    borderRadius: '6px',
+                                    border: isActive ? '1.5px solid #001f6d' : '1px solid #cbd5e1',
+                                    backgroundColor: isActive ? '#001f6d' : '#f8fafc',
+                                    color: isActive ? '#ffffff' : '#1e293b',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.15s ease',
+                                }}
+                            >
+                                {align}
+                            </button>
+                        );
+                    })}
+                </div>
+            </div>
+
+            {/* 2. OPTIONS PER LINE */}
+            <div style={{ marginBottom: '10px' }}>
+                <div style={{ fontSize: '10px', fontWeight: 900, color: '#334155', textTransform: 'uppercase', marginBottom: '4px', letterSpacing: '0.04em' }}>
+                    OPTIONS PER LINE
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px' }}>
+                    {[1, 2, 4].map((num) => {
+                        const isActive = Number(optionsPerLine) === num;
+                        return (
+                            <button
+                                key={num}
+                                type="button"
+                                onClick={() => onOptionsPerLineChange(num)}
+                                style={{
+                                    padding: '4px 0',
+                                    fontSize: '11px',
+                                    fontWeight: 800,
+                                    borderRadius: '6px',
+                                    border: isActive ? '1.5px solid #001f6d' : '1px solid #cbd5e1',
+                                    backgroundColor: isActive ? '#001f6d' : '#f8fafc',
+                                    color: isActive ? '#ffffff' : '#1e293b',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.15s ease',
+                                }}
+                            >
+                                {num}
+                            </button>
+                        );
+                    })}
+                </div>
+            </div>
+
+            {/* 3. IMAGE SIZE */}
+            <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                    <span style={{ fontSize: '10px', fontWeight: 900, color: '#334155', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                        IMAGE SIZE
+                    </span>
+                    <span style={{ fontSize: '9.5px', fontWeight: 800, color: '#64748b' }}>
+                        {parseInt(currentDiagramHeight, 10) || 180}px
+                    </span>
+                </div>
+                {/* Green increase buttons row */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '4px', marginBottom: '4px' }}>
+                    {[10, 25, 50, 100, 250].map((val) => (
+                        <button
+                            key={val}
+                            type="button"
+                            onClick={() => onDiagramSizeDelta(val)}
+                            style={{
+                                padding: '4px 0',
+                                fontSize: '10px',
+                                fontWeight: 800,
+                                borderRadius: '6px',
+                                border: '1px solid #15803d',
+                                backgroundColor: '#16a34a',
+                                color: '#ffffff',
+                                cursor: 'pointer',
+                                transition: 'all 0.15s ease',
+                            }}
+                            title={'Increase diagram height by ' + val + 'px'}
+                        >
+                            +{val}
+                        </button>
+                    ))}
+                </div>
+                {/* Red decrease buttons row */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '4px' }}>
+                    {[10, 25, 50, 100, 250].map((val) => (
+                        <button
+                            key={val}
+                            type="button"
+                            onClick={() => onDiagramSizeDelta(-val)}
+                            style={{
+                                padding: '4px 0',
+                                fontSize: '10px',
+                                fontWeight: 800,
+                                borderRadius: '6px',
+                                border: '1px solid #b91c1c',
+                                backgroundColor: '#dc2626',
+                                color: '#ffffff',
+                                cursor: 'pointer',
+                                transition: 'all 0.15s ease',
+                            }}
+                            title={'Decrease diagram height by ' + val + 'px'}
+                        >
+                            -{val}
+                        </button>
+                    ))}
+                </div>
+            </div>
+        </div>
+    );
+}
+
 
 export function cleanQuestionText(text) {
     if (!text) return '';
@@ -562,7 +757,19 @@ function extractDiagramFromText(rawText, existingImageUrl) {
 /**
  * MCQ Body with Intelligent Diagram Placement & Resizing
  */
-function BodyMCQ({ q, classes, isTwoCol, diagramMaxHeight = '180px', onDiagramResize, displayNum, optionFormat = 'numeric' }) {
+function BodyMCQ({
+    q,
+    classes,
+    isTwoCol,
+    diagramMaxHeight = '180px',
+    onDiagramResize,
+    displayNum,
+    optionFormat = '(1) (2) (3) (4)',
+    imageAlignment = null,
+    optionsPerLine = null,
+    displayMode = '1. Questions',
+    optionSpacing = 'Default',
+}) {
     const rawQText = cleanQuestionText(q.questionText || q.question || '');
     const { cleanText: qText, diagramUrl: imageUrl } = extractDiagramFromText(rawQText, q.imageUrl || q.image_url);
     const rawOptions = extractOptionsIfMissing(q);
@@ -570,14 +777,12 @@ function BodyMCQ({ q, classes, isTwoCol, diagramMaxHeight = '180px', onDiagramRe
         const raw = typeof opt === 'object' ? (opt.text || opt.optionText || opt.value || opt.option || '') : String(opt || '');
         return raw.trim().length > 0;
     });
-    // Fallback: check q.opt_a, q.opt_b, q.opt_c, q.opt_d if options array was empty
     if (options.length < 2) {
         const directOpts = [q.opt_a, q.opt_b, q.opt_c, q.opt_d, q.option_a, q.option_b, q.option_c, q.option_d].filter(o => o && String(o).trim().length > 0);
         if (directOpts.length >= 2) {
             options = directOpts;
         }
     }
-    const isSideBySide = shouldRenderSideBySide(q, isTwoCol, imageUrl);
     const labels = getQuestionOptionLabels(q, optionFormat);
     const qId = q._id || q.id || displayNum;
     const currentDiagramHeight = q.customDiagramSizes?.['main'] || q.customDiagramHeight || diagramMaxHeight;
@@ -588,21 +793,33 @@ function BodyMCQ({ q, classes, isTwoCol, diagramMaxHeight = '180px', onDiagramRe
         return /\{\{IMG::|!\[|\[DIAGRAM:|<img|https?:\/\/.*?\.(png|jpg|jpeg|webp|svg|gif)|data:image\//i.test(str);
     });
 
-    // Render Options List
+    const optGapPx = optionSpacing === 'No Spacing' ? '0px' :
+                     optionSpacing === '5' ? '5px' :
+                     optionSpacing === '10' ? '10px' :
+                     optionSpacing === '15' ? '15px' : '3px';
+
+    const getOptionsGridStyle = (forceSingle = false) => {
+        if (forceSingle || optionsPerLine === 1) {
+            return { display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: optGapPx + ' 6px', marginTop: '3px', alignItems: 'start' };
+        }
+        if (optionsPerLine === 2) {
+            return { display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: optGapPx + ' 10px', marginTop: '3px', alignItems: 'start' };
+        }
+        if (optionsPerLine === 4) {
+            return { display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: optGapPx + ' 10px', marginTop: '3px', alignItems: 'start' };
+        }
+        const dynamicStyle = getDynamicOptGrid(options, isTwoCol);
+        return { ...dynamicStyle, gap: optGapPx + ' 10px' };
+    };
+
     const renderOptions = (forceSingle = false) => {
-        if (options.length === 0) return null;
+        if (displayMode === '5. Only Questions with No Options' || options.length === 0) return null;
         return (
-            <div
-                style={
-                    forceSingle
-                        ? { display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: '2px 6px', marginTop: '2px' }
-                        : getDynamicOptGrid(options, isTwoCol)
-                }
-            >
+            <div style={getOptionsGridStyle(forceSingle)}>
                 {options.map((opt, i) => {
                     const rawOpt = typeof opt === 'object' ? (opt.text || opt.optionText || opt.value || opt.option || '') : String(opt || '');
                     const optText = cleanOptionText(rawOpt);
-                    const optHeight = q.customDiagramSizes?.[`opt_${i}`] || q.customOptionDiagramHeight || '60px';
+                    const optHeight = q.customDiagramSizes?.['opt_' + i] || q.customOptionDiagramHeight || '60px';
 
                     return (
                         <div
@@ -625,7 +842,7 @@ function BodyMCQ({ q, classes, isTwoCol, diagramMaxHeight = '180px', onDiagramRe
                                     customDiagramSizes={q.customDiagramSizes}
                                     isOption={true}
                                     optionIndex={i}
-                                    onSizeChange={onDiagramResize ? (h, key) => onDiagramResize(qId, h, key || `opt_${i}`) : undefined}
+                                    onSizeChange={onDiagramResize ? (h, key) => onDiagramResize(qId, h, key || ('opt_' + i)) : undefined}
                                 />
                             </span>
                         </div>
@@ -635,10 +852,132 @@ function BodyMCQ({ q, classes, isTwoCol, diagramMaxHeight = '180px', onDiagramRe
         );
     };
 
-    if (imageUrl && isSideBySide) {
-        // SIDE-BY-SIDE:
-        // Top: Question statement (full width)
-        // Bottom: Left = Options (stacked vertically), Right = Diagram
+    const renderAnswerAndSolution = () => {
+        const showAns = displayMode === '2. Questions with Answers' || displayMode === '3. Questions with Answers & Solutions';
+        const showSol = displayMode === '3. Questions with Answers & Solutions';
+        if (!showAns && !showSol) return null;
+
+        const ansKey = formatOptionKey(q, optionFormat);
+        const solText = q.solutionText || q.solution_text || q.solution;
+
+        return (
+            <div style={{ marginTop: '5px', clear: 'both' }}>
+                {showAns && (
+                    <div
+                        style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            padding: '2px 8px',
+                            borderRadius: '4px',
+                            backgroundColor: '#dcfce7',
+                            border: '1px solid #86efac',
+                            color: '#15803d',
+                            fontWeight: 800,
+                            fontSize: '11px',
+                        }}
+                    >
+                        <span>✓ Answer:</span>
+                        <span>Option ({ansKey})</span>
+                    </div>
+                )}
+                {showSol && (
+                    <div
+                        style={{
+                            marginTop: '5px',
+                            padding: '6px 10px',
+                            backgroundColor: '#f0fdf4',
+                            border: '1.5px solid #86efac',
+                            borderRadius: '6px',
+                            fontSize: '11px',
+                            lineHeight: '1.45',
+                            color: '#1e293b',
+                        }}
+                    >
+                        <div style={{ fontWeight: 800, color: '#166534', marginBottom: '2px' }}>
+                            Solution:
+                        </div>
+                        <MathRenderer inline text={solText || 'Step-by-step verified solution.'} />
+                    </div>
+                )}
+            </div>
+        );
+    };
+
+    const effectiveAlign = String(imageAlignment || (shouldRenderSideBySide(q, isTwoCol, imageUrl) ? 'Right' : 'Below')).toLowerCase();
+
+    // 1. TOP ALIGNMENT (Diagram first, then Question Text, then Options)
+    if (imageUrl && effectiveAlign === 'top') {
+        return (
+            <>
+                <div style={{ textAlign: 'center', margin: '2px auto 4px', clear: 'both' }}>
+                    <ResizableDiagram
+                        src={imageUrl}
+                        alt="Diagram"
+                        questionId={qId}
+                        diagramKey="main"
+                        initialHeight={currentDiagramHeight}
+                        isManual={isMainManual}
+                        onSizeChange={onDiagramResize ? (h, key) => onDiagramResize(qId, h, key || 'main') : undefined}
+                        maxWidth="100%"
+                    />
+                </div>
+                {qText && (
+                    <div style={{ ...Q.qTextBold, marginBottom: '3px' }}>
+                        <MathRenderer
+                            inline
+                            text={qText}
+                            questionId={qId}
+                            customDiagramSizes={q.customDiagramSizes}
+                            onSizeChange={onDiagramResize ? (h, key) => onDiagramResize(qId, h, key) : undefined}
+                        />
+                    </div>
+                )}
+                {renderOptions(false)}
+                {renderAnswerAndSolution()}
+            </>
+        );
+    }
+
+    // 2. LEFT ALIGNMENT (Diagram on Left, Question + Options on Right)
+    if (imageUrl && effectiveAlign === 'left') {
+        return (
+            <>
+                {qText && (
+                    <div style={{ ...Q.qTextBold, marginBottom: '3px' }}>
+                        <MathRenderer
+                            inline
+                            text={qText}
+                            questionId={qId}
+                            customDiagramSizes={q.customDiagramSizes}
+                            onSizeChange={onDiagramResize ? (h, key) => onDiagramResize(qId, h, key) : undefined}
+                        />
+                    </div>
+                )}
+                <div style={Q.sideBySideContainer}>
+                    <div style={Q.sideRightDiagram}>
+                        <ResizableDiagram
+                            src={imageUrl}
+                            alt="Diagram"
+                            questionId={qId}
+                            diagramKey="main"
+                            initialHeight={currentDiagramHeight}
+                            isManual={isMainManual}
+                            onSizeChange={onDiagramResize ? (h, key) => onDiagramResize(qId, h, key || 'main') : undefined}
+                            maxWidth="100%"
+                        />
+                    </div>
+                    <div style={Q.sideLeftContent}>
+                        {renderOptions(true)}
+                        {renderAnswerAndSolution()}
+                    </div>
+                </div>
+            </>
+        );
+    }
+
+    // 3. RIGHT ALIGNMENT (Question + Options on Left, Diagram on Right)
+    if (imageUrl && effectiveAlign === 'right') {
         return (
             <>
                 {qText && (
@@ -655,6 +994,7 @@ function BodyMCQ({ q, classes, isTwoCol, diagramMaxHeight = '180px', onDiagramRe
                 <div style={Q.sideBySideContainer}>
                     <div style={Q.sideLeftContent}>
                         {renderOptions(true)}
+                        {renderAnswerAndSolution()}
                     </div>
                     <div style={Q.sideRightDiagram}>
                         <ResizableDiagram
@@ -673,7 +1013,7 @@ function BodyMCQ({ q, classes, isTwoCol, diagramMaxHeight = '180px', onDiagramRe
         );
     }
 
-    // INLINE / STANDARD LAYOUT
+    // 4. BELOW / CENTER / DEFAULT
     return (
         <>
             {qText && (
@@ -688,7 +1028,7 @@ function BodyMCQ({ q, classes, isTwoCol, diagramMaxHeight = '180px', onDiagramRe
                 </div>
             )}
             {imageUrl && (
-                <div style={{ textAlign: 'center', margin: '3px auto 5px', clear: 'both' }}>
+                <div style={{ textAlign: effectiveAlign === 'center' ? 'center' : 'center', margin: '3px auto 5px', clear: 'both' }}>
                     <ResizableDiagram
                         src={imageUrl}
                         alt="Diagram"
@@ -702,6 +1042,7 @@ function BodyMCQ({ q, classes, isTwoCol, diagramMaxHeight = '180px', onDiagramRe
                 </div>
             )}
             {renderOptions(false)}
+            {renderAnswerAndSolution()}
         </>
     );
 }
@@ -1398,15 +1739,65 @@ export default function QuestionBlock({
     singleColMode = false,
     isTwoCol = false,
     fontSize = '13px',
-    lineHeight = '1.45',
-    optionFormat = 'numeric',
+    lineHeight = '1.42',
+    optionFormat = '(1) (2) (3) (4)',
     formatMarks,
     extraStyle = {},
     diagramMaxHeight = '180px',
     onDiagramResize,
     examType = 'NEET',
+    onEdit,
+    onSwap,
+    showQuestionNumbers = true,
+    imageBelowQuestion = false,
+    displayMode = '1. Questions',
+    optionSpacing = 'Default',
+    questionSpacing = 'Default',
+    onLayoutChange,
 }) {
     if (!q) return null;
+
+    const [showGearPopup, setShowGearPopup] = React.useState(false);
+    const [localAlignment, setLocalAlignment] = React.useState(q.imageAlignment || (imageBelowQuestion ? 'Below' : null));
+    const [localOptionsPerLine, setLocalOptionsPerLine] = React.useState(q.optionsPerLine || null);
+    const [localDiagramHeight, setLocalDiagramHeight] = React.useState(
+        parseInt(q.customDiagramSizes?.['main'] || q.customDiagramHeight || diagramMaxHeight || 180, 10)
+    );
+
+    React.useEffect(() => {
+        if (q.imageAlignment) setLocalAlignment(q.imageAlignment);
+        else if (imageBelowQuestion) setLocalAlignment('Below');
+    }, [q.imageAlignment, imageBelowQuestion]);
+
+    React.useEffect(() => {
+        if (q.optionsPerLine) setLocalOptionsPerLine(q.optionsPerLine);
+    }, [q.optionsPerLine]);
+
+    const handleAlignmentChange = (newAlign) => {
+        setLocalAlignment(newAlign);
+        if (onLayoutChange) {
+            onLayoutChange({ imageAlignment: newAlign });
+        }
+    };
+
+    const handleOptionsPerLineChange = (num) => {
+        setLocalOptionsPerLine(num);
+        if (onLayoutChange) {
+            onLayoutChange({ optionsPerLine: num });
+        }
+    };
+
+    const handleDiagramSizeDelta = (delta) => {
+        const nextH = Math.min(800, Math.max(50, localDiagramHeight + delta));
+        setLocalDiagramHeight(nextH);
+        const qId = q._id || q.id || displayNum;
+        if (onDiagramResize) {
+            onDiagramResize(nextH, 'main');
+        }
+        if (onLayoutChange) {
+            onLayoutChange({ customDiagramHeight: nextH });
+        }
+    };
 
     const activeFontSize = q.fontSize || fontSize;
     const qType = (q.type || q.q_type || 'MCQ').toUpperCase();
@@ -1423,7 +1814,6 @@ export default function QuestionBlock({
     const hasStatements = (Array.isArray(q.statements) && q.statements.length > 0) || (stmtData.statements && stmtData.statements.length >= 2);
     const isStatement = qType.includes('STATEMENT') || hasStatements;
 
-    // Numerical questions are strictly JEE Main only (NEET and CET never have numericals)
     const isJeeExam = (examType || q.examType || '').toUpperCase().includes('JEE');
     const isNumerical = isJeeExam && (
         qType.includes('NUMERICAL') ||
@@ -1435,14 +1825,13 @@ export default function QuestionBlock({
     );
 
     const renderBody = () => {
-        // Section B / Numerical Questions MUST strictly render as BodyNumerical first (never Assertion & Reason, Statement, or Match)
         if (isNumerical) {
             return (
                 <BodyNumerical
                     q={q}
                     classes={classes}
                     isTwoCol={effectiveIsTwoCol}
-                    diagramMaxHeight={diagramMaxHeight}
+                    diagramMaxHeight={localDiagramHeight}
                     onDiagramResize={onDiagramResize}
                     displayNum={displayNum}
                 />
@@ -1454,7 +1843,7 @@ export default function QuestionBlock({
                     q={q}
                     classes={classes}
                     isTwoCol={effectiveIsTwoCol}
-                    diagramMaxHeight={diagramMaxHeight}
+                    diagramMaxHeight={localDiagramHeight}
                     onDiagramResize={onDiagramResize}
                     displayNum={displayNum}
                     optionFormat={optionFormat}
@@ -1467,7 +1856,7 @@ export default function QuestionBlock({
                     q={q}
                     classes={classes}
                     isTwoCol={effectiveIsTwoCol}
-                    diagramMaxHeight={diagramMaxHeight}
+                    diagramMaxHeight={localDiagramHeight}
                     onDiagramResize={onDiagramResize}
                     displayNum={displayNum}
                     optionFormat={optionFormat}
@@ -1480,31 +1869,131 @@ export default function QuestionBlock({
                     q={q}
                     classes={classes}
                     isTwoCol={effectiveIsTwoCol}
-                    diagramMaxHeight={diagramMaxHeight}
+                    diagramMaxHeight={localDiagramHeight}
                     onDiagramResize={onDiagramResize}
                     displayNum={displayNum}
                     optionFormat={optionFormat}
                 />
             );
         }
-        // Default MCQ & Diagram-Based
         return (
             <BodyMCQ
                 q={q}
                 classes={classes}
                 isTwoCol={effectiveIsTwoCol}
-                diagramMaxHeight={diagramMaxHeight}
+                diagramMaxHeight={localDiagramHeight}
                 onDiagramResize={onDiagramResize}
                 displayNum={displayNum}
                 optionFormat={optionFormat}
+                imageAlignment={localAlignment}
+                optionsPerLine={localOptionsPerLine}
+                displayMode={displayMode}
+                optionSpacing={optionSpacing}
             />
         );
     };
 
     return (
-        <div style={{ ...Q.wrap, fontSize: activeFontSize, lineHeight, ...extraStyle }} className="question-block">
+        <div style={{ ...Q.wrap, fontSize: activeFontSize, lineHeight, ...extraStyle, position: 'relative' }} className="question-block group">
+            <div
+                className="no-print"
+                style={{
+                    position: 'absolute',
+                    top: '-3px',
+                    right: '0px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    zIndex: 15,
+                    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                    padding: '2px 6px',
+                    borderRadius: '6px',
+                    border: '1px solid #cbd5e1',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+                }}
+            >
+                {/* ⚙️ Gear Button */}
+                <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); setShowGearPopup(prev => !prev); }}
+                    style={{
+                        border: 'none',
+                        background: showGearPopup ? '#001f6d' : 'transparent',
+                        color: showGearPopup ? '#ffd700' : '#475569',
+                        fontSize: '11px',
+                        fontWeight: 800,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '2px',
+                        padding: '1px 5px',
+                        borderRadius: '4px',
+                    }}
+                    title="Question Alignment, Options per Line & Diagram Size"
+                >
+                    <span>⚙️</span>
+                </button>
+
+                {onEdit && (
+                    <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); onEdit(q, displayNum); }}
+                        style={{
+                            border: 'none',
+                            background: 'transparent',
+                            color: '#1d4ed8',
+                            fontSize: '11px',
+                            fontWeight: 800,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '3px',
+                            padding: '1px 4px',
+                        }}
+                        title="Edit Question & LaTeX Formulas"
+                    >
+                        <span>✏️</span> Edit
+                    </button>
+                )}
+                {onSwap && (
+                    <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); onSwap(q, displayNum); }}
+                        style={{
+                            border: 'none',
+                            background: 'transparent',
+                            color: '#b45309',
+                            fontSize: '11px',
+                            fontWeight: 800,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '3px',
+                            padding: '1px 4px',
+                        }}
+                        title="Swap with another Question from Question Bank"
+                    >
+                        <span>🔀</span> Swap
+                    </button>
+                )}
+            </div>
+
+            {showGearPopup && (
+                <QuestionGearPopup
+                    imageAlignment={localAlignment}
+                    optionsPerLine={localOptionsPerLine}
+                    currentDiagramHeight={localDiagramHeight}
+                    onAlignmentChange={handleAlignmentChange}
+                    onOptionsPerLineChange={handleOptionsPerLineChange}
+                    onDiagramSizeDelta={handleDiagramSizeDelta}
+                    onClose={() => setShowGearPopup(false)}
+                />
+            )}
+
             <div style={Q.row}>
-                <span style={Q.num}>{displayNum}.</span>
+                {showQuestionNumbers && (
+                    <span style={Q.num}>{displayNum}.</span>
+                )}
                 <div style={Q.body}>{renderBody()}</div>
                 {showMarks && formatMarks && (
                     <span style={Q.marks}>[{formatMarks(q.type, classes)}]</span>

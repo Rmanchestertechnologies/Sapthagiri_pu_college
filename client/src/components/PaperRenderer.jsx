@@ -10,7 +10,8 @@
  * - Separate Alignment Step / Panel (not shown prematurely on create screen)
  * - 100% fidelity match between Preview and PDF print
  */
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { EditQuestionModal, SwapQuestionModal } from './PaperQuestionEditorModals';
 import api from '../api';
 import A4PaperEngine from './A4PaperEngine';
 import QuestionBlock from './QuestionBlock';
@@ -50,7 +51,15 @@ export const DEFAULT_SETTINGS = {
     fontFamily: '"Times New Roman", Times, Georgia, serif',
     fontSize: '13px',
     lineHeight: '1.42',
-    optionFormat: 'numeric', // Default to (1), (2), (3), (4) | toggleable to (A), (B), (C), (D)
+    displayMode: '1. Questions', // 7 modes from Image 4
+    optionFormat: '(1) (2) (3) (4)', // 3 styles from Image 3
+    startQNo: 1, // starting number (No * from Image 5)
+    optionSpacing: 'Default', // No Spacing, Default, 5, 10, 15 from Image 5
+    questionSpacing: 'Default', // No Spacing, Default, 5, 10, 15 from Image 5
+    showQuestionNumbers: true, // [x] Show Question Numbers from Image 5
+    imageBelowQuestion: false, // [x] Image below Question from Image 5
+    paper2Column: false, // [x] Paper 2 Column from Image 5
+    paper2ColumnQuestionBreak: true, // [x] Paper 2 Column Question Break from Image 5
     columns: 1,
     columnGap: '18px',
     showMarks: false,
@@ -59,7 +68,6 @@ export const DEFAULT_SETTINGS = {
     showCoverPage: false,
     includeSchemeOnLastPage: false,
     numberingMode: 'continuous',
-    startQNo: 1,
     endQNo: null,
     pageSize: 'A4',
     orientation: 'portrait',
@@ -67,8 +75,6 @@ export const DEFAULT_SETTINGS = {
     marginBottom: '10mm',
     marginLeft: '12mm',
     marginRight: '12mm',
-    questionSpacing: '8px',
-    optionSpacing: '2px',
     diagramMaxHeight: '180px',
 };
 
@@ -88,7 +94,6 @@ function SettingField({ label, children }) {
 
 export function SettingsPanel({ settings, setSettings, totalQuestions = 0 }) {
     const update = (key, val) => setSettings(s => ({ ...s, [key]: val }));
-    const endMax = settings.startQNo + totalQuestions - 1;
 
     return (
         <div className="bg-white p-6 rounded-2xl border-2 border-navy/20 shadow-md mb-6 animate-fade-in no-print">
@@ -97,44 +102,127 @@ export function SettingsPanel({ settings, setSettings, totalQuestions = 0 }) {
                     <span className="text-base font-black text-gold">⚙️</span>
                     <h3 className="font-black text-sm text-navy uppercase tracking-wider">Paper Alignment & Layout Controls</h3>
                 </div>
-                <span className="text-[11px] font-bold text-gray-500">Fine-tune spacing, typography, and page setup</span>
+                <span className="text-[11px] font-bold text-gray-500">Fine-tune display modes, options, spacing, and typography</span>
             </div>
 
+            {/* Row 1: Primary Controls from Image 3, 4, 5 */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '14px', marginBottom: '14px' }}>
+                <SettingField label="Display Questions, Solutions *">
+                    <select
+                        style={selectStyle}
+                        value={settings.displayMode || '1. Questions'}
+                        onChange={e => update('displayMode', e.target.value)}
+                    >
+                        <option value="1. Questions">1. Questions</option>
+                        <option value="2. Questions with Answers">2. Questions with Answers</option>
+                        <option value="3. Questions with Answers & Solutions">3. Questions with Answers & Solutions</option>
+                        <option value="4. Questions after Answers & Solutions">4. Questions after Answers & Solutions</option>
+                        <option value="5. Only Questions with No Options">5. Only Questions with No Options</option>
+                        <option value="6. Only Answers & Solutions">6. Only Answers & Solutions</option>
+                        <option value="7. Only Answers">7. Only Answers</option>
+                    </select>
+                </SettingField>
+
+                <SettingField label="Option Numbering Style *">
+                    <select
+                        style={selectStyle}
+                        value={settings.optionFormat || '(1) (2) (3) (4)'}
+                        onChange={e => update('optionFormat', e.target.value)}
+                    >
+                        <option value="(1) (2) (3) (4)">(1) (2) (3) (4)</option>
+                        <option value="(A) (B) (C) (D)">(A) (B) (C) (D)</option>
+                        <option value="(a) (b) (c) (d)">(a) (b) (c) (d)</option>
+                    </select>
+                </SettingField>
+
+                <SettingField label="No *">
+                    <input
+                        type="number"
+                        min="1"
+                        style={inputStyle}
+                        value={settings.startQNo || 1}
+                        onChange={e => update('startQNo', Math.max(1, parseInt(e.target.value, 10) || 1))}
+                        placeholder="Starting Q No (e.g. 1)"
+                    />
+                </SettingField>
+
+                <SettingField label="Options *">
+                    <select
+                        style={selectStyle}
+                        value={settings.optionSpacing || 'Default'}
+                        onChange={e => update('optionSpacing', e.target.value)}
+                    >
+                        <option value="No Spacing">No Spacing</option>
+                        <option value="Default">Default</option>
+                        <option value="5">5</option>
+                        <option value="10">10</option>
+                        <option value="15">15</option>
+                    </select>
+                </SettingField>
+
+                <SettingField label="Gap Between Questions *">
+                    <select
+                        style={selectStyle}
+                        value={settings.questionSpacing || 'Default'}
+                        onChange={e => update('questionSpacing', e.target.value)}
+                    >
+                        <option value="No Spacing">No Spacing</option>
+                        <option value="Default">Default</option>
+                        <option value="5">5</option>
+                        <option value="10">10</option>
+                        <option value="15">15</option>
+                    </select>
+                </SettingField>
+            </div>
+
+            {/* Row 2: 4 Checkboxes from Image 5 */}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '20px', alignItems: 'center', padding: '12px 16px', backgroundColor: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0', marginBottom: '16px' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', fontWeight: 700, color: '#1e293b', cursor: 'pointer' }}>
+                    <input
+                        type="checkbox"
+                        checked={settings.showQuestionNumbers !== false}
+                        onChange={e => update('showQuestionNumbers', e.target.checked)}
+                        style={{ width: '16px', height: '16px', accentColor: '#001f6d', cursor: 'pointer' }}
+                    />
+                    Show Question Numbers
+                </label>
+
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', fontWeight: 700, color: '#1e293b', cursor: 'pointer' }}>
+                    <input
+                        type="checkbox"
+                        checked={Boolean(settings.imageBelowQuestion)}
+                        onChange={e => update('imageBelowQuestion', e.target.checked)}
+                        style={{ width: '16px', height: '16px', accentColor: '#001f6d', cursor: 'pointer' }}
+                    />
+                    Image below Question
+                </label>
+
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', fontWeight: 700, color: '#1e293b', cursor: 'pointer' }}>
+                    <input
+                        type="checkbox"
+                        checked={Boolean(settings.paper2Column || settings.columns === 2)}
+                        onChange={e => {
+                            const val = e.target.checked;
+                            setSettings(s => ({ ...s, paper2Column: val, columns: val ? 2 : 1 }));
+                        }}
+                        style={{ width: '16px', height: '16px', accentColor: '#001f6d', cursor: 'pointer' }}
+                    />
+                    Paper 2 Column
+                </label>
+
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', fontWeight: 700, color: '#1e293b', cursor: 'pointer' }}>
+                    <input
+                        type="checkbox"
+                        checked={settings.paper2ColumnQuestionBreak !== false}
+                        onChange={e => update('paper2ColumnQuestionBreak', e.target.checked)}
+                        style={{ width: '16px', height: '16px', accentColor: '#001f6d', cursor: 'pointer' }}
+                    />
+                    Paper 2 Column Question Break
+                </label>
+            </div>
+
+            {/* Row 3: Typography & Paper Layout */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))', gap: '14px' }}>
-                {/* ── Spacing & Layout ── */}
-                <SettingField label="Question Spacing">
-                    <select style={selectStyle} value={settings.questionSpacing} onChange={e => update('questionSpacing', e.target.value)}>
-                        <option value="8px">Compact (8px)</option>
-                        <option value="10px">Standard (10px - Recommended)</option>
-                        <option value="14px">Relaxed (14px)</option>
-                        <option value="18px">Wide (18px)</option>
-                    </select>
-                </SettingField>
-
-                <SettingField label="Columns Mode">
-                    <select style={selectStyle} value={settings.columns} onChange={e => update('columns', parseInt(e.target.value))}>
-                        <option value={1}>Single Column</option>
-                        <option value={2}>Two Columns</option>
-                    </select>
-                </SettingField>
-
-                <SettingField label="Diagram Max Height">
-                    <select style={selectStyle} value={settings.diagramMaxHeight} onChange={e => update('diagramMaxHeight', e.target.value)}>
-                        <option value="200px">Medium (200px)</option>
-                        <option value="260px">Standard / Clear (260px - Recommended)</option>
-                        <option value="300px">Large (300px)</option>
-                        <option value="350px">Extra Large (350px)</option>
-                    </select>
-                </SettingField>
-
-                {/* ── Typography & Options ── */}
-                <SettingField label="Option Label Style">
-                    <select style={selectStyle} value={settings.optionFormat || 'alpha'} onChange={e => update('optionFormat', e.target.value)}>
-                        <option value="alpha">(A), (B), (C), (D) - Alphabetic</option>
-                        <option value="numeric">(1), (2), (3), (4) - Numeric</option>
-                    </select>
-                </SettingField>
-
                 <SettingField label="Font Style">
                     <select style={selectStyle} value={settings.fontFamily} onChange={e => update('fontFamily', e.target.value)}>
                         <option value='"Times New Roman", Times, Georgia, serif'>Times New Roman (Standard)</option>
@@ -160,6 +248,15 @@ export function SettingsPanel({ settings, setSettings, totalQuestions = 0 }) {
                         <option value="1.35">Compact (1.35)</option>
                         <option value="1.45">Standard (1.45)</option>
                         <option value="1.6">Relaxed (1.6)</option>
+                    </select>
+                </SettingField>
+
+                <SettingField label="Diagram Max Height">
+                    <select style={selectStyle} value={settings.diagramMaxHeight} onChange={e => update('diagramMaxHeight', e.target.value)}>
+                        <option value="200px">Medium (200px)</option>
+                        <option value="260px">Standard / Clear (260px - Recommended)</option>
+                        <option value="300px">Large (300px)</option>
+                        <option value="350px">Extra Large (350px)</option>
                     </select>
                 </SettingField>
 
@@ -386,6 +483,7 @@ export default function PaperRenderer({
     onProceedToFinalize,
     onDiagramResize,
     onShuffleQuestions,
+    onPaperUpdated,
 }) {
     const [internalSettings, setInternalSettings] = useState(DEFAULT_SETTINGS);
     const settings = externalSettings || internalSettings;
@@ -398,12 +496,74 @@ export default function PaperRenderer({
     // Preview Controls state
     const [zoom, setZoom] = useState(100);
 
+    // Live questions state for on-the-fly editing & swapping in preview
+    const [localQuestions, setLocalQuestions] = useState(paper?.questions || []);
+
+    useEffect(() => {
+        if (paper?.questions) {
+            setLocalQuestions(paper.questions);
+        }
+    }, [paper?.questions]);
+
+    const [editingQuestion, setEditingQuestion] = useState(null); // { question, index, displayNum }
+    const [swappingQuestion, setSwappingQuestion] = useState(null); // { question, index, displayNum }
+
+    const handleSaveEditedQuestion = async (updatedQ, index) => {
+        const nextQuestions = [...localQuestions];
+        nextQuestions[index] = updatedQ;
+        setLocalQuestions(nextQuestions);
+
+        const updatedPaper = { ...paper, questions: nextQuestions };
+        if (onPaperUpdated) {
+            onPaperUpdated(updatedPaper);
+        }
+
+        const paperId = paper?._id || paper?.id;
+        if (paperId) {
+            try {
+                await api.put(`/api/papers/${paperId}`, {
+                    ...paper,
+                    questions: nextQuestions
+                });
+            } catch (e) {
+                console.warn('Auto-save edited question warning:', e.message);
+            }
+        }
+    };
+
+    const handleSelectSwappedQuestion = async (index, chosenQ) => {
+        const nextQuestions = [...localQuestions];
+        nextQuestions[index] = chosenQ;
+        setLocalQuestions(nextQuestions);
+
+        const updatedPaper = { ...paper, questions: nextQuestions };
+        if (onPaperUpdated) {
+            onPaperUpdated(updatedPaper);
+        }
+
+        const paperId = paper?._id || paper?.id;
+        if (paperId) {
+            try {
+                await api.put(`/api/papers/${paperId}`, {
+                    ...paper,
+                    questions: nextQuestions
+                });
+            } catch (e) {
+                console.warn('Auto-save swapped question warning:', e.message);
+            }
+        }
+    };
+
+    const effectivePaper = useMemo(() => {
+        return { ...paper, questions: localQuestions };
+    }, [paper, localQuestions]);
+
     // Generate active set paper only when sets are active, otherwise return master paper
     const activePaper = useMemo(() => {
-        if (isAssignment || !paper) return paper;
-        if (!setsActive || activeSet === 'P') return { ...paper, setName: setsActive ? 'P' : '' };
-        return generatePaperSet(paper, activeSet);
-    }, [paper, activeSet, isAssignment, setsActive]);
+        if (isAssignment || !effectivePaper) return effectivePaper;
+        if (!setsActive || activeSet === 'P') return { ...effectivePaper, setName: setsActive ? 'P' : '' };
+        return generatePaperSet(effectivePaper, activeSet);
+    }, [effectivePaper, activeSet, isAssignment, setsActive]);
 
     const questions = useMemo(() => activePaper?.questions || [], [activePaper]);
 
@@ -472,9 +632,43 @@ export default function PaperRenderer({
         window.print();
     };
 
+    // Layout change handler
+    const handleUpdateQuestionLayout = (qIndex, layoutChanges) => {
+        const nextQuestions = [...localQuestions];
+        nextQuestions[qIndex] = {
+            ...nextQuestions[qIndex],
+            ...layoutChanges,
+        };
+        setLocalQuestions(nextQuestions);
+        const updatedPaper = { ...paper, questions: nextQuestions };
+        if (onPaperUpdated) {
+            onPaperUpdated(updatedPaper);
+        }
+    };
+
+    // Question delete handler
+    const handleDeleteQuestion = async (index) => {
+        const nextQuestions = localQuestions.filter((_, i) => i !== index);
+        setLocalQuestions(nextQuestions);
+        const updatedPaper = { ...paper, questions: nextQuestions };
+        if (onPaperUpdated) {
+            onPaperUpdated(updatedPaper);
+        }
+        const paperId = paper?._id || paper?.id;
+        if (paperId) {
+            try {
+                await api.put('/api/papers/' + paperId, {
+                    ...paper,
+                    questions: nextQuestions,
+                });
+            } catch (e) {
+                console.warn('Auto-save deleted question warning:', e.message);
+            }
+        }
+    };
+
     return (
         <div className="paper-renderer-wrapper w-full flex flex-col items-center">
-            
             {/* ── PREVIEW TOOLBAR ── */}
             <div className="sticky top-4 z-40 bg-white/95 backdrop-blur-md px-6 py-3.5 rounded-2xl shadow-xl border-2 border-navy/20 flex flex-wrap items-center justify-between gap-4 mb-6 w-full max-w-5xl no-print">
                 {/* 4-Sets Control (P, Q, R, S) */}
@@ -488,17 +682,8 @@ export default function PaperRenderer({
                                         key={s}
                                         type="button"
                                         onClick={() => setActiveSet(s)}
-                                        className={`px-3 py-1 rounded-lg text-xs font-black transition cursor-pointer ${
-                                            activeSet === s
-                                                ? 'bg-navy text-gold shadow-sm scale-105'
-                                                : 'bg-white text-slate-700 hover:bg-slate-200'
-                                        }`}
-                                        title={
-                                            s === 'P' ? 'Set P: Original Order' :
-                                            s === 'Q' ? 'Set Q: Questions Shuffled' :
-                                            s === 'R' ? 'Set R: Options Shuffled' :
-                                            'Set S: Both Questions & Options Shuffled'
-                                        }
+                                        className={'px-3 py-1 rounded-lg text-xs font-black transition cursor-pointer ' + (activeSet === s ? 'bg-navy text-gold shadow-sm scale-105' : 'bg-white text-slate-700 hover:bg-slate-200')}
+                                        title={'Set ' + s}
                                     >
                                         Set {s}
                                     </button>
@@ -507,7 +692,7 @@ export default function PaperRenderer({
                                     type="button"
                                     onClick={() => setSetsActive(false)}
                                     className="text-slate-400 hover:text-red-500 text-xs px-1.5 py-0.5 rounded cursor-pointer ml-1"
-                                    title="Disable 4-Sets & Return to Standard Paper"
+                                    title="Disable 4-Sets"
                                 >
                                     ✕
                                 </button>
@@ -529,23 +714,43 @@ export default function PaperRenderer({
                 {/* Mode & Columns Switcher */}
                 <div className="flex items-center gap-2">
                     <button
-                        onClick={() => setSettings(s => ({ ...s, columns: s.columns === 2 ? 1 : 2 }))}
+                        onClick={() => {
+                            const newCols = settings.columns === 2 ? 1 : 2;
+                            setSettings(s => ({ ...s, columns: newCols, paper2Column: newCols === 2 }));
+                        }}
                         className="bg-slate-100 hover:bg-slate-200 text-navy px-3.5 py-1.5 rounded-xl font-bold text-xs border border-slate-300 transition cursor-pointer flex items-center gap-1.5"
                     >
-                        <span>{settings.columns === 2 ? '📰 2-Columns (Dense)' : '📄 Single Column'}</span>
+                        <span>{settings.columns === 2 ? '📰 2-Columns' : '📄 Single Column'}</span>
                         <span className="text-[10px] bg-navy text-gold px-1.5 py-0.5 rounded">Switch</span>
                     </button>
 
-                    {/* Dynamic Option Style Toggle (A, B, C, D vs 1, 2, 3, 4) */}
-                    <button
-                        type="button"
-                        onClick={() => setSettings(s => ({ ...s, optionFormat: s.optionFormat === 'numeric' ? 'alpha' : 'numeric' }))}
-                        className="bg-slate-100 hover:bg-slate-200 text-navy px-3 py-1.5 rounded-xl font-bold text-xs border border-slate-300 transition cursor-pointer flex items-center gap-1.5"
-                        title="Toggle option numbering style: (A, B, C, D) vs (1, 2, 3, 4)"
+                    {/* Option Style Selector matching Image 3 */}
+                    <select
+                        value={settings.optionFormat || '(1) (2) (3) (4)'}
+                        onChange={e => setSettings(s => ({ ...s, optionFormat: e.target.value }))}
+                        className="bg-slate-100 text-navy px-3 py-1.5 rounded-xl font-bold text-xs border border-slate-300 transition cursor-pointer outline-none"
+                        title="Option numbering style"
                     >
-                        <span>{settings.optionFormat === 'numeric' ? '🔢 (1, 2, 3, 4)' : '🔤 (A, B, C, D)'}</span>
-                        <span className="text-[10px] bg-navy text-gold px-1.5 py-0.5 rounded font-black">Style</span>
-                    </button>
+                        <option value="(1) (2) (3) (4)">🔢 (1) (2) (3) (4)</option>
+                        <option value="(A) (B) (C) (D)">🔤 (A) (B) (C) (D)</option>
+                        <option value="(a) (b) (c) (d)">🔡 (a) (b) (c) (d)</option>
+                    </select>
+
+                    {/* Display Mode Quick Selector matching Image 4 */}
+                    <select
+                        value={settings.displayMode || '1. Questions'}
+                        onChange={e => setSettings(s => ({ ...s, displayMode: e.target.value }))}
+                        className="bg-slate-100 text-navy px-3 py-1.5 rounded-xl font-bold text-xs border border-slate-300 transition cursor-pointer outline-none"
+                        title="Display questions, answers & solutions mode"
+                    >
+                        <option value="1. Questions">1. Questions</option>
+                        <option value="2. Questions with Answers">2. Questions with Answers</option>
+                        <option value="3. Questions with Answers & Solutions">3. Qs + Solutions</option>
+                        <option value="4. Questions after Answers & Solutions">4. Qs then Solutions</option>
+                        <option value="5. Only Questions with No Options">5. Qs No Options</option>
+                        <option value="6. Only Answers & Solutions">6. Only Solutions</option>
+                        <option value="7. Only Answers">7. Only Answers</option>
+                    </select>
 
                     {/* Font Size Selector */}
                     <div className="hidden lg:flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-300">
@@ -555,10 +760,8 @@ export default function PaperRenderer({
                                 key={sz}
                                 type="button"
                                 onClick={() => setSettings(s => ({ ...s, fontSize: sz }))}
-                                className={`px-2 py-0.5 rounded-lg text-xs font-bold transition cursor-pointer ${
-                                    settings.fontSize === sz ? 'bg-navy text-gold shadow-xs' : 'text-slate-700 hover:bg-slate-200'
-                                }`}
-                                title={`Set font size to ${sz}`}
+                                className={'px-2 py-0.5 rounded-lg text-xs font-bold transition cursor-pointer ' + (settings.fontSize === sz ? 'bg-navy text-gold shadow-xs' : 'text-slate-700 hover:bg-slate-200')}
+                                title={'Set font size to ' + sz}
                             >
                                 {sz.replace('px', '')}
                             </button>
@@ -571,7 +774,7 @@ export default function PaperRenderer({
                             type="button"
                             onClick={onShuffleQuestions}
                             className="bg-slate-100 hover:bg-slate-200 text-navy px-3 py-1.5 rounded-xl font-bold text-xs border border-slate-300 transition cursor-pointer flex items-center gap-1.5"
-                            title="Shuffle question order within sections (Fisher-Yates)"
+                            title="Shuffle question order within sections"
                         >
                             <span>🔀</span>
                             <span>Shuffle</span>
@@ -581,10 +784,13 @@ export default function PaperRenderer({
                     <span className="text-xs font-bold text-gray-500">
                         {questions.length} Questions
                     </span>
+                    <div className="hidden sm:flex items-center gap-1.5 bg-blue-50 border border-blue-200 px-2.5 py-1 rounded-xl">
+                        <span className="text-[10px] font-black text-blue-900">⚙️ Align • ✏️ Edit • 🔀 Swap Ready</span>
+                    </div>
                 </div>
 
                 {/* View Controls (Zoom, Mode) */}
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2">
                     <div className="flex items-center bg-gray-100 rounded-xl p-1 gap-1">
                         <button
                             onClick={() => setZoom(z => Math.max(60, z - 15))}
@@ -613,10 +819,10 @@ export default function PaperRenderer({
                         type="button"
                         onClick={handleDownloadWord}
                         disabled={downloadingWord}
-                        className="bg-blue-700 hover:bg-blue-800 disabled:opacity-50 text-white px-4 py-2 rounded-xl font-black text-xs uppercase tracking-wider transition shadow cursor-pointer flex items-center gap-1.5"
-                        title="Download 100% editable Microsoft Word document (.docx) with editable math characters"
+                        className="bg-blue-700 hover:bg-blue-800 disabled:opacity-50 text-white px-3.5 py-2 rounded-xl font-black text-xs uppercase tracking-wider transition shadow cursor-pointer flex items-center gap-1.5"
+                        title="Download 100% editable Microsoft Word document (.docx)"
                     >
-                        <span>📝</span> {downloadingWord ? 'Exporting Word...' : 'Download Word (.docx)'}
+                        <span>📝</span> {downloadingWord ? 'Exporting...' : 'Word (.docx)'}
                     </button>
                     <button
                         type="button"
@@ -624,7 +830,7 @@ export default function PaperRenderer({
                         className="bg-gold text-navy hover:bg-navy hover:text-gold px-4 py-2 rounded-xl font-black text-xs uppercase tracking-wider transition shadow cursor-pointer flex items-center gap-1.5"
                         title="Print or Save as vector PDF"
                     >
-                        <span>📄</span> Download PDF / Print
+                        <span>📄</span> PDF / Print
                     </button>
                 </div>
 
@@ -664,6 +870,29 @@ export default function PaperRenderer({
                 settings={settings}
                 zoom={zoom}
                 onDiagramResize={onDiagramResize}
+                onEditQuestion={(q, idx, displayNum) => setEditingQuestion({ question: q, index: idx, displayNum })}
+                onSwapQuestion={(q, idx, displayNum) => setSwappingQuestion({ question: q, index: idx, displayNum })}
+                onQuestionLayoutChange={handleUpdateQuestionLayout}
+            />
+
+            {/* ── INTERACTIVE EDIT & SWAP MODALS ── */}
+            <EditQuestionModal
+                isOpen={Boolean(editingQuestion)}
+                question={editingQuestion?.question}
+                questionIndex={editingQuestion?.index}
+                displayNum={editingQuestion?.displayNum}
+                onClose={() => setEditingQuestion(null)}
+                onSave={(updatedQ, idx) => handleSaveEditedQuestion(updatedQ, idx)}
+                onDelete={(idx) => handleDeleteQuestion(idx)}
+            />
+            <SwapQuestionModal
+                isOpen={Boolean(swappingQuestion)}
+                oldQuestion={swappingQuestion?.question}
+                questionIndex={swappingQuestion?.index}
+                displayNum={swappingQuestion?.displayNum}
+                paperSubject={activePaper?.subject}
+                onClose={() => setSwappingQuestion(null)}
+                onSwap={(idx, chosenQ) => handleSelectSwappedQuestion(idx, chosenQ)}
             />
         </div>
     );
