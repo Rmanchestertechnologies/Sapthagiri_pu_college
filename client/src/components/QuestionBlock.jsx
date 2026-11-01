@@ -503,161 +503,195 @@ export function QuestionGearPopup({
     onOptionsPerLineChange,
     onDiagramSizeDelta,
     onClose,
+    displayNum = 1,
 }) {
     return (
         <div
-            className="no-print"
-            style={{
-                position: 'absolute',
-                top: '26px',
-                right: '0px',
-                zIndex: 60,
-                backgroundColor: '#ffffff',
-                border: '1.5px solid #001f6d',
-                borderRadius: '12px',
-                padding: '12px 14px',
-                boxShadow: '0 12px 28px rgba(0, 0, 0, 0.22)',
-                width: '320px',
-                fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-                textAlign: 'left',
-            }}
-            onClick={(e) => e.stopPropagation()}
+            className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-navy/50 backdrop-blur-xs animate-fade-in no-print"
+            onClick={onClose}
+            style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0, 31, 109, 0.45)', backdropFilter: 'blur(3px)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
         >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', borderBottom: '1px solid #e2e8f0', paddingBottom: '4px' }}>
-                <span style={{ fontSize: '11px', fontWeight: 900, color: '#001f6d', letterSpacing: '0.04em' }}>
-                    ⚙️ QUESTION DISPLAY SETTINGS
-                </span>
-                <button
-                    type="button"
-                    onClick={onClose}
-                    style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '13px', fontWeight: 900, color: '#64748b' }}
-                >
-                    ✕
-                </button>
-            </div>
-
-            {/* 1. IMAGE ALIGNMENT */}
-            <div style={{ marginBottom: '10px' }}>
-                <div style={{ fontSize: '10px', fontWeight: 900, color: '#334155', textTransform: 'uppercase', marginBottom: '4px', letterSpacing: '0.04em' }}>
-                    IMAGE ALIGNMENT
+            <div
+                className="bg-white rounded-2xl shadow-2xl border-2 border-navy w-full max-w-sm p-5 animate-scale-in"
+                style={{
+                    backgroundColor: '#ffffff',
+                    fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+                    color: '#0f172a',
+                    boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.4)',
+                    border: '2px solid #001f6d',
+                    borderRadius: '16px',
+                    padding: '20px',
+                    maxWidth: '360px',
+                    width: '100%',
+                }}
+                onClick={(e) => e.stopPropagation()}
+            >
+                {/* Header matching Image 1 */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', borderBottom: '1.5px solid #e2e8f0', paddingBottom: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontSize: '16px' }}>⚙️</span>
+                        <div>
+                            <span style={{ fontSize: '11px', fontWeight: 900, color: '#001f6d', letterSpacing: '0.04em', display: 'block', textTransform: 'uppercase' }}>
+                                QUESTION DISPLAY SETTINGS
+                            </span>
+                            <span style={{ fontSize: '10px', fontWeight: 700, color: '#64748b' }}>
+                                Question #{displayNum}
+                            </span>
+                        </div>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        style={{ border: 'none', background: '#f1f5f9', borderRadius: '6px', width: '26px', height: '26px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: '13px', fontWeight: 900, color: '#475569' }}
+                    >
+                        ✕
+                    </button>
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '4px' }}>
-                    {['Left', 'Right', 'Top', 'Below', 'Center'].map((align) => {
-                        const isActive = String(imageAlignment || '').toLowerCase() === align.toLowerCase();
-                        return (
+
+                {/* 1. IMAGE ALIGNMENT matching Image 1 */}
+                <div style={{ marginBottom: '12px' }}>
+                    <div style={{ fontSize: '10.5px', fontWeight: 900, color: '#1e293b', textTransform: 'uppercase', marginBottom: '5px', letterSpacing: '0.04em' }}>
+                        IMAGE ALIGNMENT
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '4px' }}>
+                        {['Left', 'Right', 'Top', 'Below', 'Center'].map((align) => {
+                            const isActive = String(imageAlignment || '').toLowerCase() === align.toLowerCase();
+                            return (
+                                <button
+                                    key={align}
+                                    type="button"
+                                    onClick={() => onAlignmentChange(align)}
+                                    style={{
+                                        padding: '6px 2px',
+                                        fontSize: '11px',
+                                        fontWeight: 800,
+                                        borderRadius: '6px',
+                                        border: isActive ? '1.5px solid #001f6d' : '1px solid #cbd5e1',
+                                        backgroundColor: isActive ? '#001f6d' : '#ffffff',
+                                        color: isActive ? '#ffffff' : '#1e293b',
+                                        cursor: 'pointer',
+                                        transition: 'all 0.15s ease',
+                                    }}
+                                >
+                                    {align}
+                                </button>
+                            );
+                        })}
+                    </div>
+                </div>
+
+                {/* 2. OPTIONS PER LINE matching Image 1 */}
+                <div style={{ marginBottom: '12px' }}>
+                    <div style={{ fontSize: '10.5px', fontWeight: 900, color: '#1e293b', textTransform: 'uppercase', marginBottom: '5px', letterSpacing: '0.04em' }}>
+                        OPTIONS PER LINE
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px' }}>
+                        {[1, 2, 4].map((num) => {
+                            const isActive = Number(optionsPerLine) === num;
+                            return (
+                                <button
+                                    key={num}
+                                    type="button"
+                                    onClick={() => onOptionsPerLineChange(num)}
+                                    style={{
+                                        padding: '6px 0',
+                                        fontSize: '11.5px',
+                                        fontWeight: 800,
+                                        borderRadius: '6px',
+                                        border: isActive ? '1.5px solid #001f6d' : '1px solid #cbd5e1',
+                                        backgroundColor: isActive ? '#001f6d' : '#ffffff',
+                                        color: isActive ? '#ffffff' : '#1e293b',
+                                        cursor: 'pointer',
+                                        transition: 'all 0.15s ease',
+                                    }}
+                                >
+                                    {num}
+                                </button>
+                            );
+                        })}
+                    </div>
+                </div>
+
+                {/* 3. IMAGE SIZE matching Image 1 */}
+                <div style={{ marginBottom: '14px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
+                        <span style={{ fontSize: '10.5px', fontWeight: 900, color: '#1e293b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                            IMAGE SIZE
+                        </span>
+                        <span style={{ fontSize: '10px', fontWeight: 800, color: '#475569', backgroundColor: '#f1f5f9', padding: '1px 6px', borderRadius: '4px' }}>
+                            {parseInt(currentDiagramHeight, 10) || 180}px
+                        </span>
+                    </div>
+                    {/* Green increase buttons row */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '4px', marginBottom: '5px' }}>
+                        {[10, 25, 50, 100, 250].map((val) => (
                             <button
-                                key={align}
+                                key={val}
                                 type="button"
-                                onClick={() => onAlignmentChange(align)}
+                                onClick={() => onDiagramSizeDelta(val)}
                                 style={{
-                                    padding: '4px 2px',
+                                    padding: '5px 0',
                                     fontSize: '10.5px',
                                     fontWeight: 800,
                                     borderRadius: '6px',
-                                    border: isActive ? '1.5px solid #001f6d' : '1px solid #cbd5e1',
-                                    backgroundColor: isActive ? '#001f6d' : '#f8fafc',
-                                    color: isActive ? '#ffffff' : '#1e293b',
+                                    border: '1px solid #15803d',
+                                    backgroundColor: '#16a34a',
+                                    color: '#ffffff',
                                     cursor: 'pointer',
                                     transition: 'all 0.15s ease',
                                 }}
+                                title={'Increase diagram height by ' + val + 'px'}
                             >
-                                {align}
+                                +{val}
                             </button>
-                        );
-                    })}
-                </div>
-            </div>
-
-            {/* 2. OPTIONS PER LINE */}
-            <div style={{ marginBottom: '10px' }}>
-                <div style={{ fontSize: '10px', fontWeight: 900, color: '#334155', textTransform: 'uppercase', marginBottom: '4px', letterSpacing: '0.04em' }}>
-                    OPTIONS PER LINE
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px' }}>
-                    {[1, 2, 4].map((num) => {
-                        const isActive = Number(optionsPerLine) === num;
-                        return (
+                        ))}
+                    </div>
+                    {/* Red decrease buttons row */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '4px' }}>
+                        {[10, 25, 50, 100, 250].map((val) => (
                             <button
-                                key={num}
+                                key={val}
                                 type="button"
-                                onClick={() => onOptionsPerLineChange(num)}
+                                onClick={() => onDiagramSizeDelta(-val)}
                                 style={{
-                                    padding: '4px 0',
-                                    fontSize: '11px',
+                                    padding: '5px 0',
+                                    fontSize: '10.5px',
                                     fontWeight: 800,
                                     borderRadius: '6px',
-                                    border: isActive ? '1.5px solid #001f6d' : '1px solid #cbd5e1',
-                                    backgroundColor: isActive ? '#001f6d' : '#f8fafc',
-                                    color: isActive ? '#ffffff' : '#1e293b',
+                                    border: '1px solid #b91c1c',
+                                    backgroundColor: '#dc2626',
+                                    color: '#ffffff',
                                     cursor: 'pointer',
                                     transition: 'all 0.15s ease',
                                 }}
+                                title={'Decrease diagram height by ' + val + 'px'}
                             >
-                                {num}
+                                -{val}
                             </button>
-                        );
-                    })}
+                        ))}
+                    </div>
                 </div>
-            </div>
 
-            {/* 3. IMAGE SIZE */}
-            <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                    <span style={{ fontSize: '10px', fontWeight: 900, color: '#334155', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                        IMAGE SIZE
-                    </span>
-                    <span style={{ fontSize: '9.5px', fontWeight: 800, color: '#64748b' }}>
-                        {parseInt(currentDiagramHeight, 10) || 180}px
-                    </span>
-                </div>
-                {/* Green increase buttons row */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '4px', marginBottom: '4px' }}>
-                    {[10, 25, 50, 100, 250].map((val) => (
-                        <button
-                            key={val}
-                            type="button"
-                            onClick={() => onDiagramSizeDelta(val)}
-                            style={{
-                                padding: '4px 0',
-                                fontSize: '10px',
-                                fontWeight: 800,
-                                borderRadius: '6px',
-                                border: '1px solid #15803d',
-                                backgroundColor: '#16a34a',
-                                color: '#ffffff',
-                                cursor: 'pointer',
-                                transition: 'all 0.15s ease',
-                            }}
-                            title={'Increase diagram height by ' + val + 'px'}
-                        >
-                            +{val}
-                        </button>
-                    ))}
-                </div>
-                {/* Red decrease buttons row */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '4px' }}>
-                    {[10, 25, 50, 100, 250].map((val) => (
-                        <button
-                            key={val}
-                            type="button"
-                            onClick={() => onDiagramSizeDelta(-val)}
-                            style={{
-                                padding: '4px 0',
-                                fontSize: '10px',
-                                fontWeight: 800,
-                                borderRadius: '6px',
-                                border: '1px solid #b91c1c',
-                                backgroundColor: '#dc2626',
-                                color: '#ffffff',
-                                cursor: 'pointer',
-                                transition: 'all 0.15s ease',
-                            }}
-                            title={'Decrease diagram height by ' + val + 'px'}
-                        >
-                            -{val}
-                        </button>
-                    ))}
-                </div>
+                {/* Apply & Close button */}
+                <button
+                    type="button"
+                    onClick={onClose}
+                    style={{
+                        width: '100%',
+                        padding: '8px 0',
+                        backgroundColor: '#001f6d',
+                        color: '#ffffff',
+                        fontWeight: 800,
+                        fontSize: '11px',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.04em',
+                        borderRadius: '8px',
+                        border: 'none',
+                        cursor: 'pointer',
+                    }}
+                >
+                    Apply & Close
+                </button>
             </div>
         </div>
     );
@@ -667,6 +701,11 @@ export function QuestionGearPopup({
 export function cleanQuestionText(text) {
     if (!text) return '';
     let str = String(text);
+    // Auto-repair corrupted OCR unit tokens e.g. 1 fracA} -> 1 A, fracHz,} -> Hz,
+    str = str.replace(/([0-9\.\s]+)frac([A-Za-z]+)\}/g, '$1 $2');
+    str = str.replace(/\\?frac\s*([A-Za-z]+)\}/g, ' $1');
+    str = str.replace(/\\?frac\s*([A-Za-z]+),?\}/g, ' $1,');
+
 
     // 0. Clean HTML entities & strip any leaked raw katex-error spans
     str = str
@@ -1896,20 +1935,20 @@ export default function QuestionBlock({
     return (
         <div style={{ ...Q.wrap, fontSize: activeFontSize, lineHeight, ...extraStyle, position: 'relative' }} className="question-block group">
             <div
-                className="no-print"
+                className={'no-print ' + (showGearPopup ? 'opacity-100' : 'opacity-0 group-hover:opacity-100') + ' transition-opacity duration-150'}
                 style={{
                     position: 'absolute',
-                    top: '-3px',
+                    top: '-4px',
                     right: '0px',
                     display: 'flex',
                     alignItems: 'center',
                     gap: '4px',
-                    zIndex: 15,
-                    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                    zIndex: 20,
+                    backgroundColor: '#ffffff',
                     padding: '2px 6px',
-                    borderRadius: '6px',
-                    border: '1px solid #cbd5e1',
-                    boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+                    borderRadius: '8px',
+                    border: '1.5px solid #cbd5e1',
+                    boxShadow: '0 2px 6px rgba(0,0,0,0.12)',
                 }}
             >
                 {/* ⚙️ Gear Button */}
@@ -1980,6 +2019,7 @@ export default function QuestionBlock({
 
             {showGearPopup && (
                 <QuestionGearPopup
+                    displayNum={displayNum}
                     imageAlignment={localAlignment}
                     optionsPerLine={localOptionsPerLine}
                     currentDiagramHeight={localDiagramHeight}

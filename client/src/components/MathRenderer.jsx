@@ -99,6 +99,11 @@ function safeRenderKatex(rawMath, displayMode = false) {
         }
     }
     math = math.replace(/\\,\s*A\}?/g, ' \\text{ A}');
+    // Auto-fix corrupted OCR unit tokens e.g. fracA} -> A, fracHz} -> Hz
+    math = math.replace(/([0-9\.\s]+)frac([A-Za-z]+)\}/g, '$1 $2');
+    math = math.replace(/\\?frac\s*([A-Za-z]+)\}/g, ' \\text{ $1}');
+    math = math.replace(/\\?frac\s*([A-Za-z]+),?\}/g, ' \\text{ $1},');
+
 
     // Auto-fix broken missing \frac syntax e.g. \sigma}2\epsilon_0 -> \frac{\sigma}{2\epsilon_0}
     math = math.replace(/(?:^|\s)(?:\\([a-zA-Z]+)|([a-zA-Z0-9]+))\}(?:\{([^}]+)\}|([^\s}]+))/g, (m, sym, plain, denomBrace, denomPlain) => {
@@ -161,6 +166,11 @@ function processMathOnly(text) {
         result = result.replace(/([0-9a-zA-Z\s\.,\\_]+)\}\s*$/, '$1');
     }
     result = result.replace(/\\,\s*A\}?/g, ' \\text{ A}');
+    // Auto-fix corrupted OCR unit tokens e.g. fracA} -> A, fracHz} -> Hz
+    result = result.replace(/([0-9\.\s]+)frac([A-Za-z]+)\}/g, '$1 $2');
+    result = result.replace(/\\?frac\s*([A-Za-z]+)\}/g, ' $1');
+    result = result.replace(/\\?frac\s*([A-Za-z]+),?\}/g, ' $1,');
+
 
     // 0.5) Auto-fix broken missing \frac syntax e.g. \sigma}2\epsilon_0 -> \frac{\sigma}{2\epsilon_0}
     result = result.replace(/(?:^|\s)(?:\\([a-zA-Z]+)|([a-zA-Z0-9]+))\}(?:\{([^}]+)\}|([^\s}]+))/g, (m, sym, plain, denomBrace, denomPlain) => {
