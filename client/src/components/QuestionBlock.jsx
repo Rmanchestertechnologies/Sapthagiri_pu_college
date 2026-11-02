@@ -1560,18 +1560,30 @@ function BodyMatchFollowing({
                         </tr>
                     </thead>
                     <tbody>
-                        {pairs.map((pair, pi) => (
-                            <tr key={pi}>
-                                <td style={{ ...Q.matchTd, width: leftWidth }}>
-                                    <strong style={{ marginRight: '6px', color: '#001f6d' }}>({String.fromCharCode(65 + pi)})</strong>
-                                    <MathRenderer inline text={pair.left || ''} />
-                                </td>
-                                <td style={{ ...Q.matchTd, width: rightWidth }}>
-                                    <strong style={{ marginRight: '6px', color: '#001f6d' }}>({hasRomanOpts ? (romanLabels[pi] || (pi + 1)) : (pi + 1)})</strong>
-                                    <MathRenderer inline text={pair.right || ''} />
-                                </td>
-                            </tr>
-                        ))}
+                        {pairs.map((pair, pi) => {
+                            const leftVal = (pair.left || '').trim();
+                            const rightVal = (pair.right || '').trim();
+                            return (
+                                <tr key={pi}>
+                                    <td style={{ ...Q.matchTd, width: leftWidth }}>
+                                        {leftVal ? (
+                                            <>
+                                                <strong style={{ marginRight: '6px', color: '#001f6d' }}>({String.fromCharCode(65 + pi)})</strong>
+                                                <MathRenderer inline text={pair.left} />
+                                            </>
+                                        ) : null}
+                                    </td>
+                                    <td style={{ ...Q.matchTd, width: rightWidth }}>
+                                        {rightVal ? (
+                                            <>
+                                                <strong style={{ marginRight: '6px', color: '#001f6d' }}>({hasRomanOpts ? (romanLabels[pi] || (pi + 1)) : (pi + 1)})</strong>
+                                                <MathRenderer inline text={pair.right} />
+                                            </>
+                                        ) : null}
+                                    </td>
+                                </tr>
+                            );
+                        })}
                     </tbody>
                 </table>
             )}
