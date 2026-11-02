@@ -498,17 +498,31 @@ export default function PaperRenderer({
     onDiagramResize,
     onShuffleQuestions,
     onPaperUpdated,
+    // External toolbar control props — when provided, toolbar is hidden and parent owns controls
+    setsActive: externalSetsActive,
+    setSetsActive: externalSetSetsActive,
+    activeSet: externalActiveSet,
+    setActiveSet: externalSetActiveSet,
+    zoom: externalZoom,
+    setZoom: externalSetZoom,
+    hideToolbar = false,
 }) {
     const [internalSettings, setInternalSettings] = useState(DEFAULT_SETTINGS);
     const settings = externalSettings || internalSettings;
     const setSettings = externalSetSettings || setInternalSettings;
 
-    // 4 Sets State (P, Q, R, S) - Opt-in / Admin toggleable
-    const [setsActive, setSetsActive] = useState(enableSets || paper?.enableSets || false);
-    const [activeSet, setActiveSet] = useState(paper?.setName || 'P');
+    // 4 Sets State (P, Q, R, S) — use external state if provided
+    const [internalSetsActive, setInternalSetsActive] = useState(enableSets || paper?.enableSets || false);
+    const [internalActiveSet, setInternalActiveSet] = useState(paper?.setName || 'P');
+    const setsActive = externalSetsActive !== undefined ? externalSetsActive : internalSetsActive;
+    const setSetsActive = externalSetSetsActive || setInternalSetsActive;
+    const activeSet = externalActiveSet || internalActiveSet;
+    const setActiveSet = externalSetActiveSet || setInternalActiveSet;
 
-    // Preview Controls state
-    const [zoom, setZoom] = useState(100);
+    // Zoom state — use external if provided
+    const [internalZoom, setInternalZoom] = useState(100);
+    const zoom = externalZoom !== undefined ? externalZoom : internalZoom;
+    const setZoom = externalSetZoom || setInternalZoom;
 
     // Live questions state for on-the-fly editing & swapping in preview
     const [localQuestions, setLocalQuestions] = useState(paper?.questions || []);
@@ -581,71 +595,6 @@ export default function PaperRenderer({
 
     const questions = useMemo(() => activePaper?.questions || [], [activePaper]);
 
-    const [downloadingWord, setDownloadingWord] = useState(false);
-
-    const handleDownloadWord = async () => {
-        setDownloadingWord(true);
-        try {
-            const rawActiveQs = questions && questions.length > 0 ? questions : (paper?.questions || []);
-            const examTypeStr = String(paper?.examType || paper?.exam_type || paper?.title || '').toUpperCase();
-            const isExplicitNonJEE = examTypeStr.includes('NEET') ||
-                                     examTypeStr.includes('CET') ||
-                                     examTypeStr.includes('KCET') ||
-                                     String(paper?.subject || '').toUpperCase().includes('BOTANY') ||
-                                     String(paper?.subject || '').toUpperCase().includes('ZOOLOGY') ||
-                                     (rawActiveQs.length > 85);
-
-            const isJEE = !isExplicitNonJEE && Boolean(
-                examTypeStr.includes('JEE') ||
-                (Array.isArray(paper?.classes) && paper.classes.some(c => String(c).toUpperCase().includes('JEE'))) ||
-                (rawActiveQs.length >= 70 && rawActiveQs.length <= 85)
-            );
-            const activeQs = isJEE ? rawActiveQs.slice(0, 75) : rawActiveQs;
-            const paperData = {
-                ...paper,
-                ...activePaper,
-                examType: isJEE ? 'JEE' : (paper?.examType || paper?.exam_type),
-                exam_type: isJEE ? 'JEE' : (paper?.exam_type || paper?.examType),
-                questions: activeQs,
-                setName: setsActive ? activeSet : (paper?.setName || 'P'),
-                startQNo: settings?.startQNo || 1
-            };
-
-            const res = await api.post('/api/papers/export-word', paperData, { responseType: 'blob' });
-            const blob = new Blob([res.data], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            const cleanTitle = (paper?.title || 'Question_Paper').replace(/[^a-zA-Z0-9_-]/g, '_');
-            a.download = `${cleanTitle}${setsActive ? `_Set_${activeSet}` : ''}.docx`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            window.URL.revokeObjectURL(url);
-        } catch (err) {
-            console.error('Word export error:', err);
-            let errMsg = err.message;
-            if (err.response?.data instanceof Blob) {
-                try {
-                    const text = await err.response.data.text();
-                    const parsed = JSON.parse(text);
-                    if (parsed.msg) errMsg = parsed.msg;
-                } catch (e) {
-                    // Ignore parse error
-                }
-            } else if (err.response?.data?.msg) {
-                errMsg = err.response.data.msg;
-            }
-            alert('Failed to download Word document: ' + errMsg);
-        } finally {
-            setDownloadingWord(false);
-        }
-    };
-
-    const handlePrint = () => {
-        window.print();
-    };
-
     // Layout change handler
     const handleUpdateQuestionLayout = (qIndex, layoutChanges) => {
         const nextQuestions = [...localQuestions];
@@ -683,188 +632,6 @@ export default function PaperRenderer({
 
     return (
         <div className="paper-renderer-wrapper w-full flex flex-col items-center">
-            {/* ── PREVIEW TOOLBAR ── */}
-            <div className="sticky top-4 z-40 bg-white/95 backdrop-blur-md px-6 py-3.5 rounded-2xl shadow-xl border-2 border-navy/20 flex flex-wrap items-center justify-between gap-4 mb-6 w-full max-w-5xl no-print">
-                {/* 4-Sets Control (P, Q, R, S) */}
-                {!isAssignment && (
-                    <div className="flex items-center gap-2">
-                        {setsActive ? (
-                            <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl border border-slate-300">
-                                <span className="text-[10px] font-black text-navy uppercase tracking-wider px-2">Set:</span>
-                                {['P', 'Q', 'R', 'S'].map((s) => (
-                                    <button
-                                        key={s}
-                                        type="button"
-                                        onClick={() => setActiveSet(s)}
-                                        className={'px-3 py-1 rounded-lg text-xs font-black transition cursor-pointer ' + (activeSet === s ? 'bg-navy text-gold shadow-sm scale-105' : 'bg-white text-slate-700 hover:bg-slate-200')}
-                                        title={'Set ' + s}
-                                    >
-                                        Set {s}
-                                    </button>
-                                ))}
-                                <button
-                                    type="button"
-                                    onClick={() => setSetsActive(false)}
-                                    className="text-slate-400 hover:text-red-500 text-xs px-1.5 py-0.5 rounded cursor-pointer ml-1"
-                                    title="Disable 4-Sets"
-                                >
-                                    ✕
-                                </button>
-                            </div>
-                        ) : (
-                            <button
-                                type="button"
-                                onClick={() => { setSetsActive(true); setActiveSet('P'); }}
-                                className="bg-slate-100 hover:bg-slate-200 text-navy px-3 py-1.5 rounded-xl font-black text-xs border border-slate-300 transition cursor-pointer flex items-center gap-1.5"
-                                title="Click to generate 4 randomized examination sets (P, Q, R, S)"
-                            >
-                                <span>🎲</span>
-                                <span>Generate 4-Sets (P, Q, R, S)</span>
-                            </button>
-                        )}
-                    </div>
-                )}
-
-                {/* Mode & Columns Switcher */}
-                <div className="flex items-center gap-2">
-                    <button
-                        onClick={() => {
-                            const newCols = settings.columns === 2 ? 1 : 2;
-                            setSettings(s => ({ ...s, columns: newCols, paper2Column: newCols === 2 }));
-                        }}
-                        className="bg-slate-100 hover:bg-slate-200 text-navy px-3.5 py-1.5 rounded-xl font-bold text-xs border border-slate-300 transition cursor-pointer flex items-center gap-1.5"
-                    >
-                        <span>{settings.columns === 2 ? '📰 2-Columns' : '📄 Single Column'}</span>
-                        <span className="text-[10px] bg-navy text-gold px-1.5 py-0.5 rounded">Switch</span>
-                    </button>
-
-                    {/* Option Style Selector matching Image 3 */}
-                    <select
-                        value={settings.optionFormat || '(1) (2) (3) (4)'}
-                        onChange={e => setSettings(s => ({ ...s, optionFormat: e.target.value }))}
-                        className="bg-slate-100 text-navy px-3 py-1.5 rounded-xl font-bold text-xs border border-slate-300 transition cursor-pointer outline-none"
-                        title="Option numbering style"
-                    >
-                        <option value="(1) (2) (3) (4)">🔢 (1) (2) (3) (4)</option>
-                        <option value="(A) (B) (C) (D)">🔤 (A) (B) (C) (D)</option>
-                        <option value="(a) (b) (c) (d)">🔡 (a) (b) (c) (d)</option>
-                    </select>
-
-                    {/* Display Mode Quick Selector matching Image 4 */}
-                    <select
-                        value={settings.displayMode || '1. Questions'}
-                        onChange={e => setSettings(s => ({ ...s, displayMode: e.target.value }))}
-                        className="bg-slate-100 text-navy px-3 py-1.5 rounded-xl font-bold text-xs border border-slate-300 transition cursor-pointer outline-none"
-                        title="Display questions, answers & solutions mode"
-                    >
-                        <option value="1. Questions">1. Questions</option>
-                        <option value="2. Questions with Answers">2. Questions with Answers</option>
-                        <option value="3. Questions with Answers & Solutions">3. Qs + Solutions</option>
-                        <option value="4. Questions after Answers & Solutions">4. Qs then Solutions</option>
-                        <option value="5. Only Questions with No Options">5. Qs No Options</option>
-                        <option value="6. Only Answers & Solutions">6. Only Solutions</option>
-                        <option value="7. Only Answers">7. Only Answers</option>
-                    </select>
-
-                    {/* Font Size Selector */}
-                    <div className="hidden lg:flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-300">
-                        <span className="text-[10px] font-black text-navy px-1">Size:</span>
-                        <select
-                            value={settings.fontSize || '13px'}
-                            onChange={e => setSettings(s => ({ ...s, fontSize: e.target.value }))}
-                            className="bg-transparent text-navy text-xs font-bold outline-none cursor-pointer px-1 py-0.5 rounded"
-                            title="Font size"
-                        >
-                            {['10px','11px','12px','13px','14px','15px','16px','18px','20px','22px','24px','26px','28px','30px','32px','34px','36px','38px','40px'].map(sz => (
-                                <option key={sz} value={sz}>{sz.replace('px', '')}</option>
-                            ))}
-                        </select>
-                    </div>
-
-                    {/* Fisher-Yates Section-Aware Question Shuffling */}
-                    {onShuffleQuestions && (
-                        <button
-                            type="button"
-                            onClick={onShuffleQuestions}
-                            className="bg-slate-100 hover:bg-slate-200 text-navy px-3 py-1.5 rounded-xl font-bold text-xs border border-slate-300 transition cursor-pointer flex items-center gap-1.5"
-                            title="Shuffle question order within sections"
-                        >
-                            <span>🔀</span>
-                            <span>Shuffle</span>
-                        </button>
-                    )}
-
-                    <span className="text-xs font-bold text-gray-500">
-                        {questions.length} Questions
-                    </span>
-                </div>
-
-                {/* View Controls (Zoom, Mode) */}
-                <div className="flex items-center gap-2">
-                    <div className="flex items-center bg-gray-100 rounded-xl p-1 gap-1">
-                        <button
-                            onClick={() => setZoom(z => Math.max(60, z - 15))}
-                            className="px-2.5 py-1 text-xs font-black text-gray-700 hover:bg-white rounded-lg transition"
-                            title="Zoom Out"
-                        >
-                            −
-                        </button>
-                        <span className="text-xs font-bold text-navy px-1">{zoom}%</span>
-                        <button
-                            onClick={() => setZoom(z => Math.min(150, z + 15))}
-                            className="px-2.5 py-1 text-xs font-black text-gray-700 hover:bg-white rounded-lg transition"
-                            title="Zoom In"
-                        >
-                            +
-                        </button>
-                        <button
-                            onClick={() => setZoom(100)}
-                            className="px-2 py-1 text-[10px] font-bold bg-white text-gray-700 rounded-lg shadow-sm cursor-pointer"
-                        >
-                            Reset
-                        </button>
-                    </div>
-
-                    <button
-                        type="button"
-                        onClick={handleDownloadWord}
-                        disabled={downloadingWord}
-                        className="bg-blue-700 hover:bg-blue-800 disabled:opacity-50 text-white px-3.5 py-2 rounded-xl font-black text-xs uppercase tracking-wider transition shadow cursor-pointer flex items-center gap-1.5"
-                        title="Download 100% editable Microsoft Word document (.docx)"
-                    >
-                        <span>📝</span> {downloadingWord ? 'Exporting...' : 'Word (.docx)'}
-                    </button>
-                    <button
-                        type="button"
-                        onClick={handlePrint}
-                        className="bg-gold text-navy hover:bg-navy hover:text-gold px-4 py-2 rounded-xl font-black text-xs uppercase tracking-wider transition shadow cursor-pointer flex items-center gap-1.5"
-                        title="Print or Save as vector PDF"
-                    >
-                        <span>📄</span> PDF / Print
-                    </button>
-                </div>
-
-                {/* Next Workflow Action Button */}
-                <div className="flex items-center gap-2">
-                    {onProceedToAlignment && (
-                        <button
-                            onClick={onProceedToAlignment}
-                            className="bg-navy text-gold px-5 py-2 rounded-xl font-black text-xs uppercase tracking-wider hover:scale-105 transition shadow cursor-pointer flex items-center gap-1.5"
-                        >
-                            <span>⚙️</span> Alignment Controls →
-                        </button>
-                    )}
-                    {onProceedToFinalize && (
-                        <button
-                            onClick={onProceedToFinalize}
-                            className="bg-emerald-600 text-white px-5 py-2 rounded-xl font-black text-xs uppercase tracking-wider hover:bg-emerald-700 transition shadow cursor-pointer flex items-center gap-1.5"
-                        >
-                            <span>✓</span> Finalize & Save →
-                        </button>
-                    )}
-                </div>
-            </div>
-
             {/* Alignment / Settings Panel (Shown only in Alignment step) */}
             {showSettingsPanel && (
                 <div className="w-full max-w-5xl no-print">

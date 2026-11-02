@@ -161,6 +161,12 @@ export default function CommissionedExam() {
     const [showSolutionGuide, setShowSolutionGuide] = useState(false);
     const [savingPaper, setSavingPaper] = useState(false);
 
+    // Step 7: PQRS 4-Sets & Zoom & Word state (lifted up so bottom toolbar controls them)
+    const [setsActive, setSetsActive] = useState(false);
+    const [activeSet, setActiveSet] = useState('P');
+    const [previewZoom, setPreviewZoom] = useState(100);
+    const [downloadingWord, setDownloadingWord] = useState(false);
+
     // Merge Exam Modal
     const [showMergeModal, setShowMergeModal] = useState(false);
     const [existingDrafts, setExistingDrafts] = useState([]);
@@ -815,6 +821,53 @@ export default function CommissionedExam() {
             setLoadingMessage('');
         }
     };
+
+    // Step 7: Word Download & Print handlers (uses lifted PQRS state)
+    const handleDownloadWord = async () => {
+        setDownloadingWord(true);
+        try {
+            const { generatePaperSet } = await import('../../utils/pqrsGenerator');
+            const baseQs = selectedQuestions.map((q, idx) => ({ ...q, questionNumber: idx + 1 }));
+            const basePaper = {
+                title: examTitle || `${selectedExamPattern} Examination`,
+                subject: selectedSubject || 'General',
+                examType: selectedExamPattern,
+                classes: selectedClass === 'Both' ? ['11', '12'] : [selectedClass],
+                questions: baseQs,
+                setName: setsActive ? activeSet : 'P',
+            };
+            const activePaper = setsActive && activeSet !== 'P' ? generatePaperSet(basePaper, activeSet) : basePaper;
+            const rawActiveQs = activePaper?.questions || baseQs;
+            const isJEE = selectedExamPattern === 'JEE';
+            const paperData = {
+                ...activePaper,
+                examType: selectedExamPattern,
+                questions: isJEE ? rawActiveQs.slice(0, 75) : rawActiveQs,
+                setName: setsActive ? activeSet : 'P',
+                startQNo: settings?.startQNo || 1,
+            };
+            const res = await api.post('/api/papers/export-word', paperData, { responseType: 'blob' });
+            const blob = new Blob([res.data], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            const cleanTitle = (examTitle || 'Question_Paper').replace(/[^a-zA-Z0-9_-]/g, '_');
+            a.download = `${cleanTitle}${setsActive ? `_Set_${activeSet}` : ''}.docx`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+        } catch (err) {
+            console.error('Word export error:', err);
+            let errMsg = err.message;
+            if (err.response?.data instanceof Blob) {
+                try { const t = await err.response.data.text(); const p = JSON.parse(t); if (p.msg) errMsg = p.msg; } catch (e) {}
+            } else if (err.response?.data?.msg) { errMsg = err.response.data.msg; }
+            alert('Failed to download Word document: ' + errMsg);
+        } finally { setDownloadingWord(false); }
+    };
+
+    const handlePrint = () => window.print();
 
     const currentPaperObject = useMemo(() => ({
         title: examTitle || `${selectedExamPattern} Examination`,
@@ -1637,52 +1690,9 @@ export default function CommissionedExam() {
                     STEP 7: PREVIEW, ALIGNMENT & MERGE EXAM
                 ══════════════════════════════════════════════════════════════ */}
                 {currentStep === 7 && (
-                    <div className="space-y-6 animate-fade-in relative pb-28">
-                        <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm no-print">
-                            <div className="flex items-center gap-2">
-                                <button
-                                    type="button"
-                                    onClick={() => setCurrentStep(6)}
-                                    className="bg-slate-100 hover:bg-slate-200 text-navy px-3.5 py-1.5 rounded-xl font-bold text-xs cursor-pointer"
-                                >
-                                    ← Edit Method
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setShowAnswerKey(true)}
-                                    className="bg-navy text-gold hover:bg-navy/90 px-3.5 py-1.5 rounded-xl font-black text-xs uppercase tracking-wider shadow-xs flex items-center gap-1 cursor-pointer"
-                                >
-                                    <span>🔑</span> Answer Key
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setShowSolutionGuide(true)}
-                                    className="bg-navy text-gold hover:bg-navy/90 px-3.5 py-1.5 rounded-xl font-black text-xs uppercase tracking-wider shadow-xs flex items-center gap-1 cursor-pointer"
-                                >
-                                    <span>💡</span> Solutions Guide
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={handleReshuffleQuestions}
-                                    title="Disperse and shuffle question types across the exam"
-                                    className="bg-indigo-600 hover:bg-indigo-700 text-white px-3.5 py-1.5 rounded-xl font-black text-xs uppercase tracking-wider shadow-xs flex items-center gap-1 cursor-pointer"
-                                >
-                                    <span>🎲</span> Reshuffle Order
-                                </button>
-                            </div>
+                    <div className="space-y-6 animate-fade-in relative pb-36">
 
-                            <div className="flex items-center gap-2">
-                                <button
-                                    type="button"
-                                    onClick={handleOpenMergeModal}
-                                    className="bg-gold text-navy hover:bg-amber-400 px-4 py-1.5 rounded-xl font-black text-xs uppercase tracking-wider shadow-md flex items-center gap-1.5 cursor-pointer"
-                                >
-                                    <span>🔀</span> Merge Exam
-                                </button>
-                            </div>
-                        </div>
-
-                        {/* Paginated Paper Renderer */}
+                        {/* Paginated Paper Renderer — toolbar removed, controlled by bottom bar */}
                         <div className="w-full flex justify-center">
                             <PaperRenderer
                                 paper={currentPaperObject}
@@ -1690,23 +1700,137 @@ export default function CommissionedExam() {
                                 settings={settings}
                                 setSettings={setSettings}
                                 showSettingsPanel={true}
-                                onProceedToFinalize={handleSaveDraft}
                                 onDiagramResize={handleDiagramResize}
                                 onPaperUpdated={(updatedPaper) => setSelectedQuestions(updatedPaper.questions || [])}
+                                setsActive={setsActive}
+                                setSetsActive={setSetsActive}
+                                activeSet={activeSet}
+                                setActiveSet={setActiveSet}
+                                zoom={previewZoom}
+                                setZoom={setPreviewZoom}
+                                hideToolbar={true}
                             />
                         </div>
 
-                        {/* FIXED PRIMARY SAVE BUTTON STRICTLY IN BOTTOM-RIGHT CORNER */}
-                        <div className="fixed bottom-6 right-6 z-50">
-                            <button
-                                type="button"
-                                onClick={handleSaveDraft}
-                                disabled={savingPaper}
-                                className="bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs uppercase tracking-widest px-8 py-3.5 rounded-2xl shadow-2xl flex items-center gap-2.5 border-2 border-emerald-400 hover:scale-105 transition-all cursor-pointer"
-                            >
-                                <span className="text-lg">💾</span>
-                                <span>{savingPaper ? 'Saving Paper...' : `Save ${selectedSubject} Exam Paper`}</span>
-                            </button>
+                        {/* ── UNIFIED BOTTOM CONTROL BAR (replaces the removed top toolbar) ── */}
+                        <div className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t-2 border-navy/20 shadow-2xl no-print">
+                            {/* Row 1: PQRS + Column + Options + Display Mode + Size + Zoom + Q count */}
+                            <div className="flex flex-wrap items-center gap-2 px-4 pt-2.5 pb-1 border-b border-slate-100">
+                                {/* 4-Sets PQRS */}
+                                {setsActive ? (
+                                    <div className="flex items-center gap-1 bg-slate-100 px-1.5 py-1 rounded-xl border border-slate-300">
+                                        <span className="text-[10px] font-black text-navy uppercase px-1">Set:</span>
+                                        {['P', 'Q', 'R', 'S'].map(s => (
+                                            <button key={s} type="button" onClick={() => setActiveSet(s)}
+                                                className={'px-2.5 py-0.5 rounded-lg text-xs font-black transition cursor-pointer ' + (activeSet === s ? 'bg-navy text-gold shadow-sm scale-105' : 'bg-white text-slate-700 hover:bg-slate-200')}>
+                                                {s}
+                                            </button>
+                                        ))}
+                                        <button type="button" onClick={() => setSetsActive(false)}
+                                            className="text-slate-400 hover:text-red-500 text-xs px-1 rounded cursor-pointer ml-0.5">✕</button>
+                                    </div>
+                                ) : (
+                                    <button type="button" onClick={() => { setSetsActive(true); setActiveSet('P'); }}
+                                        className="bg-slate-100 hover:bg-slate-200 text-navy px-3 py-1.5 rounded-xl font-black text-xs border border-slate-300 transition cursor-pointer flex items-center gap-1.5">
+                                        <span>🎲</span><span>Generate 4-Sets (P, Q, R, S)</span>
+                                    </button>
+                                )}
+
+                                {/* Column Toggle */}
+                                <button onClick={() => { const c = settings.columns === 2 ? 1 : 2; setSettings(s => ({ ...s, columns: c, paper2Column: c === 2 })); }}
+                                    className="bg-slate-100 hover:bg-slate-200 text-navy px-3 py-1.5 rounded-xl font-bold text-xs border border-slate-300 transition cursor-pointer flex items-center gap-1">
+                                    <span>{settings.columns === 2 ? '📰 2-Col' : '📄 1-Col'}</span>
+                                    <span className="text-[9px] bg-navy text-gold px-1 py-0.5 rounded">Switch</span>
+                                </button>
+
+                                {/* Option Style */}
+                                <select value={settings.optionFormat || '(1) (2) (3) (4)'}
+                                    onChange={e => setSettings(s => ({ ...s, optionFormat: e.target.value }))}
+                                    className="bg-slate-100 text-navy px-2 py-1.5 rounded-xl font-bold text-xs border border-slate-300 cursor-pointer outline-none">
+                                    <option value="(1) (2) (3) (4)">(1) (2) (3) (4)</option>
+                                    <option value="(A) (B) (C) (D)">(A) (B) (C) (D)</option>
+                                    <option value="(a) (b) (c) (d)">(a) (b) (c) (d)</option>
+                                </select>
+
+                                {/* Display Mode */}
+                                <select value={settings.displayMode || '1. Questions'}
+                                    onChange={e => setSettings(s => ({ ...s, displayMode: e.target.value }))}
+                                    className="bg-slate-100 text-navy px-2 py-1.5 rounded-xl font-bold text-xs border border-slate-300 cursor-pointer outline-none">
+                                    <option value="1. Questions">1. Questions</option>
+                                    <option value="2. Questions with Answers">2. With Answers</option>
+                                    <option value="3. Questions with Answers & Solutions">3. With Solutions</option>
+                                    <option value="4. Questions after Answers & Solutions">4. Qs then Solutions</option>
+                                    <option value="5. Only Questions with No Options">5. No Options</option>
+                                    <option value="6. Only Answers & Solutions">6. Only Solutions</option>
+                                    <option value="7. Only Answers">7. Only Answers</option>
+                                </select>
+
+                                {/* Font Size */}
+                                <div className="flex items-center gap-1 bg-slate-100 px-1.5 py-1 rounded-xl border border-slate-300">
+                                    <span className="text-[10px] font-black text-navy">Size:</span>
+                                    <select value={settings.fontSize || '13px'}
+                                        onChange={e => setSettings(s => ({ ...s, fontSize: e.target.value }))}
+                                        className="bg-transparent text-navy text-xs font-bold outline-none cursor-pointer px-0.5">
+                                        {['10px','11px','12px','13px','14px','15px','16px','18px','20px','22px','24px','26px','28px','30px','32px','34px','36px','38px','40px'].map(sz => (
+                                            <option key={sz} value={sz}>{sz.replace('px','')}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                {/* Zoom */}
+                                <div className="flex items-center bg-gray-100 rounded-xl px-1 py-0.5 gap-0.5">
+                                    <button onClick={() => setPreviewZoom(z => Math.max(60, z - 15))} className="px-2 py-1 text-xs font-black text-gray-700 hover:bg-white rounded-lg transition cursor-pointer">−</button>
+                                    <span className="text-xs font-bold text-navy px-1">{previewZoom}%</span>
+                                    <button onClick={() => setPreviewZoom(z => Math.min(150, z + 15))} className="px-2 py-1 text-xs font-black text-gray-700 hover:bg-white rounded-lg transition cursor-pointer">+</button>
+                                    <button onClick={() => setPreviewZoom(100)} className="px-1.5 py-0.5 text-[10px] font-bold bg-white text-gray-700 rounded-lg shadow-xs cursor-pointer">Reset</button>
+                                </div>
+
+                                <span className="text-xs font-bold text-gray-500 ml-1">{selectedQuestions.length} Questions</span>
+                            </div>
+
+                            {/* Row 2: Action buttons */}
+                            <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2">
+                                <div className="flex items-center gap-2">
+                                    <button type="button" onClick={() => setCurrentStep(6)}
+                                        className="bg-slate-100 hover:bg-slate-200 text-navy px-3 py-1.5 rounded-xl font-bold text-xs cursor-pointer">
+                                        ← Back
+                                    </button>
+                                    <button type="button" onClick={() => setShowAnswerKey(true)}
+                                        className="bg-navy text-gold hover:bg-navy/90 px-3 py-1.5 rounded-xl font-black text-xs uppercase tracking-wider flex items-center gap-1 cursor-pointer">
+                                        <span>🔑</span> Answer Key
+                                    </button>
+                                    <button type="button" onClick={() => setShowSolutionGuide(true)}
+                                        className="bg-navy text-gold hover:bg-navy/90 px-3 py-1.5 rounded-xl font-black text-xs uppercase tracking-wider flex items-center gap-1 cursor-pointer">
+                                        <span>💡</span> Solutions
+                                    </button>
+                                    <button type="button" onClick={handleReshuffleQuestions}
+                                        className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-xl font-black text-xs uppercase tracking-wider flex items-center gap-1 cursor-pointer">
+                                        <span>🎲</span> Reshuffle
+                                    </button>
+                                    <button type="button" onClick={handleOpenMergeModal}
+                                        className="bg-gold text-navy hover:bg-amber-400 px-3 py-1.5 rounded-xl font-black text-xs uppercase tracking-wider flex items-center gap-1.5 cursor-pointer">
+                                        <span>🔀</span> Merge Exam
+                                    </button>
+                                </div>
+
+                                <div className="flex items-center gap-2">
+                                    {/* Word Download */}
+                                    <button type="button" onClick={handleDownloadWord} disabled={downloadingWord}
+                                        className="bg-blue-700 hover:bg-blue-800 disabled:opacity-50 text-white px-4 py-2 rounded-xl font-black text-xs uppercase tracking-wider shadow flex items-center gap-1.5 cursor-pointer">
+                                        <span>📝</span> {downloadingWord ? 'Exporting...' : 'Word (.docx)'}
+                                    </button>
+                                    {/* PDF / Print */}
+                                    <button type="button" onClick={handlePrint}
+                                        className="bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-xl font-black text-xs uppercase tracking-wider shadow flex items-center gap-1.5 cursor-pointer">
+                                        <span>📄</span> PDF / Print
+                                    </button>
+                                    {/* Finalize & Save */}
+                                    <button type="button" onClick={handleSaveDraft} disabled={savingPaper}
+                                        className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white font-black text-xs uppercase tracking-widest px-6 py-2 rounded-xl shadow-xl flex items-center gap-2 border-2 border-emerald-400 hover:scale-105 transition-all cursor-pointer">
+                                        <span>✓</span> {savingPaper ? 'Saving...' : 'Finalize & Save →'}
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 )}
