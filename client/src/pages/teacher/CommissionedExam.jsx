@@ -116,6 +116,34 @@ export default function CommissionedExam() {
         numerical: 0,
     });
 
+    // Step 5: Difficulty percentage distribution (Easy %, Medium %, Hard % — sum should = 100)
+    const [difficultyDistribution, setDifficultyDistribution] = useState({ easy: 30, medium: 50, hard: 20 });
+
+    // Update one difficulty level, auto-clamp the others so total = 100
+    const handleDifficultyChange = (level, rawValue) => {
+        const val = Math.max(0, Math.min(100, parseInt(rawValue) || 0));
+        setDifficultyDistribution(prev => {
+            const others = Object.keys(prev).filter(k => k !== level);
+            const remaining = 100 - val;
+            const otherSum = others.reduce((s, k) => s + prev[k], 0);
+            if (otherSum === 0) {
+                // Spread equally among others
+                const each = Math.floor(remaining / others.length);
+                const result = { ...prev, [level]: val };
+                others.forEach((k, i) => result[k] = each + (i === 0 ? remaining - each * others.length : 0));
+                return result;
+            }
+            const result = { ...prev, [level]: val };
+            let leftover = remaining;
+            others.forEach((k, i) => {
+                const share = i === others.length - 1 ? leftover : Math.round((prev[k] / otherSum) * remaining);
+                result[k] = Math.max(0, share);
+                leftover -= result[k];
+            });
+            return result;
+        });
+    };
+
     // Step 6: Method (Fetch Mode)
     const [fetchMode, setFetchMode] = useState('auto'); // 'auto' | 'manual'
     const [manualTab, setManualTab] = useState('non_numerical'); // 'non_numerical' | 'numerical' (JEE only)
@@ -380,64 +408,95 @@ export default function CommissionedExam() {
         return a;
     };
 
-    // Step 6: Execute Question Fetch
+    // Step 6: Execute Question Fetch — uses parallel type-specific queries to guarantee allocations
     const executeFetch = async () => {
         setStepLoading(true);
         setLoadingMessage('Fetching questions from question repository...');
         try {
-            const queryParams = new URLSearchParams({
-                subject: selectedSubject,
-                limit: '2000',
-            });
-            if (selectedExamPattern) queryParams.append('examType', selectedExamPattern);
-            if (selectedClass !== 'Both') queryParams.append('classes', selectedClass);
-            if (selectedChapters.length > 0) {
-                queryParams.append('chapter', selectedChapters.join(','));
+            const isJee = selectedExamPattern === 'JEE';
+
+            // Build base params shared by all queries
+            const baseParams = new URLSearchParams();
+            baseParams.append('subject', selectedSubject);
+            baseParams.append('limit', '300');
+            if (selectedExamPattern) baseParams.append('examType', selectedExamPattern);
+            if (selectedClass !== 'Both') baseParams.append('classes', selectedClass);
+            if (selectedChapters.length > 0) baseParams.append('chapter', selectedChapters.join(','));
+            // Difficulty distribution
+            if (difficultyDistribution.easy > 0 || difficultyDistribution.medium > 0 || difficultyDistribution.hard > 0) {
+                const levels = [];
+                if (difficultyDistribution.easy > 0) levels.push('easy');
+                if (difficultyDistribution.medium > 0) levels.push('medium');
+                if (difficultyDistribution.hard > 0) levels.push('hard');
+                baseParams.append('level', levels.join(','));
             }
 
-            const res = await api.get(`/api/questions?${queryParams.toString()}`);
-            const pool = Array.isArray(res.data?.questions) ? res.data.questions : (Array.isArray(res.data) ? res.data : []);
-
-            // For NEET & CET: Strictly filter out any questions that are numerical or free-response
-            const isJee = selectedExamPattern === 'JEE';
-            const poolClean = pool.filter(q => {
-                // Strictly 0 CET questions: Exclude ANY question containing CET or KCET
+            // Helper to filter out CET questions on client-side as a double safety net
+            const isCetQ = (q) => {
                 const qExams = (Array.isArray(q.classes) ? q.classes : []).concat(Array.isArray(q.exams) ? q.exams : []);
                 const srcExam = String(q.sourceExam || '').toUpperCase();
                 const qText = String(q.questionText || q.question || '').toUpperCase();
+                return qExams.some(e => ['CET', 'KCET'].includes(String(e).toUpperCase())) ||
+                       srcExam.includes('CET') || srcExam.includes('KCET') ||
+                       qText.includes('[KCET') || qText.includes('(KCET') ||
+                       qText.includes('[CET') || qText.includes('(CET');
+            };
 
-                const isCet = qExams.some(e => ['CET', 'KCET'].includes(String(e).toUpperCase())) ||
-                              srcExam.includes('CET') ||
-                              srcExam.includes('KCET') ||
-                              qText.includes('[KCET') ||
-                              qText.includes('(KCET') ||
-                              qText.includes('[CET') ||
-                              qText.includes('(CET');
-                if (isCet) return false;
-
-                if (!isJee) {
-                    const isNum = (q.type || '').toUpperCase().includes('NUMERICAL') || 
-                                  (q.q_type || '').toLowerCase().includes('numerical') ||
-                                  (!q.options?.length && !q.opt_a && !q.opt_b && q.num_answer);
-                    if (isNum) return false;
+            // Helper to fetch a typed batch
+            const fetchTyped = async (typeKey, extraLimit = 300) => {
+                const p = new URLSearchParams(baseParams.toString());
+                p.set('type', typeKey);
+                p.set('limit', String(Math.max(extraLimit, 100)));
+                try {
+                    const res = await api.get(`/api/questions?${p.toString()}`);
+                    const rows = Array.isArray(res.data?.questions) ? res.data.questions : (Array.isArray(res.data) ? res.data : []);
+                    return rows.filter(q => !isCetQ(q));
+                } catch (e) {
+                    console.warn(`[FETCH] Failed for type ${typeKey}:`, e.message);
+                    return [];
                 }
-                return true;
-            });
+            };
 
-            // If selectedChapters was specified, ensure questions strictly match selected chapters:
-            const poolInChapters = selectedChapters.length > 0 
-                ? poolClean.filter(q => {
+            // 1. Launch parallel type-specific fetches for any non-zero allocations
+            const [arPool, matchPool, stmtPool, diagPool, numPool, mcqPool] = await Promise.all([
+                typeAllocations.ar > 0 ? fetchTyped('assertion', typeAllocations.ar * 4) : Promise.resolve([]),
+                typeAllocations.match > 0 ? fetchTyped('match', typeAllocations.match * 4) : Promise.resolve([]),
+                typeAllocations.stmt > 0 ? fetchTyped('statement', typeAllocations.stmt * 4) : Promise.resolve([]),
+                typeAllocations.diag > 0 ? fetchTyped('diagram', typeAllocations.diag * 4) : Promise.resolve([]),
+                (isJee && typeAllocations.numerical > 0) ? fetchTyped('numerical', typeAllocations.numerical * 4) : Promise.resolve([]),
+                fetchTyped('mcq', Math.max(typeAllocations.mcq * 3, 500)),
+            ]);
+
+            setLoadingMessage('Assembling question paper from fetched pools...');
+
+            // 2. Apply chapter filter to each pool
+            const filterChapters = (pool) => {
+                if (selectedChapters.length === 0) return pool;
+                return pool.filter(q => {
                     const qCh = (q.chapter || '').toLowerCase();
                     return selectedChapters.some(c => c.toLowerCase() === qCh);
-                })
-                : poolClean;
+                });
+            };
 
-            const candidatePool = poolInChapters.length > 0 ? poolInChapters : poolClean;
+            const pools = {
+                ar: filterChapters(arPool),
+                match: filterChapters(matchPool),
+                stmt: filterChapters(stmtPool),
+                diag: filterChapters(diagPool),
+                numerical: filterChapters(numPool),
+                mcq: filterChapters(mcqPool),
+            };
+
+            // Also build the general candidate pool for manual mode
+            const candidatePool = [
+                ...pools.ar, ...pools.match, ...pools.stmt, ...pools.diag,
+                ...pools.numerical, ...pools.mcq
+            ].filter((q, i, arr) => arr.findIndex(x => (x._id || x.id) === (q._id || q.id)) === i);
+
             setFetchedQuestions(candidatePool);
 
             if (fetchMode === 'auto') {
                 const picked = [];
-                const poolCopy = [...candidatePool];
 
                 // Helper to classify question into type bucket
                 const getQCategory = (q) => {
@@ -451,33 +510,49 @@ export default function CommissionedExam() {
                     return 'mcq';
                 };
 
-                // Group pool into type buckets, prioritizing selectedConcepts if any
+                // Apply concept priority sort to each pre-fetched typed pool
                 const matchesConcept = (q) => {
                     if (selectedConcepts.length === 0) return true;
                     const qCpt = (q.concept || '').toLowerCase();
                     return selectedConcepts.some(c => c.toLowerCase() === qCpt);
                 };
+                const prioritize = (arr) => [...arr].sort((a, b) => (matchesConcept(b) ? 1 : 0) - (matchesConcept(a) ? 1 : 0));
 
-                // Sort pool so questions matching chosen concepts come first
-                const prioritizedPool = [...poolCopy].sort((a, b) => {
-                    const aMatch = matchesConcept(a) ? 1 : 0;
-                    const bMatch = matchesConcept(b) ? 1 : 0;
-                    return bMatch - aMatch;
-                });
+                // Apply difficulty distribution filtering if any percentages set
+                const applyDifficultyFilter = (arr, count) => {
+                    if (!count || count <= 0) return [];
+                    const totalPct = difficultyDistribution.easy + difficultyDistribution.medium + difficultyDistribution.hard;
+                    if (totalPct <= 0) return prioritize(arr).slice(0, count);
+                    const easyCount = Math.round((difficultyDistribution.easy / 100) * count);
+                    const hardCount = Math.round((difficultyDistribution.hard / 100) * count);
+                    const medCount = count - easyCount - hardCount;
+                    const easyQs = arr.filter(q => (q.level || 'medium').toLowerCase() === 'easy').slice(0, easyCount);
+                    const hardQs = arr.filter(q => (q.level || 'medium').toLowerCase() === 'hard').slice(0, hardCount);
+                    const medQs = arr.filter(q => (q.level || 'medium').toLowerCase() === 'medium').slice(0, Math.max(medCount, 0));
+                    const result = [...easyQs, ...medQs, ...hardQs];
+                    // Backfill if short
+                    if (result.length < count) {
+                        const usedIds = new Set(result.map(q => q._id || q.id));
+                        const rest = arr.filter(q => !usedIds.has(q._id || q.id));
+                        result.push(...rest.slice(0, count - result.length));
+                    }
+                    return result.slice(0, count);
+                };
 
                 const buckets = {
-                    ar: prioritizedPool.filter(q => getQCategory(q) === 'ar'),
-                    match: prioritizedPool.filter(q => getQCategory(q) === 'match'),
-                    diag: prioritizedPool.filter(q => getQCategory(q) === 'diag'),
-                    stmt: prioritizedPool.filter(q => getQCategory(q) === 'stmt'),
-                    numerical: isJee ? prioritizedPool.filter(q => getQCategory(q) === 'numerical') : [],
-                    mcq: prioritizedPool.filter(q => getQCategory(q) === 'mcq'),
+                    ar: prioritize(pools.ar),
+                    match: prioritize(pools.match),
+                    diag: prioritize(pools.diag),
+                    stmt: prioritize(pools.stmt),
+                    numerical: isJee ? prioritize(pools.numerical) : [],
+                    mcq: prioritize(pools.mcq),
                 };
 
                 const pickedIds = new Set();
                 const pickFromBucket = (cat, count) => {
                     if (!count || count <= 0) return 0;
-                    const available = (buckets[cat] || []).filter(q => !pickedIds.has(q._id || q.id));
+                    const diffFiltered = applyDifficultyFilter(buckets[cat] || [], count);
+                    const available = diffFiltered.filter(q => !pickedIds.has(q._id || q.id));
                     const selected = available.slice(0, count);
                     selected.forEach(q => pickedIds.add(q._id || q.id));
                     picked.push(...selected);
@@ -1313,6 +1388,53 @@ export default function CommissionedExam() {
                                     </div>
                                 </div>
                             ))}
+                        </div>
+
+                        {/* Difficulty Level Distribution */}
+                        <div className="bg-slate-50 border border-slate-200 p-5 rounded-2xl space-y-3">
+                            <div className="flex items-center justify-between">
+                                <h4 className="text-xs font-black text-navy uppercase tracking-wider">📊 Difficulty Distribution</h4>
+                                <span className={`text-xs font-black px-2.5 py-1 rounded-xl ${
+                                    difficultyDistribution.easy + difficultyDistribution.medium + difficultyDistribution.hard === 100
+                                        ? 'bg-emerald-100 text-emerald-800'
+                                        : 'bg-red-100 text-red-700'
+                                }`}>
+                                    Total: {difficultyDistribution.easy + difficultyDistribution.medium + difficultyDistribution.hard}%
+                                    {difficultyDistribution.easy + difficultyDistribution.medium + difficultyDistribution.hard !== 100 && ' ≠ 100%'}
+                                </span>
+                            </div>
+                            <div className="grid grid-cols-3 gap-3">
+                                {[
+                                    { key: 'easy', label: '🟢 Easy', color: 'emerald' },
+                                    { key: 'medium', label: '🟡 Medium', color: 'amber' },
+                                    { key: 'hard', label: '🔴 Hard', color: 'red' },
+                                ].map(({ key, label, color }) => (
+                                    <div key={key} className={`bg-${color}-50 border border-${color}-200 rounded-xl p-3 text-center`}>
+                                        <label className={`text-[10px] font-black text-${color}-800 uppercase tracking-wider block mb-1.5`}>{label}</label>
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            max="100"
+                                            value={difficultyDistribution[key]}
+                                            onChange={(e) => handleDifficultyChange(key, e.target.value)}
+                                            className={`w-full text-center font-black text-lg py-1.5 border-2 border-${color}-300 rounded-lg bg-white outline-none focus:ring-2 focus:ring-${color}-400`}
+                                        />
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="100"
+                                            value={difficultyDistribution[key]}
+                                            onChange={(e) => handleDifficultyChange(key, e.target.value)}
+                                            className="w-full mt-1.5 cursor-pointer accent-current"
+                                            style={{ accentColor: color === 'emerald' ? '#10b981' : color === 'amber' ? '#f59e0b' : '#ef4444' }}
+                                        />
+                                        <span className={`text-[10px] font-bold text-${color}-700`}>
+                                            ~{Math.round((difficultyDistribution[key] / 100) * totalTypeQuestions)} Qs
+                                        </span>
+                                    </div>
+                                ))}
+                            </div>
+                            <p className="text-[10px] text-slate-400 font-semibold">Questions will be fetched matching this difficulty distribution. Sliders auto-balance to 100%.</p>
                         </div>
 
                         {/* Balancing Summary Bar */}

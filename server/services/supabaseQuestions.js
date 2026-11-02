@@ -560,21 +560,34 @@ function buildQueryFilters(filters) {
         }
     }
 
-    // Question Type filter
+    // Question Type filter — supports both q_type column and text-pattern fallback
+    // This ensures assertion/match/statement questions stored as 'mcq_single' are still fetched
     if (filters.type) {
         const typeArr = Array.isArray(filters.type) ? filters.type : filters.type.split(',').map(t => t.trim().toLowerCase());
-        const qTypes = [];
+        const qTypeClauses = [];
+
         typeArr.forEach(t => {
-            if (t.includes('numerical')) qTypes.push('numerical');
-            else if (t.includes('assertion')) qTypes.push('assertion_reason', 'assertion');
-            else if (t.includes('match')) qTypes.push('match', 'match_following');
-            else if (t.includes('statement')) qTypes.push('statement_based', 'statement');
-            else if (t.includes('diagram') || t.includes('image')) qTypes.push('diagram_based', 'image_based');
-            else if (t.includes('mcq')) qTypes.push('mcq_single', 'mcq', 'mcq_multiple');
+            if (t.includes('numerical')) {
+                qTypeClauses.push(`q.q_type ILIKE '%numerical%'`);
+            } else if (t.includes('assertion') || t.includes('ar')) {
+                // Match by q_type OR by text pattern (Assertion...Reason)
+                qTypeClauses.push(`(q.q_type ILIKE '%assertion%' OR (q.assertion IS NOT NULL AND q.assertion != '') OR (q.question ILIKE '%Assertion%' AND q.question ILIKE '%Reason%'))`);
+            } else if (t.includes('match')) {
+                // Match by q_type OR by Column I / match text patterns
+                qTypeClauses.push(`(q.q_type ILIKE '%match%' OR q.question ILIKE '%Column I%' OR q.question ILIKE '%Match the following%' OR q.question ILIKE '%Match the Following%' OR (q.column_a IS NOT NULL AND q.column_a != '{}'))`);
+            } else if (t.includes('statement')) {
+                // Match by q_type OR by Statement I / Statement II patterns
+                qTypeClauses.push(`(q.q_type ILIKE '%statement%' OR q.question ILIKE '%Statement I%' OR q.question ILIKE '%Statement 1%' OR q.question ILIKE '%Statement-1%')`);
+            } else if (t.includes('diagram') || t.includes('image')) {
+                qTypeClauses.push(`(q.q_type ILIKE '%diagram%' OR q.q_type ILIKE '%image%' OR q.image_url IS NOT NULL OR q.question ILIKE '%{{IMG::%' OR q.question ILIKE '%<img%')`);
+            } else if (t.includes('mcq')) {
+                // Standard MCQ: q_type is mcq_single OR mcq, but NOT assertion/match/statement/diagram patterns
+                qTypeClauses.push(`(q.q_type IN ('mcq_single', 'mcq', 'mcq_multiple') AND NOT (q.question ILIKE '%Assertion%' AND q.question ILIKE '%Reason%') AND NOT (q.question ILIKE '%Column I%') AND NOT (q.question ILIKE '%Statement I%') AND NOT (q.question ILIKE '%Statement 1%'))`);
+            }
         });
-        if (qTypes.length > 0) {
-            whereClauses.push(`q.q_type = ANY($${paramIndex++}::text[])`);
-            values.push([...new Set(qTypes)]);
+
+        if (qTypeClauses.length > 0) {
+            whereClauses.push(`(${qTypeClauses.join(' OR ')})`);
         }
     }
 

@@ -235,11 +235,25 @@ export function SettingsPanel({ settings, setSettings, totalQuestions = 0 }) {
 
                 <SettingField label="Font Size">
                     <select style={selectStyle} value={settings.fontSize} onChange={e => update('fontSize', e.target.value)}>
+                        <option value="10px">Tiny (10px)</option>
+                        <option value="11px">Mini (11px)</option>
                         <option value="12px">Compact (12px)</option>
                         <option value="13px">Standard (13px)</option>
                         <option value="14px">Large (14px)</option>
                         <option value="15px">Extra Large (15px)</option>
-                        <option value="16px">Display / Accessible (16px)</option>
+                        <option value="16px">Display (16px)</option>
+                        <option value="18px">18px</option>
+                        <option value="20px">20px</option>
+                        <option value="22px">22px</option>
+                        <option value="24px">24px</option>
+                        <option value="26px">26px</option>
+                        <option value="28px">28px</option>
+                        <option value="30px">30px</option>
+                        <option value="32px">32px</option>
+                        <option value="34px">34px</option>
+                        <option value="36px">36px</option>
+                        <option value="38px">38px</option>
+                        <option value="40px">40px (Maximum)</option>
                     </select>
                 </SettingField>
 
@@ -755,17 +769,16 @@ export default function PaperRenderer({
                     {/* Font Size Selector */}
                     <div className="hidden lg:flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-300">
                         <span className="text-[10px] font-black text-navy px-1">Size:</span>
-                        {['12px', '13px', '14px', '15px', '16px'].map(sz => (
-                            <button
-                                key={sz}
-                                type="button"
-                                onClick={() => setSettings(s => ({ ...s, fontSize: sz }))}
-                                className={'px-2 py-0.5 rounded-lg text-xs font-bold transition cursor-pointer ' + (settings.fontSize === sz ? 'bg-navy text-gold shadow-xs' : 'text-slate-700 hover:bg-slate-200')}
-                                title={'Set font size to ' + sz}
-                            >
-                                {sz.replace('px', '')}
-                            </button>
-                        ))}
+                        <select
+                            value={settings.fontSize || '13px'}
+                            onChange={e => setSettings(s => ({ ...s, fontSize: e.target.value }))}
+                            className="bg-transparent text-navy text-xs font-bold outline-none cursor-pointer px-1 py-0.5 rounded"
+                            title="Font size"
+                        >
+                            {['10px','11px','12px','13px','14px','15px','16px','18px','20px','22px','24px','26px','28px','30px','32px','34px','36px','38px','40px'].map(sz => (
+                                <option key={sz} value={sz}>{sz.replace('px', '')}</option>
+                            ))}
+                        </select>
                     </div>
 
                     {/* Fisher-Yates Section-Aware Question Shuffling */}
@@ -784,9 +797,6 @@ export default function PaperRenderer({
                     <span className="text-xs font-bold text-gray-500">
                         {questions.length} Questions
                     </span>
-                    <div className="hidden sm:flex items-center gap-1.5 bg-blue-50 border border-blue-200 px-2.5 py-1 rounded-xl">
-                        <span className="text-[10px] font-black text-blue-900">⚙️ Align • ✏️ Edit • 🔀 Swap Ready</span>
-                    </div>
                 </div>
 
                 {/* View Controls (Zoom, Mode) */}
