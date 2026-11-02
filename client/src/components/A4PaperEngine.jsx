@@ -298,7 +298,7 @@ export default function A4PaperEngine({
                                         let directiveText = null;
 
                                         if (isJEE) {
-                                            if (isSubjectChange || idx === 0) {
+                                            if (isSubjectChange) {
                                                 showHeader = true;
                                                 headerTitle = curSubject ? (curSubject.toUpperCase() + ' • PART A (SECTION A)') : 'PART A (SECTION A)';
                                                 directiveText = 'This section contains 20 Multiple Choice Questions. Each question has four choices (A), (B), (C), (D). Only one choice is correct.';
@@ -308,11 +308,7 @@ export default function A4PaperEngine({
                                                 directiveText = 'This section contains 5 Numerical Value Questions. The answer to each question is a NUMERICAL VALUE. No options are provided.';
                                             }
                                         } else {
-                                            const isMultiSubject = Boolean(
-                                                (paper?.subject && (paper.subject.includes('•') || paper.subject.includes(','))) ||
-                                                (paper?.questions && paper.questions.length > 50)
-                                            );
-                                            if (isSubjectChange || (idx === 0 && isMultiSubject && curSubject)) {
+                                            if (isSubjectChange) {
                                                 showHeader = true;
                                                 headerTitle = 'SUBJECT: ' + curSubject.toUpperCase();
                                                 directiveText = null;
@@ -526,7 +522,7 @@ export default function A4PaperEngine({
                     margin-bottom: 24px;
                 }
                 .a4-page-content {
-                    padding: ${settings.marginTop || '10mm'} ${settings.marginRight || '12mm'} ${settings.marginBottom || '10mm'} ${settings.marginLeft || '12mm'};
+                    padding: ${settings.marginTop || '5mm'} ${settings.marginRight || '8mm'} ${settings.marginBottom || '6mm'} ${settings.marginLeft || '8mm'};
                     box-sizing: border-box;
                     color: #000000;
                     position: relative;
@@ -660,7 +656,7 @@ export default function A4PaperEngine({
                     }
                     @page {
                         size: A4 portrait;
-                        margin: 10mm 12mm 10mm 12mm;
+                        margin: 5mm 8mm 6mm 8mm;
                     }
                     html, body {
                         background: #fff !important;

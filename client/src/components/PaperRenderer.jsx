@@ -81,10 +81,10 @@ export const DEFAULT_SETTINGS = {
     endQNo: null,
     pageSize: 'A4',
     orientation: 'portrait',
-    marginTop: '10mm',
-    marginBottom: '10mm',
-    marginLeft: '12mm',
-    marginRight: '12mm',
+    marginTop: '5mm',
+    marginBottom: '6mm',
+    marginLeft: '8mm',
+    marginRight: '8mm',
     diagramMaxHeight: '180px',
 };
 
@@ -584,7 +584,7 @@ export function PaperHeader({
     const instructions = headerConfig?.generalInstructions || [];
 
     return (
-        <div style={{ marginBottom: '14px', borderBottom: '2px solid #000', paddingBottom: '6px' }}>
+        <div style={{ marginBottom: '6px', borderBottom: '2px solid #000', paddingBottom: '4px' }}>
             {templateUrl && templateUrl.match(/\.(jpeg|jpg|gif|png)$/i) ? (
                 <div style={{ textAlign: 'center', marginBottom: '6px', borderBottom: '1.5px solid #000', paddingBottom: '4px' }}>
                     <img
@@ -596,8 +596,8 @@ export function PaperHeader({
                 </div>
             ) : (
                 /* Official Sapthagiri PU College Davanagere Header Crest */
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '14px', marginBottom: '8px' }}>
-                    <div style={{ width: '68px', height: '68px', flexShrink: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', marginBottom: '4px' }}>
+                    <div style={{ width: '56px', height: '56px', flexShrink: 0 }}>
                         <img 
                             src="/SapthagiriLogo.jpg" 
                             alt="Sapthagiri PU College" 
@@ -616,7 +616,7 @@ export function PaperHeader({
                         </div>
                     </div>
                     {!isAssignment && (
-                        <div style={{ width: '68px', height: '68px', flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', border: '1.5px solid #000', borderRadius: '4px', padding: '2px' }}>
+                        <div style={{ width: '56px', height: '56px', flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', border: '1.5px solid #000', borderRadius: '4px', padding: '2px' }}>
                             <span style={{ fontSize: '9px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>SET</span>
                             <span style={{ fontSize: '22px', fontWeight: 900, lineHeight: 1 }}>{currentSet}</span>
                         </div>
