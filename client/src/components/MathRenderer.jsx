@@ -116,6 +116,10 @@ function safeRenderKatex(rawMath, displayMode = false) {
     math = math.replace(/\\frac\s+([a-zA-Z0-9])\s+([a-zA-Z0-9])\b/g, '\\frac{$1}{$2}');
     math = math.replace(/\\frac\s+([a-zA-Z0-9])([a-zA-Z0-9])\b/g, '\\frac{$1}{$2}');
 
+    // Auto-fix OCR broken sin fracx/cos x expressions
+    math = math.replace(/sin\s*frac\s*([a-zA-Z0-9]+)\s*\/\s*cos\s*([a-zA-Z0-9]+)/gi, '\\sin\\left(\\frac{$1}{\\cos $2}\\right)');
+    math = math.replace(/\bfrac([a-zA-Z0-9]+)\/([a-zA-Z0-9]+)\b/g, '\\frac{$1}{$2}');
+
     try {
         const rendered = katex.renderToString(math, {
             displayMode,

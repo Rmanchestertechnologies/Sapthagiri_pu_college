@@ -40,9 +40,23 @@ body {
   text-rendering: auto;
 }
 
+/* ── PREVENT EQUATIONS & MATRICES FROM OVERFLOWING COLUMNS ── */
 .katex-display {
   font-size: 1em !important;
-  margin: 0.4em 0 !important;
+  margin: 0.3em 0 !important;
+  max-width: 100% !important;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+}
+
+.katex {
+  max-width: 100% !important;
+}
+
+.question-block {
+  min-width: 0 !important;
+  max-width: 100% !important;
+  overflow-wrap: break-word !important;
 }
 
 .katex * {

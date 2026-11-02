@@ -707,6 +707,10 @@ export function cleanQuestionText(text) {
     str = str.replace(/\\?frac\s*([A-Za-z]+),?\}/g, ' $1,');
 
 
+    // Auto-fix broken OCR expressions like "sin fracx/cos x" -> "\sin \frac{x}{\cos x}"
+    str = str.replace(/sin\s*frac\s*([a-zA-Z0-9]+)\s*\/\s*cos\s*([a-zA-Z0-9]+)/gi, '$\\sin \\left(\\frac{$1}{\\cos $2}\\right)$');
+    str = str.replace(/\\?sqrt\s*\(\s*1\s*([+-])\s*sin\s*frac\s*([a-zA-Z0-9]+)\s*\/\s*cos\s*([a-zA-Z0-9]+)\s*\)/gi, '$\\sqrt{1 $1 \\sin\\left(\\frac{$2}{\\cos $3}\\right)}$');
+
     // 0. Clean HTML entities & strip any leaked raw katex-error spans
     str = str
         .replace(/&#x27;/g, "'")
@@ -844,13 +848,48 @@ function BodyMCQ({
             return { display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: optGapPx + ' 6px', marginTop: '3px', alignItems: 'start' };
         }
         if (optionsPerLine === 2 || optionsLayout === '2col') {
-            return { display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: optGapPx + ' 10px', marginTop: '3px', alignItems: 'start' };
+            return { display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: isTwoCol ? optGapPx + ' 6px' : optGapPx + ' 12px', marginTop: '3px', alignItems: 'start' };
         }
+
+        // Measure options
+        const parsed = (options || []).map(opt => {
+            const raw = String(typeof opt === 'object' ? (opt.text || opt.option || '') : opt).trim();
+            const clean = raw.replace(/<[^>]+>/g, '').trim();
+            const hasMath = /(\$|\\\(|\\\[|\\|\^|_)/i.test(clean);
+            const isComplex = /\\(frac|dfrac|int|sum|matrix|begin|sqrt)/i.test(clean);
+            return { len: clean.length, hasMath, isComplex };
+        });
+        const maxLen = Math.max(...parsed.map(p => p.len), 0);
+        const hasComplex = parsed.some(p => p.isComplex);
+
+        // Responsive Line Layout: Fits in 1 line whenever clean, protects against word-wrapping
         if (optionsPerLine === 4 || optionsLayout === 'line') {
-            return { display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: optGapPx + ' 10px', marginTop: '3px', alignItems: 'start' };
+            if (!isTwoCol) {
+                // SINGLE COLUMN MODE (~720px width):
+                // All 4 fit in 1 line if length <= 42 chars and not complex formulas
+                if (maxLen <= 42 && !hasComplex) {
+                    return { display: 'grid', gridTemplateColumns: `repeat(${Math.min(4, options.length || 4)}, minmax(0, 1fr))`, gap: optGapPx + ' 12px', marginTop: '3px', alignItems: 'start' };
+                }
+                // For long sentences (> 42 chars), use 2x2 grid so words never hyphenate or wrap into vertical towers!
+                return { display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: optGapPx + ' 14px', marginTop: '3px', alignItems: 'start' };
+            } else {
+                // DOUBLE COLUMN MODE (~340px column width):
+                // Very short options (<= 12 chars, e.g. numbers, short units) fit 4 in a line!
+                if (maxLen <= 12 && !hasComplex && options.length <= 4) {
+                    return { display: 'grid', gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))`, gap: optGapPx + ' 6px', marginTop: '3px', alignItems: 'start' };
+                }
+                // Medium options (13-28 chars) fit in 2x2 grid (160px each):
+                if (maxLen <= 28 && !hasComplex && options.length <= 4) {
+                    return { display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: optGapPx + ' 8px', marginTop: '3px', alignItems: 'start' };
+                }
+                // Long sentences (> 28 chars): 1 column stacked so lines read naturally!
+                return { display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: optGapPx + ' 6px', marginTop: '3px', alignItems: 'start' };
+            }
         }
+
+        // Auto mode
         const dynamicStyle = getDynamicOptGrid(options, isTwoCol);
-        return { ...dynamicStyle, gap: optGapPx + ' 10px' };
+        return { ...dynamicStyle, gap: isTwoCol ? optGapPx + ' 6px' : optGapPx + ' 12px' };
     };
 
     const renderOptions = (forceSingle = false) => {
@@ -1131,7 +1170,7 @@ function BodyAssertionReason({
                 <div
                     style={{
                         display: 'grid',
-                        gridTemplateColumns: (optionsLayout === 'line' || optionsLayout === '4') ? 'repeat(4, minmax(0, 1fr))' : (optionsLayout === 'stacked' || optionsLayout === '1' ? 'minmax(0, 1fr)' : (isTwoCol ? 'minmax(0, 1fr)' : 'repeat(2, minmax(0, 1fr))')),
+                        gridTemplateColumns: isTwoCol ? 'minmax(0, 1fr)' : 'repeat(2, minmax(0, 1fr))',
                         gap: isTwoCol ? `${optGapPx} 6px` : `${optGapPx} 12px`,
                         marginTop: '4px',
                         alignItems: 'start'
@@ -1590,8 +1629,8 @@ function BodyMatchFollowing({
             {!shouldHideOptions && opts.length > 0 && (
                 <div style={{
                     display: 'grid',
-                    gridTemplateColumns: (optionsLayout === 'line' || optionsLayout === '4') ? 'repeat(4, minmax(0, 1fr))' : (optionsLayout === 'stacked' || optionsLayout === '1' ? 'minmax(0, 1fr)' : (isTwoCol ? 'minmax(0, 1fr)' : 'repeat(2, minmax(0, 1fr))')),
-                    gap: isTwoCol ? `${optGapPx} 8px` : `${optGapPx} 16px`,
+                    gridTemplateColumns: isTwoCol ? 'repeat(2, minmax(0, 1fr))' : ((optionsLayout === 'line' || optionsLayout === '4') ? 'repeat(4, minmax(0, 1fr))' : 'repeat(2, minmax(0, 1fr))'),
+                    gap: isTwoCol ? `${optGapPx} 6px` : `${optGapPx} 12px`,
                     marginTop: '4px',
                     alignItems: 'start',
                 }}>
@@ -1692,14 +1731,13 @@ function BodyStatementBased({
             )}
             {!shouldHideOptions && opts.length > 0 && (
                 <div style={{
-                    ...(optionsLayout === 'line' || optionsLayout === '4'
-                        ? { display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))' }
-                        : optionsLayout === 'stacked' || optionsLayout === '1'
-                        ? { display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)' }
-                        : optionsLayout === '2col' || optionsLayout === '2'
-                        ? { display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }
-                        : getDynamicOptGrid(opts, isTwoCol)),
-                    gap: `${optGapPx} 10px`
+                    display: 'grid',
+                    gridTemplateColumns: isTwoCol
+                        ? 'minmax(0, 1fr)'
+                        : ((optionsLayout === 'line' || optionsLayout === '4') ? 'repeat(4, minmax(0, 1fr))' : 'repeat(2, minmax(0, 1fr))'),
+                    gap: isTwoCol ? `${optGapPx} 6px` : `${optGapPx} 12px`,
+                    marginTop: '4px',
+                    alignItems: 'start'
                 }}>
                     {opts.map((opt, i) => (
                         <div key={i} style={Q.optRow}>
