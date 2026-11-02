@@ -149,15 +149,22 @@ export function extractOptionsIfMissing(q) {
  */
 export function getQuestionOptionLabels(q, optionFormat = null) {
     if (!q) {
-        return optionFormat === 'numeric' ? ['1', '2', '3', '4'] : ['A', 'B', 'C', 'D'];
+        const fmt = String(optionFormat || '').toLowerCase();
+        if (fmt.includes('1') || fmt === 'numeric') return ['1', '2', '3', '4'];
+        if (fmt.includes('(a) (b) (c) (d)') || fmt === 'lower') return ['a', 'b', 'c', 'd'];
+        return ['A', 'B', 'C', 'D'];
     }
     const options = Array.isArray(q.options) ? q.options : [];
     const count = options.length || 4;
 
-    if (optionFormat === 'numeric' || optionFormat === '1234') {
+    const optFmtStr = String(optionFormat || '').toLowerCase();
+    if (optFmtStr.includes('1') || optFmtStr === 'numeric' || optFmtStr === '1234') {
         return Array.from({ length: count }, (_, i) => String(i + 1));
     }
-    if (optionFormat === 'alpha' || optionFormat === 'ABCD') {
+    if (optFmtStr.includes('(a) (b) (c) (d)') || optFmtStr === 'lower' || optFmtStr === 'abcd_lower') {
+        return Array.from({ length: count }, (_, i) => String.fromCharCode(97 + i));
+    }
+    if (optFmtStr.includes('a') || optFmtStr === 'alpha' || optFmtStr === 'abcd') {
         return Array.from({ length: count }, (_, i) => String.fromCharCode(65 + i));
     }
 

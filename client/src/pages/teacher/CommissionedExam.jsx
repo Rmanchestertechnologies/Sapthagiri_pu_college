@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext, useMemo } from 'react';
+﻿import React, { useState, useEffect, useContext, useMemo } from 'react';
 import { AuthContext } from '../../context/AuthContext';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../../api';
@@ -8,6 +8,7 @@ import A4AnswerKey from '../../components/A4AnswerKey';
 import A4SolutionKey from '../../components/A4SolutionKey';
 import Loader from '../../components/Loader';
 import { getQuestionOptionLabels, optionLabel, cleanOptionText, extractOptionsIfMissing } from '../../utils/sanitize';
+import { generatePaperSet } from '../../utils/pqrsGenerator';
 
 const EXAM_PATTERNS = {
     NEET: {
@@ -71,7 +72,7 @@ export default function CommissionedExam() {
     const paramExamId = searchParams.get('examId');
     const paramPaperId = searchParams.get('paperId');
 
-    // ── STEP FLOW STRICTLY DEFINED BY USER:
+    // â”€â”€ STEP FLOW STRICTLY DEFINED BY USER:
     // Step 1: Subject Selection (NEET: PCBZ, JEE: PCM, CET: PCMB, Custom)
     // Step 2: Chapter Selection
     // Step 3: Concept Selection
@@ -116,7 +117,7 @@ export default function CommissionedExam() {
         numerical: 0,
     });
 
-    // Step 5: Difficulty percentage distribution (Easy %, Medium %, Hard % — sum should = 100)
+    // Step 5: Difficulty percentage distribution (Easy %, Medium %, Hard % â€” sum should = 100)
     const [difficultyDistribution, setDifficultyDistribution] = useState({ easy: 30, medium: 50, hard: 20 });
 
     // Update one difficulty level, auto-clamp the others so total = 100
@@ -414,7 +415,7 @@ export default function CommissionedExam() {
         return a;
     };
 
-    // Step 6: Execute Question Fetch — uses parallel type-specific queries to guarantee allocations
+    // Step 6: Execute Question Fetch â€” uses parallel type-specific queries to guarantee allocations
     const executeFetch = async () => {
         setStepLoading(true);
         setLoadingMessage('Fetching questions from question repository...');
@@ -881,6 +882,11 @@ export default function CommissionedExam() {
         subHeader: 'DEPARTMENT OF PRE-UNIVERSITY EDUCATION, KARNATAKA',
     }), [examTitle, selectedSubject, selectedExamPattern, selectedClass, selectedQuestions, patternConfig]);
 
+    const effectiveActivePaper = useMemo(() => {
+        if (!setsActive || activeSet === 'P') return { ...currentPaperObject, setName: setsActive ? 'P' : '' };
+        return generatePaperSet(currentPaperObject, activeSet);
+    }, [currentPaperObject, setsActive, activeSet]);
+
     // Filter concepts belonging strictly to selected chapters
     const scopedConcepts = useMemo(() => {
         if (selectedChapters.length === 0) return availableConcepts;
@@ -899,7 +905,7 @@ export default function CommissionedExam() {
                         onClick={() => currentStep > 1 ? setCurrentStep(prev => prev - 1) : navigate('/teacher/dashboard')}
                         className="bg-white/10 hover:bg-white/20 text-gold px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition flex items-center gap-1 cursor-pointer"
                     >
-                        <span>←</span> Back
+                        <span>â†</span> Back
                     </button>
                     <div>
                         <div className="flex items-center gap-2">
@@ -944,9 +950,9 @@ export default function CommissionedExam() {
 
             <main className="flex-1 max-w-6xl w-full mx-auto p-4 md:p-8 space-y-6">
 
-                {/* ══════════════════════════════════════════════════════════════
+                {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
                     STEP 1: SUBJECT SELECTION (NEET: PCBZ, JEE: PCM, CET: PCMB, CUSTOM)
-                ══════════════════════════════════════════════════════════════ */}
+                â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
                 {currentStep === 1 && (
                     <div className="space-y-8 animate-fade-in">
                         <div className="text-center max-w-2xl mx-auto space-y-2">
@@ -1033,7 +1039,7 @@ export default function CommissionedExam() {
                                                         className="bg-navy/5 hover:bg-navy hover:text-gold text-navy text-xs font-black py-2.5 px-3 rounded-xl transition text-center border border-navy/10 shadow-2xs cursor-pointer flex items-center justify-between"
                                                     >
                                                         <span>{sub}</span>
-                                                        <span className="text-xs">→</span>
+                                                        <span className="text-xs">â†’</span>
                                                     </button>
                                                 ))}
                                             </div>
@@ -1045,9 +1051,9 @@ export default function CommissionedExam() {
                     </div>
                 )}
 
-                {/* ══════════════════════════════════════════════════════════════
+                {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
                     STEP 2: CHAPTER SELECTION
-                ══════════════════════════════════════════════════════════════ */}
+                â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
                 {currentStep === 2 && (
                     <div className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-200 space-y-6 animate-fade-in">
                         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-5">
@@ -1116,7 +1122,7 @@ export default function CommissionedExam() {
                                             <span className={`w-5 h-5 rounded-lg flex items-center justify-center text-xs font-black ${
                                                 isChecked ? 'bg-gold text-navy' : 'border border-slate-300 text-transparent'
                                             }`}>
-                                                ✓
+                                                âœ“
                                             </span>
                                         </div>
                                     );
@@ -1129,7 +1135,7 @@ export default function CommissionedExam() {
                                 onClick={() => setCurrentStep(1)}
                                 className="text-xs font-bold text-slate-500 hover:text-navy cursor-pointer"
                             >
-                                ← Back to Subjects
+                                â† Back to Subjects
                             </button>
                             <button
                                 type="button"
@@ -1142,15 +1148,15 @@ export default function CommissionedExam() {
                                 }}
                                 className="bg-navy hover:bg-navy/90 text-gold font-black text-xs uppercase tracking-wider px-6 py-2.5 rounded-xl shadow-md transition cursor-pointer"
                             >
-                                Proceed to Concepts (Step 3) →
+                                Proceed to Concepts (Step 3) â†’
                             </button>
                         </div>
                     </div>
                 )}
 
-                {/* ══════════════════════════════════════════════════════════════
+                {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
                     STEP 3: CONCEPT / SUB-TOPIC SELECTION
-                ══════════════════════════════════════════════════════════════ */}
+                â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
                 {currentStep === 3 && (
                     <div className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-200 space-y-6 animate-fade-in">
                         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-5">
@@ -1224,7 +1230,7 @@ export default function CommissionedExam() {
                                             <span className={`w-5 h-5 rounded-lg flex items-center justify-center text-xs font-black shrink-0 ${
                                                 isChecked ? 'bg-gold text-navy' : 'border border-slate-300 text-transparent'
                                             }`}>
-                                                ✓
+                                                âœ“
                                             </span>
                                         </div>
                                     );
@@ -1237,7 +1243,7 @@ export default function CommissionedExam() {
                                 onClick={() => setCurrentStep(2)}
                                 className="text-xs font-bold text-slate-500 hover:text-navy cursor-pointer"
                             >
-                                ← Back to Chapters
+                                â† Back to Chapters
                             </button>
                             <button
                                 type="button"
@@ -1247,15 +1253,15 @@ export default function CommissionedExam() {
                                 }}
                                 className="bg-navy hover:bg-navy/90 text-gold font-black text-xs uppercase tracking-wider px-6 py-2.5 rounded-xl shadow-md transition cursor-pointer"
                             >
-                                Proceed to Questions per Chapter (Step 4) →
+                                Proceed to Questions per Chapter (Step 4) â†’
                             </button>
                         </div>
                     </div>
                 )}
 
-                {/* ══════════════════════════════════════════════════════════════
+                {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
                     STEP 4: NUMBER OF QUESTIONS FROM EACH CHAPTER (UNLIMITED)
-                ══════════════════════════════════════════════════════════════ */}
+                â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
                 {currentStep === 4 && (
                     <div className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-200 space-y-6 animate-fade-in">
                         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-5">
@@ -1267,7 +1273,7 @@ export default function CommissionedExam() {
                                     Questions From Each Chapter
                                 </h2>
                                 <p className="text-xs text-slate-500 font-semibold mt-1">
-                                    Specify how many questions required from each chosen chapter. Add any question count — not limited to 60 questions.
+                                    Specify how many questions required from each chosen chapter. Add any question count â€” not limited to 60 questions.
                                 </p>
                             </div>
 
@@ -1347,7 +1353,7 @@ export default function CommissionedExam() {
                                 onClick={() => setCurrentStep(3)}
                                 className="text-xs font-bold text-slate-500 hover:text-navy cursor-pointer"
                             >
-                                ← Back to Concepts
+                                â† Back to Concepts
                             </button>
                             <button
                                 type="button"
@@ -1361,15 +1367,15 @@ export default function CommissionedExam() {
                                 }}
                                 className="bg-navy hover:bg-navy/90 text-gold font-black text-xs uppercase tracking-wider px-6 py-2.5 rounded-xl shadow-md transition cursor-pointer"
                             >
-                                Proceed to Question Types (Step 5) →
+                                Proceed to Question Types (Step 5) â†’
                             </button>
                         </div>
                     </div>
                 )}
 
-                {/* ══════════════════════════════════════════════════════════════
+                {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
                     STEP 5: FROM EACH TYPE HOW MANY QUESTIONS (DYNAMIC BALANCING)
-                ══════════════════════════════════════════════════════════════ */}
+                â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
                 {currentStep === 5 && (
                     <div className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-200 space-y-6 animate-fade-in">
                         <div className="border-b border-slate-100 pb-5">
@@ -1391,14 +1397,14 @@ export default function CommissionedExam() {
                                         onClick={setAllMCQPreset}
                                         className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black transition cursor-pointer shadow-sm flex items-center gap-1.5"
                                     >
-                                        <span>🎯</span> 100% Single Correct MCQs ({totalChapterQuestions})
+                                        <span>ðŸŽ¯</span> 100% Single Correct MCQs ({totalChapterQuestions})
                                     </button>
                                     <button
                                         type="button"
                                         onClick={setBalancedMixPreset}
                                         className="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 border border-slate-200"
                                     >
-                                        <span>⚖️</span> Mixed Format
+                                        <span>âš–ï¸</span> Mixed Format
                                     </button>
                                 </div>
                             </div>
@@ -1446,21 +1452,21 @@ export default function CommissionedExam() {
                         {/* Difficulty Level Distribution */}
                         <div className="bg-slate-50 border border-slate-200 p-5 rounded-2xl space-y-3">
                             <div className="flex items-center justify-between">
-                                <h4 className="text-xs font-black text-navy uppercase tracking-wider">📊 Difficulty Distribution</h4>
+                                <h4 className="text-xs font-black text-navy uppercase tracking-wider">ðŸ“Š Difficulty Distribution</h4>
                                 <span className={`text-xs font-black px-2.5 py-1 rounded-xl ${
                                     difficultyDistribution.easy + difficultyDistribution.medium + difficultyDistribution.hard === 100
                                         ? 'bg-emerald-100 text-emerald-800'
                                         : 'bg-red-100 text-red-700'
                                 }`}>
                                     Total: {difficultyDistribution.easy + difficultyDistribution.medium + difficultyDistribution.hard}%
-                                    {difficultyDistribution.easy + difficultyDistribution.medium + difficultyDistribution.hard !== 100 && ' ≠ 100%'}
+                                    {difficultyDistribution.easy + difficultyDistribution.medium + difficultyDistribution.hard !== 100 && ' â‰  100%'}
                                 </span>
                             </div>
                             <div className="grid grid-cols-3 gap-3">
                                 {[
-                                    { key: 'easy', label: '🟢 Easy', color: 'emerald' },
-                                    { key: 'medium', label: '🟡 Medium', color: 'amber' },
-                                    { key: 'hard', label: '🔴 Hard', color: 'red' },
+                                    { key: 'easy', label: 'ðŸŸ¢ Easy', color: 'emerald' },
+                                    { key: 'medium', label: 'ðŸŸ¡ Medium', color: 'amber' },
+                                    { key: 'hard', label: 'ðŸ”´ Hard', color: 'red' },
                                 ].map(({ key, label, color }) => (
                                     <div key={key} className={`bg-${color}-50 border border-${color}-200 rounded-xl p-3 text-center`}>
                                         <label className={`text-[10px] font-black text-${color}-800 uppercase tracking-wider block mb-1.5`}>{label}</label>
@@ -1504,22 +1510,22 @@ export default function CommissionedExam() {
                                 onClick={() => setCurrentStep(4)}
                                 className="text-xs font-bold text-slate-500 hover:text-navy cursor-pointer"
                             >
-                                ← Back to Questions per Chapter
+                                â† Back to Questions per Chapter
                             </button>
                             <button
                                 type="button"
                                 onClick={() => setCurrentStep(6)} // Proceed to Step 6: Method
                                 className="bg-navy hover:bg-navy/90 text-gold font-black text-xs uppercase tracking-wider px-6 py-2.5 rounded-xl shadow-md transition cursor-pointer"
                             >
-                                Proceed to Method (Step 6) →
+                                Proceed to Method (Step 6) â†’
                             </button>
                         </div>
                     </div>
                 )}
 
-                {/* ══════════════════════════════════════════════════════════════
+                {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
                     STEP 6: METHOD (AUTO FETCH VS MANUAL QUESTION SELECTOR)
-                ══════════════════════════════════════════════════════════════ */}
+                â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
                 {currentStep === 6 && (
                     <div className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-200 space-y-6 animate-fade-in">
                         <div className="border-b border-slate-100 pb-5">
@@ -1541,7 +1547,7 @@ export default function CommissionedExam() {
                                     fetchMode === 'auto' ? 'border-gold bg-amber-50/40 ring-4 ring-gold/20 shadow-md' : 'border-slate-200 hover:border-navy'
                                 }`}
                             >
-                                <div className="text-2xl mb-2">⚡</div>
+                                <div className="text-2xl mb-2">âš¡</div>
                                 <h3 className="text-base font-black text-navy mb-1">Auto Fetch Mode</h3>
                                 <p className="text-xs text-slate-500 font-medium">
                                     Instant 1-click question generation sampling exactly {totalChapterQuestions} questions matching your chapter quotas and type breakdown.
@@ -1557,7 +1563,7 @@ export default function CommissionedExam() {
                                     fetchMode === 'manual' ? 'border-gold bg-amber-50/40 ring-4 ring-gold/20 shadow-md' : 'border-slate-200 hover:border-navy'
                                 }`}
                             >
-                                <div className="text-2xl mb-2">✍️</div>
+                                <div className="text-2xl mb-2">âœï¸</div>
                                 <h3 className="text-base font-black text-navy mb-1">Manual Fetch Mode</h3>
                                 <p className="text-xs text-slate-500 font-medium">
                                     Hand-pick questions with search, filters, and segregated Section A vs Section B tabs for JEE.
@@ -1647,7 +1653,7 @@ export default function CommissionedExam() {
                                                     <span className={`w-6 h-6 rounded-lg flex items-center justify-center text-xs font-black shrink-0 ${
                                                         isSelected ? 'bg-gold text-navy shadow-xs' : 'border border-slate-300'
                                                     }`}>
-                                                        {isSelected ? '✓' : '+'}
+                                                        {isSelected ? 'âœ“' : '+'}
                                                     </span>
                                                 </div>
                                             );
@@ -1662,7 +1668,7 @@ export default function CommissionedExam() {
                                 onClick={() => setCurrentStep(5)}
                                 className="text-xs font-bold text-slate-500 hover:text-navy cursor-pointer"
                             >
-                                ← Back to Question Types
+                                â† Back to Question Types
                             </button>
                             <button
                                 type="button"
@@ -1679,23 +1685,23 @@ export default function CommissionedExam() {
                                 }}
                                 className="bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs uppercase tracking-wider px-8 py-3 rounded-xl shadow-lg transition cursor-pointer flex items-center gap-2"
                             >
-                                <span>🚀</span>
+                                <span>ðŸš€</span>
                                 <span>{fetchMode === 'auto' ? 'Execute Auto Fetch & Preview' : 'Proceed to Preview & Save (Step 7)'}</span>
                             </button>
                         </div>
                     </div>
                 )}
 
-                {/* ══════════════════════════════════════════════════════════════
+                {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
                     STEP 7: PREVIEW, ALIGNMENT & MERGE EXAM
-                ══════════════════════════════════════════════════════════════ */}
+                â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
                 {currentStep === 7 && (
-                    <div className="space-y-6 animate-fade-in relative pb-36">
+                    <div className="space-y-6 animate-fade-in relative pb-12">
 
-                        {/* Paginated Paper Renderer — toolbar removed, controlled by bottom bar */}
+                        {/* Paginated Paper Renderer with unified SettingsPanel containing all layout controls & actions */}
                         <div className="w-full flex justify-center">
                             <PaperRenderer
-                                paper={currentPaperObject}
+                                paper={effectiveActivePaper}
                                 activeTemplate={activeTemplate}
                                 settings={settings}
                                 setSettings={setSettings}
@@ -1709,152 +1715,41 @@ export default function CommissionedExam() {
                                 zoom={previewZoom}
                                 setZoom={setPreviewZoom}
                                 hideToolbar={true}
+                                onBack={() => setCurrentStep(6)}
+                                onOpenAnswerKey={() => setShowAnswerKey(true)}
+                                onOpenSolutions={() => setShowSolutionGuide(true)}
+                                onReshuffle={handleReshuffleQuestions}
+                                onOpenMerge={handleOpenMergeModal}
+                                onDownloadWord={handleDownloadWord}
+                                downloadingWord={downloadingWord}
+                                onPrint={handlePrint}
+                                onFinalizeSave={handleSaveDraft}
+                                savingPaper={savingPaper}
                             />
-                        </div>
-
-                        {/* ── UNIFIED BOTTOM CONTROL BAR (replaces the removed top toolbar) ── */}
-                        <div className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t-2 border-navy/20 shadow-2xl no-print">
-                            {/* Row 1: PQRS + Column + Options + Display Mode + Size + Zoom + Q count */}
-                            <div className="flex flex-wrap items-center gap-2 px-4 pt-2.5 pb-1 border-b border-slate-100">
-                                {/* 4-Sets PQRS */}
-                                {setsActive ? (
-                                    <div className="flex items-center gap-1 bg-slate-100 px-1.5 py-1 rounded-xl border border-slate-300">
-                                        <span className="text-[10px] font-black text-navy uppercase px-1">Set:</span>
-                                        {['P', 'Q', 'R', 'S'].map(s => (
-                                            <button key={s} type="button" onClick={() => setActiveSet(s)}
-                                                className={'px-2.5 py-0.5 rounded-lg text-xs font-black transition cursor-pointer ' + (activeSet === s ? 'bg-navy text-gold shadow-sm scale-105' : 'bg-white text-slate-700 hover:bg-slate-200')}>
-                                                {s}
-                                            </button>
-                                        ))}
-                                        <button type="button" onClick={() => setSetsActive(false)}
-                                            className="text-slate-400 hover:text-red-500 text-xs px-1 rounded cursor-pointer ml-0.5">✕</button>
-                                    </div>
-                                ) : (
-                                    <button type="button" onClick={() => { setSetsActive(true); setActiveSet('P'); }}
-                                        className="bg-slate-100 hover:bg-slate-200 text-navy px-3 py-1.5 rounded-xl font-black text-xs border border-slate-300 transition cursor-pointer flex items-center gap-1.5">
-                                        <span>🎲</span><span>Generate 4-Sets (P, Q, R, S)</span>
-                                    </button>
-                                )}
-
-                                {/* Column Toggle */}
-                                <button onClick={() => { const c = settings.columns === 2 ? 1 : 2; setSettings(s => ({ ...s, columns: c, paper2Column: c === 2 })); }}
-                                    className="bg-slate-100 hover:bg-slate-200 text-navy px-3 py-1.5 rounded-xl font-bold text-xs border border-slate-300 transition cursor-pointer flex items-center gap-1">
-                                    <span>{settings.columns === 2 ? '📰 2-Col' : '📄 1-Col'}</span>
-                                    <span className="text-[9px] bg-navy text-gold px-1 py-0.5 rounded">Switch</span>
-                                </button>
-
-                                {/* Option Style */}
-                                <select value={settings.optionFormat || '(1) (2) (3) (4)'}
-                                    onChange={e => setSettings(s => ({ ...s, optionFormat: e.target.value }))}
-                                    className="bg-slate-100 text-navy px-2 py-1.5 rounded-xl font-bold text-xs border border-slate-300 cursor-pointer outline-none">
-                                    <option value="(1) (2) (3) (4)">(1) (2) (3) (4)</option>
-                                    <option value="(A) (B) (C) (D)">(A) (B) (C) (D)</option>
-                                    <option value="(a) (b) (c) (d)">(a) (b) (c) (d)</option>
-                                </select>
-
-                                {/* Display Mode */}
-                                <select value={settings.displayMode || '1. Questions'}
-                                    onChange={e => setSettings(s => ({ ...s, displayMode: e.target.value }))}
-                                    className="bg-slate-100 text-navy px-2 py-1.5 rounded-xl font-bold text-xs border border-slate-300 cursor-pointer outline-none">
-                                    <option value="1. Questions">1. Questions</option>
-                                    <option value="2. Questions with Answers">2. With Answers</option>
-                                    <option value="3. Questions with Answers & Solutions">3. With Solutions</option>
-                                    <option value="4. Questions after Answers & Solutions">4. Qs then Solutions</option>
-                                    <option value="5. Only Questions with No Options">5. No Options</option>
-                                    <option value="6. Only Answers & Solutions">6. Only Solutions</option>
-                                    <option value="7. Only Answers">7. Only Answers</option>
-                                </select>
-
-                                {/* Font Size */}
-                                <div className="flex items-center gap-1 bg-slate-100 px-1.5 py-1 rounded-xl border border-slate-300">
-                                    <span className="text-[10px] font-black text-navy">Size:</span>
-                                    <select value={settings.fontSize || '13px'}
-                                        onChange={e => setSettings(s => ({ ...s, fontSize: e.target.value }))}
-                                        className="bg-transparent text-navy text-xs font-bold outline-none cursor-pointer px-0.5">
-                                        {['10px','11px','12px','13px','14px','15px','16px','18px','20px','22px','24px','26px','28px','30px','32px','34px','36px','38px','40px'].map(sz => (
-                                            <option key={sz} value={sz}>{sz.replace('px','')}</option>
-                                        ))}
-                                    </select>
-                                </div>
-
-                                {/* Zoom */}
-                                <div className="flex items-center bg-gray-100 rounded-xl px-1 py-0.5 gap-0.5">
-                                    <button onClick={() => setPreviewZoom(z => Math.max(60, z - 15))} className="px-2 py-1 text-xs font-black text-gray-700 hover:bg-white rounded-lg transition cursor-pointer">−</button>
-                                    <span className="text-xs font-bold text-navy px-1">{previewZoom}%</span>
-                                    <button onClick={() => setPreviewZoom(z => Math.min(150, z + 15))} className="px-2 py-1 text-xs font-black text-gray-700 hover:bg-white rounded-lg transition cursor-pointer">+</button>
-                                    <button onClick={() => setPreviewZoom(100)} className="px-1.5 py-0.5 text-[10px] font-bold bg-white text-gray-700 rounded-lg shadow-xs cursor-pointer">Reset</button>
-                                </div>
-
-                                <span className="text-xs font-bold text-gray-500 ml-1">{selectedQuestions.length} Questions</span>
-                            </div>
-
-                            {/* Row 2: Action buttons */}
-                            <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2">
-                                <div className="flex items-center gap-2">
-                                    <button type="button" onClick={() => setCurrentStep(6)}
-                                        className="bg-slate-100 hover:bg-slate-200 text-navy px-3 py-1.5 rounded-xl font-bold text-xs cursor-pointer">
-                                        ← Back
-                                    </button>
-                                    <button type="button" onClick={() => setShowAnswerKey(true)}
-                                        className="bg-navy text-gold hover:bg-navy/90 px-3 py-1.5 rounded-xl font-black text-xs uppercase tracking-wider flex items-center gap-1 cursor-pointer">
-                                        <span>🔑</span> Answer Key
-                                    </button>
-                                    <button type="button" onClick={() => setShowSolutionGuide(true)}
-                                        className="bg-navy text-gold hover:bg-navy/90 px-3 py-1.5 rounded-xl font-black text-xs uppercase tracking-wider flex items-center gap-1 cursor-pointer">
-                                        <span>💡</span> Solutions
-                                    </button>
-                                    <button type="button" onClick={handleReshuffleQuestions}
-                                        className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-xl font-black text-xs uppercase tracking-wider flex items-center gap-1 cursor-pointer">
-                                        <span>🎲</span> Reshuffle
-                                    </button>
-                                    <button type="button" onClick={handleOpenMergeModal}
-                                        className="bg-gold text-navy hover:bg-amber-400 px-3 py-1.5 rounded-xl font-black text-xs uppercase tracking-wider flex items-center gap-1.5 cursor-pointer">
-                                        <span>🔀</span> Merge Exam
-                                    </button>
-                                </div>
-
-                                <div className="flex items-center gap-2">
-                                    {/* Word Download */}
-                                    <button type="button" onClick={handleDownloadWord} disabled={downloadingWord}
-                                        className="bg-blue-700 hover:bg-blue-800 disabled:opacity-50 text-white px-4 py-2 rounded-xl font-black text-xs uppercase tracking-wider shadow flex items-center gap-1.5 cursor-pointer">
-                                        <span>📝</span> {downloadingWord ? 'Exporting...' : 'Word (.docx)'}
-                                    </button>
-                                    {/* PDF / Print */}
-                                    <button type="button" onClick={handlePrint}
-                                        className="bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-xl font-black text-xs uppercase tracking-wider shadow flex items-center gap-1.5 cursor-pointer">
-                                        <span>📄</span> PDF / Print
-                                    </button>
-                                    {/* Finalize & Save */}
-                                    <button type="button" onClick={handleSaveDraft} disabled={savingPaper}
-                                        className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white font-black text-xs uppercase tracking-widest px-6 py-2 rounded-xl shadow-xl flex items-center gap-2 border-2 border-emerald-400 hover:scale-105 transition-all cursor-pointer">
-                                        <span>✓</span> {savingPaper ? 'Saving...' : 'Finalize & Save →'}
-                                    </button>
-                                </div>
-                            </div>
                         </div>
                     </div>
                 )}
             </main>
 
-            {/* ── MODAL: ANSWER KEY ── */}
+            {/* â”€â”€ MODAL: ANSWER KEY â”€â”€ */}
             {showAnswerKey && (
                 <A4AnswerKey
-                    paper={currentPaperObject}
-                    questions={currentPaperObject.questions}
+                    paper={effectiveActivePaper}
+                    questions={effectiveActivePaper.questions}
                     onClose={() => setShowAnswerKey(false)}
                 />
             )}
 
-            {/* ── MODAL: SOLUTION GUIDE ── */}
+            {/* â”€â”€ MODAL: SOLUTION GUIDE â”€â”€ */}
             {showSolutionGuide && (
                 <A4SolutionKey
-                    paper={currentPaperObject}
-                    questions={currentPaperObject.questions}
+                    paper={effectiveActivePaper}
+                    questions={effectiveActivePaper.questions}
                     onClose={() => setShowSolutionGuide(false)}
                 />
             )}
 
-            {/* ── MODAL: MERGE EXAM ENGINE ── */}
+            {/* â”€â”€ MODAL: MERGE EXAM ENGINE â”€â”€ */}
             {showMergeModal && (
                 <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
                     <div className="bg-white rounded-3xl max-w-2xl w-full p-6 shadow-2xl border-2 border-gold space-y-5 animate-fade-in">
@@ -1869,7 +1764,7 @@ export default function CommissionedExam() {
                                 onClick={() => setShowMergeModal(false)}
                                 className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold cursor-pointer"
                             >
-                                ✕
+                                âœ•
                             </button>
                         </div>
 
@@ -1898,7 +1793,7 @@ export default function CommissionedExam() {
                                             <span className={`w-5 h-5 rounded-lg flex items-center justify-center text-xs font-black ${
                                                 isSel ? 'bg-gold text-navy' : 'border border-slate-300'
                                             }`}>
-                                                {isSel ? '✓' : ''}
+                                                {isSel ? 'âœ“' : ''}
                                             </span>
                                         </div>
                                     );

@@ -123,7 +123,7 @@ export default function A4PaperEngine({
     const visibleQuestions = useMemo(() => questions.slice(0, visibleCount), [questions, visibleCount]);
 
     const zoomScale = (zoom || 100) / 100;
-    const isTwoCol = settings.columns === 2;
+    const isTwoCol = settings.columns === 2 || Boolean(settings.paper2Column);
 
     return (
         <div className="a4-engine-wrapper" style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
@@ -384,6 +384,7 @@ export default function A4PaperEngine({
                                                         onSwap={onSwapQuestion ? () => onSwapQuestion(effectiveQ, idx, displayNum) : undefined}
                                                         showQuestionNumbers={settings.showQuestionNumbers !== false}
                                                         imageBelowQuestion={Boolean(settings.imageBelowQuestion)}
+                                                        paper2ColumnQuestionBreak={settings.paper2ColumnQuestionBreak !== false}
                                                         displayMode={settings.displayMode || '1. Questions'}
                                                         optionSpacing={settings.optionSpacing || 'Default'}
                                                         questionSpacing={settings.questionSpacing || 'Default'}

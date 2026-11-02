@@ -92,7 +92,27 @@ function SettingField({ label, children }) {
     );
 }
 
-export function SettingsPanel({ settings, setSettings, totalQuestions = 0 }) {
+export function SettingsPanel({
+    settings,
+    setSettings,
+    totalQuestions = 0,
+    setsActive,
+    setSetsActive,
+    activeSet,
+    setActiveSet,
+    zoom,
+    setZoom,
+    onBack,
+    onOpenAnswerKey,
+    onOpenSolutions,
+    onReshuffle,
+    onOpenMerge,
+    onDownloadWord,
+    downloadingWord,
+    onPrint,
+    onFinalizeSave,
+    savingPaper,
+}) {
     const update = (key, val) => setSettings(s => ({ ...s, [key]: val }));
 
     return (
@@ -103,6 +123,150 @@ export function SettingsPanel({ settings, setSettings, totalQuestions = 0 }) {
                     <h3 className="font-black text-sm text-navy uppercase tracking-wider">Paper Alignment & Layout Controls</h3>
                 </div>
                 <span className="text-[11px] font-bold text-gray-500">Fine-tune display modes, options, spacing, and typography</span>
+            </div>
+
+            {/* ── UNIFIED ACTION BAR (Back, PQRS, AK, Sol, Shuffle, Merge, Zoom, Word, PDF, Save) ── */}
+            <div className="flex flex-wrap items-center justify-between gap-2.5 p-3 mb-5 bg-slate-50 border border-slate-200 rounded-xl shadow-xs">
+                {/* Left controls */}
+                <div className="flex flex-wrap items-center gap-2">
+                    {onBack && (
+                        <button
+                            type="button"
+                            onClick={onBack}
+                            className="bg-white hover:bg-slate-100 text-navy border border-slate-300 px-3 py-1.5 rounded-xl font-bold text-xs cursor-pointer shadow-xs transition"
+                        >
+                            ← Back
+                        </button>
+                    )}
+
+                    {/* 4-Sets PQRS */}
+                    {setsActive ? (
+                        <div className="flex items-center gap-1 bg-white px-2 py-1 rounded-xl border border-navy/30 shadow-xs">
+                            <span className="text-[10px] font-black text-navy uppercase px-1">Set:</span>
+                            {['P', 'Q', 'R', 'S'].map(s => (
+                                <button
+                                    key={s}
+                                    type="button"
+                                    onClick={() => setActiveSet && setActiveSet(s)}
+                                    className={'px-2.5 py-0.5 rounded-lg text-xs font-black transition cursor-pointer ' + (activeSet === s ? 'bg-navy text-gold shadow-sm scale-105' : 'bg-slate-100 text-slate-700 hover:bg-slate-200')}
+                                >
+                                    {s}
+                                </button>
+                            ))}
+                            <button
+                                type="button"
+                                onClick={() => setSetsActive && setSetsActive(false)}
+                                className="text-slate-400 hover:text-red-500 text-xs px-1 rounded cursor-pointer ml-1"
+                                title="Reset to Single Set"
+                            >
+                                ✕
+                            </button>
+                        </div>
+                    ) : (
+                        <button
+                            type="button"
+                            onClick={() => { setSetsActive && setSetsActive(true); setActiveSet && setActiveSet('P'); }}
+                            className="bg-white hover:bg-slate-100 text-navy px-3 py-1.5 rounded-xl font-black text-xs border border-slate-300 shadow-xs transition cursor-pointer flex items-center gap-1.5"
+                        >
+                            <span>🎲</span>
+                            <span>Generate 4-Sets (P, Q, R, S)</span>
+                        </button>
+                    )}
+
+                    {/* Answer Key */}
+                    {onOpenAnswerKey && (
+                        <button
+                            type="button"
+                            onClick={onOpenAnswerKey}
+                            className="bg-navy text-gold hover:bg-navy/90 px-3 py-1.5 rounded-xl font-black text-xs uppercase tracking-wider flex items-center gap-1 cursor-pointer shadow-xs transition"
+                        >
+                            <span>🔑</span> Answer Key
+                        </button>
+                    )}
+
+                    {/* Solutions */}
+                    {onOpenSolutions && (
+                        <button
+                            type="button"
+                            onClick={onOpenSolutions}
+                            className="bg-navy text-gold hover:bg-navy/90 px-3 py-1.5 rounded-xl font-black text-xs uppercase tracking-wider flex items-center gap-1 cursor-pointer shadow-xs transition"
+                        >
+                            <span>💡</span> Solutions
+                        </button>
+                    )}
+
+                    {/* Reshuffle */}
+                    {onReshuffle && (
+                        <button
+                            type="button"
+                            onClick={onReshuffle}
+                            className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-xl font-black text-xs uppercase tracking-wider flex items-center gap-1 cursor-pointer shadow-xs transition"
+                        >
+                            <span>🔀</span> Reshuffle
+                        </button>
+                    )}
+
+                    {/* Merge Exam */}
+                    {onOpenMerge && (
+                        <button
+                            type="button"
+                            onClick={onOpenMerge}
+                            className="bg-gold text-navy hover:bg-amber-400 font-black px-3 py-1.5 rounded-xl text-xs uppercase tracking-wider flex items-center gap-1 cursor-pointer shadow-xs transition"
+                        >
+                            <span>🔗</span> Merge Exam
+                        </button>
+                    )}
+
+                    {/* Zoom */}
+                    {setZoom && (
+                        <div className="flex items-center bg-white border border-slate-300 rounded-xl px-1.5 py-0.5 gap-1 shadow-xs">
+                            <button type="button" onClick={() => setZoom(z => Math.max(60, (z || 100) - 15))} className="px-1.5 py-0.5 text-xs font-black text-gray-700 hover:bg-slate-100 rounded cursor-pointer">−</button>
+                            <span className="text-xs font-bold text-navy px-1">{zoom || 100}%</span>
+                            <button type="button" onClick={() => setZoom(z => Math.min(150, (z || 100) + 15))} className="px-1.5 py-0.5 text-xs font-black text-gray-700 hover:bg-slate-100 rounded cursor-pointer">+</button>
+                            <button type="button" onClick={() => setZoom(100)} className="px-1 py-0.5 text-[10px] font-bold bg-slate-100 text-gray-700 rounded cursor-pointer">Reset</button>
+                        </div>
+                    )}
+
+                    <span className="text-xs font-bold text-gray-500 ml-1">{totalQuestions} Questions</span>
+                </div>
+
+                {/* Right controls */}
+                <div className="flex items-center gap-2">
+                    {/* Word (.docx) */}
+                    {onDownloadWord && (
+                        <button
+                            type="button"
+                            onClick={onDownloadWord}
+                            disabled={downloadingWord}
+                            className="bg-blue-700 hover:bg-blue-800 disabled:opacity-50 text-white px-3.5 py-2 rounded-xl font-black text-xs uppercase tracking-wider shadow-sm flex items-center gap-1.5 cursor-pointer transition"
+                        >
+                            <span>📝</span> {downloadingWord ? 'Exporting...' : 'Word (.docx)'}
+                        </button>
+                    )}
+
+                    {/* PDF / Print */}
+                    {onPrint && (
+                        <button
+                            type="button"
+                            onClick={onPrint}
+                            className="bg-amber-500 hover:bg-amber-600 text-white px-3.5 py-2 rounded-xl font-black text-xs uppercase tracking-wider shadow-sm flex items-center gap-1.5 cursor-pointer transition"
+                        >
+                            <span>📄</span> PDF / Print
+                        </button>
+                    )}
+
+                    {/* Finalize & Save */}
+                    {onFinalizeSave && (
+                        <button
+                            type="button"
+                            onClick={onFinalizeSave}
+                            disabled={savingPaper}
+                            className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white font-black text-xs uppercase tracking-widest px-5 py-2 rounded-xl shadow-lg flex items-center gap-1.5 border-2 border-emerald-400 hover:scale-105 transition-all cursor-pointer"
+                        >
+                            <span>✓</span> {savingPaper ? 'Saving...' : 'Finalize & Save →'}
+                        </button>
+                    )}
+                </div>
             </div>
 
             {/* Row 1: Primary Controls from Image 3, 4, 5 */}
@@ -506,6 +670,16 @@ export default function PaperRenderer({
     zoom: externalZoom,
     setZoom: externalSetZoom,
     hideToolbar = false,
+    onBack,
+    onOpenAnswerKey,
+    onOpenSolutions,
+    onReshuffle,
+    onOpenMerge,
+    onDownloadWord,
+    downloadingWord,
+    onPrint,
+    onFinalizeSave,
+    savingPaper,
 }) {
     const [internalSettings, setInternalSettings] = useState(DEFAULT_SETTINGS);
     const settings = externalSettings || internalSettings;
@@ -635,7 +809,27 @@ export default function PaperRenderer({
             {/* Alignment / Settings Panel (Shown only in Alignment step) */}
             {showSettingsPanel && (
                 <div className="w-full max-w-5xl no-print">
-                    <SettingsPanel settings={settings} setSettings={setSettings} totalQuestions={questions.length} />
+                    <SettingsPanel
+                        settings={settings}
+                        setSettings={setSettings}
+                        totalQuestions={questions.length}
+                        setsActive={setsActive}
+                        setSetsActive={setSetsActive}
+                        activeSet={activeSet}
+                        setActiveSet={setActiveSet}
+                        zoom={zoom}
+                        setZoom={setZoom}
+                        onBack={onBack}
+                        onOpenAnswerKey={onOpenAnswerKey}
+                        onOpenSolutions={onOpenSolutions}
+                        onReshuffle={onReshuffle}
+                        onOpenMerge={onOpenMerge}
+                        onDownloadWord={onDownloadWord}
+                        downloadingWord={downloadingWord}
+                        onPrint={onPrint}
+                        onFinalizeSave={onFinalizeSave}
+                        savingPaper={savingPaper}
+                    />
                 </div>
             )}
 

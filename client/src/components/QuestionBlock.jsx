@@ -808,6 +808,7 @@ function BodyMCQ({
     optionsPerLine = null,
     displayMode = '1. Questions',
     optionSpacing = 'Default',
+    imageBelowQuestion = false,
 }) {
     const rawQText = cleanQuestionText(q.questionText || q.question || '');
     const { cleanText: qText, diagramUrl: imageUrl } = extractDiagramFromText(rawQText, q.imageUrl || q.image_url);
@@ -891,59 +892,9 @@ function BodyMCQ({
         );
     };
 
-    const renderAnswerAndSolution = () => {
-        const showAns = displayMode === '2. Questions with Answers' || displayMode === '3. Questions with Answers & Solutions';
-        const showSol = displayMode === '3. Questions with Answers & Solutions';
-        if (!showAns && !showSol) return null;
+    const renderAnswerAndSolution = () => null;
 
-        const ansKey = formatOptionKey(q, optionFormat);
-        const solText = q.solutionText || q.solution_text || q.solution;
-
-        return (
-            <div style={{ marginTop: '5px', clear: 'both' }}>
-                {showAns && (
-                    <div
-                        style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '4px',
-                            padding: '2px 8px',
-                            borderRadius: '4px',
-                            backgroundColor: '#dcfce7',
-                            border: '1px solid #86efac',
-                            color: '#15803d',
-                            fontWeight: 800,
-                            fontSize: '11px',
-                        }}
-                    >
-                        <span>✓ Answer:</span>
-                        <span>Option ({ansKey})</span>
-                    </div>
-                )}
-                {showSol && (
-                    <div
-                        style={{
-                            marginTop: '5px',
-                            padding: '6px 10px',
-                            backgroundColor: '#f0fdf4',
-                            border: '1.5px solid #86efac',
-                            borderRadius: '6px',
-                            fontSize: '11px',
-                            lineHeight: '1.45',
-                            color: '#1e293b',
-                        }}
-                    >
-                        <div style={{ fontWeight: 800, color: '#166534', marginBottom: '2px' }}>
-                            Solution:
-                        </div>
-                        <MathRenderer inline text={solText || 'Step-by-step verified solution.'} />
-                    </div>
-                )}
-            </div>
-        );
-    };
-
-    const effectiveAlign = String(imageAlignment || (shouldRenderSideBySide(q, isTwoCol, imageUrl) ? 'Right' : 'Below')).toLowerCase();
+    const effectiveAlign = String(imageBelowQuestion ? 'Below' : (imageAlignment || (shouldRenderSideBySide(q, isTwoCol, imageUrl) ? 'Right' : 'Below'))).toLowerCase();
 
     // 1. TOP ALIGNMENT (Diagram first, then Question Text, then Options)
     if (imageUrl && effectiveAlign === 'top') {
@@ -1092,7 +1043,19 @@ function BodyMCQ({
 /**
  * Assertion & Reason Body
  */
-function BodyAssertionReason({ q, classes, isTwoCol, diagramMaxHeight = '180px', onDiagramResize, displayNum, optionFormat = 'numeric' }) {
+function BodyAssertionReason({
+    q,
+    classes,
+    isTwoCol,
+    diagramMaxHeight = '180px',
+    onDiagramResize,
+    displayNum,
+    optionFormat = 'numeric',
+    optionSpacing = 'Default',
+    displayMode = '1. Questions',
+    hideOptions = false,
+    imageBelowQuestion = false,
+}) {
     const { assertion, reason } = parseAssertionReason(q);
     const validOpts = (q.options || []).filter(opt => {
         const raw = typeof opt === 'object' ? (opt.text || opt.optionText || opt.value || opt.option || '') : String(opt || '');
@@ -1105,6 +1068,12 @@ function BodyAssertionReason({ q, classes, isTwoCol, diagramMaxHeight = '180px',
     const labels = getQuestionOptionLabels(q, optionFormat);
     const currentDiagramHeight = q.customDiagramSizes?.['main'] || q.customDiagramHeight || diagramMaxHeight;
     const isMainManual = Boolean(q.customDiagramSizes?.['main'] || q.customDiagramHeight);
+
+    const optGapPx = optionSpacing === 'No Spacing' ? '0px' :
+                     optionSpacing === '5' ? '5px' :
+                     optionSpacing === '10' ? '10px' :
+                     optionSpacing === '15' ? '15px' : '3px';
+    const shouldHideOptions = hideOptions || displayMode === '5. Only Questions with No Options';
 
     // Check if there is introductory directions text BEFORE the word "Assertion"
     let introText = '';
@@ -1156,24 +1125,26 @@ function BodyAssertionReason({ q, classes, isTwoCol, diagramMaxHeight = '180px',
                 </div>
             )}
             {/* Assertion-Reason Options: Stacked or 2x2 grid, never collapsed inline */}
-            <div
-                style={{
-                    display: 'grid',
-                    gridTemplateColumns: isTwoCol ? 'minmax(0, 1fr)' : 'repeat(2, minmax(0, 1fr))',
-                    gap: isTwoCol ? '2px 6px' : '3px 12px',
-                    marginTop: '4px',
-                    alignItems: 'start'
-                }}
-            >
-                {opts.map((opt, i) => (
-                    <div key={i} style={Q.optRow}>
-                        <span style={Q.optLbl}>({getOptionLabelText(i, optionFormat, labels, classes)})</span>
-                        <span style={{ flex: 1, minWidth: 0, maxWidth: '100%', fontWeight: 400 }}>
-                            <MathRenderer inline text={cleanOptionText(typeof opt === 'object' ? (opt.text || opt.option || '') : opt)} />
-                        </span>
-                    </div>
-                ))}
-            </div>
+            {!shouldHideOptions && (
+                <div
+                    style={{
+                        display: 'grid',
+                        gridTemplateColumns: isTwoCol ? 'minmax(0, 1fr)' : 'repeat(2, minmax(0, 1fr))',
+                        gap: isTwoCol ? `${optGapPx} 6px` : `${optGapPx} 12px`,
+                        marginTop: '4px',
+                        alignItems: 'start'
+                    }}
+                >
+                    {opts.map((opt, i) => (
+                        <div key={i} style={Q.optRow}>
+                            <span style={Q.optLbl}>({getOptionLabelText(i, optionFormat, labels, classes)})</span>
+                            <span style={{ flex: 1, minWidth: 0, maxWidth: '100%', fontWeight: 400 }}>
+                                <MathRenderer inline text={cleanOptionText(typeof opt === 'object' ? (opt.text || opt.option || '') : opt)} />
+                            </span>
+                        </div>
+                    ))}
+                </div>
+            )}
         </div>
     );
 }
@@ -1472,13 +1443,31 @@ function parseStatementsFromText(q) {
 /**
  * Match the Following Body
  */
-function BodyMatchFollowing({ q, classes, isTwoCol, diagramMaxHeight = '180px', onDiagramResize, displayNum, optionFormat = 'numeric' }) {
+function BodyMatchFollowing({
+    q,
+    classes,
+    isTwoCol,
+    diagramMaxHeight = '180px',
+    onDiagramResize,
+    displayNum,
+    optionFormat = 'numeric',
+    optionSpacing = 'Default',
+    displayMode = '1. Questions',
+    hideOptions = false,
+    imageBelowQuestion = false,
+}) {
     const { introText, pairs: parsedPairs } = parseMatchFromText(q);
     let pairs = (Array.isArray(q.matchPairs) && q.matchPairs.length > 0) ? q.matchPairs : parsedPairs;
     pairs = pairs.filter(p => p && ((p.left && p.left.trim()) || (p.right && p.right.trim())));
     if (pairs.length < 2 && parsedPairs.length >= 2) {
         pairs = parsedPairs.filter(p => p && ((p.left && p.left.trim()) || (p.right && p.right.trim())));
     }
+
+    const optGapPx = optionSpacing === 'No Spacing' ? '0px' :
+                     optionSpacing === '5' ? '5px' :
+                     optionSpacing === '10' ? '10px' :
+                     optionSpacing === '15' ? '15px' : '3px';
+    const shouldHideOptions = hideOptions || displayMode === '5. Only Questions with No Options';
 
     // 1. Recover candidate options
     let rawCandidateOpts = [];
@@ -1583,11 +1572,11 @@ function BodyMatchFollowing({ q, classes, isTwoCol, diagramMaxHeight = '180px', 
                     </tbody>
                 </table>
             )}
-            {opts.length > 0 && (
+            {!shouldHideOptions && opts.length > 0 && (
                 <div style={{
                     display: 'grid',
                     gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-                    gap: isTwoCol ? '3px 8px' : '3px 16px',
+                    gap: isTwoCol ? `${optGapPx} 8px` : `${optGapPx} 16px`,
                     marginTop: '4px',
                     alignItems: 'start',
                 }}>
@@ -1608,7 +1597,19 @@ function BodyMatchFollowing({ q, classes, isTwoCol, diagramMaxHeight = '180px', 
 /**
  * Statement-Based Body
  */
-function BodyStatementBased({ q, classes, isTwoCol, diagramMaxHeight = '180px', onDiagramResize, displayNum, optionFormat = 'numeric' }) {
+function BodyStatementBased({
+    q,
+    classes,
+    isTwoCol,
+    diagramMaxHeight = '180px',
+    onDiagramResize,
+    displayNum,
+    optionFormat = 'numeric',
+    optionSpacing = 'Default',
+    displayMode = '1. Questions',
+    hideOptions = false,
+    imageBelowQuestion = false,
+}) {
     const { introText, statements: parsedStmts, outroText } = parseStatementsFromText(q);
     const statements = (Array.isArray(q.statements) && q.statements.length > 0) 
         ? q.statements.map((s, idx) => ({ label: `Statement ${idx + 1}:`, text: typeof s === 'object' ? (s.text || '') : String(s) }))
@@ -1620,6 +1621,12 @@ function BodyStatementBased({ q, classes, isTwoCol, diagramMaxHeight = '180px', 
     const qId = q._id || q.id || displayNum;
     const currentDiagramHeight = q.customDiagramSizes?.['main'] || q.customDiagramHeight || diagramMaxHeight;
     const isMainManual = Boolean(q.customDiagramSizes?.['main'] || q.customDiagramHeight);
+
+    const optGapPx = optionSpacing === 'No Spacing' ? '0px' :
+                     optionSpacing === '5' ? '5px' :
+                     optionSpacing === '10' ? '10px' :
+                     optionSpacing === '15' ? '15px' : '3px';
+    const shouldHideOptions = hideOptions || displayMode === '5. Only Questions with No Options';
 
     return (
         <>
@@ -1667,8 +1674,8 @@ function BodyStatementBased({ q, classes, isTwoCol, diagramMaxHeight = '180px', 
                     />
                 </div>
             )}
-            {opts.length > 0 && (
-                <div style={getDynamicOptGrid(opts, isTwoCol)}>
+            {!shouldHideOptions && opts.length > 0 && (
+                <div style={{ ...getDynamicOptGrid(opts, isTwoCol), gap: `${optGapPx} 10px` }}>
                     {opts.map((opt, i) => (
                         <div key={i} style={Q.optRow}>
                             <span style={Q.optLbl}>({getOptionLabelText(i, optionFormat, labels, classes)})</span>
@@ -1789,6 +1796,7 @@ export default function QuestionBlock({
     onSwap,
     showQuestionNumbers = true,
     imageBelowQuestion = false,
+    paper2ColumnQuestionBreak = true,
     displayMode = '1. Questions',
     optionSpacing = 'Default',
     questionSpacing = 'Default',
@@ -1797,16 +1805,27 @@ export default function QuestionBlock({
     if (!q) return null;
 
     const [showGearPopup, setShowGearPopup] = React.useState(false);
-    const [localAlignment, setLocalAlignment] = React.useState(q.imageAlignment || (imageBelowQuestion ? 'Below' : null));
+    const [localAlignment, setLocalAlignment] = React.useState(
+        imageBelowQuestion ? 'Below' : (q.imageAlignment || null)
+    );
     const [localOptionsPerLine, setLocalOptionsPerLine] = React.useState(q.optionsPerLine || null);
     const [localDiagramHeight, setLocalDiagramHeight] = React.useState(
         parseInt(q.customDiagramSizes?.['main'] || q.customDiagramHeight || diagramMaxHeight || 180, 10)
     );
 
     React.useEffect(() => {
-        if (q.imageAlignment) setLocalAlignment(q.imageAlignment);
-        else if (imageBelowQuestion) setLocalAlignment('Below');
-    }, [q.imageAlignment, imageBelowQuestion]);
+        if (imageBelowQuestion) {
+            setLocalAlignment('Below');
+        } else {
+            setLocalAlignment(q.imageAlignment || null);
+        }
+    }, [imageBelowQuestion, q.imageAlignment]);
+
+    React.useEffect(() => {
+        if (diagramMaxHeight && !q.customDiagramSizes?.['main'] && !q.customDiagramHeight) {
+            setLocalDiagramHeight(parseInt(diagramMaxHeight, 10));
+        }
+    }, [diagramMaxHeight, q.customDiagramSizes, q.customDiagramHeight]);
 
     React.useEffect(() => {
         if (q.optionsPerLine) setLocalOptionsPerLine(q.optionsPerLine);
@@ -1886,6 +1905,10 @@ export default function QuestionBlock({
                     onDiagramResize={onDiagramResize}
                     displayNum={displayNum}
                     optionFormat={optionFormat}
+                    optionSpacing={optionSpacing}
+                    displayMode={displayMode}
+                    hideOptions={displayMode === '5. Only Questions with No Options'}
+                    imageBelowQuestion={imageBelowQuestion}
                 />
             );
         }
@@ -1899,6 +1922,10 @@ export default function QuestionBlock({
                     onDiagramResize={onDiagramResize}
                     displayNum={displayNum}
                     optionFormat={optionFormat}
+                    optionSpacing={optionSpacing}
+                    displayMode={displayMode}
+                    hideOptions={displayMode === '5. Only Questions with No Options'}
+                    imageBelowQuestion={imageBelowQuestion}
                 />
             );
         }
@@ -1912,6 +1939,10 @@ export default function QuestionBlock({
                     onDiagramResize={onDiagramResize}
                     displayNum={displayNum}
                     optionFormat={optionFormat}
+                    optionSpacing={optionSpacing}
+                    displayMode={displayMode}
+                    hideOptions={displayMode === '5. Only Questions with No Options'}
+                    imageBelowQuestion={imageBelowQuestion}
                 />
             );
         }
@@ -1928,12 +1959,74 @@ export default function QuestionBlock({
                 optionsPerLine={localOptionsPerLine}
                 displayMode={displayMode}
                 optionSpacing={optionSpacing}
+                imageBelowQuestion={imageBelowQuestion}
             />
         );
     };
 
+    const renderAnswerAndSolution = () => {
+        const showAns = displayMode === '2. Questions with Answers' || displayMode === '3. Questions with Answers & Solutions';
+        const showSol = displayMode === '3. Questions with Answers & Solutions';
+        if (!showAns && !showSol) return null;
+
+        const ansKey = formatOptionKey(q, optionFormat);
+        const solText = q.solutionText || q.solution_text || q.solution;
+
+        return (
+            <div style={{ marginTop: '5px', clear: 'both' }}>
+                {showAns && (
+                    <div
+                        style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            padding: '2px 8px',
+                            borderRadius: '4px',
+                            backgroundColor: '#dcfce7',
+                            border: '1px solid #86efac',
+                            color: '#15803d',
+                            fontWeight: 800,
+                            fontSize: '11px',
+                        }}
+                    >
+                        <span>✓ Answer:</span>
+                        <span>Option ({ansKey})</span>
+                    </div>
+                )}
+                {showSol && (
+                    <div
+                        style={{
+                            marginTop: '5px',
+                            padding: '6px 10px',
+                            backgroundColor: '#f0fdf4',
+                            border: '1.5px solid #86efac',
+                            borderRadius: '6px',
+                            fontSize: '11px',
+                            lineHeight: '1.45',
+                            color: '#1e293b',
+                        }}
+                    >
+                        <div style={{ fontWeight: 800, color: '#166534', marginBottom: '2px' }}>
+                            Solution:
+                        </div>
+                        <MathRenderer inline text={solText || 'Step-by-step verified solution.'} />
+                    </div>
+                )}
+            </div>
+        );
+    };
+
     return (
-        <div style={{ ...Q.wrap, fontSize: activeFontSize, lineHeight, ...extraStyle, position: 'relative' }} className="question-block group">
+        <div style={{
+            ...Q.wrap,
+            fontSize: activeFontSize,
+            lineHeight,
+            breakInside: paper2ColumnQuestionBreak !== false ? 'avoid' : 'auto',
+            WebkitColumnBreakInside: paper2ColumnQuestionBreak !== false ? 'avoid' : 'auto',
+            pageBreakInside: paper2ColumnQuestionBreak !== false ? 'avoid' : 'auto',
+            ...extraStyle,
+            position: 'relative'
+        }} className="question-block group">
             <div
                 className={'no-print ' + (showGearPopup ? 'opacity-100' : 'opacity-0 group-hover:opacity-100') + ' transition-opacity duration-150'}
                 style={{
@@ -2034,9 +2127,12 @@ export default function QuestionBlock({
                 {showQuestionNumbers && (
                     <span style={Q.num}>{displayNum}.</span>
                 )}
-                <div style={Q.body}>{renderBody()}</div>
-                {showMarks && formatMarks && (
-                    <span style={Q.marks}>[{formatMarks(q.type, classes)}]</span>
+                <div style={Q.body}>
+                    {renderBody()}
+                    {renderAnswerAndSolution()}
+                </div>
+                {showMarks && (
+                    <span style={Q.marks}>[{q.marks ? `${q.marks}M` : (formatMarks ? formatMarks(q.type, classes) : '1M')}]</span>
                 )}
             </div>
         </div>
