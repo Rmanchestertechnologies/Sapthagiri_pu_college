@@ -113,15 +113,19 @@ function mapSupabaseToQuestion(row, usageMap = null) {
         colB = [...qbpData.columnB];
     }
 
-    // Auto-merge split sentence continuations in column lists (e.g. line break in the middle of a sentence)
-    function mergeContinuationList(list) {
-        if (!Array.isArray(list) || list.length <= 1) return list || [];
+    // Clean column items and auto-merge accidental sentence continuations (e.g. line break before "Approximate increase in area is")
+    const isColumnSubheader = (s) => /^[\(\[]?\s*(?:elements|properties|compounds|reagents|reactants|quantities|units|column\s*[i|1|2|a|b]|list\s*[i|1|2|a|b])\s*[\)\]]?$/i.test(String(s || '').trim());
+    function cleanColumnList(list) {
+        if (!Array.isArray(list)) return [];
+        const filtered = list.filter(item => item && !isColumnSubheader(item));
+        if (filtered.length <= 1) return filtered;
         const merged = [];
-        const contWords = new Set(['and', 'or', 'then', 'is', 'are', 'approximate', 'approximately', 'of', 'to', 'when', 'with', 'for', 'in', 'equal', 'equals', 'has', 'have']);
-        for (let i = 0; i < list.length; i++) {
-            const item = String(list[i] || '').trim();
-            const firstWord = (item.split(/\s+/)[0] || '').toLowerCase().replace(/[^a-z]/g, '');
-            if (merged.length > 0 && (contWords.has(firstWord) || /^[a-z]/.test(item))) {
+        const contPhrases = ['approximate increase', 'approximate decrease', 'percentage increase', 'percentage decrease', 'rate of increase', 'rate of decrease'];
+        for (let i = 0; i < filtered.length; i++) {
+            const item = String(filtered[i] || '').trim();
+            const lower = item.toLowerCase();
+            const isCont = contPhrases.some(p => lower.startsWith(p));
+            if (merged.length > 0 && isCont) {
                 merged[merged.length - 1] += ' ' + item;
             } else {
                 merged.push(item);
@@ -129,8 +133,8 @@ function mapSupabaseToQuestion(row, usageMap = null) {
         }
         return merged;
     }
-    colA = mergeContinuationList(colA);
-    colB = mergeContinuationList(colB);
+    colA = cleanColumnList(colA);
+    colB = cleanColumnList(colB);
 
     // 2. Options Extraction
     const rawOptions = [];

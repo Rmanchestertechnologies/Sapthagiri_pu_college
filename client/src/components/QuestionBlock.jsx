@@ -1226,12 +1226,16 @@ export function repairBrokenLatexFraction(str) {
 /** Helper to merge sentence continuation lines in match column lists */
 export function mergeContinuationItems(items) {
     if (!Array.isArray(items) || items.length <= 1) return items || [];
+    const isColumnSubheader = (s) => /^[\(\[]?\s*(?:elements|properties|compounds|reagents|reactants|quantities|units|column\s*[i|1|2|a|b]|list\s*[i|1|2|a|b])\s*[\)\]]?$/i.test(String(s || '').trim());
+    const filtered = items.filter(item => item && !isColumnSubheader(item));
+    if (filtered.length <= 1) return filtered;
     const merged = [];
-    const contWords = new Set(['and', 'or', 'then', 'is', 'are', 'approximate', 'approximately', 'of', 'to', 'when', 'with', 'for', 'in', 'equal', 'equals', 'has', 'have']);
-    for (let i = 0; i < items.length; i++) {
-        const item = String(items[i] || '').trim();
-        const firstWord = (item.split(/\s+/)[0] || '').toLowerCase().replace(/[^a-z]/g, '');
-        if (merged.length > 0 && (contWords.has(firstWord) || /^[a-z]/.test(item))) {
+    const contPhrases = ['approximate increase', 'approximate decrease', 'percentage increase', 'percentage decrease', 'rate of increase', 'rate of decrease'];
+    for (let i = 0; i < filtered.length; i++) {
+        const item = String(filtered[i] || '').trim();
+        const lower = item.toLowerCase();
+        const isCont = contPhrases.some(p => lower.startsWith(p));
+        if (merged.length > 0 && isCont) {
             merged[merged.length - 1] += ' ' + item;
         } else {
             merged.push(item);
@@ -1379,18 +1383,19 @@ function parseMatchFromText(q) {
         }
 
         // 2. Newlines or HTML breaks (with smart sentence continuation merging)
+        const isSubhead = (s) => /^[\(\[]?\s*(?:elements|properties|compounds|reagents|reactants|quantities|units|column\s*[i|1|2|a|b]|list\s*[i|1|2|a|b])\s*[\)\]]?$/i.test(String(s || '').trim());
         const rawLines = colStr
             .split(/\r?\n+|<br\s*\/?>/i)
             .map(s => cleanItem(s))
-            .filter(s => s && !/^(?:with|Column|List|I|II|A|B|1|2)$/i.test(s));
+            .filter(s => s && !/^(?:with|Column|List|I|II|A|B|1|2)$/i.test(s) && !isSubhead(s));
         if (rawLines.length >= 2) {
             const mergedLines = [];
-            const contWords = new Set(['and', 'or', 'then', 'is', 'are', 'approximate', 'approximately', 'of', 'to', 'when', 'with', 'for', 'in', 'equal', 'equals', 'has', 'have']);
+            const contPhrases = ['approximate increase', 'approximate decrease', 'percentage increase', 'percentage decrease', 'rate of increase', 'rate of decrease'];
             for (let i = 0; i < rawLines.length; i++) {
                 const line = rawLines[i];
-                const firstWord = (line.split(/\s+/)[0] || '').toLowerCase();
-                // If line starts with continuation word or lowercase, or previous line ended without punctuation
-                if (mergedLines.length > 0 && (contWords.has(firstWord) || /^[a-z]/.test(line))) {
+                const lower = line.toLowerCase();
+                const isCont = contPhrases.some(p => lower.startsWith(p));
+                if (mergedLines.length > 0 && isCont) {
                     mergedLines[mergedLines.length - 1] += ' ' + line;
                 } else {
                     mergedLines.push(line);
