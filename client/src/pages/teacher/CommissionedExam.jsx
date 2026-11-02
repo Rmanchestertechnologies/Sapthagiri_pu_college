@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useContext, useMemo } from 'react';
+import React, { useState, useEffect, useContext, useMemo } from 'react';
 import { AuthContext } from '../../context/AuthContext';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../../api';
@@ -870,17 +870,25 @@ export default function CommissionedExam() {
 
     const handlePrint = () => window.print();
 
-    const currentPaperObject = useMemo(() => ({
-        title: examTitle || `${selectedExamPattern} Examination`,
-        subject: selectedSubject || 'General',
-        examType: selectedExamPattern,
-        classes: selectedClass === 'Both' ? ['11', '12'] : [selectedClass],
-        questions: selectedQuestions.map((q, idx) => ({ ...q, questionNumber: idx + 1 })),
-        totalMarks: selectedQuestions.length * patternConfig.marksPerQ,
-        duration: selectedExamPattern === 'NEET' ? '200 Minutes' : (selectedExamPattern === 'JEE' ? '180 Minutes' : '80 Minutes'),
-        institutionName: 'SAPTHAGIRI PU COLLEGE',
-        subHeader: 'DEPARTMENT OF PRE-UNIVERSITY EDUCATION, KARNATAKA',
-    }), [examTitle, selectedSubject, selectedExamPattern, selectedClass, selectedQuestions, patternConfig]);
+    const currentPaperObject = useMemo(() => {
+        const rawType = String(selectedExamPattern || '').toUpperCase();
+        const marksPerQ = rawType.includes('CET') ? 1 : 4;
+        const totalMarks = selectedQuestions.length * marksPerQ;
+        const defaultDuration = rawType.includes('NEET') ? '200 Minutes' : (rawType.includes('JEE') ? '180 Minutes' : '80 Minutes');
+        const effectiveDuration = settings?.duration || (settings?.durationMinutes ? `${settings.durationMinutes} Minutes` : defaultDuration);
+
+        return {
+            title: examTitle || `${selectedExamPattern} Examination`,
+            subject: selectedSubject || 'General',
+            examType: selectedExamPattern,
+            classes: selectedClass === 'Both' ? ['11', '12'] : [selectedClass],
+            questions: selectedQuestions.map((q, idx) => ({ ...q, questionNumber: idx + 1, marks: q.marks || marksPerQ })),
+            totalMarks: totalMarks,
+            duration: effectiveDuration,
+            institutionName: 'SAPTHAGIRI PU COLLEGE',
+            subHeader: 'DEPARTMENT OF PRE-UNIVERSITY EDUCATION, KARNATAKA',
+        };
+    }, [examTitle, selectedSubject, selectedExamPattern, selectedClass, selectedQuestions, settings?.duration, settings?.durationMinutes]);
 
     const effectiveActivePaper = useMemo(() => {
         if (!setsActive || activeSet === 'P') return { ...currentPaperObject, setName: setsActive ? 'P' : '' };
@@ -905,7 +913,7 @@ export default function CommissionedExam() {
                         onClick={() => currentStep > 1 ? setCurrentStep(prev => prev - 1) : navigate('/teacher/dashboard')}
                         className="bg-white/10 hover:bg-white/20 text-gold px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition flex items-center gap-1 cursor-pointer"
                     >
-                        <span>â†</span> Back
+                        <span>←</span> Back
                     </button>
                     <div>
                         <div className="flex items-center gap-2">
@@ -950,9 +958,9 @@ export default function CommissionedExam() {
 
             <main className="flex-1 max-w-6xl w-full mx-auto p-4 md:p-8 space-y-6">
 
-                {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+                {/* ----------------------------------------------------------------
                     STEP 1: SUBJECT SELECTION (NEET: PCBZ, JEE: PCM, CET: PCMB, CUSTOM)
-                â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
+                ---------------------------------------------------------------- */}
                 {currentStep === 1 && (
                     <div className="space-y-8 animate-fade-in">
                         <div className="text-center max-w-2xl mx-auto space-y-2">
@@ -1039,7 +1047,7 @@ export default function CommissionedExam() {
                                                         className="bg-navy/5 hover:bg-navy hover:text-gold text-navy text-xs font-black py-2.5 px-3 rounded-xl transition text-center border border-navy/10 shadow-2xs cursor-pointer flex items-center justify-between"
                                                     >
                                                         <span>{sub}</span>
-                                                        <span className="text-xs">â†’</span>
+                                                        <span className="text-xs">←’</span>
                                                     </button>
                                                 ))}
                                             </div>
@@ -1051,9 +1059,9 @@ export default function CommissionedExam() {
                     </div>
                 )}
 
-                {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+                {/* ----------------------------------------------------------------
                     STEP 2: CHAPTER SELECTION
-                â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
+                ---------------------------------------------------------------- */}
                 {currentStep === 2 && (
                     <div className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-200 space-y-6 animate-fade-in">
                         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-5">
@@ -1135,7 +1143,7 @@ export default function CommissionedExam() {
                                 onClick={() => setCurrentStep(1)}
                                 className="text-xs font-bold text-slate-500 hover:text-navy cursor-pointer"
                             >
-                                â† Back to Subjects
+                                ←← Back to Subjects
                             </button>
                             <button
                                 type="button"
@@ -1148,15 +1156,15 @@ export default function CommissionedExam() {
                                 }}
                                 className="bg-navy hover:bg-navy/90 text-gold font-black text-xs uppercase tracking-wider px-6 py-2.5 rounded-xl shadow-md transition cursor-pointer"
                             >
-                                Proceed to Concepts (Step 3) â†’
+                                Proceed to Concepts (Step 3) ←’
                             </button>
                         </div>
                     </div>
                 )}
 
-                {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+                {/* ----------------------------------------------------------------
                     STEP 3: CONCEPT / SUB-TOPIC SELECTION
-                â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
+                ---------------------------------------------------------------- */}
                 {currentStep === 3 && (
                     <div className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-200 space-y-6 animate-fade-in">
                         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-5">
@@ -1243,7 +1251,7 @@ export default function CommissionedExam() {
                                 onClick={() => setCurrentStep(2)}
                                 className="text-xs font-bold text-slate-500 hover:text-navy cursor-pointer"
                             >
-                                â† Back to Chapters
+                                ←← Back to Chapters
                             </button>
                             <button
                                 type="button"
@@ -1253,15 +1261,15 @@ export default function CommissionedExam() {
                                 }}
                                 className="bg-navy hover:bg-navy/90 text-gold font-black text-xs uppercase tracking-wider px-6 py-2.5 rounded-xl shadow-md transition cursor-pointer"
                             >
-                                Proceed to Questions per Chapter (Step 4) â†’
+                                Proceed to Questions per Chapter (Step 4) ←’
                             </button>
                         </div>
                     </div>
                 )}
 
-                {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+                {/* ----------------------------------------------------------------
                     STEP 4: NUMBER OF QUESTIONS FROM EACH CHAPTER (UNLIMITED)
-                â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
+                ---------------------------------------------------------------- */}
                 {currentStep === 4 && (
                     <div className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-200 space-y-6 animate-fade-in">
                         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-5">
@@ -1353,7 +1361,7 @@ export default function CommissionedExam() {
                                 onClick={() => setCurrentStep(3)}
                                 className="text-xs font-bold text-slate-500 hover:text-navy cursor-pointer"
                             >
-                                â† Back to Concepts
+                                ←← Back to Concepts
                             </button>
                             <button
                                 type="button"
@@ -1367,15 +1375,15 @@ export default function CommissionedExam() {
                                 }}
                                 className="bg-navy hover:bg-navy/90 text-gold font-black text-xs uppercase tracking-wider px-6 py-2.5 rounded-xl shadow-md transition cursor-pointer"
                             >
-                                Proceed to Question Types (Step 5) â†’
+                                Proceed to Question Types (Step 5) ←’
                             </button>
                         </div>
                     </div>
                 )}
 
-                {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+                {/* ----------------------------------------------------------------
                     STEP 5: FROM EACH TYPE HOW MANY QUESTIONS (DYNAMIC BALANCING)
-                â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
+                ---------------------------------------------------------------- */}
                 {currentStep === 5 && (
                     <div className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-200 space-y-6 animate-fade-in">
                         <div className="border-b border-slate-100 pb-5">
@@ -1452,21 +1460,21 @@ export default function CommissionedExam() {
                         {/* Difficulty Level Distribution */}
                         <div className="bg-slate-50 border border-slate-200 p-5 rounded-2xl space-y-3">
                             <div className="flex items-center justify-between">
-                                <h4 className="text-xs font-black text-navy uppercase tracking-wider">ðŸ“Š Difficulty Distribution</h4>
+                                <h4 className="text-xs font-black text-navy uppercase tracking-wider">Difficulty Distribution</h4>
                                 <span className={`text-xs font-black px-2.5 py-1 rounded-xl ${
                                     difficultyDistribution.easy + difficultyDistribution.medium + difficultyDistribution.hard === 100
                                         ? 'bg-emerald-100 text-emerald-800'
                                         : 'bg-red-100 text-red-700'
                                 }`}>
                                     Total: {difficultyDistribution.easy + difficultyDistribution.medium + difficultyDistribution.hard}%
-                                    {difficultyDistribution.easy + difficultyDistribution.medium + difficultyDistribution.hard !== 100 && ' â‰  100%'}
+                                    {difficultyDistribution.easy + difficultyDistribution.medium + difficultyDistribution.hard !== 100 && ' (Must equal 100%)'}
                                 </span>
                             </div>
                             <div className="grid grid-cols-3 gap-3">
                                 {[
-                                    { key: 'easy', label: 'ðŸŸ¢ Easy', color: 'emerald' },
-                                    { key: 'medium', label: 'ðŸŸ¡ Medium', color: 'amber' },
-                                    { key: 'hard', label: 'ðŸ”´ Hard', color: 'red' },
+                                    { key: 'easy', label: 'Easy', color: 'emerald' },
+                                    { key: 'medium', label: 'Medium', color: 'amber' },
+                                    { key: 'hard', label: 'Hard', color: 'red' },
                                 ].map(({ key, label, color }) => (
                                     <div key={key} className={`bg-${color}-50 border border-${color}-200 rounded-xl p-3 text-center`}>
                                         <label className={`text-[10px] font-black text-${color}-800 uppercase tracking-wider block mb-1.5`}>{label}</label>
@@ -1510,22 +1518,22 @@ export default function CommissionedExam() {
                                 onClick={() => setCurrentStep(4)}
                                 className="text-xs font-bold text-slate-500 hover:text-navy cursor-pointer"
                             >
-                                â† Back to Questions per Chapter
+                                ←← Back to Questions per Chapter
                             </button>
                             <button
                                 type="button"
                                 onClick={() => setCurrentStep(6)} // Proceed to Step 6: Method
                                 className="bg-navy hover:bg-navy/90 text-gold font-black text-xs uppercase tracking-wider px-6 py-2.5 rounded-xl shadow-md transition cursor-pointer"
                             >
-                                Proceed to Method (Step 6) â†’
+                                Proceed to Method (Step 6) ←’
                             </button>
                         </div>
                     </div>
                 )}
 
-                {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+                {/* ----------------------------------------------------------------
                     STEP 6: METHOD (AUTO FETCH VS MANUAL QUESTION SELECTOR)
-                â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
+                ---------------------------------------------------------------- */}
                 {currentStep === 6 && (
                     <div className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-200 space-y-6 animate-fade-in">
                         <div className="border-b border-slate-100 pb-5">
@@ -1668,7 +1676,7 @@ export default function CommissionedExam() {
                                 onClick={() => setCurrentStep(5)}
                                 className="text-xs font-bold text-slate-500 hover:text-navy cursor-pointer"
                             >
-                                â† Back to Question Types
+                                ←← Back to Question Types
                             </button>
                             <button
                                 type="button"
@@ -1692,9 +1700,9 @@ export default function CommissionedExam() {
                     </div>
                 )}
 
-                {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+                {/* ----------------------------------------------------------------
                     STEP 7: PREVIEW, ALIGNMENT & MERGE EXAM
-                â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
+                ---------------------------------------------------------------- */}
                 {currentStep === 7 && (
                     <div className="space-y-6 animate-fade-in relative pb-12">
 
@@ -1731,7 +1739,7 @@ export default function CommissionedExam() {
                 )}
             </main>
 
-            {/* â”€â”€ MODAL: ANSWER KEY â”€â”€ */}
+            {/* ---------------------------------------------------------------- MODAL: ANSWER KEY ---------------------------------------------------------------- */}
             {showAnswerKey && (
                 <A4AnswerKey
                     paper={effectiveActivePaper}
@@ -1740,7 +1748,7 @@ export default function CommissionedExam() {
                 />
             )}
 
-            {/* â”€â”€ MODAL: SOLUTION GUIDE â”€â”€ */}
+            {/* ---------------------------------------------------------------- MODAL: SOLUTION GUIDE ---------------------------------------------------------------- */}
             {showSolutionGuide && (
                 <A4SolutionKey
                     paper={effectiveActivePaper}
@@ -1749,7 +1757,7 @@ export default function CommissionedExam() {
                 />
             )}
 
-            {/* â”€â”€ MODAL: MERGE EXAM ENGINE â”€â”€ */}
+            {/* ---------------------------------------------------------------- MODAL: MERGE EXAM ENGINE ---------------------------------------------------------------- */}
             {showMergeModal && (
                 <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
                     <div className="bg-white rounded-3xl max-w-2xl w-full p-6 shadow-2xl border-2 border-gold space-y-5 animate-fade-in">

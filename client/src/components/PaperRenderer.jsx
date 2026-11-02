@@ -33,11 +33,18 @@ export function formatMarks(type = '', classes = []) {
     return '1 Mark';
 }
 
-export function calcTotal(questions = [], classes = []) {
+export function calcTotal(questions = [], classes = [], examType = '') {
+    const rawType = String(examType || '').toUpperCase();
+    if (rawType.includes('CET')) return questions.length * 1;
+    if (rawType.includes('NEET') || rawType.includes('JEE')) return questions.length * 4;
     return questions.reduce((s, q) => {
+        if (q.marks && !isNaN(parseInt(q.marks, 10))) return s + parseInt(q.marks, 10);
         const t = (q.type || '').toUpperCase();
-        const isNeet = Array.isArray(classes) && classes.some(c => String(c).toUpperCase() === 'NEET');
-        if (t === 'MCQ' || t === '1M' || t === 'DIAGRAM_BASED' || t === 'ASSERTION_REASON') return s + (isNeet ? 4 : 1);
+        const isNeetOrJee = Array.isArray(classes) && classes.some(c => {
+            const sc = String(c).toUpperCase();
+            return sc.includes('NEET') || sc.includes('JEE');
+        });
+        if (isNeetOrJee) return s + 4;
         if (t === '2M') return s + 2;
         if (t === '3M') return s + 3;
         if (t === 'NUMERICAL' || t === '4M' || t === 'MATCH_FOLLOWING') return s + 4;
@@ -53,7 +60,10 @@ export const DEFAULT_SETTINGS = {
     lineHeight: '1.42',
     displayMode: '1. Questions', // 7 modes from Image 4
     optionFormat: '(1) (2) (3) (4)', // 3 styles from Image 3
-    startQNo: 1, // starting number (No * from Image 5)
+    optionsLayout: 'line', // options 1, 2, 3, 4 in a line
+    durationMinutes: 200,
+    duration: '200 Minutes',
+    startQNo: 1,
     optionSpacing: 'Default', // No Spacing, Default, 5, 10, 15 from Image 5
     questionSpacing: 'Default', // No Spacing, Default, 5, 10, 15 from Image 5
     showQuestionNumbers: true, // [x] Show Question Numbers from Image 5
@@ -299,28 +309,30 @@ export function SettingsPanel({
                     </select>
                 </SettingField>
 
-                <SettingField label="No *">
+                <SettingField label="Duration (Minutes) *">
                     <input
                         type="number"
                         min="1"
                         style={inputStyle}
-                        value={settings.startQNo || 1}
-                        onChange={e => update('startQNo', Math.max(1, parseInt(e.target.value, 10) || 1))}
-                        placeholder="Starting Q No (e.g. 1)"
+                        value={settings.durationMinutes !== undefined ? settings.durationMinutes : (parseInt(settings.duration, 10) || 200)}
+                        onChange={e => {
+                            const val = Math.max(1, parseInt(e.target.value, 10) || 1);
+                            setSettings(s => ({ ...s, durationMinutes: val, duration: `${val} Minutes` }));
+                        }}
+                        placeholder="Duration in mins (e.g. 180, 200)"
                     />
                 </SettingField>
 
-                <SettingField label="Options *">
+                <SettingField label="Options Layout *">
                     <select
                         style={selectStyle}
-                        value={settings.optionSpacing || 'Default'}
-                        onChange={e => update('optionSpacing', e.target.value)}
+                        value={settings.optionsLayout || 'line'}
+                        onChange={e => update('optionsLayout', e.target.value)}
                     >
-                        <option value="No Spacing">No Spacing</option>
-                        <option value="Default">Default</option>
-                        <option value="5">5</option>
-                        <option value="10">10</option>
-                        <option value="15">15</option>
+                        <option value="line">In a Line (1) (2) (3) (4)</option>
+                        <option value="2col">2 Columns (2x2 Grid)</option>
+                        <option value="stacked">1 Column (Stacked)</option>
+                        <option value="auto">Auto (Best Fit)</option>
                     </select>
                 </SettingField>
 

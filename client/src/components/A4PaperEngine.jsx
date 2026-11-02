@@ -110,8 +110,12 @@ export default function A4PaperEngine({
     }, [paper, isJEEPaper]);
     const classes = useMemo(() => paper?.classes || [], [paper]);
     const totalMarks = useMemo(() => {
+        const rawType = String(paper?.examType || paper?.exam_type || '').toUpperCase();
+        if (rawType.includes('CET')) return questions.length * 1;
+        if (rawType.includes('NEET') || rawType.includes('JEE')) return questions.length * 4;
+        if (paper?.totalMarks && !isNaN(Number(paper.totalMarks))) return Number(paper.totalMarks);
         if (paper?.pattern?.length) return paper.pattern.reduce((s, sec) => s + (sec.marks || 0), 0);
-        return calcTotal(questions, classes);
+        return calcTotal(questions, classes, rawType);
     }, [paper, questions, classes]);
 
     const isAssignmentPaper = isAssignment || paper?.category === 'assignment' || (paper?.title && /assignment/i.test(paper.title));
@@ -190,7 +194,7 @@ export default function A4PaperEngine({
                                 title={paper?.title}
                                 subject={paper?.subject}
                                 classes={classes}
-                                duration={paper?.duration}
+                                duration={settings?.duration || (settings?.durationMinutes ? `${settings.durationMinutes} Minutes` : paper?.duration)}
                                 totalMarks={totalMarks}
                                 templateUrl={activeTemplate?.fileUrl}
                                 isAssignment={isAssignment}
@@ -386,6 +390,7 @@ export default function A4PaperEngine({
                                                         imageBelowQuestion={Boolean(settings.imageBelowQuestion)}
                                                         paper2ColumnQuestionBreak={settings.paper2ColumnQuestionBreak !== false}
                                                         displayMode={settings.displayMode || '1. Questions'}
+                                                        optionsLayout={settings.optionsLayout || 'line'}
                                                         optionSpacing={settings.optionSpacing || 'Default'}
                                                         questionSpacing={settings.questionSpacing || 'Default'}
                                                         onLayoutChange={onQuestionLayoutChange ? (changes) => onQuestionLayoutChange(idx, changes) : undefined}

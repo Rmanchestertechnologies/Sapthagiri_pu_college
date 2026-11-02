@@ -809,6 +809,7 @@ function BodyMCQ({
     displayMode = '1. Questions',
     optionSpacing = 'Default',
     imageBelowQuestion = false,
+    optionsLayout = 'line',
 }) {
     const rawQText = cleanQuestionText(q.questionText || q.question || '');
     const { cleanText: qText, diagramUrl: imageUrl } = extractDiagramFromText(rawQText, q.imageUrl || q.image_url);
@@ -839,13 +840,13 @@ function BodyMCQ({
                      optionSpacing === '15' ? '15px' : '3px';
 
     const getOptionsGridStyle = (forceSingle = false) => {
-        if (forceSingle || optionsPerLine === 1) {
+        if (forceSingle || optionsPerLine === 1 || optionsLayout === 'stacked') {
             return { display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: optGapPx + ' 6px', marginTop: '3px', alignItems: 'start' };
         }
-        if (optionsPerLine === 2) {
+        if (optionsPerLine === 2 || optionsLayout === '2col') {
             return { display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: optGapPx + ' 10px', marginTop: '3px', alignItems: 'start' };
         }
-        if (optionsPerLine === 4) {
+        if (optionsPerLine === 4 || optionsLayout === 'line') {
             return { display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: optGapPx + ' 10px', marginTop: '3px', alignItems: 'start' };
         }
         const dynamicStyle = getDynamicOptGrid(options, isTwoCol);
@@ -1055,6 +1056,7 @@ function BodyAssertionReason({
     displayMode = '1. Questions',
     hideOptions = false,
     imageBelowQuestion = false,
+    optionsLayout = 'line',
 }) {
     const { assertion, reason } = parseAssertionReason(q);
     const validOpts = (q.options || []).filter(opt => {
@@ -1129,7 +1131,7 @@ function BodyAssertionReason({
                 <div
                     style={{
                         display: 'grid',
-                        gridTemplateColumns: isTwoCol ? 'minmax(0, 1fr)' : 'repeat(2, minmax(0, 1fr))',
+                        gridTemplateColumns: (optionsLayout === 'line' || optionsLayout === '4') ? 'repeat(4, minmax(0, 1fr))' : (optionsLayout === 'stacked' || optionsLayout === '1' ? 'minmax(0, 1fr)' : (isTwoCol ? 'minmax(0, 1fr)' : 'repeat(2, minmax(0, 1fr))')),
                         gap: isTwoCol ? `${optGapPx} 6px` : `${optGapPx} 12px`,
                         marginTop: '4px',
                         alignItems: 'start'
@@ -1455,6 +1457,7 @@ function BodyMatchFollowing({
     displayMode = '1. Questions',
     hideOptions = false,
     imageBelowQuestion = false,
+    optionsLayout = 'line',
 }) {
     const { introText, pairs: parsedPairs } = parseMatchFromText(q);
     let pairs = (Array.isArray(q.matchPairs) && q.matchPairs.length > 0) ? q.matchPairs : parsedPairs;
@@ -1575,7 +1578,7 @@ function BodyMatchFollowing({
             {!shouldHideOptions && opts.length > 0 && (
                 <div style={{
                     display: 'grid',
-                    gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+                    gridTemplateColumns: (optionsLayout === 'line' || optionsLayout === '4') ? 'repeat(4, minmax(0, 1fr))' : (optionsLayout === 'stacked' || optionsLayout === '1' ? 'minmax(0, 1fr)' : (isTwoCol ? 'minmax(0, 1fr)' : 'repeat(2, minmax(0, 1fr))')),
                     gap: isTwoCol ? `${optGapPx} 8px` : `${optGapPx} 16px`,
                     marginTop: '4px',
                     alignItems: 'start',
@@ -1609,6 +1612,7 @@ function BodyStatementBased({
     displayMode = '1. Questions',
     hideOptions = false,
     imageBelowQuestion = false,
+    optionsLayout = 'line',
 }) {
     const { introText, statements: parsedStmts, outroText } = parseStatementsFromText(q);
     const statements = (Array.isArray(q.statements) && q.statements.length > 0) 
@@ -1675,7 +1679,16 @@ function BodyStatementBased({
                 </div>
             )}
             {!shouldHideOptions && opts.length > 0 && (
-                <div style={{ ...getDynamicOptGrid(opts, isTwoCol), gap: `${optGapPx} 10px` }}>
+                <div style={{
+                    ...(optionsLayout === 'line' || optionsLayout === '4'
+                        ? { display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))' }
+                        : optionsLayout === 'stacked' || optionsLayout === '1'
+                        ? { display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)' }
+                        : optionsLayout === '2col' || optionsLayout === '2'
+                        ? { display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }
+                        : getDynamicOptGrid(opts, isTwoCol)),
+                    gap: `${optGapPx} 10px`
+                }}>
                     {opts.map((opt, i) => (
                         <div key={i} style={Q.optRow}>
                             <span style={Q.optLbl}>({getOptionLabelText(i, optionFormat, labels, classes)})</span>
@@ -1798,6 +1811,7 @@ export default function QuestionBlock({
     imageBelowQuestion = false,
     paper2ColumnQuestionBreak = true,
     displayMode = '1. Questions',
+    optionsLayout = 'line',
     optionSpacing = 'Default',
     questionSpacing = 'Default',
     onLayoutChange,
@@ -1909,6 +1923,7 @@ export default function QuestionBlock({
                     displayMode={displayMode}
                     hideOptions={displayMode === '5. Only Questions with No Options'}
                     imageBelowQuestion={imageBelowQuestion}
+                    optionsLayout={optionsLayout}
                 />
             );
         }
@@ -1926,6 +1941,7 @@ export default function QuestionBlock({
                     displayMode={displayMode}
                     hideOptions={displayMode === '5. Only Questions with No Options'}
                     imageBelowQuestion={imageBelowQuestion}
+                    optionsLayout={optionsLayout}
                 />
             );
         }
@@ -1943,6 +1959,7 @@ export default function QuestionBlock({
                     displayMode={displayMode}
                     hideOptions={displayMode === '5. Only Questions with No Options'}
                     imageBelowQuestion={imageBelowQuestion}
+                    optionsLayout={optionsLayout}
                 />
             );
         }
@@ -1960,6 +1977,7 @@ export default function QuestionBlock({
                 displayMode={displayMode}
                 optionSpacing={optionSpacing}
                 imageBelowQuestion={imageBelowQuestion}
+                optionsLayout={optionsLayout}
             />
         );
     };
