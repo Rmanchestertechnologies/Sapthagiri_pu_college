@@ -908,7 +908,7 @@ export default function CommissionedExam() {
     return (
         <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
             {/* Top Navigation Bar with Step Pill Indicators */}
-            <header className="bg-navy text-white px-6 py-4 shadow-lg border-b-2 border-gold flex items-center justify-between sticky top-0 z-40">
+            <header className="bg-navy text-white px-6 py-4 shadow-lg border-b-2 border-gold flex items-center justify-between sticky top-0 z-40 no-print">
                 <div className="flex items-center gap-3">
                     <button
                         onClick={() => currentStep > 1 ? setCurrentStep(prev => prev - 1) : navigate('/teacher/dashboard')}

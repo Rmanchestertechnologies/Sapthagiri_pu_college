@@ -650,26 +650,66 @@ export default function A4PaperEngine({
                 }
 
                 @media print {
+                    /* 1. COMPLETELY COLLAPSE APP CHROME, BARS & SETTINGS */
+                    header,
+                    nav,
+                    footer,
+                    aside,
+                    .no-print,
+                    button,
                     .diagram-resize-toolbar,
-                    .no-print {
+                    [class*="SettingsPanel"],
+                    [class*="action-bar"] {
                         display: none !important;
+                        height: 0 !important;
+                        max-height: 0 !important;
+                        margin: 0 !important;
+                        padding: 0 !important;
+                        overflow: hidden !important;
                     }
+
+                    /* 2. RESET PAGE GEOMETRY & VIEWPORT */
                     @page {
                         size: A4 portrait;
                         margin: 5mm 8mm 6mm 8mm;
                     }
+
                     html, body {
-                        background: #fff !important;
+                        background: #ffffff !important;
                         margin: 0 !important;
                         padding: 0 !important;
                         width: 100% !important;
-                    }
-                    body * {
-                        visibility: hidden !important;
-                    }
-                    body {
+                        height: auto !important;
+                        min-height: 0 !important;
+                        overflow: visible !important;
                         -webkit-print-color-adjust: exact !important;
                         print-color-adjust: exact !important;
+                    }
+
+                    /* 3. ZERO OUT ALL ANCESTORS BETWEEN BODY AND PRINT DOCUMENT */
+                    #root,
+                    #root > div,
+                    .min-h-screen,
+                    main,
+                    main > div,
+                    div[class*="space-y"],
+                    div[class*="animate-fade-in"],
+                    div[class*="flex justify-center"],
+                    .paper-renderer-wrapper,
+                    .a4-engine-wrapper {
+                        margin: 0 !important;
+                        padding: 0 !important;
+                        border: none !important;
+                        box-shadow: none !important;
+                        position: static !important;
+                        display: block !important;
+                        width: 100% !important;
+                        max-width: 100% !important;
+                        height: auto !important;
+                        min-height: 0 !important;
+                        overflow: visible !important;
+                        float: none !important;
+                        clear: both !important;
                     }
 
                     /* Watermark in print: Fixed viewport background layer on every page */
@@ -754,19 +794,28 @@ export default function A4PaperEngine({
                     body:not(.printing-solution-key) .a4-solution-key-modal {
                         display: none !important;
                     }
+
+                    body * {
+                        visibility: hidden !important;
+                    }
+
                     body:not(.printing-answer-key):not(.printing-solution-key) .a4-print-document,
                     body:not(.printing-answer-key):not(.printing-solution-key) .a4-print-document * {
                         visibility: visible !important;
                     }
+
+                    /* STATIC POSITIONING FOR A4 PRINT DOCUMENT - SITS CRISPLY AT (0,0) OF PAGE 1 */
                     body:not(.printing-answer-key):not(.printing-solution-key) .a4-print-document {
-                        position: absolute !important;
-                        top: 0 !important;
-                        left: 0 !important;
-                        width: 100% !important;
+                        position: static !important;
+                        display: block !important;
                         margin: 0 !important;
                         padding: 0 !important;
+                        width: 100% !important;
+                        max-width: 100% !important;
+                        height: auto !important;
                         transform: none !important;
                         overflow: visible !important;
+                        visibility: visible !important;
                     }
 
                     .a4-sheet-page {
@@ -775,26 +824,33 @@ export default function A4PaperEngine({
                         margin: 0 !important;
                         padding: 0 !important;
                         width: 100% !important;
+                        max-width: 100% !important;
                         min-height: auto !important;
                         height: auto !important;
                         overflow: visible !important;
+                        background: transparent !important;
                     }
-                    .a4-questions-page {
-                        overflow: visible !important;
-                    }
-                    .a4-cover-page {
-                        page-break-after: always !important;
-                        break-after: page !important;
-                    }
+
                     .a4-page-content {
                         padding: 0 !important;
+                        margin: 0 !important;
                         overflow: visible !important;
-                        position: relative !important;
-                        z-index: 1 !important;
+                        position: static !important;
                         font-family: var(--paper-font-family) !important;
                         font-size: var(--paper-font-size) !important;
                         line-height: var(--paper-line-height) !important;
                     }
+
+                    .a4-primary-header-wrap {
+                        margin-top: 0 !important;
+                        padding-top: 0 !important;
+                    }
+
+                    .a4-primary-header-wrap > div {
+                        margin-top: 0 !important;
+                        padding-top: 0 !important;
+                    }
+
                     .question-block {
                         font-size: var(--paper-font-size) !important;
                         font-family: var(--paper-font-family) !important;
