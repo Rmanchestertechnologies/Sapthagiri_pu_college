@@ -434,13 +434,13 @@ export function cleanOptionText(text) {
         .trim();
 
     // Check if this option is a matching combination mapping like:
-    // "a-(iv)", "A-1", "A-P", "A-(P)", "A \to P", "A -> 2", "(a)-(ii), (b)-(iv)"
-    const isMatchingCombo = /^(?:\(?[A-Da-d1-4]\)?\s*(?:[-–—:]|\\to|\\rightarrow|->)\s*\(?[A-Za-z0-9ivxIVX]+\)?)/i.test(str);
+    // "a-(iv)", "A-1", "A-P", "A-(P)", "A \to P", "A -> 2", "(a)-(ii), (b)-(iv)", "(p)–(ii)", "p → (iv)"
+    const isMatchingCombo = /^(?:\(?[A-Da-d1-4p-tP-T]\)?\s*(?:[-–—:→]|\\to|\\rightarrow|->)\s*\(?[A-Za-z0-9ivxIVX]+\)?)/i.test(str);
     if (!isMatchingCombo) {
         str = str.replace(/^\s*(?:\([A-Da-d1-4]\)|\[[A-Da-d1-4]\]|[A-Da-d1-4][\.\:\-\)])\s*(?=\S)/i, '');
     } else {
-        // If option starts with outer option index like "(1) A-iv, B-ii" or "(A) A-P, B-Q", strip only the outer index
-        str = str.replace(/^\s*(?:\([1-4A-D]\)|\[[1-4A-D]\]|[1-4A-D][\.\:\)])\s+(?=\(?[A-Da-d1-4]\)?\s*[-–—:->\\])/i, '');
+        // If option starts with outer option index like "(1) A-iv, B-ii" or "(1) (p)-(ii)", strip only the outer index
+        str = str.replace(/^\s*(?:\([1-4A-Da-d]\)|\[[1-4A-Da-d]\]|[1-4A-Da-d][\.\:\)])\s+(?=\(?[A-Da-d1-4p-tP-T]\)?\s*[-–—:->→\\])/i, '');
     }
 
     // Clean stray closing braces from OCR / LaTeX like "40.8 eV.}", "54.4 eV}", "0.49\, A}"
@@ -851,6 +851,21 @@ function BodyMCQ({
             return { display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: isTwoCol ? optGapPx + ' 6px' : optGapPx + ' 12px', marginTop: '3px', alignItems: 'start' };
         }
 
+        // Check if options are Match-the-Following mappings e.g. "p → (iv), q → (iii), r → (ii), s → (i)"
+        const isMatchOptions = (options || []).some(opt => {
+            const str = String(typeof opt === 'object' ? (opt.text || opt.option || '') : opt);
+            return /(?:[p-sP-S]|[a-dA-D1-4])\s*[-–—:→\\]\s*\(?[0-9ivxIVX]+\)?/i.test(str);
+        });
+
+        if (isMatchOptions) {
+            // In Single Column Paper (~720px width): 2x2 grid allows full mapping to fit on 1 clean unbroken line
+            if (!isTwoCol) {
+                return { display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: optGapPx + ' 16px', marginTop: '4px', alignItems: 'start' };
+            }
+            // In Double Column Paper (~340px column width): 1 column stacked ensures options never wrap awkwardly
+            return { display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: optGapPx + ' 4px', marginTop: '4px', alignItems: 'start' };
+        }
+
         // Measure options
         const parsed = (options || []).map(opt => {
             const raw = String(typeof opt === 'object' ? (opt.text || opt.option || '') : opt).trim();
@@ -888,11 +903,20 @@ function BodyMCQ({
 
     const renderOptions = (forceSingle = false) => {
         if (displayMode === '5. Only Questions with No Options' || options.length === 0) return null;
+        const isMatchOptions = (options || []).some(opt => {
+            const str = String(typeof opt === 'object' ? (opt.text || opt.option || '') : opt);
+            return /(?:[p-sP-S]|[a-dA-D1-4])\s*[-–—:→\\]\s*\(?[0-9ivxIVX]+\)?/i.test(str);
+        });
+
         return (
             <div style={getOptionsGridStyle(forceSingle)}>
                 {options.map((opt, i) => {
                     const rawOpt = typeof opt === 'object' ? (opt.text || opt.optionText || opt.value || opt.option || '') : String(opt || '');
-                    const optText = cleanOptionText(rawOpt);
+                    let optText = cleanOptionText(rawOpt);
+                    if (isMatchOptions) {
+                        // Prevent broken line breaks between pair mappings e.g. "r →" and "(ii)"
+                        optText = optText.replace(/([p-sP-Sa-dA-D1-4\)])\s*([→\-–—\\])\s*(\(?[0-9ivxIVX]+\)?)/g, '$1\u00A0$2\u00A0$3');
+                    }
                     const optHeight = q.customDiagramSizes?.['opt_' + i] || q.customOptionDiagramHeight || '60px';
 
                     return (
@@ -1199,6 +1223,23 @@ export function repairBrokenLatexFraction(str) {
     });
 }
 
+/** Helper to merge sentence continuation lines in match column lists */
+export function mergeContinuationItems(items) {
+    if (!Array.isArray(items) || items.length <= 1) return items || [];
+    const merged = [];
+    const contWords = new Set(['and', 'or', 'then', 'is', 'are', 'approximate', 'approximately', 'of', 'to', 'when', 'with', 'for', 'in', 'equal', 'equals', 'has', 'have']);
+    for (let i = 0; i < items.length; i++) {
+        const item = String(items[i] || '').trim();
+        const firstWord = (item.split(/\s+/)[0] || '').toLowerCase().replace(/[^a-z]/g, '');
+        if (merged.length > 0 && (contWords.has(firstWord) || /^[a-z]/.test(item))) {
+            merged[merged.length - 1] += ' ' + item;
+        } else {
+            merged.push(item);
+        }
+    }
+    return merged;
+}
+
 /** Parse match the following from text when matchPairs array is empty */
 function parseMatchFromText(q) {
     let rawText = q.questionText || q.question || '';
@@ -1206,21 +1247,35 @@ function parseMatchFromText(q) {
 
     // 0. If matchPairs already provided in question object
     if (Array.isArray(q.matchPairs) && q.matchPairs.length >= 2) {
+        let leftItems = q.matchPairs.map(p => p.left || '').filter(Boolean);
+        let rightItems = q.matchPairs.map(p => p.right || '').filter(Boolean);
+        leftItems = mergeContinuationItems(leftItems);
+        rightItems = mergeContinuationItems(rightItems);
+        const maxL = Math.max(leftItems.length, rightItems.length);
+        const pairs = [];
+        for (let i = 0; i < maxL; i++) {
+            pairs.push({
+                left: leftItems[i] || '',
+                right: rightItems[i] || ''
+            });
+        }
         let intro = cleanQuestionText(rawText)
             .replace(/(?:\*\*|\b)(?:Column|List)\s*[-:]?\s*(?:I|1|A)\b[\s\S]*$/i, '')
             .trim();
         return {
             introText: intro || 'Match Column I with Column II:',
-            pairs: q.matchPairs
+            pairs
         };
     }
     if (Array.isArray(q.column_a) && q.column_a.length >= 2 && Array.isArray(q.column_b) && q.column_b.length >= 2) {
-        const maxL = Math.max(q.column_a.length, q.column_b.length);
+        const leftItems = mergeContinuationItems(q.column_a);
+        const rightItems = mergeContinuationItems(q.column_b);
+        const maxL = Math.max(leftItems.length, rightItems.length);
         const pairs = [];
         for (let i = 0; i < maxL; i++) {
             pairs.push({
-                left: q.column_a[i] || '',
-                right: q.column_b[i] || ''
+                left: leftItems[i] || '',
+                right: rightItems[i] || ''
             });
         }
         let intro = cleanQuestionText(rawText)

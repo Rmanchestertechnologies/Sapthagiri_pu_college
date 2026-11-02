@@ -113,6 +113,25 @@ function mapSupabaseToQuestion(row, usageMap = null) {
         colB = [...qbpData.columnB];
     }
 
+    // Auto-merge split sentence continuations in column lists (e.g. line break in the middle of a sentence)
+    function mergeContinuationList(list) {
+        if (!Array.isArray(list) || list.length <= 1) return list || [];
+        const merged = [];
+        const contWords = new Set(['and', 'or', 'then', 'is', 'are', 'approximate', 'approximately', 'of', 'to', 'when', 'with', 'for', 'in', 'equal', 'equals', 'has', 'have']);
+        for (let i = 0; i < list.length; i++) {
+            const item = String(list[i] || '').trim();
+            const firstWord = (item.split(/\s+/)[0] || '').toLowerCase().replace(/[^a-z]/g, '');
+            if (merged.length > 0 && (contWords.has(firstWord) || /^[a-z]/.test(item))) {
+                merged[merged.length - 1] += ' ' + item;
+            } else {
+                merged.push(item);
+            }
+        }
+        return merged;
+    }
+    colA = mergeContinuationList(colA);
+    colB = mergeContinuationList(colB);
+
     // 2. Options Extraction
     const rawOptions = [];
     if (row.opt_a) rawOptions.push(row.opt_a);

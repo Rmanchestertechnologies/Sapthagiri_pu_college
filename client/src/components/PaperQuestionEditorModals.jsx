@@ -144,6 +144,12 @@ export function EditQuestionModal({
             difficulty: difficulty,
             topic: topic,
             chapter: topic,
+            // Invalidate stale parsed column caches so any edited Match The Following text re-parses dynamically
+            matchPairs: null,
+            column_a: null,
+            column_b: null,
+            columnA: null,
+            columnB: null,
         };
         onSave(updated, questionIndex);
         onClose();
