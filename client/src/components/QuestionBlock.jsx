@@ -285,7 +285,7 @@ const Q = {
         borderCollapse: 'collapse',
         margin: '4px 0 6px',
         fontSize: '0.94em',
-        tableLayout: 'fixed',
+        tableLayout: 'auto',
         fontWeight: 400,
     },
     matchTh: {
@@ -862,34 +862,28 @@ function BodyMCQ({
         const maxLen = Math.max(...parsed.map(p => p.len), 0);
         const hasComplex = parsed.some(p => p.isComplex);
 
-        // Responsive Line Layout: Fits in 1 line whenever clean, protects against word-wrapping
-        if (optionsPerLine === 4 || optionsLayout === 'line') {
-            if (!isTwoCol) {
-                // SINGLE COLUMN MODE (~720px width):
-                // All 4 fit in 1 line if length <= 42 chars and not complex formulas
-                if (maxLen <= 42 && !hasComplex) {
-                    return { display: 'grid', gridTemplateColumns: `repeat(${Math.min(4, options.length || 4)}, minmax(0, 1fr))`, gap: optGapPx + ' 12px', marginTop: '3px', alignItems: 'start' };
-                }
-                // For long sentences (> 42 chars), use 2x2 grid so words never hyphenate or wrap into vertical towers!
-                return { display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: optGapPx + ' 14px', marginTop: '3px', alignItems: 'start' };
-            } else {
-                // DOUBLE COLUMN MODE (~340px column width):
-                // Very short options (<= 12 chars, e.g. numbers, short units) fit 4 in a line!
-                if (maxLen <= 12 && !hasComplex && options.length <= 4) {
-                    return { display: 'grid', gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))`, gap: optGapPx + ' 6px', marginTop: '3px', alignItems: 'start' };
-                }
-                // Medium options (13-28 chars) fit in 2x2 grid (160px each):
-                if (maxLen <= 28 && !hasComplex && options.length <= 4) {
-                    return { display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: optGapPx + ' 8px', marginTop: '3px', alignItems: 'start' };
-                }
-                // Long sentences (> 28 chars): 1 column stacked so lines read naturally!
-                return { display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: optGapPx + ' 6px', marginTop: '3px', alignItems: 'start' };
+        // Strict conformance to Reference Image 5 (Double Column) & Image 4 (Single Column)
+        if (!isTwoCol) {
+            // SINGLE COLUMN PAPER (~720px width - Image 4 Reference):
+            // Numbers, units, phrases up to 36 chars fit in 1 line (4 across) (Image 4 Q4, Q5, Q7)
+            if (maxLen <= 36 && !hasComplex && options.length <= 4) {
+                return { display: 'grid', gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))`, gap: optGapPx + ' 12px', marginTop: '3px', alignItems: 'start' };
             }
+            // Long statements (> 36 chars) format in 2x2 grid (Image 4 Q2)
+            return { display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: optGapPx + ' 14px', marginTop: '3px', alignItems: 'start' };
+        } else {
+            // DOUBLE COLUMN PAPER (~340px column width - Image 5 Reference):
+            // 1. Short scalar choices / numbers / years (<= 5 chars, e.g. 1961, 1971, 1, 2) -> 4 across in 1 line (Image 5 Q3, Q10, Q11)
+            if (maxLen <= 5 && !hasComplex && options.length <= 4) {
+                return { display: 'grid', gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))`, gap: optGapPx + ' 6px', marginTop: '3px', alignItems: 'start' };
+            }
+            // 2. Short / medium options (6-25 chars, e.g. diaphragm, copper-T, IVF-ET, Copper T-IUD) -> 2x2 grid (Image 5 Q1, Q9, Q12)
+            if (maxLen <= 25 && !hasComplex && options.length <= 4) {
+                return { display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: optGapPx + ' 8px', marginTop: '3px', alignItems: 'start' };
+            }
+            // 3. Long statements / sentences (> 25 chars, e.g. Statement-A is correct...) -> 1 column stacked (Image 5 Q2, Q13)
+            return { display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: optGapPx + ' 6px', marginTop: '3px', alignItems: 'start' };
         }
-
-        // Auto mode
-        const dynamicStyle = getDynamicOptGrid(options, isTwoCol);
-        return { ...dynamicStyle, gap: isTwoCol ? optGapPx + ' 6px' : optGapPx + ' 12px' };
     };
 
     const renderOptions = (forceSingle = false) => {
@@ -1283,6 +1277,9 @@ function parseMatchFromText(q) {
     if (endMatch) {
         rawCol2 = rawCol2.substring(0, endMatch.index).trim();
     }
+    // Also strip trailing leaked single-letter/roman option lists e.g. (iv), (ii)...
+    rawCol2 = rawCol2.replace(/(?:\r?\n\s*\([a-d1-4ivx]+\)\s*)+$/gi, '').trim();
+    rawCol2 = rawCol2.replace(/(?:\r?\n\s*(?:[a-d1-4ivx]|p|q|r|s)\s*[-–—:->\\]\s*\(?[a-d1-4ivx0-9]+\)?\s*)+$/gi, '').trim();
 
     // Auto-repair any broken fraction syntax in both columns
     rawCol1 = repairBrokenLatexFraction(rawCol1);
@@ -1326,12 +1323,26 @@ function parseMatchFromText(q) {
             if (markerItems.length >= 2) return markerItems;
         }
 
-        // 2. Newlines or HTML breaks
-        const lines = colStr
+        // 2. Newlines or HTML breaks (with smart sentence continuation merging)
+        const rawLines = colStr
             .split(/\r?\n+|<br\s*\/?>/i)
             .map(s => cleanItem(s))
             .filter(s => s && !/^(?:with|Column|List|I|II|A|B|1|2)$/i.test(s));
-        if (lines.length >= 2) return lines;
+        if (rawLines.length >= 2) {
+            const mergedLines = [];
+            const contWords = new Set(['and', 'or', 'then', 'is', 'are', 'approximate', 'approximately', 'of', 'to', 'when', 'with', 'for', 'in', 'equal', 'equals', 'has', 'have']);
+            for (let i = 0; i < rawLines.length; i++) {
+                const line = rawLines[i];
+                const firstWord = (line.split(/\s+/)[0] || '').toLowerCase();
+                // If line starts with continuation word or lowercase, or previous line ended without punctuation
+                if (mergedLines.length > 0 && (contWords.has(firstWord) || /^[a-z]/.test(line))) {
+                    mergedLines[mergedLines.length - 1] += ' ' + line;
+                } else {
+                    mergedLines.push(line);
+                }
+            }
+            if (mergedLines.length >= 2) return mergedLines;
+        }
 
         // 3. Semicolons or bullet points
         if (/[;•]/.test(colStr)) {
@@ -1560,8 +1571,9 @@ function BodyMatchFollowing({
 
     const avgLeftLen = pairs.reduce((acc, p) => acc + (p.left || '').length, 0) / (pairs.length || 1);
     const avgRightLen = pairs.reduce((acc, p) => acc + (p.right || '').length, 0) / (pairs.length || 1);
-    const leftWidth = avgLeftLen > avgRightLen * 1.8 ? '62%' : (avgRightLen > avgLeftLen * 1.8 ? '38%' : '50%');
-    const rightWidth = leftWidth === '62%' ? '38%' : (leftWidth === '38%' ? '62%' : '50%');
+    // In 2-column mode, use 50%/50% so Column II is never squeezed or clipped!
+    const leftWidth = isTwoCol ? '50%' : (avgLeftLen > avgRightLen * 2 ? '58%' : (avgRightLen > avgLeftLen * 2 ? '42%' : '50%'));
+    const rightWidth = isTwoCol ? '50%' : (leftWidth === '58%' ? '42%' : (leftWidth === '42%' ? '58%' : '50%'));
 
     return (
         <>
@@ -1604,7 +1616,12 @@ function BodyMatchFollowing({
                             const rightVal = (pair.right || '').trim();
                             return (
                                 <tr key={pi}>
-                                    <td style={{ ...Q.matchTd, width: leftWidth }}>
+                                    <td style={{
+                                        ...Q.matchTd,
+                                        width: leftWidth,
+                                        border: leftVal ? '1px solid #cbd5e1' : 'none',
+                                        background: leftVal ? '#ffffff' : 'transparent',
+                                    }}>
                                         {leftVal ? (
                                             <>
                                                 <strong style={{ marginRight: '6px', color: '#001f6d' }}>({String.fromCharCode(65 + pi)})</strong>
@@ -1612,7 +1629,12 @@ function BodyMatchFollowing({
                                             </>
                                         ) : null}
                                     </td>
-                                    <td style={{ ...Q.matchTd, width: rightWidth }}>
+                                    <td style={{
+                                        ...Q.matchTd,
+                                        width: rightWidth,
+                                        border: rightVal ? '1px solid #cbd5e1' : 'none',
+                                        background: rightVal ? '#ffffff' : 'transparent',
+                                    }}>
                                         {rightVal ? (
                                             <>
                                                 <strong style={{ marginRight: '6px', color: '#001f6d' }}>({hasRomanOpts ? (romanLabels[pi] || (pi + 1)) : (pi + 1)})</strong>
