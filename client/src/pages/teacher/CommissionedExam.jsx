@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext, useMemo } from 'react';
+﻿import React, { useState, useEffect, useContext, useMemo } from 'react';
 import { Check, Zap, Edit3, Rocket, ArrowLeft, ArrowRight, Target, Scale, X, Plus, Search, CheckCircle2, ChevronDown } from 'lucide-react';
 import { AuthContext } from '../../context/AuthContext';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -114,6 +114,7 @@ export default function CommissionedExam() {
     // Transition Loader state
     const [stepLoading, setStepLoading] = useState(false);
     const [loadingMessage, setLoadingMessage] = useState('');
+    const [fetchError, setFetchError] = useState(null); // in-page error state for fetch failures
 
     // Step 2: Chapter Selection
     const [availableChapters, setAvailableChapters] = useState([]);
@@ -670,7 +671,30 @@ export default function CommissionedExam() {
     // Step 6: Execute Question Fetch - uses parallel type-specific queries to guarantee allocations
     const executeFetch = async () => {
         setStepLoading(true);
-        setLoadingMessage('Fetching questions from question repository...');
+        setFetchError(null);
+        setLoadingMessage('Connecting to question repository...');
+
+        // Helper: sleep for ms milliseconds
+        const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+        // Helper: fetch with retry (up to 3 attempts, exponential backoff)
+        const fetchWithRetry = async (url, retries = 3, delayMs = 2000) => {
+            for (let attempt = 1; attempt <= retries; attempt++) {
+                try {
+                    const res = await api.get(url, { timeout: 45000 });
+                    return res;
+                } catch (err) {
+                    const isNetwork = !err.response; // network error or timeout
+                    if (isNetwork && attempt < retries) {
+                        setLoadingMessage(`Server warming up... retrying (${attempt}/${retries - 1})...`);
+                        await sleep(delayMs * attempt);
+                    } else {
+                        throw err;
+                    }
+                }
+            }
+        };
+
         try {
             const isJee = selectedExamPattern === 'JEE';
 
@@ -701,13 +725,13 @@ export default function CommissionedExam() {
                        qText.includes('[CET') || qText.includes('(CET');
             };
 
-            // Helper to fetch a typed batch
+            // Helper to fetch a typed batch with retry support
             const fetchTyped = async (typeKey, extraLimit = 300) => {
                 const p = new URLSearchParams(baseParams.toString());
                 p.set('type', typeKey);
                 p.set('limit', String(Math.max(extraLimit, 100)));
                 try {
-                    const res = await api.get(`/api/questions?${p.toString()}`);
+                    const res = await fetchWithRetry(`/api/questions?${p.toString()}`);
                     const rows = Array.isArray(res.data?.questions) ? res.data.questions : (Array.isArray(res.data) ? res.data : []);
                     return rows.filter(q => !isCetQ(q));
                 } catch (e) {
@@ -715,6 +739,8 @@ export default function CommissionedExam() {
                     return [];
                 }
             };
+
+            setLoadingMessage('Fetching questions from question repository...');
 
             // 1. Launch parallel type-specific fetches for any non-zero allocations
             const [arPool, matchPool, stmtPool, diagPool, numPool, mcqPool] = await Promise.all([
@@ -925,12 +951,24 @@ export default function CommissionedExam() {
                     questionNumber: idx + 1
                 }));
 
-                setSelectedQuestions(finalOrdered);
-                setCurrentStep(7); // Proceed to Step 7: Preview & Save
+                if (finalOrdered.length === 0) {
+                    setFetchError('No questions found for the selected filters. Try selecting more chapters or broadening the class/difficulty settings.');
+                } else {
+                    setSelectedQuestions(finalOrdered);
+                    setCurrentStep(7); // Proceed to Step 7: Preview & Save
+                }
+            }
+            // Manual mode: if no candidates found, inform user
+            if (fetchMode === 'manual' && candidatePool.length === 0) {
+                setFetchError('No questions found for the selected subject, chapters, and class combination. Please adjust your filters and try again.');
             }
         } catch (err) {
             console.error('Error fetching questions:', err);
-            alert('Failed to fetch questions. Please check connection and try again.');
+            const isNetworkErr = !err.response;
+            const msg = isNetworkErr
+                ? 'Unable to reach the server. The server may be starting up — please wait 30 seconds and try again.'
+                : (err.response?.data?.msg || err.message || 'Failed to fetch questions.');
+            setFetchError(msg);
         } finally {
             setStepLoading(false);
             setLoadingMessage('');
@@ -1899,6 +1937,31 @@ export default function CommissionedExam() {
                                 <span>Execute Auto Fetch & Preview →</span>
                             </button>
                         </div>
+
+                         {/* Fetch Error Banner */}
+                         {fetchError && (
+                             <div className="mt-4 bg-red-50 border border-red-200 rounded-2xl p-4 flex items-start gap-3">
+                                 <span className="text-red-500 text-lg flex-shrink-0">&#9888;&#65039;</span>
+                                 <div className="flex-1">
+                                     <p className="text-xs font-bold text-red-700 mb-1">Fetch Failed</p>
+                                     <p className="text-xs text-red-600">{fetchError}</p>
+                                     <button
+                                         type="button"
+                                         onClick={() => { setFetchError(null); executeFetch(); }}
+                                         className="mt-2 text-xs font-bold text-red-700 underline cursor-pointer hover:text-red-900"
+                                     >
+                                         Retry Now
+                                     </button>
+                                 </div>
+                                 <button
+                                     type="button"
+                                     onClick={() => setFetchError(null)}
+                                     className="text-red-400 hover:text-red-600 cursor-pointer flex-shrink-0"
+                                 >
+                                     <X className="w-4 h-4" />
+                                 </button>
+                             </div>
+                         )}
                     </div>
                 )}
 
