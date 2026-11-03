@@ -1,7 +1,9 @@
 import axios from 'axios';
 
 // ── Base URL Configuration ──────────────────────────────────────────────────
-const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? 'https://sapthagiri-pu-college-api.onrender.com' : '');
+// Always route requests via same-origin relative path ('') so Vercel rewrites proxy
+// seamlessly to Render without triggering cross-origin CORS socket resets or ISP blocks.
+const API_URL = import.meta.env.VITE_API_URL || '';
 
 const api = axios.create({
     baseURL: API_URL,
