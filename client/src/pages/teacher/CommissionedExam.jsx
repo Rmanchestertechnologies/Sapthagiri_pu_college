@@ -668,44 +668,22 @@ export default function CommissionedExam() {
         }
     };
 
-    // Step 6: Execute Question Fetch - uses parallel type-specific queries to guarantee allocations
+    // Step 6: Execute Question Fetch - optimized fast single-pool fetch with retry
     const executeFetch = async () => {
         setStepLoading(true);
         setFetchError(null);
-        setLoadingMessage('Connecting to question repository...');
-
-        // Helper: sleep for ms milliseconds
-        const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-
-        // Helper: fetch with retry (up to 3 attempts, exponential backoff)
-        const fetchWithRetry = async (url, retries = 3, delayMs = 2000) => {
-            for (let attempt = 1; attempt <= retries; attempt++) {
-                try {
-                    const res = await api.get(url, { timeout: 45000 });
-                    return res;
-                } catch (err) {
-                    const isNetwork = !err.response; // network error or timeout
-                    if (isNetwork && attempt < retries) {
-                        setLoadingMessage(`Server warming up... retrying (${attempt}/${retries - 1})...`);
-                        await sleep(delayMs * attempt);
-                    } else {
-                        throw err;
-                    }
-                }
-            }
-        };
+        setLoadingMessage('Fetching questions from repository...');
 
         try {
             const isJee = selectedExamPattern === 'JEE';
 
-            // Build base params shared by all queries
+            // Build base query parameters
             const baseParams = new URLSearchParams();
             baseParams.append('subject', selectedSubject);
-            baseParams.append('limit', '300');
             if (selectedExamPattern) baseParams.append('examType', selectedExamPattern);
             if (selectedClass !== 'Both') baseParams.append('classes', selectedClass);
             if (selectedChapters.length > 0) baseParams.append('chapter', selectedChapters.join(','));
-            // Difficulty distribution
+
             if (difficultyDistribution.easy > 0 || difficultyDistribution.medium > 0 || difficultyDistribution.hard > 0) {
                 const levels = [];
                 if (difficultyDistribution.easy > 0) levels.push('easy');
@@ -714,88 +692,56 @@ export default function CommissionedExam() {
                 baseParams.append('level', levels.join(','));
             }
 
-            // Helper to filter out CET questions on client-side as a double safety net
-            const isCetQ = (q) => {
-                const qExams = (Array.isArray(q.classes) ? q.classes : []).concat(Array.isArray(q.exams) ? q.exams : []);
-                const srcExam = String(q.sourceExam || '').toUpperCase();
-                const qText = String(q.questionText || q.question || '').toUpperCase();
-                return qExams.some(e => ['CET', 'KCET'].includes(String(e).toUpperCase())) ||
-                       srcExam.includes('CET') || srcExam.includes('KCET') ||
-                       qText.includes('[KCET') || qText.includes('(KCET') ||
-                       qText.includes('[CET') || qText.includes('(CET');
-            };
+            // Target total questions to assemble
+            const targetTotal = totalChapterQuestions > 0 ? totalChapterQuestions : (patternConfig.defaultTotal || 45);
 
-            // Helper to fetch a typed batch with retry support
-            const fetchTyped = async (typeKey, extraLimit = 300) => {
-                const p = new URLSearchParams(baseParams.toString());
-                p.set('type', typeKey);
-                p.set('limit', String(Math.max(extraLimit, 100)));
-                try {
-                    const res = await fetchWithRetry(`/api/questions?${p.toString()}`);
-                    const rows = Array.isArray(res.data?.questions) ? res.data.questions : (Array.isArray(res.data) ? res.data : []);
-                    return rows.filter(q => !isCetQ(q));
-                } catch (e) {
-                    console.warn(`[FETCH] Failed for type ${typeKey}:`, e.message);
-                    return [];
-                }
-            };
+            // Fetch a single optimized pool (requesting 2x-3x target, capped at 120 for instant response)
+            const requestLimit = Math.min(Math.max(targetTotal * 2, 70), 120);
+            baseParams.set('limit', String(requestLimit));
 
-            setLoadingMessage('Fetching questions from question repository...');
+            let allRows = [];
+            try {
+                const res = await api.get(`/api/questions?${baseParams.toString()}`, { timeout: 35000 });
+                allRows = Array.isArray(res.data?.questions) ? res.data.questions : (Array.isArray(res.data) ? res.data : []);
+            } catch (netErr) {
+                console.warn('[FETCH] Primary request failed/slow, retrying with optimized limit...', netErr.message);
+                setLoadingMessage('Server is responding, completing fetch...');
+                baseParams.set('limit', String(Math.max(targetTotal + 10, 50)));
+                const retryRes = await api.get(`/api/questions?${baseParams.toString()}`, { timeout: 45000 });
+                allRows = Array.isArray(retryRes.data?.questions) ? retryRes.data.questions : (Array.isArray(retryRes.data) ? retryRes.data : []);
+            }
 
-            // 1. Launch parallel type-specific fetches for any non-zero allocations
-            const [arPool, matchPool, stmtPool, diagPool, numPool, mcqPool] = await Promise.all([
-                typeAllocations.ar > 0 ? fetchTyped('assertion', typeAllocations.ar * 4) : Promise.resolve([]),
-                typeAllocations.match > 0 ? fetchTyped('match', typeAllocations.match * 4) : Promise.resolve([]),
-                typeAllocations.stmt > 0 ? fetchTyped('statement', typeAllocations.stmt * 4) : Promise.resolve([]),
-                typeAllocations.diag > 0 ? fetchTyped('diagram', typeAllocations.diag * 4) : Promise.resolve([]),
-                (isJee && typeAllocations.numerical > 0) ? fetchTyped('numerical', typeAllocations.numerical * 4) : Promise.resolve([]),
-                fetchTyped('mcq', Math.max(typeAllocations.mcq * 3, 500)),
-            ]);
+            // Client-side CET guard
+            const filteredRows = allRows.filter(q => !isCetQ(q));
 
-            setLoadingMessage('Assembling question paper from fetched pools...');
+            // Populate candidate pool for manual mode
+            setFetchedQuestions(filteredRows);
 
-            // 2. Apply chapter filter to each pool
-            const filterChapters = (pool) => {
-                if (selectedChapters.length === 0) return pool;
-                return pool.filter(q => {
-                    const qCh = (q.chapter || '').toLowerCase();
-                    return selectedChapters.some(c => c.toLowerCase() === qCh);
-                });
-            };
-
-            const pools = {
-                ar: filterChapters(arPool),
-                match: filterChapters(matchPool),
-                stmt: filterChapters(stmtPool),
-                diag: filterChapters(diagPool),
-                numerical: filterChapters(numPool),
-                mcq: filterChapters(mcqPool),
-            };
-
-            // Also build the general candidate pool for manual mode
-            const candidatePool = [
-                ...pools.ar, ...pools.match, ...pools.stmt, ...pools.diag,
-                ...pools.numerical, ...pools.mcq
-            ].filter((q, i, arr) => arr.findIndex(x => (x._id || x.id) === (q._id || q.id)) === i);
-
-            setFetchedQuestions(candidatePool);
+            if (filteredRows.length === 0) {
+                setFetchError('No questions found matching your selected chapter/class filters. Please broaden your selection.');
+                return;
+            }
 
             if (fetchMode === 'auto') {
-                const picked = [];
+                setLoadingMessage('Assembling balanced question paper...');
 
-                // Helper to classify question into type bucket
-                const getQCategory = (q) => {
-                    const t = (q.type || q.q_type || '').toUpperCase();
-                    const txt = `${q.questionText || q.question || ''}`;
-                    if (isJee && (t === 'NUMERICAL' || (!q.options?.length && !q.opt_a && !q.opt_b && q.num_answer))) return 'numerical';
-                    if (t === 'ASSERTION_REASON' || /Assertion\s*(?:\(A\))?[:\-]/i.test(txt)) return 'ar';
-                    if (t === 'MATCH_FOLLOWING' || t.includes('MATCH') || /Column\s*(?:I|1|A)\b/i.test(txt)) return 'match';
-                    if (t === 'STATEMENT_BASED' || /Statement\s*(?:I|1|A)\b/i.test(txt)) return 'stmt';
-                    if (t === 'DIAGRAM_BASED' || q.imageUrl || q.image_url || /\{\{IMG::|!\[|<img/i.test(txt)) return 'diag';
-                    return 'mcq';
+                // Classify questions into category buckets
+                const buckets = {
+                    ar: [],
+                    match: [],
+                    stmt: [],
+                    diag: [],
+                    numerical: [],
+                    mcq: []
                 };
 
-                // Apply concept priority sort to each pre-fetched typed pool
+                filteredRows.forEach(q => {
+                    const cat = getQCategory(q, isJee);
+                    if (buckets[cat]) buckets[cat].push(q);
+                    else buckets.mcq.push(q);
+                });
+
+                // Concept prioritization
                 const matchesConcept = (q) => {
                     if (selectedConcepts.length === 0) return true;
                     const qCpt = (q.concept || '').toLowerCase();
@@ -803,81 +749,44 @@ export default function CommissionedExam() {
                 };
                 const prioritize = (arr) => [...arr].sort((a, b) => (matchesConcept(b) ? 1 : 0) - (matchesConcept(a) ? 1 : 0));
 
-                // Apply difficulty distribution filtering if any percentages set
-                const applyDifficultyFilter = (arr, count) => {
-                    if (!count || count <= 0) return [];
-                    const totalPct = difficultyDistribution.easy + difficultyDistribution.medium + difficultyDistribution.hard;
-                    if (totalPct <= 0) return prioritize(arr).slice(0, count);
-                    const easyCount = Math.round((difficultyDistribution.easy / 100) * count);
-                    const hardCount = Math.round((difficultyDistribution.hard / 100) * count);
-                    const medCount = count - easyCount - hardCount;
-                    const easyQs = arr.filter(q => (q.level || 'medium').toLowerCase() === 'easy').slice(0, easyCount);
-                    const hardQs = arr.filter(q => (q.level || 'medium').toLowerCase() === 'hard').slice(0, hardCount);
-                    const medQs = arr.filter(q => (q.level || 'medium').toLowerCase() === 'medium').slice(0, Math.max(medCount, 0));
-                    const result = [...easyQs, ...medQs, ...hardQs];
-                    // Backfill if short
-                    if (result.length < count) {
-                        const usedIds = new Set(result.map(q => q._id || q.id));
-                        const rest = arr.filter(q => !usedIds.has(q._id || q.id));
-                        result.push(...rest.slice(0, count - result.length));
-                    }
-                    return result.slice(0, count);
-                };
+                Object.keys(buckets).forEach(k => {
+                    buckets[k] = prioritize(buckets[k]);
+                });
 
-                const buckets = {
-                    ar: prioritize(pools.ar),
-                    match: prioritize(pools.match),
-                    diag: prioritize(pools.diag),
-                    stmt: prioritize(pools.stmt),
-                    numerical: isJee ? prioritize(pools.numerical) : [],
-                    mcq: prioritize(pools.mcq),
-                };
-
+                const picked = [];
                 const pickedIds = new Set();
+
                 const pickFromBucket = (cat, count) => {
                     if (!count || count <= 0) return 0;
-                    const diffFiltered = applyDifficultyFilter(buckets[cat] || [], count);
-                    const available = diffFiltered.filter(q => !pickedIds.has(q._id || q.id));
+                    const available = (buckets[cat] || []).filter(q => !pickedIds.has(q._id || q.id));
                     const selected = available.slice(0, count);
                     selected.forEach(q => pickedIds.add(q._id || q.id));
                     picked.push(...selected);
                     return selected.length;
                 };
 
-                // Pick strictly according to user's Step 5 typeAllocations:
+                // Pick according to user's Step 5 allocations
                 if (isJee && patternConfig.supportsNumerical && typeAllocations.numerical > 0) {
                     pickFromBucket('numerical', typeAllocations.numerical);
                 }
-                if (typeAllocations.ar > 0) {
-                    pickFromBucket('ar', typeAllocations.ar);
-                }
-                if (typeAllocations.match > 0) {
-                    pickFromBucket('match', typeAllocations.match);
-                }
-                if (typeAllocations.diag > 0) {
-                    pickFromBucket('diag', typeAllocations.diag);
-                }
-                if (typeAllocations.stmt > 0) {
-                    pickFromBucket('stmt', typeAllocations.stmt);
-                }
-                if (typeAllocations.mcq > 0) {
-                    pickFromBucket('mcq', typeAllocations.mcq);
-                }
+                if (typeAllocations.ar > 0) pickFromBucket('ar', typeAllocations.ar);
+                if (typeAllocations.match > 0) pickFromBucket('match', typeAllocations.match);
+                if (typeAllocations.diag > 0) pickFromBucket('diag', typeAllocations.diag);
+                if (typeAllocations.stmt > 0) pickFromBucket('stmt', typeAllocations.stmt);
+                if (typeAllocations.mcq > 0) pickFromBucket('mcq', typeAllocations.mcq);
 
-                // If any quota remains due to shortage in a specific type, ONLY backfill with standard MCQs from the selected chapters!
-                const targetTotal = totalChapterQuestions > 0 ? totalChapterQuestions : (patternConfig.defaultTotal || 45);
+                // Backfill from remaining questions if specific quota was short
                 if (picked.length < targetTotal) {
-                    const remainingMCQs = buckets.mcq.filter(q => !pickedIds.has(q._id || q.id));
+                    const remaining = filteredRows.filter(q => !pickedIds.has(q._id || q.id));
                     const needed = targetTotal - picked.length;
-                    const backfill = remainingMCQs.slice(0, needed);
+                    const backfill = remaining.slice(0, needed);
                     backfill.forEach(q => pickedIds.add(q._id || q.id));
                     picked.push(...backfill);
                 }
 
-                // Ensure options exist and are populated for 100% of questions:
+                // Clean and ensure options for 100% of questions
                 picked.forEach(q => {
-                    const cat = getQCategory(q);
-                    // For NEET & CET: strictly eliminate any numerical indicators!
+                    const cat = getQCategory(q, isJee);
                     if (!isJee) {
                         q.isNumerical = false;
                         q.num_answer = null;
@@ -934,39 +843,35 @@ export default function CommissionedExam() {
                     }
                 });
 
-                // Shuffle questions so types are interleaved and distributed naturally throughout the paper!
+                // Disperse types naturally across paper
                 let finalOrdered = [];
                 if (isJee) {
-                    const nonNumericals = picked.filter(q => getQCategory(q) !== 'numerical');
-                    const numericals = picked.filter(q => getQCategory(q) === 'numerical');
-                    const shuffledNonNum = shuffleAndDisperse(nonNumericals, getQCategory);
+                    const nonNumericals = picked.filter(q => getQCategory(q, true) !== 'numerical');
+                    const numericals = picked.filter(q => getQCategory(q, true) === 'numerical');
+                    const shuffledNonNum = shuffleAndDisperse(nonNumericals, (q) => getQCategory(q, true));
                     finalOrdered = [...shuffledNonNum, ...numericals];
                 } else {
-                    finalOrdered = shuffleAndDisperse(picked, getQCategory);
+                    finalOrdered = shuffleAndDisperse(picked, (q) => getQCategory(q, false));
                 }
 
-                // Re-assign display questionNumber
+                // Number questions 1..N
                 finalOrdered = finalOrdered.map((q, idx) => ({
                     ...q,
                     questionNumber: idx + 1
                 }));
 
                 if (finalOrdered.length === 0) {
-                    setFetchError('No questions found for the selected filters. Try selecting more chapters or broadening the class/difficulty settings.');
+                    setFetchError('No questions found for the selected filters. Please select more chapters.');
                 } else {
                     setSelectedQuestions(finalOrdered);
-                    setCurrentStep(7); // Proceed to Step 7: Preview & Save
+                    setCurrentStep(7); // Jump straight to Step 7 Preview & Alignment!
                 }
-            }
-            // Manual mode: if no candidates found, inform user
-            if (fetchMode === 'manual' && candidatePool.length === 0) {
-                setFetchError('No questions found for the selected subject, chapters, and class combination. Please adjust your filters and try again.');
             }
         } catch (err) {
             console.error('Error fetching questions:', err);
             const isNetworkErr = !err.response;
             const msg = isNetworkErr
-                ? 'Unable to reach the server. The server may be starting up — please wait 30 seconds and try again.'
+                ? 'Connection timed out. Please click Retry below to try again.'
                 : (err.response?.data?.msg || err.message || 'Failed to fetch questions.');
             setFetchError(msg);
         } finally {
