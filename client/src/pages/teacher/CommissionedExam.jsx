@@ -125,6 +125,15 @@ export default function CommissionedExam() {
     const [selectedConcepts, setSelectedConcepts] = useState([]);
     const [conceptSearch, setConceptSearch] = useState('');
 
+    // Filter concepts belonging strictly to selected chapters
+    const scopedConcepts = useMemo(() => {
+        if (selectedChapters.length === 0) return availableConcepts;
+        return availableConcepts.filter(c => {
+            if (!c.chapter) return true;
+            return selectedChapters.some(ch => ch.toLowerCase() === c.chapter.toLowerCase());
+        });
+    }, [availableConcepts, selectedChapters]);
+
     // Step 4: Questions from each chapter how many questions (UNLIMITED CAPACITY)
     // chapterQuotas: { [chapterName]: number }
     const [chapterQuotas, setChapterQuotas] = useState({});
@@ -1137,15 +1146,6 @@ export default function CommissionedExam() {
         if (!setsActive || activeSet === 'P') return { ...currentPaperObject, setName: setsActive ? 'P' : '' };
         return generatePaperSet(currentPaperObject, activeSet);
     }, [currentPaperObject, setsActive, activeSet]);
-
-    // Filter concepts belonging strictly to selected chapters
-    const scopedConcepts = useMemo(() => {
-        if (selectedChapters.length === 0) return availableConcepts;
-        return availableConcepts.filter(c => {
-            if (!c.chapter) return true;
-            return selectedChapters.some(ch => ch.toLowerCase() === c.chapter.toLowerCase());
-        });
-    }, [availableConcepts, selectedChapters]);
 
     return (
         <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
