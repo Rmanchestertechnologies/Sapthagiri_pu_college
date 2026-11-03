@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useContext, useMemo } from 'react';
+import React, { useState, useEffect, useContext, useMemo } from 'react';
 import { Check, Zap, Edit3, Rocket, ArrowLeft, ArrowRight, Target, Scale, X, Plus, Search, CheckCircle2, ChevronDown } from 'lucide-react';
 import { AuthContext } from '../../context/AuthContext';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -870,8 +870,9 @@ export default function CommissionedExam() {
         } catch (err) {
             console.error('Error fetching questions:', err);
             const isNetworkErr = !err.response;
+            const errorDetails = err.message || (err.response ? `HTTP ${err.response.status}` : 'Network error');
             const msg = isNetworkErr
-                ? 'Connection timed out. Please click Retry below to try again.'
+                ? `Connection timed out or network error (${errorDetails}). Please click Retry below to try again.`
                 : (err.response?.data?.msg || err.message || 'Failed to fetch questions.');
             setFetchError(msg);
         } finally {
