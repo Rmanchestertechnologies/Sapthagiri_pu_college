@@ -263,21 +263,21 @@ const Q = {
     sideBySideContainer: {
         display: 'flex',
         flexDirection: 'row',
-        alignItems: 'center',
+        alignItems: 'flex-start',
         justifyContent: 'space-between',
         gap: '12px',
         marginTop: '3px',
     },
     sideLeftContent: {
-        flex: '1 1 58%',
+        flex: '1 1 auto',
         minWidth: 0,
     },
     sideRightDiagram: {
-        flex: '0 0 40%',
-        maxWidth: '270px',
+        flex: '0 0 auto',
+        maxWidth: '42%',
         display: 'flex',
         justifyContent: 'center',
-        alignItems: 'center',
+        alignItems: 'flex-start',
         padding: '2px',
     },
     matchTable: {
@@ -843,12 +843,15 @@ function BodyMCQ({
                      optionSpacing === '10' ? '10px' :
                      optionSpacing === '15' ? '15px' : '3px';
 
-    const getOptionsGridStyle = (forceSingle = false) => {
+    const getOptionsGridStyle = (forceSingle = false, isSide = false) => {
         if (forceSingle || optionsPerLine === 1 || optionsLayout === 'stacked') {
             return { display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: optGapPx + ' 6px', marginTop: '3px', alignItems: 'start' };
         }
         if (optionsPerLine === 2 || optionsLayout === '2col') {
             return { display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: isTwoCol ? optGapPx + ' 6px' : optGapPx + ' 12px', marginTop: '3px', alignItems: 'start' };
+        }
+        if (optionsPerLine === 4) {
+            return { display: 'grid', gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))`, gap: optGapPx + ' 8px', marginTop: '3px', alignItems: 'start' };
         }
 
         // Check if options are Match-the-Following mappings e.g. "p → (iv), q → (iii), r → (ii), s → (i)"
@@ -859,10 +862,10 @@ function BodyMCQ({
 
         if (isMatchOptions) {
             // In Single Column Paper (~720px width): 2x2 grid allows full mapping to fit on 1 clean unbroken line
-            if (!isTwoCol) {
+            if (!isTwoCol && !isSide) {
                 return { display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: optGapPx + ' 16px', marginTop: '4px', alignItems: 'start' };
             }
-            // In Double Column Paper (~340px column width): 1 column stacked ensures options never wrap awkwardly
+            // In Double Column Paper or Side-by-Side: 1 column stacked ensures options never wrap awkwardly
             return { display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: optGapPx + ' 4px', marginTop: '4px', alignItems: 'start' };
         }
 
@@ -876,6 +879,14 @@ function BodyMCQ({
         });
         const maxLen = Math.max(...parsed.map(p => p.len), 0);
         const hasComplex = parsed.some(p => p.isComplex);
+
+        // When side-by-side with diagram: format short choices into 2 columns (saves 50% vertical space!)
+        if (isSide) {
+            if (maxLen <= 25 && !hasComplex && options.length <= 4) {
+                return { display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: optGapPx + ' 8px', marginTop: '3px', alignItems: 'start' };
+            }
+            return { display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: optGapPx + ' 6px', marginTop: '3px', alignItems: 'start' };
+        }
 
         // Strict conformance to Reference Image 5 (Double Column) & Image 4 (Single Column)
         if (!isTwoCol) {
@@ -901,7 +912,7 @@ function BodyMCQ({
         }
     };
 
-    const renderOptions = (forceSingle = false) => {
+    const renderOptions = (forceSingle = false, isSide = false) => {
         if (displayMode === '5. Only Questions with No Options' || options.length === 0) return null;
         const isMatchOptions = (options || []).some(opt => {
             const str = String(typeof opt === 'object' ? (opt.text || opt.option || '') : opt);
@@ -909,7 +920,7 @@ function BodyMCQ({
         });
 
         return (
-            <div style={getOptionsGridStyle(forceSingle)}>
+            <div style={getOptionsGridStyle(forceSingle, isSide)}>
                 {options.map((opt, i) => {
                     const rawOpt = typeof opt === 'object' ? (opt.text || opt.optionText || opt.value || opt.option || '') : String(opt || '');
                     let optText = cleanOptionText(rawOpt);
@@ -990,74 +1001,70 @@ function BodyMCQ({
     // 2. LEFT ALIGNMENT (Diagram on Left, Question + Options on Right)
     if (imageUrl && effectiveAlign === 'left') {
         return (
-            <>
-                {qText && (
-                    <div style={{ ...Q.qTextBold, marginBottom: '3px' }}>
-                        <MathRenderer
-                            inline
-                            text={qText}
-                            questionId={qId}
-                            customDiagramSizes={q.customDiagramSizes}
-                            onSizeChange={onDiagramResize ? (h, key) => onDiagramResize(qId, h, key) : undefined}
-                        />
-                    </div>
-                )}
-                <div style={Q.sideBySideContainer}>
-                    <div style={Q.sideRightDiagram}>
-                        <ResizableDiagram
-                            src={imageUrl}
-                            alt="Diagram"
-                            questionId={qId}
-                            diagramKey="main"
-                            initialHeight={currentDiagramHeight}
-                            isManual={isMainManual}
-                            onSizeChange={onDiagramResize ? (h, key) => onDiagramResize(qId, h, key || 'main') : undefined}
-                            maxWidth="100%"
-                        />
-                    </div>
-                    <div style={Q.sideLeftContent}>
-                        {renderOptions(true)}
-                        {renderAnswerAndSolution()}
-                    </div>
+            <div style={Q.sideBySideContainer}>
+                <div style={Q.sideRightDiagram}>
+                    <ResizableDiagram
+                        src={imageUrl}
+                        alt="Diagram"
+                        questionId={qId}
+                        diagramKey="main"
+                        initialHeight={currentDiagramHeight}
+                        isManual={isMainManual}
+                        onSizeChange={onDiagramResize ? (h, key) => onDiagramResize(qId, h, key || 'main') : undefined}
+                        maxWidth="100%"
+                    />
                 </div>
-            </>
+                <div style={Q.sideLeftContent}>
+                    {qText && (
+                        <div style={{ ...Q.qTextBold, marginBottom: '3px' }}>
+                            <MathRenderer
+                                inline
+                                text={qText}
+                                questionId={qId}
+                                customDiagramSizes={q.customDiagramSizes}
+                                onSizeChange={onDiagramResize ? (h, key) => onDiagramResize(qId, h, key) : undefined}
+                            />
+                        </div>
+                    )}
+                    {renderOptions(false, true)}
+                    {renderAnswerAndSolution()}
+                </div>
+            </div>
         );
     }
 
     // 3. RIGHT ALIGNMENT (Question + Options on Left, Diagram on Right)
     if (imageUrl && effectiveAlign === 'right') {
         return (
-            <>
-                {qText && (
-                    <div style={{ ...Q.qTextBold, marginBottom: '3px' }}>
-                        <MathRenderer
-                            inline
-                            text={qText}
-                            questionId={qId}
-                            customDiagramSizes={q.customDiagramSizes}
-                            onSizeChange={onDiagramResize ? (h, key) => onDiagramResize(qId, h, key) : undefined}
-                        />
-                    </div>
-                )}
-                <div style={Q.sideBySideContainer}>
-                    <div style={Q.sideLeftContent}>
-                        {renderOptions(true)}
-                        {renderAnswerAndSolution()}
-                    </div>
-                    <div style={Q.sideRightDiagram}>
-                        <ResizableDiagram
-                            src={imageUrl}
-                            alt="Diagram"
-                            questionId={qId}
-                            diagramKey="main"
-                            initialHeight={currentDiagramHeight}
-                            isManual={isMainManual}
-                            onSizeChange={onDiagramResize ? (h, key) => onDiagramResize(qId, h, key || 'main') : undefined}
-                            maxWidth="100%"
-                        />
-                    </div>
+            <div style={Q.sideBySideContainer}>
+                <div style={Q.sideLeftContent}>
+                    {qText && (
+                        <div style={{ ...Q.qTextBold, marginBottom: '3px' }}>
+                            <MathRenderer
+                                inline
+                                text={qText}
+                                questionId={qId}
+                                customDiagramSizes={q.customDiagramSizes}
+                                onSizeChange={onDiagramResize ? (h, key) => onDiagramResize(qId, h, key) : undefined}
+                            />
+                        </div>
+                    )}
+                    {renderOptions(false, true)}
+                    {renderAnswerAndSolution()}
                 </div>
-            </>
+                <div style={Q.sideRightDiagram}>
+                    <ResizableDiagram
+                        src={imageUrl}
+                        alt="Diagram"
+                        questionId={qId}
+                        diagramKey="main"
+                        initialHeight={currentDiagramHeight}
+                        isManual={isMainManual}
+                        onSizeChange={onDiagramResize ? (h, key) => onDiagramResize(qId, h, key || 'main') : undefined}
+                        maxWidth="100%"
+                    />
+                </div>
+            </div>
         );
     }
 

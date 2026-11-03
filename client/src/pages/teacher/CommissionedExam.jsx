@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useContext, useMemo } from 'react';
-import { Check, Zap, Edit3, Rocket, ArrowLeft, ArrowRight, Target, Scale, X, Plus } from 'lucide-react';
+import { Check, Zap, Edit3, Rocket, ArrowLeft, ArrowRight, Target, Scale, X, Plus, Search, CheckCircle2, ChevronDown } from 'lucide-react';
 import { AuthContext } from '../../context/AuthContext';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../../api';
@@ -60,6 +60,28 @@ const normalizeSubjectName = (sub) => {
     if (s.includes('zool')) return 'Zoology';
     if (s.includes('bio')) return 'Biology';
     return sub.trim();
+};
+
+export const getQCategory = (q, isJee = false) => {
+    if (!q) return 'mcq';
+    const t = (q.type || q.q_type || '').toUpperCase();
+    const txt = `${q.questionText || q.question || ''}`;
+    if (isJee && (t === 'NUMERICAL' || (!q.options?.length && !q.opt_a && !q.opt_b && q.num_answer))) return 'numerical';
+    if (t === 'ASSERTION_REASON' || /Assertion\s*(?:\(A\))?[:\-]/i.test(txt)) return 'ar';
+    if (t === 'MATCH_FOLLOWING' || t.includes('MATCH') || /Column\s*(?:I|1|A)\b/i.test(txt) || /Match the following/i.test(txt)) return 'match';
+    if (t === 'STATEMENT_BASED' || /Statement\s*(?:I|1|A)\b/i.test(txt)) return 'stmt';
+    if (t === 'DIAGRAM_BASED' || q.imageUrl || q.image_url || /\{\{IMG::|!\[|<img/i.test(txt)) return 'diag';
+    return 'mcq';
+};
+
+export const isCetQ = (q) => {
+    const qExams = (Array.isArray(q.classes) ? q.classes : []).concat(Array.isArray(q.exams) ? q.exams : []);
+    const srcExam = String(q.sourceExam || '').toUpperCase();
+    const qText = String(q.questionText || q.question || '').toUpperCase();
+    return qExams.some(e => ['CET', 'KCET'].includes(String(e).toUpperCase())) ||
+           srcExam.includes('CET') || srcExam.includes('KCET') ||
+           qText.includes('[KCET') || qText.includes('(KCET') ||
+           qText.includes('[CET') || qText.includes('(CET');
 };
 
 export default function CommissionedExam() {
@@ -146,12 +168,22 @@ export default function CommissionedExam() {
         });
     };
 
-    // Step 6: Method (Fetch Mode)
+    // Fetch Mode: 'auto' | 'manual'
     const [fetchMode, setFetchMode] = useState('auto'); // 'auto' | 'manual'
-    const [manualTab, setManualTab] = useState('non_numerical'); // 'non_numerical' | 'numerical' (JEE only)
-    const [fetchedQuestions, setFetchedQuestions] = useState([]);
-    const [selectedQuestions, setSelectedQuestions] = useState([]);
+    const [showModeModal, setShowModeModal] = useState(false);
+    const [pendingSubject, setPendingSubject] = useState(null);
+
+    // Manual Question Selection state
+    const [manualPool, setManualPool] = useState([]);
+    const [manualLoading, setManualLoading] = useState(false);
+    const [manualFilterChapter, setManualFilterChapter] = useState('all');
+    const [manualFilterConcept, setManualFilterConcept] = useState('all');
+    const [manualFilterDifficulty, setManualFilterDifficulty] = useState('all'); // 'all' | 'easy' | 'medium' | 'hard'
+    const [manualFilterType, setManualFilterType] = useState('all'); // 'all' | 'match' | 'ar' | 'mcq' | 'stmt' | 'diag' | 'numerical'
     const [manualSearch, setManualSearch] = useState('');
+    const [manualShowSelectedOnly, setManualShowSelectedOnly] = useState(false);
+
+    const [selectedQuestions, setSelectedQuestions] = useState([]);
 
     // Step 7: Preview & Alignment Settings
     const [settings, setSettings] = useState({
@@ -260,13 +292,20 @@ export default function CommissionedExam() {
         }
     };
 
-    // When subject is picked in Step 1, immediately advance to Step 2
+    // When subject is picked in Step 1, open modal to choose Auto Fetch vs Manual Fetch
     const handleSelectSubjectBlock = (sub, patternId = null) => {
         const norm = normalizeSubjectName(sub);
         if (patternId) setSelectedExamPattern(patternId);
         setSelectedSubject(norm);
-        setCurrentStep(2); // Immediately jump to Chapter Selection (Step 2)
         fetchMetadata(norm);
+        setPendingSubject({ sub: norm, patternId });
+        setShowModeModal(true);
+    };
+
+    const handleConfirmMode = (mode) => {
+        setFetchMode(mode);
+        setShowModeModal(false);
+        setCurrentStep(2); // Jump to Chapter Selection (Step 2)
     };
 
     // Step 4: Auto-distribute evenly across selected chapters (defaults to 10 per chapter or custom)
@@ -414,6 +453,209 @@ export default function CommissionedExam() {
             }
         }
         return a;
+    };
+
+    // Load Question Pool for Manual Selection
+    const loadManualCandidates = async () => {
+        setManualLoading(true);
+        setLoadingMessage('Loading question repository for manual selection...');
+        try {
+            const isJee = selectedExamPattern === 'JEE';
+            const baseParams = new URLSearchParams();
+            baseParams.append('subject', selectedSubject);
+            baseParams.append('limit', '400');
+            if (selectedExamPattern) baseParams.append('examType', selectedExamPattern);
+            if (selectedClass !== 'Both') baseParams.append('classes', selectedClass);
+            if (selectedChapters.length > 0) baseParams.append('chapter', selectedChapters.join(','));
+
+            const fetchTyped = async (typeKey, extraLimit = 300) => {
+                const p = new URLSearchParams(baseParams.toString());
+                p.set('type', typeKey);
+                p.set('limit', String(Math.max(extraLimit, 100)));
+                try {
+                    const res = await api.get(`/api/questions?${p.toString()}`);
+                    const rows = Array.isArray(res.data?.questions) ? res.data.questions : (Array.isArray(res.data) ? res.data : []);
+                    return rows.filter(q => !isCetQ(q));
+                } catch (e) {
+                    return [];
+                }
+            };
+
+            const [arPool, matchPool, stmtPool, diagPool, numPool, mcqPool] = await Promise.all([
+                fetchTyped('assertion', 200),
+                fetchTyped('match', 200),
+                fetchTyped('statement', 200),
+                fetchTyped('diagram', 200),
+                isJee ? fetchTyped('numerical', 200) : Promise.resolve([]),
+                fetchTyped('mcq', 500),
+            ]);
+
+            const combined = [
+                ...arPool, ...matchPool, ...stmtPool, ...diagPool, ...numPool, ...mcqPool
+            ].filter((q, i, arr) => arr.findIndex(x => (x._id || x.id) === (q._id || q.id)) === i);
+
+            setManualPool(combined);
+        } catch (err) {
+            console.error('Error loading manual candidate pool:', err);
+        } finally {
+            setManualLoading(false);
+            setLoadingMessage('');
+        }
+    };
+
+    const availableFilterConcepts = useMemo(() => {
+        if (manualFilterChapter === 'all') {
+            const set = new Set(scopedConcepts.map(c => c.name));
+            return Array.from(set);
+        }
+        const filtered = scopedConcepts.filter(c => (c.chapter || '').toLowerCase() === manualFilterChapter.toLowerCase());
+        const set = new Set(filtered.map(c => c.name));
+        return Array.from(set);
+    }, [scopedConcepts, manualFilterChapter]);
+
+    const filteredManualQuestions = useMemo(() => {
+        const isJee = selectedExamPattern === 'JEE';
+        return manualPool.filter(q => {
+            // 1. Chapter filter
+            if (manualFilterChapter !== 'all') {
+                const qCh = (q.chapter || '').toLowerCase().trim();
+                if (qCh !== manualFilterChapter.toLowerCase().trim()) return false;
+            }
+
+            // 2. Concept filter
+            if (manualFilterConcept !== 'all') {
+                const qCpt = (q.concept || '').toLowerCase().trim();
+                if (qCpt !== manualFilterConcept.toLowerCase().trim()) return false;
+            }
+
+            // 3. Difficulty filter (easy / medium / hard)
+            if (manualFilterDifficulty !== 'all') {
+                const qLvl = (q.level || 'medium').toLowerCase().trim();
+                if (qLvl !== manualFilterDifficulty.toLowerCase().trim()) return false;
+            }
+
+            // 4. Type filter
+            if (manualFilterType !== 'all') {
+                const cat = getQCategory(q, isJee);
+                if (manualFilterType === 'match' || manualFilterType === 'mtf') {
+                    if (cat !== 'match') return false;
+                } else if (manualFilterType === 'ar') {
+                    if (cat !== 'ar') return false;
+                } else if (manualFilterType === 'mcq') {
+                    if (cat !== 'mcq') return false;
+                } else if (manualFilterType === 'stmt') {
+                    if (cat !== 'stmt') return false;
+                } else if (manualFilterType === 'diag') {
+                    if (cat !== 'diag') return false;
+                } else if (manualFilterType === 'numerical') {
+                    if (cat !== 'numerical') return false;
+                }
+            }
+
+            // 5. Search text filter
+            if (manualSearch.trim()) {
+                const s = manualSearch.toLowerCase();
+                const text = (q.questionText || q.question || '').toLowerCase();
+                const ch = (q.chapter || '').toLowerCase();
+                const cpt = (q.concept || '').toLowerCase();
+                if (!text.includes(s) && !ch.includes(s) && !cpt.includes(s)) return false;
+            }
+
+            // 6. Show selected only
+            if (manualShowSelectedOnly) {
+                const isSelected = selectedQuestions.some(sq => (sq._id || sq.id) === (q._id || q.id));
+                if (!isSelected) return false;
+            }
+
+            return true;
+        });
+    }, [manualPool, manualFilterChapter, manualFilterConcept, manualFilterDifficulty, manualFilterType, manualSearch, manualShowSelectedOnly, selectedQuestions, selectedExamPattern]);
+
+    const handleDoneManualSelection = () => {
+        if (selectedQuestions.length === 0) {
+            alert('Please select at least one question before proceeding to preview.');
+            return;
+        }
+        const isJee = selectedExamPattern === 'JEE';
+        const finalOrdered = selectedQuestions.map((rawQ, idx) => {
+            const q = { ...rawQ, questionNumber: idx + 1 };
+            const cat = getQCategory(q, isJee);
+            if (!isJee) {
+                q.isNumerical = false;
+                q.num_answer = null;
+                delete q.num_answer;
+                if ((q.type || '').toUpperCase().includes('NUMERICAL')) {
+                    q.type = 'MCQ';
+                }
+            }
+            if (cat === 'ar') {
+                q.type = 'ASSERTION_REASON';
+                const validOpts = (q.options || []).filter(o => o && String(o).trim().length > 0);
+                if (validOpts.length < 4) {
+                    q.options = [
+                        'Both Assertion and Reason are correct and Reason is the correct explanation of Assertion.',
+                        'Both Assertion and Reason are correct but Reason is not the correct explanation of Assertion.',
+                        'Assertion is correct but Reason is incorrect.',
+                        'Assertion is incorrect but Reason is correct.'
+                    ];
+                }
+            } else if (cat === 'stmt') {
+                q.type = 'STATEMENT_BASED';
+                const validOpts = (q.options || []).filter(o => o && String(o).trim().length > 0);
+                if (validOpts.length < 4) {
+                    q.options = [
+                        'Both Statement I and Statement II are correct.',
+                        'Both Statement I and Statement II are incorrect.',
+                        'Statement I is correct but Statement II is incorrect.',
+                        'Statement I is incorrect but Statement II is correct.'
+                    ];
+                }
+            } else if (cat === 'match') {
+                q.type = 'MATCH_FOLLOWING';
+                if (!q.options || q.options.filter(o => o && String(o).trim().length > 0).length < 2) {
+                    const rawOpts = extractOptionsIfMissing(q);
+                    if (rawOpts.length >= 2) {
+                        q.options = rawOpts;
+                    } else if (q.match_options && typeof q.match_options === 'object') {
+                        const moArr = [q.match_options.A, q.match_options.B, q.match_options.C, q.match_options.D].filter(Boolean);
+                        if (moArr.length >= 2) q.options = moArr;
+                    }
+                }
+            } else if (cat === 'diag') {
+                q.type = 'DIAGRAM_BASED';
+            } else {
+                if (!q.options || q.options.filter(o => o && String(o).trim().length > 0).length < 2) {
+                    const extracted = extractOptionsIfMissing(q);
+                    if (extracted.length >= 2) {
+                        q.options = extracted;
+                    } else {
+                        const directOpts = [q.opt_a, q.opt_b, q.opt_c, q.opt_d].filter(o => o && String(o).trim().length > 0);
+                        if (directOpts.length >= 2) q.options = directOpts;
+                    }
+                }
+            }
+            return q;
+        });
+        setSelectedQuestions(finalOrdered);
+        setCurrentStep(7); // Proceed to Step 7: Preview & Save!
+    };
+
+    const handleBackStep = () => {
+        if (currentStep === 7) {
+            setCurrentStep(fetchMode === 'manual' ? 6 : 5);
+        } else if (currentStep === 6) {
+            setCurrentStep(3);
+        } else if (currentStep === 5) {
+            setCurrentStep(4);
+        } else if (currentStep === 4) {
+            setCurrentStep(3);
+        } else if (currentStep === 3) {
+            setCurrentStep(2);
+        } else if (currentStep === 2) {
+            setCurrentStep(1);
+        } else {
+            navigate('/teacher/dashboard');
+        }
     };
 
     // Step 6: Execute Question Fetch - uses parallel type-specific queries to guarantee allocations
@@ -911,7 +1153,7 @@ export default function CommissionedExam() {
             <header className="bg-navy text-white px-6 py-4 shadow-lg border-b-2 border-gold flex items-center justify-between sticky top-0 z-40 no-print">
                 <div className="flex items-center gap-3">
                     <button
-                        onClick={() => currentStep > 1 ? setCurrentStep(prev => prev - 1) : navigate('/teacher/dashboard')}
+                        onClick={() => currentStep > 1 ? handleBackStep() : navigate('/teacher/dashboard')}
                         className="bg-white/10 hover:bg-white/20 text-gold px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition flex items-center gap-1 cursor-pointer"
                     >
                         <span>←</span> Back
@@ -930,27 +1172,43 @@ export default function CommissionedExam() {
 
                 {/* Progress Step Indicators */}
                 <div className="hidden lg:flex items-center gap-1.5">
-                    {[
+                    {(fetchMode === 'manual' ? [
+                        { step: 1, label: '1. Subject' },
+                        { step: 2, label: '2. Chapters' },
+                        { step: 3, label: '3. Concepts' },
+                        { step: 6, label: '4. Select Questions' },
+                        { step: 7, label: '5. Preview & Save' },
+                    ] : [
                         { step: 1, label: '1. Subject' },
                         { step: 2, label: '2. Chapters' },
                         { step: 3, label: '3. Concepts' },
                         { step: 4, label: '4. Questions per Chapter' },
                         { step: 5, label: '5. Questions per Type' },
-                        { step: 6, label: '6. Method' },
-                        { step: 7, label: '7. Preview & Save' },
-                    ].map(st => (
-                        <div
-                            key={st.step}
-                            onClick={() => st.step < currentStep && setCurrentStep(st.step)}
-                            className={`px-3 py-1 rounded-xl text-[11px] font-black uppercase tracking-wider transition cursor-pointer flex items-center gap-1 ${
-                                currentStep === st.step
-                                    ? 'bg-gold text-navy shadow-md ring-2 ring-gold/40 scale-105'
-                                    : (st.step < currentStep ? 'bg-white/20 text-white hover:bg-white/30' : 'bg-white/5 text-slate-400 opacity-50')
-                            }`}
-                        >
-                            <span>{st.label}</span>
-                        </div>
-                    ))}
+                        { step: 7, label: '6. Preview & Save' },
+                    ]).map(st => {
+                        const isClickable = (() => {
+                            if (fetchMode === 'manual') {
+                                const order = [1, 2, 3, 6, 7];
+                                return order.indexOf(st.step) < order.indexOf(currentStep);
+                            }
+                            const order = [1, 2, 3, 4, 5, 7];
+                            return order.indexOf(st.step) < order.indexOf(currentStep);
+                        })();
+
+                        return (
+                            <div
+                                key={st.step}
+                                onClick={() => isClickable && setCurrentStep(st.step)}
+                                className={`px-3 py-1 rounded-xl text-[11px] font-black uppercase tracking-wider transition cursor-pointer flex items-center gap-1 ${
+                                    currentStep === st.step
+                                        ? 'bg-gold text-navy shadow-md ring-2 ring-gold/40 scale-105'
+                                        : (isClickable ? 'bg-white/20 text-white hover:bg-white/30' : 'bg-white/5 text-slate-400 opacity-50')
+                                }`}
+                            >
+                                <span>{st.label}</span>
+                            </div>
+                        );
+                    })}
                 </div>
             </header>
 
@@ -966,7 +1224,7 @@ export default function CommissionedExam() {
                     <div className="space-y-8 animate-fade-in">
                         <div className="text-center max-w-2xl mx-auto space-y-2">
                             <span className="text-[10px] font-black text-gold uppercase tracking-[0.2em] bg-navy px-3 py-1 rounded-full">
-                                Step 1 of 7
+                                Step 1 of {fetchMode === 'manual' ? 5 : 6}
                             </span>
                             <h2 className="text-3xl font-black text-navy uppercase tracking-tight">
                                 Exam Pattern & Subject Selection
@@ -1057,6 +1315,84 @@ export default function CommissionedExam() {
                                 );
                             })}
                         </div>
+
+                        {/* Mode Choice Modal right after subject block is clicked */}
+                        {showModeModal && (
+                            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-navy/60 backdrop-blur-sm animate-fade-in no-print">
+                                <div className="bg-white rounded-3xl shadow-2xl border-2 border-navy w-full max-w-xl p-6 md:p-8 animate-scale-in space-y-6">
+                                    <div className="flex justify-between items-start border-b border-slate-100 pb-4">
+                                        <div>
+                                            <span className="bg-gold text-navy text-[10px] font-black px-2.5 py-1 rounded-lg uppercase tracking-wider">
+                                                {selectedSubject} &bull; {selectedExamPattern}
+                                            </span>
+                                            <h3 className="text-2xl font-black text-navy uppercase tracking-tight mt-2">
+                                                Choose Question Acquisition Mode
+                                            </h3>
+                                            <p className="text-xs text-slate-500 font-medium mt-1">
+                                                Select how you would like to source questions for this examination.
+                                            </p>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => { setShowModeModal(false); setCurrentStep(2); }}
+                                            className="text-slate-400 hover:text-slate-600 p-1.5 rounded-xl hover:bg-slate-100 transition cursor-pointer"
+                                        >
+                                            <X className="w-5 h-5" />
+                                        </button>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        {/* Auto Fetch Card */}
+                                        <div
+                                            onClick={() => handleConfirmMode('auto')}
+                                            className="p-5 rounded-2xl border-2 border-slate-200 hover:border-gold hover:bg-amber-50/40 transition cursor-pointer flex flex-col justify-between group shadow-sm hover:shadow-lg"
+                                        >
+                                            <div>
+                                                <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center mb-3 group-hover:scale-110 transition">
+                                                    <Zap className="w-6 h-6 fill-amber-500" />
+                                                </div>
+                                                <h4 className="text-base font-black text-navy mb-1 group-hover:text-gold transition">
+                                                    ⚡ Auto Fetch Mode
+                                                </h4>
+                                                <p className="text-xs text-slate-500 font-medium leading-relaxed">
+                                                    Specify chapter quotas and question type breakdowns. The system automatically balances, samples, and generates your paper.
+                                                </p>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                className="mt-4 w-full bg-navy group-hover:bg-gold text-gold group-hover:text-navy text-xs font-black uppercase tracking-wider py-2 rounded-xl transition cursor-pointer"
+                                            >
+                                                Use Auto Fetch →
+                                            </button>
+                                        </div>
+
+                                        {/* Manual Fetch Card */}
+                                        <div
+                                            onClick={() => handleConfirmMode('manual')}
+                                            className="p-5 rounded-2xl border-2 border-slate-200 hover:border-gold hover:bg-amber-50/40 transition cursor-pointer flex flex-col justify-between group shadow-sm hover:shadow-lg"
+                                        >
+                                            <div>
+                                                <div className="w-10 h-10 rounded-xl bg-blue-100 text-navy flex items-center justify-center mb-3 group-hover:scale-110 transition">
+                                                    <Edit3 className="w-6 h-6 text-navy" />
+                                                </div>
+                                                <h4 className="text-base font-black text-navy mb-1 group-hover:text-gold transition">
+                                                    ✏️ Manual Fetch Mode
+                                                </h4>
+                                                <p className="text-xs text-slate-500 font-medium leading-relaxed">
+                                                    Hand-pick every single question. Filter by chapter, concept, difficulty (Easy/Med/Hard), and question type (MTF, AR, MCQ).
+                                                </p>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                className="mt-4 w-full bg-navy group-hover:bg-gold text-gold group-hover:text-navy text-xs font-black uppercase tracking-wider py-2 rounded-xl transition cursor-pointer"
+                                            >
+                                                Use Manual Fetch →
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 )}
 
@@ -1068,7 +1404,7 @@ export default function CommissionedExam() {
                         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-5">
                             <div>
                                 <span className="text-[10px] font-black text-gold uppercase tracking-[0.2em] bg-navy px-3 py-1 rounded-full">
-                                    Step 2 of 7
+                                    Step 2 of {fetchMode === 'manual' ? 5 : 6}
                                 </span>
                                 <h2 className="text-2xl font-black text-navy uppercase tracking-tight mt-2">
                                     Chapter Selection &bull; {selectedSubject}
@@ -1078,21 +1414,49 @@ export default function CommissionedExam() {
                                 </p>
                             </div>
 
-                            <div className="flex items-center gap-2">
-                                <button
-                                    type="button"
-                                    onClick={() => setSelectedChapters([...availableChapters])}
-                                    className="bg-navy text-gold text-xs font-bold px-3 py-1.5 rounded-xl hover:bg-navy/90 transition cursor-pointer"
-                                >
-                                    Select All ({availableChapters.length})
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setSelectedChapters([])}
-                                    className="bg-slate-100 text-slate-700 text-xs font-bold px-3 py-1.5 rounded-xl hover:bg-slate-200 transition cursor-pointer"
-                                >
-                                    Clear
-                                </button>
+                            <div className="flex flex-wrap items-center gap-3">
+                                {/* Acquisition Mode Switcher right after Subject Selection as shown in Image 1 */}
+                                <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-2xl border border-slate-200 shadow-2xs">
+                                    <button
+                                        type="button"
+                                        onClick={() => setFetchMode('auto')}
+                                        className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition flex items-center gap-1.5 cursor-pointer ${
+                                            fetchMode === 'auto' ? 'bg-navy text-gold shadow-md ring-2 ring-gold/40' : 'text-slate-600 hover:text-navy'
+                                        }`}
+                                        title="Automatically balance and sample questions based on chapter quotas and question types"
+                                    >
+                                        <Zap className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
+                                        <span>Auto Fetch</span>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setFetchMode('manual')}
+                                        className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition flex items-center gap-1.5 cursor-pointer ${
+                                            fetchMode === 'manual' ? 'bg-navy text-gold shadow-md ring-2 ring-gold/40' : 'text-slate-600 hover:text-navy'
+                                        }`}
+                                        title="Hand-pick questions with chapter, concept, difficulty & type filters"
+                                    >
+                                        <Edit3 className="w-3.5 h-3.5" />
+                                        <span>Manual Fetch</span>
+                                    </button>
+                                </div>
+
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => setSelectedChapters([...availableChapters])}
+                                        className="bg-navy text-gold text-xs font-bold px-3 py-1.5 rounded-xl hover:bg-navy/90 transition cursor-pointer"
+                                    >
+                                        Select All ({availableChapters.length})
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setSelectedChapters([])}
+                                        className="bg-slate-100 text-slate-700 text-xs font-bold px-3 py-1.5 rounded-xl hover:bg-slate-200 transition cursor-pointer"
+                                    >
+                                        Clear
+                                    </button>
+                                </div>
                             </div>
                         </div>
 
@@ -1171,7 +1535,7 @@ export default function CommissionedExam() {
                         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-5">
                             <div>
                                 <span className="text-[10px] font-black text-gold uppercase tracking-[0.2em] bg-navy px-3 py-1 rounded-full">
-                                    Step 3 of 7
+                                    Step 3 of {fetchMode === 'manual' ? 5 : 6}
                                 </span>
                                 <h2 className="text-2xl font-black text-navy uppercase tracking-tight mt-2">
                                     Concept & Sub-Topic Selection
@@ -1257,12 +1621,17 @@ export default function CommissionedExam() {
                             <button
                                 type="button"
                                 onClick={() => {
-                                    handleDistributeEvenly();
-                                    setCurrentStep(4); // Proceed to Step 4: Questions per Chapter
+                                    if (fetchMode === 'manual') {
+                                        loadManualCandidates();
+                                        setCurrentStep(6); // Proceed to Step 6: Manual Question Selection
+                                    } else {
+                                        handleDistributeEvenly();
+                                        setCurrentStep(4); // Proceed to Step 4: Questions per Chapter
+                                    }
                                 }}
-                                className="bg-navy hover:bg-navy/90 text-gold font-black text-xs uppercase tracking-wider px-6 py-2.5 rounded-xl shadow-md transition cursor-pointer"
+                                className="bg-navy hover:bg-navy/90 text-gold font-black text-xs uppercase tracking-wider px-6 py-2.5 rounded-xl shadow-md transition cursor-pointer flex items-center gap-1.5"
                             >
-                                Proceed to Questions per Chapter (Step 4) →
+                                <span>{fetchMode === 'manual' ? 'Proceed to Question Selection (Step 4) →' : 'Proceed to Questions per Chapter (Step 4) →'}</span>
                             </button>
                         </div>
                     </div>
@@ -1271,12 +1640,12 @@ export default function CommissionedExam() {
                 {/* ----------------------------------------------------------------
                     STEP 4: NUMBER OF QUESTIONS FROM EACH CHAPTER (UNLIMITED)
                 ---------------------------------------------------------------- */}
-                {currentStep === 4 && (
+                {currentStep === 4 && fetchMode === 'auto' && (
                     <div className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-200 space-y-6 animate-fade-in">
                         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-5">
                             <div>
                                 <span className="text-[10px] font-black text-gold uppercase tracking-[0.2em] bg-navy px-3 py-1 rounded-full">
-                                    Step 4 of 7
+                                    Step 4 of 6
                                 </span>
                                 <h2 className="text-2xl font-black text-navy uppercase tracking-tight mt-2">
                                     Questions From Each Chapter
@@ -1385,13 +1754,13 @@ export default function CommissionedExam() {
                 {/* ----------------------------------------------------------------
                     STEP 5: FROM EACH TYPE HOW MANY QUESTIONS (DYNAMIC BALANCING)
                 ---------------------------------------------------------------- */}
-                {currentStep === 5 && (
+                {currentStep === 5 && fetchMode === 'auto' && (
                     <div className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-200 space-y-6 animate-fade-in">
                         <div className="border-b border-slate-100 pb-5">
                             <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
                                 <div>
                                     <span className="text-[10px] font-black text-gold uppercase tracking-[0.2em] bg-navy px-3 py-1 rounded-full">
-                                        Step 5 of 7
+                                        Step 5 of 6
                                     </span>
                                     <h2 className="text-2xl font-black text-navy uppercase tracking-tight mt-2">
                                         Questions From Each Question Type
@@ -1523,180 +1892,348 @@ export default function CommissionedExam() {
                             </button>
                             <button
                                 type="button"
-                                onClick={() => setCurrentStep(6)} // Proceed to Step 6: Method
-                                className="bg-navy hover:bg-navy/90 text-gold font-black text-xs uppercase tracking-wider px-6 py-2.5 rounded-xl shadow-md transition cursor-pointer"
+                                onClick={() => executeFetch()}
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs uppercase tracking-wider px-8 py-3 rounded-xl shadow-lg transition cursor-pointer flex items-center gap-2"
                             >
-                                Proceed to Method (Step 6) →
+                                <Zap className="w-4 h-4 text-amber-300 fill-amber-300" />
+                                <span>Execute Auto Fetch & Preview →</span>
                             </button>
                         </div>
                     </div>
                 )}
 
                 {/* ----------------------------------------------------------------
-                    STEP 6: METHOD (AUTO FETCH VS MANUAL QUESTION SELECTOR)
+                    STEP 6: MANUAL QUESTION SELECTOR (FILTER BY CHAPTER, CONCEPT, DIFFICULTY & TYPE)
                 ---------------------------------------------------------------- */}
                 {currentStep === 6 && (
                     <div className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-200 space-y-6 animate-fade-in">
-                        <div className="border-b border-slate-100 pb-5">
-                            <span className="text-[10px] font-black text-gold uppercase tracking-[0.2em] bg-navy px-3 py-1 rounded-full">
-                                Step 6 of 7
-                            </span>
-                            <h2 className="text-2xl font-black text-navy uppercase tracking-tight mt-2">
-                                Acquisition Method
-                            </h2>
-                            <p className="text-xs text-slate-500 font-semibold mt-1">
-                                Choose Auto Fetch Engine (1-click sampling) or Manual Question Inspector.
-                            </p>
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div
-                                onClick={() => setFetchMode('auto')}
-                                className={`p-6 rounded-3xl border-2 transition cursor-pointer ${
-                                    fetchMode === 'auto' ? 'border-gold bg-amber-50/40 ring-4 ring-gold/20 shadow-md' : 'border-slate-200 hover:border-navy'
-                                }`}
-                            >
-                                <div className="text-2xl mb-2 flex items-center justify-start"><Zap className="w-7 h-7 text-amber-500 fill-amber-500" /></div>
-                                <h3 className="text-base font-black text-navy mb-1">Auto Fetch Mode</h3>
-                                <p className="text-xs text-slate-500 font-medium">
-                                    Instant 1-click question generation sampling exactly {totalChapterQuestions} questions matching your chapter quotas and type breakdown.
+                        {/* Header */}
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-5">
+                            <div>
+                                <span className="text-[10px] font-black text-gold uppercase tracking-[0.2em] bg-navy px-3 py-1 rounded-full">
+                                    Step 4 of 5
+                                </span>
+                                <h2 className="text-2xl font-black text-navy uppercase tracking-tight mt-2">
+                                    Manual Question Selection &bull; {selectedSubject}
+                                </h2>
+                                <p className="text-xs text-slate-500 font-semibold mt-1">
+                                    Hand-pick questions from your selected syllabus. Filter by chapter, concept, difficulty and question type.
                                 </p>
                             </div>
 
-                            <div
-                                onClick={() => {
-                                    setFetchMode('manual');
-                                    executeFetch();
-                                }}
-                                className={`p-6 rounded-3xl border-2 transition cursor-pointer ${
-                                    fetchMode === 'manual' ? 'border-gold bg-amber-50/40 ring-4 ring-gold/20 shadow-md' : 'border-slate-200 hover:border-navy'
-                                }`}
-                            >
-                                <div className="text-2xl mb-2 flex items-center justify-start"><Edit3 className="w-7 h-7 text-navy" /></div>
-                                <h3 className="text-base font-black text-navy mb-1">Manual Fetch Mode</h3>
-                                <p className="text-xs text-slate-500 font-medium">
-                                    Hand-pick questions with search, filters, and segregated Section A vs Section B tabs for JEE.
-                                </p>
+                            <div className="flex items-center gap-3">
+                                <span className="text-xs font-black text-emerald-800 bg-emerald-100 px-3 py-1.5 rounded-xl flex items-center gap-1.5 shadow-2xs">
+                                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                                    <span>{selectedQuestions.length} Questions Selected</span>
+                                </span>
+                                <button
+                                    type="button"
+                                    onClick={handleDoneManualSelection}
+                                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs uppercase tracking-wider px-5 py-2.5 rounded-xl shadow-md transition cursor-pointer flex items-center gap-1.5"
+                                >
+                                    <Check className="w-4 h-4 stroke-[3]" />
+                                    <span>Done Selection →</span>
+                                </button>
                             </div>
                         </div>
 
-                        {/* Manual Fetch List */}
-                        {fetchMode === 'manual' && (
-                            <div className="space-y-4 pt-4 border-t border-slate-200">
-                                {patternConfig.supportsNumerical && (
-                                    <div className="flex items-center gap-2 bg-slate-100 p-1.5 rounded-2xl w-fit">
-                                        <button
-                                            type="button"
-                                            onClick={() => setManualTab('non_numerical')}
-                                            className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition ${
-                                                manualTab === 'non_numerical' ? 'bg-navy text-gold shadow-md' : 'text-slate-600 hover:text-navy'
-                                            }`}
-                                        >
-                                            Tab 1: Non-Numerical Section
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => setManualTab('numerical')}
-                                            className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition ${
-                                                manualTab === 'numerical' ? 'bg-navy text-gold shadow-md' : 'text-slate-600 hover:text-navy'
-                                            }`}
-                                        >
-                                            Tab 2: Numerical Section (JEE Sec B)
-                                        </button>
+                        {/* Top Filter Bar: Chapter, Concept, Difficulty (Easy/Medium/Hard) and Question Type Dropdown */}
+                        <div className="bg-slate-50 p-4 md:p-5 rounded-2xl border border-slate-200 space-y-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                                {/* 1. Chapter Dropdown */}
+                                <div>
+                                    <label className="block text-[11px] font-black uppercase tracking-wider text-navy mb-1.5">
+                                        Chapter
+                                    </label>
+                                    <select
+                                        value={manualFilterChapter}
+                                        onChange={(e) => {
+                                            setManualFilterChapter(e.target.value);
+                                            setManualFilterConcept('all');
+                                        }}
+                                        className="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-navy outline-none focus:ring-2 focus:ring-gold bg-white cursor-pointer"
+                                    >
+                                        <option value="all">All Selected Chapters ({selectedChapters.length})</option>
+                                        {selectedChapters.map((ch, idx) => (
+                                            <option key={idx} value={ch}>{ch}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                {/* 2. Concept Dropdown */}
+                                <div>
+                                    <label className="block text-[11px] font-black uppercase tracking-wider text-navy mb-1.5">
+                                        Concept / Sub-Topic
+                                    </label>
+                                    <select
+                                        value={manualFilterConcept}
+                                        onChange={(e) => setManualFilterConcept(e.target.value)}
+                                        className="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-navy outline-none focus:ring-2 focus:ring-gold bg-white cursor-pointer"
+                                    >
+                                        <option value="all">All Concepts ({availableFilterConcepts.length})</option>
+                                        {availableFilterConcepts.map((cpt, idx) => (
+                                            <option key={idx} value={cpt}>{cpt}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                {/* 3. Difficulty Filter (Easy / Medium / Hard) */}
+                                <div>
+                                    <label className="block text-[11px] font-black uppercase tracking-wider text-navy mb-1.5">
+                                        Difficulty Level
+                                    </label>
+                                    <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-slate-300">
+                                        {[
+                                            { key: 'all', label: 'All' },
+                                            { key: 'easy', label: 'Easy' },
+                                            { key: 'medium', label: 'Med' },
+                                            { key: 'hard', label: 'Hard' },
+                                        ].map(d => (
+                                            <button
+                                                key={d.key}
+                                                type="button"
+                                                onClick={() => setManualFilterDifficulty(d.key)}
+                                                className={`flex-1 py-1 text-[11px] font-black rounded-lg transition text-center cursor-pointer ${
+                                                    manualFilterDifficulty === d.key
+                                                        ? 'bg-navy text-gold shadow-xs'
+                                                        : 'text-slate-600 hover:text-navy hover:bg-slate-100'
+                                                }`}
+                                            >
+                                                {d.label}
+                                            </button>
+                                        ))}
                                     </div>
-                                )}
+                                </div>
 
-                                <div className="flex items-center justify-between">
+                                {/* 4. Question Type Dropdown */}
+                                <div>
+                                    <label className="block text-[11px] font-black uppercase tracking-wider text-navy mb-1.5">
+                                        Question Type
+                                    </label>
+                                    <select
+                                        value={manualFilterType}
+                                        onChange={(e) => setManualFilterType(e.target.value)}
+                                        className="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-navy outline-none focus:ring-2 focus:ring-gold bg-white cursor-pointer"
+                                    >
+                                        <option value="all">All Question Types</option>
+                                        <option value="match">Match the Following (MTF)</option>
+                                        <option value="ar">Assertion & Reason (AR)</option>
+                                        <option value="mcq">Standard MCQ (Single Correct)</option>
+                                        <option value="stmt">Statement Based</option>
+                                        <option value="diag">Diagram Based</option>
+                                        {patternConfig.supportsNumerical && (
+                                            <option value="numerical">Numerical / Section B (JEE)</option>
+                                        )}
+                                    </select>
+                                </div>
+                            </div>
+
+                            {/* Search and Secondary Filter Row */}
+                            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2 border-t border-slate-200">
+                                <div className="relative w-full sm:w-80">
                                     <input
                                         type="text"
-                                        placeholder="Search question pool..."
+                                        placeholder="Search questions by text or keywords..."
                                         value={manualSearch}
                                         onChange={(e) => setManualSearch(e.target.value)}
-                                        className="w-72 border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-navy outline-none"
+                                        className="w-full border border-slate-300 rounded-xl pl-8 pr-3 py-1.5 text-xs font-bold text-navy outline-none focus:ring-2 focus:ring-gold bg-white"
                                     />
-                                    <span className="text-xs font-black text-emerald-800 bg-emerald-100 px-3 py-1.5 rounded-xl">
-                                        {selectedQuestions.length} Questions Selected (Unlimited Capacity)
-                                    </span>
+                                    <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
                                 </div>
 
-                                <div className="space-y-3 max-h-[460px] overflow-y-auto pr-2">
-                                    {fetchedQuestions
-                                        .filter(q => {
-                                            const isNum = (q.type || '').toUpperCase() === 'NUMERICAL';
-                                            if (patternConfig.supportsNumerical) {
-                                                if (manualTab === 'numerical') return isNum;
-                                                return !isNum;
-                                            }
-                                            return !isNum; // Hide numericals completely for NEET and CET
-                                        })
-                                        .filter(q => (q.questionText || q.question || '').toLowerCase().includes(manualSearch.toLowerCase()))
-                                        .map((q, idx) => {
-                                            const isSelected = selectedQuestions.some(sq => (sq._id || sq.id) === (q._id || q.id));
-                                            return (
-                                                <div
-                                                    key={idx}
-                                                    onClick={() => {
-                                                        setSelectedQuestions(prev => {
-                                                            const exists = prev.some(sq => (sq._id || sq.id) === (q._id || q.id));
-                                                            if (exists) return prev.filter(sq => (sq._id || sq.id) !== (q._id || q.id));
-                                                            return [...prev, q];
-                                                        });
-                                                    }}
-                                                    className={`p-4 rounded-2xl border-2 transition cursor-pointer flex items-start justify-between gap-4 ${
-                                                        isSelected ? 'bg-amber-50/50 border-gold shadow-md' : 'bg-white border-slate-200 hover:border-slate-300'
-                                                    }`}
-                                                >
-                                                    <div className="flex-1">
-                                                        <div className="flex items-center gap-2 mb-1.5">
-                                                            <span className="bg-navy text-gold text-[9px] font-black px-2 py-0.5 rounded-full uppercase">
-                                                                {q.type || 'MCQ'}
-                                                            </span>
-                                                            <span className="text-[10px] text-slate-400 font-bold">
-                                                                {q.chapter}
-                                                            </span>
-                                                        </div>
-                                                        <div className="text-xs font-semibold text-slate-900 leading-relaxed">
-                                                            <MathRenderer inline text={q.questionText || q.question || ''} />
-                                                        </div>
-                                                    </div>
-                                                    <span className={`w-6 h-6 rounded-lg flex items-center justify-center text-xs font-black shrink-0 ${
-                                                        isSelected ? 'bg-gold text-navy shadow-xs' : 'border border-slate-300 text-slate-400'
-                                                    }`}>
-                                                        {isSelected ? <Check className="w-3.5 h-3.5 stroke-[3]" /> : <Plus className="w-3.5 h-3.5" />}
-                                                    </span>
-                                                </div>
-                                            );
-                                        })}
+                                <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                                    <button
+                                        type="button"
+                                        onClick={() => setManualShowSelectedOnly(prev => !prev)}
+                                        className={`text-xs font-bold px-3 py-1.5 rounded-xl transition cursor-pointer flex items-center gap-1.5 border ${
+                                            manualShowSelectedOnly
+                                                ? 'bg-amber-100 text-amber-900 border-amber-300 shadow-xs'
+                                                : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-100'
+                                        }`}
+                                    >
+                                        <Check className="w-3.5 h-3.5" />
+                                        <span>Show Selected Only ({selectedQuestions.length})</span>
+                                    </button>
+                                    {selectedQuestions.length > 0 && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setSelectedQuestions([])}
+                                            className="text-xs font-bold text-rose-600 hover:text-rose-800 px-2 py-1 transition cursor-pointer"
+                                        >
+                                            Clear Selection
+                                        </button>
+                                    )}
                                 </div>
+                            </div>
+                        </div>
+
+                        {/* Question Pool Cards */}
+                        {manualLoading ? (
+                            <div className="p-12 text-center">
+                                <Loader message="Loading questions repository for your selection..." />
+                            </div>
+                        ) : filteredManualQuestions.length === 0 ? (
+                            <div className="p-12 text-center bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200 space-y-2">
+                                <div className="text-3xl">🔍</div>
+                                <h4 className="text-sm font-black text-navy uppercase">No questions match your current filters</h4>
+                                <p className="text-xs text-slate-500 font-medium">
+                                    Try choosing &quot;All Types&quot;, &quot;All Levels&quot;, or clearing the search query to view more questions.
+                                </p>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setManualFilterChapter('all');
+                                        setManualFilterConcept('all');
+                                        setManualFilterDifficulty('all');
+                                        setManualFilterType('all');
+                                        setManualSearch('');
+                                        setManualShowSelectedOnly(false);
+                                    }}
+                                    className="mt-3 bg-navy text-gold text-xs font-bold px-4 py-2 rounded-xl hover:bg-navy/90 transition cursor-pointer"
+                                >
+                                    Reset All Filters
+                                </button>
+                            </div>
+                        ) : (
+                            <div className="space-y-3 max-h-[580px] overflow-y-auto pr-2">
+                                <div className="text-[11px] font-bold text-slate-500 px-1 flex justify-between items-center">
+                                    <span>Showing {filteredManualQuestions.length} candidate questions</span>
+                                    <span>Click any question card to select / unselect</span>
+                                </div>
+                                {filteredManualQuestions.map((q, idx) => {
+                                    const qId = q._id || q.id;
+                                    const isSelected = selectedQuestions.some(sq => (sq._id || sq.id) === qId);
+                                    const cat = getQCategory(q, selectedExamPattern === 'JEE');
+                                    const lvl = (q.level || 'medium').toLowerCase();
+
+                                    const typeBadgeText = {
+                                        match: 'MTF (Match)',
+                                        ar: 'Assertion-Reason',
+                                        stmt: 'Statement',
+                                        diag: 'Diagram',
+                                        numerical: 'Numerical',
+                                        mcq: 'MCQ'
+                                    }[cat] || 'MCQ';
+
+                                    const typeBadgeClass = {
+                                        match: 'bg-purple-100 text-purple-900 border-purple-200',
+                                        ar: 'bg-indigo-100 text-indigo-900 border-indigo-200',
+                                        stmt: 'bg-blue-100 text-blue-900 border-blue-200',
+                                        diag: 'bg-teal-100 text-teal-900 border-teal-200',
+                                        numerical: 'bg-emerald-100 text-emerald-900 border-emerald-200',
+                                        mcq: 'bg-slate-100 text-slate-800 border-slate-200'
+                                    }[cat] || 'bg-slate-100 text-slate-800 border-slate-200';
+
+                                    const levelBadgeClass = {
+                                        easy: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+                                        medium: 'bg-amber-50 text-amber-700 border-amber-200',
+                                        hard: 'bg-rose-50 text-rose-700 border-rose-200'
+                                    }[lvl] || 'bg-amber-50 text-amber-700 border-amber-200';
+
+                                    return (
+                                        <div
+                                            key={qId || idx}
+                                            onClick={() => {
+                                                setSelectedQuestions(prev => {
+                                                    const exists = prev.some(sq => (sq._id || sq.id) === qId);
+                                                    if (exists) return prev.filter(sq => (sq._id || sq.id) !== qId);
+                                                    return [...prev, q];
+                                                });
+                                            }}
+                                            className={`p-4 rounded-2xl border-2 transition cursor-pointer flex items-start justify-between gap-4 select-none ${
+                                                isSelected
+                                                    ? 'bg-amber-50/60 border-gold shadow-md ring-2 ring-gold/30'
+                                                    : 'bg-white border-slate-200 hover:border-slate-300 hover:shadow-xs'
+                                            }`}
+                                        >
+                                            <div className="flex-1 min-w-0 space-y-2">
+                                                <div className="flex flex-wrap items-center gap-2">
+                                                    <span className="text-[11px] font-black text-slate-400">
+                                                        #{idx + 1}
+                                                    </span>
+                                                    <span className={`text-[10px] font-black px-2 py-0.5 rounded-full uppercase border ${typeBadgeClass}`}>
+                                                        {typeBadgeText}
+                                                    </span>
+                                                    <span className={`text-[10px] font-black px-2 py-0.5 rounded-full uppercase border ${levelBadgeClass}`}>
+                                                        {lvl}
+                                                    </span>
+                                                    {q.chapter && (
+                                                        <span className="text-[10px] text-slate-500 font-bold bg-slate-100 px-2 py-0.5 rounded-md truncate max-w-[200px]">
+                                                            {q.chapter}
+                                                        </span>
+                                                    )}
+                                                    {q.concept && (
+                                                        <span className="text-[10px] text-slate-400 font-medium truncate max-w-[180px]">
+                                                            &bull; {q.concept}
+                                                        </span>
+                                                    )}
+                                                </div>
+
+                                                <div className="text-xs font-semibold text-slate-900 leading-relaxed">
+                                                    <MathRenderer inline text={q.questionText || q.question || ''} />
+                                                </div>
+
+                                                {q.imageUrl && (
+                                                    <div className="my-2">
+                                                        <img
+                                                            src={q.imageUrl}
+                                                            alt="Diagram"
+                                                            className="max-h-28 rounded-lg border border-slate-200 object-contain bg-white p-1"
+                                                        />
+                                                    </div>
+                                                )}
+
+                                                {/* Options preview if available */}
+                                                {Array.isArray(q.options) && q.options.length > 0 && (
+                                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 pt-1 text-[11px] text-slate-700">
+                                                        {q.options.map((opt, oIdx) => {
+                                                            const optStr = typeof opt === 'object' ? (opt.text || opt.option || '') : String(opt || '');
+                                                            return (
+                                                                <div key={oIdx} className="flex items-baseline gap-1.5 line-clamp-1">
+                                                                    <span className="font-bold text-slate-400">({oIdx + 1})</span>
+                                                                    <span className="truncate"><MathRenderer inline text={cleanOptionText(optStr)} /></span>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            {/* Checkbox button */}
+                                            <span className={`w-7 h-7 rounded-xl flex items-center justify-center text-xs font-black shrink-0 transition ${
+                                                isSelected ? 'bg-gold text-navy shadow-sm ring-2 ring-gold/40' : 'border-2 border-slate-300 text-slate-400 hover:border-slate-400'
+                                            }`}>
+                                                {isSelected ? <Check className="w-4 h-4 stroke-[3]" /> : <Plus className="w-4 h-4" />}
+                                            </span>
+                                        </div>
+                                    );
+                                })}
                             </div>
                         )}
 
+                        {/* Bottom Actions */}
                         <div className="flex justify-between items-center pt-4 border-t border-slate-100">
                             <button
                                 type="button"
-                                onClick={() => setCurrentStep(5)}
-                                className="text-xs font-bold text-slate-500 hover:text-navy cursor-pointer"
+                                onClick={() => setCurrentStep(3)}
+                                className="text-xs font-bold text-slate-500 hover:text-navy cursor-pointer flex items-center gap-1"
                             >
-                                ← Back to Question Types
+                                <span>← Back to Concepts</span>
                             </button>
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    if (fetchMode === 'auto') {
-                                        executeFetch();
-                                    } else {
-                                        if (selectedQuestions.length === 0) {
-                                            alert('Please select at least one question before proceeding to preview.');
-                                            return;
-                                        }
-                                        setCurrentStep(7); // Proceed to Step 7: Preview & Alignment
-                                    }
-                                }}
-                                className="bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs uppercase tracking-wider px-8 py-3 rounded-xl shadow-lg transition cursor-pointer flex items-center gap-2"
-                            >
-                                <Rocket className="w-4 h-4 text-white" />
-                                <span>{fetchMode === 'auto' ? 'Execute Auto Fetch & Preview' : 'Proceed to Preview & Save (Step 7)'}</span>
-                            </button>
+
+                            <div className="flex items-center gap-3">
+                                <span className="text-xs font-bold text-slate-500 hidden sm:inline">
+                                    {selectedQuestions.length} questions picked
+                                </span>
+                                <button
+                                    type="button"
+                                    onClick={handleDoneManualSelection}
+                                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs uppercase tracking-wider px-8 py-3 rounded-xl shadow-lg transition cursor-pointer flex items-center gap-2"
+                                >
+                                    <Check className="w-4 h-4 stroke-[3]" />
+                                    <span>Done Selection → Proceed to Preview & Save</span>
+                                </button>
+                            </div>
                         </div>
                     </div>
                 )}
@@ -1724,7 +2261,7 @@ export default function CommissionedExam() {
                                 zoom={previewZoom}
                                 setZoom={setPreviewZoom}
                                 hideToolbar={true}
-                                onBack={() => setCurrentStep(6)}
+                                onBack={() => setCurrentStep(fetchMode === 'manual' ? 6 : 5)}
                                 onOpenAnswerKey={() => setShowAnswerKey(true)}
                                 onOpenSolutions={() => setShowSolutionGuide(true)}
                                 onReshuffle={handleReshuffleQuestions}
