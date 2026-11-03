@@ -715,7 +715,7 @@ export default function CommissionedExam() {
             const filteredRows = allRows.filter(q => !isCetQ(q));
 
             // Populate candidate pool for manual mode
-            setFetchedQuestions(filteredRows);
+            setManualPool(filteredRows);
 
             if (filteredRows.length === 0) {
                 setFetchError('No questions found matching your selected chapter/class filters. Please broaden your selection.');
