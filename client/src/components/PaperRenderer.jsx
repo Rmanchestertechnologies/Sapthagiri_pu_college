@@ -876,6 +876,7 @@ export default function PaperRenderer({
                 paperSubject={activePaper?.subject}
                 onClose={() => setSwappingQuestion(null)}
                 onSwap={(idx, chosenQ) => handleSelectSwappedQuestion(idx, chosenQ)}
+                onSelectSwap={(idx, chosenQ) => handleSelectSwappedQuestion(idx, chosenQ)}
             />
         </div>
     );

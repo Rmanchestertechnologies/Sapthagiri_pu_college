@@ -460,6 +460,7 @@ export function SwapQuestionModal({
     paperExamType,
     onClose,
     onSelectSwap,
+    onSwap,
 }) {
     if (!isOpen || !oldQuestion) return null;
 
@@ -514,7 +515,10 @@ export function SwapQuestionModal({
     };
 
     const handleSelectQuestion = (chosenQ) => {
-        onSelectSwap(questionIndex, chosenQ);
+        const swapFn = onSelectSwap || onSwap;
+        if (typeof swapFn === 'function') {
+            swapFn(questionIndex, chosenQ);
+        }
         onClose();
     };
 

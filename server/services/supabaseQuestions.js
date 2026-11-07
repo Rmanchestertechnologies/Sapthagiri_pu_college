@@ -94,14 +94,34 @@ function mapSupabaseToQuestion(row, usageMap = null) {
     const rawReason = row.reason || '';
     const qTypeLower = (row.q_type || '').toLowerCase();
 
-    // 0. Extract QBP_DATA payload if present in solution or question
+    // 0. Hidden Metadata Extraction from solution_text (Part 1 Standard)
+    let qbpType = null;
+    const typeMatch = rawSolution.match(/\[QBP_TYPE:(statement_based|match|true_false)\]/i);
+    if (typeMatch) {
+        qbpType = typeMatch[1].toLowerCase();
+    }
+
+    let qbpDifficulty = null;
+    const diffMatch = rawSolution.match(/\[QBP_DIFFICULTY:(Easy|Medium|Hard)\]/i);
+    if (diffMatch) {
+        qbpDifficulty = diffMatch[1];
+    }
+
     let qbpData = null;
-    const qbpMatch = rawSolution.match(/\[QBP_DATA:([^\]]+)\]/) || rawQuestion.match(/\[QBP_DATA:([^\]]+)\]/);
-    if (qbpMatch) {
+    const qbpMatch = rawSolution.match(/\[QBP_DATA:([A-Za-z0-9+/=]*)\]/i) || rawQuestion.match(/\[QBP_DATA:([A-Za-z0-9+/=]*)\]/i);
+    if (qbpMatch && qbpMatch[1]) {
         try {
             qbpData = JSON.parse(Buffer.from(qbpMatch[1], 'base64').toString('utf8'));
         } catch (e) {}
     }
+
+    // Crucial: Strip markers from solution_text so users never see internal tags
+    let cleanSolution = rawSolution
+        .replace(/(?:^|\r?\n)\[QBP_(?:DIFFICULTY|TYPE|DATA):[^\]\r\n]*\]/gi, '')
+        .replace(/\[(?:QPV|QBP)_[A-Za-z0-9_]+:[^\]]*\]/gi, '')
+        .replace(/\[(?:QPV_|QBP_)?DIFFICULTY:\s*[^\]]+\]/gi, '')
+        .trim();
+    cleanSolution = cleanDifficultyTags(cleanSolution);
 
     // 1. Column A and Column B extraction (for match the following)
     let colA = (Array.isArray(row.column_a) && row.column_a.length > 0) ? [...row.column_a] : [];
@@ -112,8 +132,14 @@ function mapSupabaseToQuestion(row, usageMap = null) {
     if (colB.length === 0 && qbpData && Array.isArray(qbpData.columnB) && qbpData.columnB.length > 0) {
         colB = [...qbpData.columnB];
     }
+    // Match the Following string splitting: If column_b is a single string "(i)... (ii)...", split into rows
+    if (typeof row.column_b === 'string' && row.column_b.trim()) {
+        colB = row.column_b.split(/(?=\([ivx0-9]+\))/i).map(s => s.trim()).filter(Boolean);
+    } else if (colB.length === 1 && typeof colB[0] === 'string' && /\([ivx0-9]+\)/i.test(colB[0])) {
+        colB = colB[0].split(/(?=\([ivx0-9]+\))/i).map(s => s.trim()).filter(Boolean);
+    }
 
-    // Clean column items and auto-merge accidental sentence continuations (e.g. line break before "Approximate increase in area is")
+    // Clean column items and auto-merge accidental sentence continuations
     const isColumnSubheader = (s) => /^[\(\[]?\s*(?:elements|properties|compounds|reagents|reactants|quantities|units|column\s*[i|1|2|a|b]|list\s*[i|1|2|a|b])\s*[\)\]]?$/i.test(String(s || '').trim());
     function cleanColumnList(list) {
         if (!Array.isArray(list)) return [];
@@ -137,7 +163,7 @@ function mapSupabaseToQuestion(row, usageMap = null) {
     colB = cleanColumnList(colB);
 
     // 2. Options Extraction
-    const rawOptions = [];
+    let rawOptions = [];
     if (row.opt_a) rawOptions.push(row.opt_a);
     if (row.opt_b) rawOptions.push(row.opt_b);
     if (row.opt_c) rawOptions.push(row.opt_c);
@@ -186,9 +212,48 @@ function mapSupabaseToQuestion(row, usageMap = null) {
         }
     }
 
-    let options = rawOptions.map(cleanDifficultyTags).filter(Boolean);
+    // Effective question type (QBP_TYPE overrides stored q_type)
+    const effectiveQType = qbpType || qTypeLower;
 
+    // True/False handling
+    let correctOption = row.correct_option || '';
+    if (effectiveQType === 'true_false') {
+        rawOptions = ['True', 'False'];
+        if (/^(?:true|t)$/i.test(String(correctOption).trim())) {
+            correctOption = 'A';
+        } else if (/^(?:false|f)$/i.test(String(correctOption).trim())) {
+            correctOption = 'B';
+        }
+    }
+
+    let options = rawOptions.map(cleanDifficultyTags).filter(Boolean);
     let cleanQuestion = cleanDifficultyTags(rawQuestion || '');
+
+    // Field-Specific Fallbacks: Assertion-Reason
+    let assertion = row.assertion || '';
+    let reason = row.reason || '';
+    if (!assertion || !reason) {
+        const aMatch = cleanQuestion.match(/(?:Assertion\s*(?:\(A\))?|\(A\)|A)\s*[:.\-]\s*([\s\S]*?)(?=\n\s*(?:Reason\s*(?:\(R\))?|\(R\)|R)\s*[:.\-]|$)/i);
+        const rMatch = cleanQuestion.match(/(?:Reason\s*(?:\(R\))?|\(R\)|R)\s*[:.\-]\s*([\s\S]*)$/i);
+        if (!assertion && aMatch) assertion = aMatch[1].trim();
+        if (!reason && rMatch) reason = rMatch[1].trim();
+    }
+
+    // Field-Specific Fallbacks: Statement-Based
+    let statement1 = row.statement1 || (qbpData && qbpData.statement1) || '';
+    let statement2 = row.statement2 || (qbpData && qbpData.statement2) || '';
+    if (!statement1 || !statement2) {
+        const s1Match = cleanQuestion.match(/(?:^|\n)\s*@?Statement\s*[-–—]?\s*\(?\s*(?:I|1|A)\s*\)?\s*[:.\-)–—]?\s*([\s\S]*?)(?=\n\s*@?Statement\s*[-–—]?\s*\(?\s*(?:II|2|B)\s*\)?)/i);
+        const s2Match = cleanQuestion.match(/(?:^|\n)\s*@?Statement\s*[-–—]?\s*\(?\s*(?:II|2|B)\s*\)?\s*[:.\-)–—]?\s*([\s\S]*?)(?=\n\s*(?:\(?[A-D]\)?\s*[).:\-]|(?:Ans|Answer|Solution|Explanation)\s*[:.\-])|$)/i);
+        if (!statement1 && s1Match) statement1 = s1Match[1].trim();
+        if (!statement2 && s2Match) statement2 = s2Match[1].trim();
+    }
+
+    // Numerical answer fallback
+    let numAnswer = row.num_answer;
+    if (!numAnswer && (effectiveQType === 'numerical' || (!options.length && (row.num_answer || row.correct_option || row.answer)))) {
+        numAnswer = row.correct_option || row.answer || '';
+    }
 
     const isLikelyMatch = (
         qTypeLower.includes('match') || 
@@ -196,9 +261,14 @@ function mapSupabaseToQuestion(row, usageMap = null) {
         /(?:Column|List)\s*[-:]?\s*(?:I|1|A)\b/i.test(cleanQuestion)
     );
 
+    const isLikelyStatement = (
+        qTypeLower.includes('statement') || 
+        /(?:Statement\s*[-–—]?(?:I|1)\b|statements? are given|consider the following statements?)/i.test(cleanQuestion)
+    );
+
     // Fallback: extract embedded (A), (B), (C), (D) options from question text if options empty
-    // NOTE: For Match questions, (A), (B), (C), (D) in question text are Column I items, NOT options!
-    if (options.length === 0 && cleanQuestion && !isLikelyMatch) {
+    // NOTE: For Match & Statement questions, (A), (B), (C), (D) in question text are NOT options!
+    if (options.length === 0 && cleanQuestion && !isLikelyMatch && !isLikelyStatement) {
         const embeddedOptRegex = /(?:\n\s*|^)(?:\([A-Da-d1-4]\)|[A-Da-d1-4][\.\:\-])\s+([\s\S]*?)(?=(?:\n\s*(?:\([A-Da-d1-4]\)|[A-Da-d1-4][\.\:\-])\s+)|$)/g;
         const found = [];
         let m;
@@ -253,40 +323,40 @@ function mapSupabaseToQuestion(row, usageMap = null) {
         }
     }
 
-    // Skip only strictly binary true/false format questions (2 options where options are strictly True & False)
-    const isStrictTF = (
-        qTypeLower === 'true_false' ||
-        qTypeLower === 'tf' ||
-        (options.length === 2 && 
-            options.some(o => /^true$/i.test(String(o).trim())) && 
-            options.some(o => /^false$/i.test(String(o).trim()))
-        ) ||
-        (/^true$/i.test(String(row.opt_a || '').trim()) && /^false$/i.test(String(row.opt_b || '').trim()) && !row.opt_c && !row.opt_d) ||
-        (/^false$/i.test(String(row.opt_a || '').trim()) && /^true$/i.test(String(row.opt_b || '').trim()) && !row.opt_c && !row.opt_d)
-    );
-    if (isStrictTF) return null;
-
     // Smart Question Type Auto-Classification
     let type = 'MCQ';
     const isAR = (
-        qTypeLower.includes('assertion') || 
-        Boolean(rawAssertion && rawReason) || 
+        effectiveQType === 'assertion_reason' ||
+        effectiveQType.includes('assertion') || 
+        Boolean(assertion && reason) || 
         (/Assertion\s*(?:\(A\))?/i.test(cleanQuestion) && /Reason\s*(?:\(R\))?/i.test(cleanQuestion))
     );
+    const hasLetteredStatements = /(?:statements?|consider the following)[\s\S]*?(?:^|\r?\n)\s*(?:\([A-Da-d]\)|[A-Da-d][\.:\)])\s+[\s\S]*?(?:^|\r?\n)\s*(?:\([B-Db-d]\)|[B-Db-d][\.:\)])\s+/i.test(cleanQuestion);
+    const hasRomanStatements = /(?:statements?|consider the following)[\s\S]*?(?:^|\r?\n)\s*(?:\([ivx]+\)|[ivx]+[\.:\)])\s+[\s\S]*?(?:^|\r?\n)\s*(?:\([ivx]+\)|[ivx]+[\.:\)])\s+/i.test(cleanQuestion);
     const isStatement = (
-        qTypeLower.includes('statement') || 
-        (/Statement\s*(?:I|1)\s*[:\-]/i.test(cleanQuestion) && /Statement\s*(?:II|2)\s*[:\-]/i.test(cleanQuestion))
+        effectiveQType === 'statement_based' ||
+        effectiveQType.includes('statement') || 
+        Boolean(statement1 && statement2) ||
+        (/Statement\s*[-–—]?\s*(?:I|1)\b/i.test(cleanQuestion) && /Statement\s*[-–—]?\s*(?:II|2)\b/i.test(cleanQuestion)) ||
+        hasLetteredStatements ||
+        hasRomanStatements
     );
     const isMatch = (
-        qTypeLower.includes('match') || 
+        effectiveQType === 'match' ||
+        effectiveQType.includes('match') || 
         colA.length > 0 || 
         matchPairs.length > 0 ||
         /(?:Column|List)\s*I[\s\S]*(?:Column|List)\s*II/i.test(cleanQuestion) ||
         /Match (?:List|the following|Column)/i.test(cleanQuestion)
     );
+    const isTF = (
+        effectiveQType === 'true_false' ||
+        effectiveQType === 'tf'
+    );
     const isNumeric = (
-        qTypeLower.includes('numerical') || 
-        (!options.length && Boolean(row.num_answer || row.correct_option))
+        effectiveQType === 'numerical' ||
+        effectiveQType.includes('numerical') || 
+        (!options.length && Boolean(numAnswer))
     );
     const hasOptImages = options.length > 0 && options.every(opt => /\{\{IMG::|!\[|\[DIAGRAM:|<img|https?:\/\/.*?\.(png|jpg|jpeg|webp|svg|gif)|data:image\//i.test(String(opt)));
     const hasDiag = Boolean(row.image_url || row.imageUrl || /\{\{IMG::|!\[/i.test(cleanQuestion) || hasOptImages);
@@ -297,9 +367,11 @@ function mapSupabaseToQuestion(row, usageMap = null) {
         type = 'STATEMENT_BASED';
     } else if (isMatch) {
         type = 'MATCH_FOLLOWING';
+    } else if (isTF) {
+        type = 'TRUE_FALSE';
     } else if (isNumeric) {
         type = 'NUMERICAL';
-    } else if (hasDiag || qTypeLower.includes('diagram') || qTypeLower.includes('image')) {
+    } else if (hasDiag || effectiveQType.includes('diagram') || effectiveQType.includes('image')) {
         type = 'DIAGRAM_BASED';
     } else {
         type = 'MCQ';
@@ -345,11 +417,16 @@ function mapSupabaseToQuestion(row, usageMap = null) {
         type = 'NUMERICAL';
     }
 
-    let answer = row.correct_option || row.num_answer || '';
-    if (row.correct_option && options.length > 0) {
-        const idx = parseInt(row.correct_option, 10) - 1;
+    let answer = correctOption || numAnswer || '';
+    if (correctOption && options.length > 0) {
+        const idx = parseInt(correctOption, 10) - 1;
         if (idx >= 0 && idx < options.length) {
             answer = options[idx];
+        } else if (/^[A-D]$/i.test(String(correctOption).trim())) {
+            const letterIdx = String(correctOption).trim().toUpperCase().charCodeAt(0) - 65;
+            if (letterIdx >= 0 && letterIdx < options.length) {
+                answer = options[letterIdx];
+            }
         }
     }
 
@@ -360,11 +437,15 @@ function mapSupabaseToQuestion(row, usageMap = null) {
     }
     if (classesList.length === 0) classesList.push('JEE', 'NEET');
 
-    const level = extractDifficulty(row.solution_text, row.question);
-    const cleanSolution = cleanDifficultyTags(rawSolution || '');
+    const level = (qbpDifficulty ? qbpDifficulty.toLowerCase() : extractDifficulty(rawSolution, rawQuestion)) || 'medium';
 
     const qIdStr = (row.id || '').toString();
     const usage = (usageMap && usageMap.get(qIdStr)) || null;
+
+    const statementsArray = (statement1 && statement2) ? [
+        { label: 'Statement I:', text: cleanDifficultyTags(statement1) },
+        { label: 'Statement II:', text: cleanDifficultyTags(statement2) }
+    ] : undefined;
 
     return {
         _id: row.id,
@@ -377,23 +458,28 @@ function mapSupabaseToQuestion(row, usageMap = null) {
         subConcept: '',
         level: level,
         type: type,
-        q_type: row.q_type,
+        q_type: effectiveQType,
         questionText: cleanQuestion,
         imageUrl: row.image_url || row.imageUrl || null,
         solutionImageUrl: row.solution_image_url || row.solutionImageUrl || null,
         options: options,
         answer: answer,
-        correct_option: row.correct_option,
-        num_answer: row.num_answer,
+        correct_option: correctOption,
+        num_answer: numAnswer,
         solutionText: cleanSolution,
         questionTextTranslation: cleanDifficultyTags(row.question_text_translation || ''),
         optionsTranslation: Array.isArray(row.options_translation) ? row.options_translation.map(cleanDifficultyTags) : [],
-        assertion: cleanDifficultyTags(row.assertion || ''),
-        reason: cleanDifficultyTags(row.reason || ''),
+        assertion: cleanDifficultyTags(assertion),
+        reason: cleanDifficultyTags(reason),
+        statement1: cleanDifficultyTags(statement1),
+        statement2: cleanDifficultyTags(statement2),
+        statements: statementsArray,
         column_a: colA.map(cleanDifficultyTags),
         column_b: colB.map(cleanDifficultyTags),
+        columnA: colA.map(cleanDifficultyTags),
+        columnB: colB.map(cleanDifficultyTags),
         matchPairs: matchPairs,
-        match_options: row.match_options || {},
+        match_options: (qbpData && qbpData.matchOptions) || row.match_options || {},
         sourceType: 'REGULAR',
         sourceExam: cleanExamsList.length > 0 ? cleanExamsList.join(', ') : 'JEE, NEET',
         createdBy: row.created_by,

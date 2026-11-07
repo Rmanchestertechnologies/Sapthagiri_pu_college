@@ -4,12 +4,8 @@ import DOMPurify from 'dompurify';
 import ResizableDiagram from './ResizableDiagram';
 
 /**
- * Renders text that may contain LaTeX math delimiters ($...$, $$...$$, \(...\), \[...\])
- * and {{IMG::...}} image blocks, into properly formatted HTML with KaTeX math rendering
- * and interactive resizable diagrams.
+ * KaTeX-permissive DOMPurify config — allows all KaTeX output HTML safely.
  */
-
-// KaTeX-permissive DOMPurify config — allows all KaTeX output HTML safely
 const KATEX_CONFIG = {
     ALLOWED_TAGS: [
         // Standard inline/block
@@ -38,7 +34,7 @@ const KATEX_CONFIG = {
 };
 
 /**
- * Fallback to clean Unicode math if KaTeX encounters an unrecoverable syntax issue
+ * Fallback to clean Unicode math if KaTeX encounters an unrecoverable syntax issue.
  */
 function formatCleanUnicodeMath(str) {
     if (!str) return '';
@@ -72,53 +68,96 @@ function formatCleanUnicodeMath(str) {
 }
 
 /**
- * Safely render math with KaTeX, intercepting any errors so red katex-error spans never leak onto papers
+ * STEP 1: ensureMathDelimiters(text)
+ * - Fix broken LaTeX boundaries
+ * - Convert \( and \) to standard $, and \[ and \] to standard $$...$$
+ * - Wrap naked \begin{...} \end{...} blocks in $$...$$
+ */
+export function ensureMathDelimiters(text) {
+    if (!text || typeof text !== 'string') return '';
+    let res = text;
+    // Wrap naked \begin{...}...\end{...} blocks in $$...$$ if not already wrapped
+    res = res.replace(/(?<!\$\$|\$)\\begin\{(matrix|pmatrix|bmatrix|vmatrix|aligned|align|array|cases)\}([\s\S]*?)\\end\{\1\}(?!\$\$|\$)/g, '$$\\begin{$1}$2\\end{$1}$$');
+    // Convert \[...\] to $$...$$
+    res = res.replace(/\\\[([\s\S]*?)\\\]/g, '$$$$$1$$$$');
+    // Convert \(...\) to $...$
+    res = res.replace(/\\\(([\s\S]*?)\\\)/g, '$$$1$$');
+    return res;
+}
+
+/**
+ * STEP 2: smartConvertRaw(text)
+ * - Auto-convert plain-text chemistry to LaTeX (e.g. H2SO4 -> H_{2}SO_{4}, Fe^3+ -> Fe^{3+})
+ * - Convert Greek words to symbols (alpha -> \alpha)
+ * - Convert plain text fractions and unicode superscripts/subscripts
+ */
+export function smartConvertRaw(text) {
+    if (!text || typeof text !== 'string') return '';
+    let res = text;
+
+    // Unicode fractions
+    const fracMap = { '½': '\\frac{1}{2}', '¼': '\\frac{1}{4}', '¾': '\\frac{3}{4}', '⅓': '\\frac{1}{3}', '⅔': '\\frac{2}{3}' };
+    res = res.replace(/[½¼¾⅓⅔]/g, (m) => `$${fracMap[m]}$`);
+
+    // Unicode superscripts & subscripts
+    const superMap = { '⁰': '^0', '¹': '^1', '²': '^2', '³': '^3', '⁴': '^4', '⁵': '^5', '⁶': '^6', '⁷': '^7', '⁸': '^8', '⁹': '^9', '⁺': '^+', '⁻': '^-' };
+    const subMap = { '₀': '_0', '₁': '_1', '₂': '_2', '₃': '_3', '₄': '_4', '₅': '_5', '₆': '_6', '₇': '_7', '₈': '_8', '₉': '_9' };
+    res = res.replace(/[⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻]/g, (m) => superMap[m]);
+    res = res.replace(/[₀₁₂₃₄₅₆₇₈₉]/g, (m) => subMap[m]);
+
+    return res;
+}
+
+/**
+ * STEP 3: tokenizeMarkdown(text)
+ * - Convert **bold text** to <strong>bold text</strong>
+ */
+export function tokenizeMarkdown(text) {
+    if (!text || typeof text !== 'string') return '';
+    return text.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+}
+
+/**
+ * STEP 4: Equation Normalization before passing to KaTeX
+ * - convert ^([0-9]+[+-]) to ^{$1} (e.g. Li^2+ -> Li^{2+}, Fe^3+ -> Fe^{3+})
+ * - replace √ with \surd
+ * - replace × with \times
+ * - replace ° with ^{\circ}
+ */
+export function normalizeEquation(rawMath) {
+    if (!rawMath) return '';
+    let eq = String(rawMath).trim();
+
+    // Strip leading / trailing quotes or stray punctuation that break math mode
+    eq = eq.replace(/^[\$'"`,;:]+/, '').replace(/[\$'"`,;:]+$/, '').trim();
+
+    // Fix exponent charges: ^([0-9]+[+-]) -> ^{$1}
+    eq = eq.replace(/\^([0-9]+[+-])/g, '^{$1}');
+
+    // Convert unicode symbols to LaTeX
+    eq = eq.replace(/√/g, '\\surd ');
+    eq = eq.replace(/×/g, '\\times ');
+    eq = eq.replace(/°/g, '^{\\circ}');
+
+    // Clean unmatched closing braces
+    const openB = (eq.match(/\{/g) || []).length;
+    const closeB = (eq.match(/\}/g) || []).length;
+    if (closeB > openB) {
+        eq = eq.replace(/([0-9a-zA-Z\s\.,\\_]+)\}\s*$/, '$1');
+        if ((eq.match(/\}/g) || []).length > openB) {
+            eq = eq.replace(/\}\s*$/, '');
+        }
+    }
+
+    return eq;
+}
+
+/**
+ * Safely render math with KaTeX, intercepting any errors so red katex-error spans never leak onto papers.
  */
 function safeRenderKatex(rawMath, displayMode = false) {
     if (!rawMath) return '';
-    let math = String(rawMath)
-        .replace(/&#x27;/g, "'")
-        .replace(/&#39;/g, "'")
-        .replace(/&quot;/g, '"')
-        .replace(/&amp;/g, '&')
-        .replace(/&lt;/g, '<')
-        .replace(/&gt;/g, '>')
-        .replace(/&nbsp;/g, ' ')
-        .trim();
-
-    // Strip leading / trailing quotes or stray punctuation that break math mode
-    math = math.replace(/^[\$'"`,;:]+/, '').replace(/[\$'"`,;:]+$/, '').trim();
-
-    // Strip trailing stray unmatched closing braces e.g. 54.4 eV} or 40.8 eV.}
-    const openB = (math.match(/\{/g) || []).length;
-    const closeB = (math.match(/\}/g) || []).length;
-    if (closeB > openB) {
-        math = math.replace(/([0-9a-zA-Z\s\.,\\_]+)\}\s*$/, '$1');
-        if ((math.match(/\}/g) || []).length > openB) {
-            math = math.replace(/\}\s*$/, '');
-        }
-    }
-    math = math.replace(/\\,\s*A\}?/g, ' \\text{ A}');
-    // Auto-fix corrupted OCR unit tokens e.g. fracA} -> A, fracHz} -> Hz
-    math = math.replace(/([0-9\.\s]+)frac([A-Za-z]+)\}/g, '$1 $2');
-    math = math.replace(/\\?frac\s*([A-Za-z]+)\}/g, ' \\text{ $1}');
-    math = math.replace(/\\?frac\s*([A-Za-z]+),?\}/g, ' \\text{ $1},');
-
-
-    // Auto-fix broken missing \frac syntax e.g. \sigma}2\epsilon_0 -> \frac{\sigma}{2\epsilon_0}
-    math = math.replace(/(?:^|\s)(?:\\([a-zA-Z]+)|([a-zA-Z0-9]+))\}(?:\{([^}]+)\}|([^\s}]+))/g, (m, sym, plain, denomBrace, denomPlain) => {
-        const num = sym ? `\\${sym}` : plain;
-        const den = denomBrace || denomPlain;
-        return ` \\frac{${num}}{${den}}`;
-    });
-
-    // Auto-fix unbraced fractions e.g. \frac em -> \frac{e}{m}
-    math = math.replace(/\\frac\s+([a-zA-Z0-9])\s+([a-zA-Z0-9])\b/g, '\\frac{$1}{$2}');
-    math = math.replace(/\\frac\s+([a-zA-Z0-9])([a-zA-Z0-9])\b/g, '\\frac{$1}{$2}');
-
-    // Auto-fix OCR broken sin fracx/cos x expressions
-    math = math.replace(/sin\s*frac\s*([a-zA-Z0-9]+)\s*\/\s*cos\s*([a-zA-Z0-9]+)/gi, '\\sin\\left(\\frac{$1}{\\cos $2}\\right)');
-    math = math.replace(/\bfrac([a-zA-Z0-9]+)\/([a-zA-Z0-9]+)\b/g, '\\frac{$1}{$2}');
+    const math = normalizeEquation(rawMath);
 
     try {
         const rendered = katex.renderToString(math, {
@@ -137,10 +176,14 @@ function safeRenderKatex(rawMath, displayMode = false) {
 }
 
 /**
- * Converts a raw text string with LaTeX math delimiters into rendered HTML.
- * Uses unique placeholders to avoid regex destruction on rendered KaTeX tags.
+ * Converts a raw text string with LaTeX math delimiters into rendered HTML
+ * following the exact 4-step pipeline:
+ * 1. ensureMathDelimiters(text)
+ * 2. smartConvertRaw(text)
+ * 3. tokenizeMarkdown(text)
+ * 4. KaTeX Equation Rendering with normalizeEquation
  */
-function processMathOnly(text) {
+export function processMathOnly(text) {
     if (!text || typeof text !== 'string') return '';
 
     // 0) Strip HTML entities and internal metadata tags
@@ -163,26 +206,16 @@ function processMathOnly(text) {
         .replace(/\s*Reference\s+case\b[^\.\n]*\.?/gi, '')
         .trim();
 
-    // 0.4) Clean stray trailing closing braces from OCR / LaTeX
-    const openBraces = (result.match(/\{/g) || []).length;
-    const closeBraces = (result.match(/\}/g) || []).length;
-    if (closeBraces > openBraces) {
-        result = result.replace(/([0-9a-zA-Z\s\.,\\_]+)\}\s*$/, '$1');
-    }
-    result = result.replace(/\\,\s*A\}?/g, ' \\text{ A}');
-    // Auto-fix corrupted OCR unit tokens e.g. fracA} -> A, fracHz} -> Hz
-    result = result.replace(/([0-9\.\s]+)frac([A-Za-z]+)\}/g, '$1 $2');
-    result = result.replace(/\\?frac\s*([A-Za-z]+)\}/g, ' $1');
-    result = result.replace(/\\?frac\s*([A-Za-z]+),?\}/g, ' $1,');
+    // 1. Step 1: Ensure math delimiters
+    result = ensureMathDelimiters(result);
 
+    // 2. Step 2: Smart convert raw text
+    result = smartConvertRaw(result);
 
-    // 0.5) Auto-fix broken missing \frac syntax e.g. \sigma}2\epsilon_0 -> \frac{\sigma}{2\epsilon_0}
-    result = result.replace(/(?:^|\s)(?:\\([a-zA-Z]+)|([a-zA-Z0-9]+))\}(?:\{([^}]+)\}|([^\s}]+))/g, (m, sym, plain, denomBrace, denomPlain) => {
-        const num = sym ? `\\${sym}` : plain;
-        const den = denomBrace || denomPlain;
-        return ` \\frac{${num}}{${den}}`;
-    });
+    // 3. Step 3: Tokenize markdown (**bold**)
+    result = tokenizeMarkdown(result);
 
+    // 4. Step 4: KaTeX Equation Rendering
     const mathBlocks = [];
     const saveMath = (math, isDisplay) => {
         const id = `___MATH_BLOCK_${mathBlocks.length}___`;
@@ -190,19 +223,13 @@ function processMathOnly(text) {
         return id;
     };
 
-    // 1) Render display math: $$...$$
+    // Render display math: $$...$$
     result = result.replace(/\$\$([\s\S]*?)\$\$/g, (_match, math) => saveMath(math, true));
 
-    // 2) Render display math: \[...\]
-    result = result.replace(/\\\[([\s\S]*?)\\\]/g, (_match, math) => saveMath(math, true));
-
-    // 3) Render inline math: $...$
+    // Render inline math: $...$
     result = result.replace(/\$([\s\S]+?)\$/g, (_match, math) => saveMath(math, false));
 
-    // 4) Render inline math: \(...\)
-    result = result.replace(/\\\(([\s\S]*?)\\\)/g, (_match, math) => saveMath(math, false));
-
-    // 5) Render naked LaTeX math commands only in remaining plain text
+    // Render naked LaTeX math commands only in remaining plain text
     const nakedLatexRegex = /\\(?:dfrac|cfrac|frac|sqrt|pm|times|div|leq|geq|neq|approx|rightarrow|infty|sum|int|partial|theta|alpha|beta|gamma|lambda|omega|Delta|mu|sigma|epsilon|varepsilon|rho|phi|pi|tau|psi|eta|nu|xi|cdot|circ|text|mathrm|mathbf)\b[^{$\n]*(?:\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\})*/g;
     result = result.replace(nakedLatexRegex, (match) => saveMath(match, false));
 

@@ -74,11 +74,14 @@ export function cleanOptionText(text) {
     // Check if this option is a matching combination mapping like:
     // "a-(iv)", "A-1", "A-P", "A-(P)", "A \to P", "A -> 2", "(a)-(ii), (b)-(iv)"
     const isMatchingCombo = /^(?:\(?[A-Da-d1-4]\)?\s*(?:[-–—:]|\\to|\\rightarrow|->)\s*\(?[A-Za-z0-9ivxIVX]+\)?)/i.test(str);
-    if (!isMatchingCombo) {
-        str = str.replace(/^\s*(?:\([A-Da-d1-4]\)|\[[A-Da-d1-4]\]|[A-Da-d1-4][\.\:\-\)])\s*(?=\S)/i, '');
-    } else {
+    // Check if option is a statement combination reference e.g. "(a) and (b) only", "(1) and (2)", "(a), (b) and (c)", "(a) only", "A, B"
+    const isStatementCombo = /^(?:\(?[A-Da-d1-4]\)?\s*(?:and|&|,|or|\/|\+)|(?:\([A-Da-d1-4]\)|\[[A-Da-d1-4]\]|[A-Da-d1-4][\)\.:])\s*(?:only|both|all)\b)/i.test(str);
+
+    if (isMatchingCombo) {
         // If option starts with outer option index like "(1) A-iv, B-ii" or "(A) A-P, B-Q", strip only the outer index
         str = str.replace(/^\s*(?:\([1-4A-D]\)|\[[1-4A-D]\]|[1-4A-D][\.\:\)])\s+(?=\(?[A-Da-d1-4]\)?\s*[-–—:->\\])/i, '');
+    } else if (!isStatementCombo) {
+        str = str.replace(/^\s*(?:\([A-Da-d1-4]\)|\[[A-Da-d1-4]\]|[A-Da-d1-4][\.\:\-\)])\s*(?=\S)/i, '');
     }
 
     // Clean trailing stray unclosed braces e.g. "40.8 eV.}", "54.4 eV}", "0.49\, A}"

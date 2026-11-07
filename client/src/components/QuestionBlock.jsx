@@ -224,6 +224,7 @@ const Q = {
         lineHeight: '1.42',
         wordBreak: 'break-word',
         overflowWrap: 'break-word',
+        whiteSpace: 'pre-line',
     },
     marks: {
         fontWeight: 400,
@@ -436,11 +437,14 @@ export function cleanOptionText(text) {
     // Check if this option is a matching combination mapping like:
     // "a-(iv)", "A-1", "A-P", "A-(P)", "A \to P", "A -> 2", "(a)-(ii), (b)-(iv)", "(p)–(ii)", "p → (iv)"
     const isMatchingCombo = /^(?:\(?[A-Da-d1-4p-tP-T]\)?\s*(?:[-–—:→]|\\to|\\rightarrow|->)\s*\(?[A-Za-z0-9ivxIVX]+\)?)/i.test(str);
-    if (!isMatchingCombo) {
-        str = str.replace(/^\s*(?:\([A-Da-d1-4]\)|\[[A-Da-d1-4]\]|[A-Da-d1-4][\.\:\-\)])\s*(?=\S)/i, '');
-    } else {
+    // Check if option is a statement combination reference e.g. "(a) and (b) only", "(1) and (2)", "(a), (b) and (c)", "(a) only", "A, B"
+    const isStatementCombo = /^(?:\(?[A-Da-d1-4]\)?\s*(?:and|&|,|or|\/|\+)|(?:\([A-Da-d1-4]\)|\[[A-Da-d1-4]\]|[A-Da-d1-4][\)\.:])\s*(?:only|both|all)\b)/i.test(str);
+
+    if (isMatchingCombo) {
         // If option starts with outer option index like "(1) A-iv, B-ii" or "(1) (p)-(ii)", strip only the outer index
         str = str.replace(/^\s*(?:\([1-4A-Da-d]\)|\[[1-4A-Da-d]\]|[1-4A-Da-d][\.\:\)])\s+(?=\(?[A-Da-d1-4p-tP-T]\)?\s*[-–—:->→\\])/i, '');
+    } else if (!isStatementCombo) {
+        str = str.replace(/^\s*(?:\([A-Da-d1-4]\)|\[[A-Da-d1-4]\]|[A-Da-d1-4][\.\:\-\)])\s*(?=\S)/i, '');
     }
 
     // Clean stray closing braces from OCR / LaTeX like "40.8 eV.}", "54.4 eV}", "0.49\, A}"
@@ -453,6 +457,16 @@ export function cleanOptionText(text) {
         }
     }
     str = str.replace(/\\,\s*A\}?/g, ' \\text{ A}');
+        if (q) {
+        const topicName = String(q.topic || q.concept || '').trim();
+        if (topicName && topicName.length > 2) {
+            const firstLineBreak = str.indexOf('\n');
+            const firstLine = firstLineBreak >= 0 ? str.slice(0, firstLineBreak).trim() : str.trim();
+            if (firstLine.toLowerCase() === topicName.toLowerCase() || firstLine.toLowerCase() === ('concept: ' + topicName.toLowerCase())) {
+                str = firstLineBreak >= 0 ? str.slice(firstLineBreak + 1).trim() : '';
+            }
+        }
+    }
     return str.trim();
 }
 
@@ -493,6 +507,42 @@ export function formatOptionKey(q, optionFormat = '(1) (2) (3) (4)') {
         if (found >= 0) idx = found;
     }
     return getOptionLabelText(idx, optionFormat);
+}
+
+
+export function isOptionSelectedCorrect(optIdx, q) {
+    if (!q) return false;
+    const raw = String(q.correct_option || q.answer || '').trim();
+    if (!raw) return false;
+
+    const optLetter = String.fromCharCode(65 + optIdx);
+    const optNum = String(optIdx + 1);
+    const cleaned = raw.replace(/^Option\s*/i, '').replace(/[()\[\]]/g, '').trim().toUpperCase();
+
+    if (/^[1-4]$/.test(cleaned)) {
+        return parseInt(cleaned, 10) - 1 === optIdx;
+    }
+    if (/^[A-D]$/.test(cleaned)) {
+        return cleaned === optLetter;
+    }
+    const romanMap = { 'I': 0, 'II': 1, 'III': 2, 'IV': 3 };
+    if (romanMap[cleaned] !== undefined) {
+        return romanMap[cleaned] === optIdx;
+    }
+    if (/[A-D]/.test(cleaned)) {
+        const letters = cleaned.replace(/[^A-D]/g, '').split('');
+        if (letters.includes(optLetter)) return true;
+    }
+    if (/[1-4]/.test(cleaned)) {
+        const nums = cleaned.replace(/[^1-4]/g, '').split('');
+        if (nums.includes(optNum)) return true;
+    }
+    const opts = q.options || [];
+    if (opts[optIdx]) {
+        const str = typeof opts[optIdx] === 'object' ? (opts[optIdx].text || opts[optIdx].option || '') : String(opts[optIdx]);
+        if (str.trim().toLowerCase() === raw.toLowerCase()) return true;
+    }
+    return false;
 }
 
 export function QuestionGearPopup({
@@ -698,7 +748,7 @@ export function QuestionGearPopup({
 }
 
 
-export function cleanQuestionText(text) {
+export function cleanQuestionText(text, q = null) {
     if (!text) return '';
     let str = String(text);
     // Auto-repair corrupted OCR unit tokens e.g. 1 fracA} -> 1 A, fracHz,} -> Hz,
@@ -747,10 +797,7 @@ export function cleanQuestionText(text) {
     str = str.replace(/\s*\[\s*[A-Za-z]{1,5}\s*[-.]?\s*\d{1,5}\s*\]\s*$/i, '');
     str = str.replace(/\s*\[\s*[A-Za-z0-9_\-]{2,8}\s*\]\s*$/i, '');
 
-    // 5. Strip trailing leaked options like "\n(A) 2/3\n(B) 1/3\n(C) 1/2\n(D) 3/2"
-    str = str.replace(/(?:\r?\n|\s{2,})\(?[A-Da-d1-4]\)[\s\S]*$/i, '');
-
-    // 6. Strip trailing isolated newline numbers like "\n1" or "\n 2"
+    // 5. Strip trailing isolated newline numbers like "\n1" or "\n 2"
     str = str.replace(/(?:\r?\n)\s*\d{1,2}\s*$/i, '');
 
     return str.trim();
@@ -930,6 +977,8 @@ function BodyMCQ({
                     }
                     const optHeight = q.customDiagramSizes?.['opt_' + i] || q.customOptionDiagramHeight || '60px';
 
+                    const isAnswersMode = displayMode === '2. Questions with Answers' || displayMode === '3. Questions with Answers & Solutions';
+                    const isCorrect = isAnswersMode && isOptionSelectedCorrect(i, q);
                     return (
                         <div
                             key={i}
@@ -939,10 +988,19 @@ function BodyMCQ({
                                 alignItems: hasAnyOptionImage ? 'center' : 'baseline',
                                 textAlign: 'left',
                                 gap: '4px',
+                                ...(isCorrect ? {
+                                    backgroundColor: '#dcfce7',
+                                    color: '#15803d',
+                                    borderRadius: '4px',
+                                    padding: '1px 5px',
+                                    fontWeight: 700,
+                                } : {}),
                             }}
                         >
-                            <span style={Q.optLbl}>({getOptionLabelText(i, optionFormat, labels, classes)})</span>
-                            <span style={{ flex: 1, minWidth: 0, maxWidth: '100%', fontWeight: 400 }}>
+                            <span style={{ ...Q.optLbl, ...(isCorrect ? { color: '#15803d', fontWeight: 800 } : {}) }}>
+                                ({getOptionLabelText(i, optionFormat, labels, classes)}){isCorrect ? ' ✓' : ''}
+                            </span>
+                            <span style={{ flex: 1, minWidth: 0, maxWidth: '100%', fontWeight: isCorrect ? 700 : 400 }}>
                                 <MathRenderer
                                     inline
                                     text={optText}
@@ -1201,14 +1259,28 @@ function BodyAssertionReason({
                         alignItems: 'start'
                     }}
                 >
-                    {opts.map((opt, i) => (
-                        <div key={i} style={Q.optRow}>
-                            <span style={Q.optLbl}>({getOptionLabelText(i, optionFormat, labels, classes)})</span>
-                            <span style={{ flex: 1, minWidth: 0, maxWidth: '100%', fontWeight: 400 }}>
+                    {opts.map((opt, i) => {
+                        const isAnswersMode = displayMode === '2. Questions with Answers' || displayMode === '3. Questions with Answers & Solutions';
+                        const isCorrect = isAnswersMode && isOptionSelectedCorrect(i, q);
+                        return (
+                        <div key={i} style={{
+                            ...Q.optRow,
+                            ...(isCorrect ? {
+                                backgroundColor: '#dcfce7',
+                                color: '#15803d',
+                                borderRadius: '4px',
+                                padding: '1px 5px',
+                                fontWeight: 700,
+                            } : {})
+                        }}>
+                            <span style={{ ...Q.optLbl, ...(isCorrect ? { color: '#15803d', fontWeight: 800 } : {}) }}>
+                                ({getOptionLabelText(i, optionFormat, labels, classes)}){isCorrect ? ' ✓' : ''}
+                            </span>
+                            <span style={{ flex: 1, minWidth: 0, maxWidth: '100%', fontWeight: isCorrect ? 700 : 400 }}>
                                 <MathRenderer inline text={cleanOptionText(typeof opt === 'object' ? (opt.text || opt.option || '') : opt)} />
                             </span>
                         </div>
-                    ))}
+                    );})}
                 </div>
             )}
         </div>
@@ -1473,85 +1545,117 @@ function parseMatchFromText(q) {
 
 /** Parse statement-based questions from text */
 function parseStatementsFromText(q) {
+    if (q && q.statement1 && q.statement2) {
+        let rawQ = cleanQuestionText(q.questionText || q.question || '', q);
+        let intro = rawQ.replace(/(?:^|\r?\n)\s*@?Statement\s*[-–—]?\s*(?:\(?I|\(?1|\(?A\)?)\s*[:.\-)–—]?[\s\S]*$/i, '').trim();
+        return {
+            introText: intro,
+            statements: [
+                { label: 'Statement I:', text: cleanStatementText(q.statement1) },
+                { label: 'Statement II:', text: cleanStatementText(q.statement2) }
+            ],
+            outroText: ''
+        };
+    }
     if (Array.isArray(q.statements) && q.statements.length > 0) {
         return { 
             introText: cleanQuestionText(q.questionText || q.question || ''), 
-            statements: q.statements.map((s, idx) => ({ label: `Statement ${idx + 1}`, text: cleanStatementText(typeof s === 'object' ? (s.text || s.statement || '') : s) })),
+            statements: q.statements.map((s, idx) => ({ 
+                label: (typeof s === 'object' && s.label) ? s.label : `(${String.fromCharCode(65 + idx)})`, 
+                text: cleanStatementText(typeof s === 'object' ? (s.text || s.statement || '') : s) 
+            })),
             outroText: '' 
         };
     }
     const rawTxt = cleanQuestionText(q.questionText || q.question || '');
     if (!rawTxt) return { introText: '', statements: [], outroText: '' };
+    const bodyTxt = rawTxt.trim();
 
-    // Common outro phrases at the end of statement questions
-    const outroPattern = /(?:In the light of the above statements|Choose the correct (?:answer|option|statement)|Select the (?:correct|incorrect) (?:statement|statements|option)|Which of the (?:above )?statements? (?:is|are) (?:correct|incorrect|true|false)|How many (?:of the above )?statements? are (?:correct|incorrect|true|false))\??[\s\S]*$/i;
-    let outroText = '';
-    let bodyTxt = rawTxt;
-    const outroMatch = rawTxt.match(outroPattern);
-    if (outroMatch && outroMatch.index > 15) {
-        outroText = outroMatch[0].trim();
-        bodyTxt = rawTxt.substring(0, outroMatch.index).trim();
-    }
-
-    // Pattern A: Statement I: ... Statement II: ... or Statement 1: ... Statement 2: ...
-    const stmtRegex = /Statement\s*([I|V|X|0-9|A-D]+)\s*[:\-]?\s*([\s\S]*?)(?=Statement\s*[I|V|X|0-9|A-D]+\s*[:\-]|$)/gi;
+    // Pattern A: Statement I: ... Statement II: ... or Statement 1: ... or Statement (I): ... or Statement-I: ...
+    const stmtRegex = /(?:^|\r?\n)\s*Statement\s*[-–—]?\s*(?:\(?([IVXLCDM0-9A-D]+)\)?)\s*[:\-]?\s*([\s\S]*?)(?=(?:\r?\n\s*Statement\s*[-–—]?\s*(?:\(?[IVXLCDM0-9A-D]+\)?)\s*[:\-])|$)/gi;
     let matches = [];
     let m;
     let firstIdx = -1;
+    let lastIdx = -1;
     while ((m = stmtRegex.exec(bodyTxt)) !== null) {
         if (firstIdx === -1) firstIdx = m.index;
+        lastIdx = stmtRegex.lastIndex;
         matches.push({
             label: `Statement ${m[1]}:`,
             text: cleanStatementText(m[2])
         });
     }
     if (matches.length >= 2) {
+        let outroText = bodyTxt.substring(lastIdx).trim();
+        const lastStmt = matches[matches.length - 1];
+        const outroLineMatch = lastStmt.text.match(/(?:\r?\n)(?:In the light of|Choose the correct|Select the|Which of the|How many of|The (?:correct|incorrect) statement|From the above|Identify the)[\s\S]*$/i);
+        if (outroLineMatch) {
+            outroText = (outroLineMatch[0] + (outroText ? '\n' + outroText : '')).trim();
+            lastStmt.text = lastStmt.text.substring(0, outroLineMatch.index).trim();
+        }
         const introText = bodyTxt.substring(0, firstIdx).trim();
         return { introText, statements: matches, outroText };
     }
 
-    // Pattern B: Lettered statements: A. ... B. ... C. ... D. ... or (A) ... (B) ... (C) ... (D) ...
-    // e.g. "Consider an ideal transformer. A. It operates... B. Vs/Vp=... C. ... D. ... E. ... F. ..."
-    const letterRegex = /(?:^|\s)(?:\(([A-Ha-h])\)|([A-Ha-h])[\.:])\s+([\s\S]*?)(?=(?:\s(?:\([A-Ha-h]\)|[A-Ha-h][\.:])\s+)|$)/g;
+    // Pattern B: Lettered statements: A. ... B. ... or (A) ... (B) ... or A) ... B) ... or [A] ... [B] ...
+    const letterRegex = /(?:^|\r?\n)\s*(?:\(([A-Ha-h])\)|\[([A-Ha-h])\]|([A-Ha-h])[\.:\)])\s*([\s\S]*?)(?=(?:\r?\n\s*(?:\([A-Ha-h]\)|\[[A-Ha-h]\]|[A-Ha-h][\.:\)])\s*)|$)/g;
     let letterMatches = [];
     let lMatch;
     let firstLetterIdx = -1;
+    let lastLetterIdx = -1;
     while ((lMatch = letterRegex.exec(bodyTxt)) !== null) {
         if (firstLetterIdx === -1) firstLetterIdx = lMatch.index;
-        const letter = (lMatch[1] || lMatch[2] || '').toUpperCase();
-        const text = cleanStatementText(lMatch[3]);
-        if (text) {
+        lastLetterIdx = letterRegex.lastIndex;
+        const letter = (lMatch[1] || lMatch[2] || lMatch[3] || '').toUpperCase();
+        const t = cleanStatementText(lMatch[4]);
+        if (t) {
             letterMatches.push({
                 label: `(${letter})`,
-                text
+                text: t
             });
         }
     }
     if (letterMatches.length >= 2) {
         const isSequential = letterMatches[0].label.includes('A') && letterMatches[1].label.includes('B');
         if (isSequential) {
+            let outroText = bodyTxt.substring(lastLetterIdx).trim();
+            const lastStmt = letterMatches[letterMatches.length - 1];
+            const outroLineMatch = lastStmt.text.match(/(?:\r?\n)(?:In the light of|Choose the correct|Select the|Which of the|How many of|The (?:correct|incorrect) statement|From the above|Identify the)[\s\S]*$/i);
+            if (outroLineMatch) {
+                outroText = (outroLineMatch[0] + (outroText ? '\n' + outroText : '')).trim();
+                lastStmt.text = lastStmt.text.substring(0, outroLineMatch.index).trim();
+            }
             const introText = bodyTxt.substring(0, firstLetterIdx).trim();
             return { introText, statements: letterMatches, outroText };
         }
     }
 
-    // Pattern C: Roman numerals: (i) ... (ii) ... (iii) ... (iv) ... or I. ... II. ... III. ...
-    const romanRegex = /(?:^|\s)(?:\(([ivx]+)\)|([ivx]+)[\.:])\s+([\s\S]*?)(?=(?:\s(?:\([ivx]+\)|[ivx]+[\.:])\s+)|$)/gi;
+    // Pattern C: Roman numerals: (i) ... (ii) ... or I. ... II. ... or i) ... or [i] ...
+    const romanRegex = /(?:^|\r?\n)\s*(?:\(([ivx]+)\)|\[([ivx]+)\]|([ivx]+)[\.:\)])\s*([\s\S]*?)(?=(?:\r?\n\s*(?:\([ivx]+\)|\[[ivx]+\]|[ivx]+[\.:\)])\s*)|$)/gi;
     let romanMatches = [];
     let rMatch;
     let firstRomanIdx = -1;
+    let lastRomanIdx = -1;
     while ((rMatch = romanRegex.exec(bodyTxt)) !== null) {
         if (firstRomanIdx === -1) firstRomanIdx = rMatch.index;
-        const roman = (rMatch[1] || rMatch[2] || '').toLowerCase();
-        const text = cleanStatementText(rMatch[3]);
-        if (text) {
+        lastRomanIdx = romanRegex.lastIndex;
+        const roman = (rMatch[1] || rMatch[2] || rMatch[3] || '').toLowerCase();
+        const t = cleanStatementText(rMatch[4]);
+        if (t) {
             romanMatches.push({
                 label: `(${roman})`,
-                text
+                text: t
             });
         }
     }
     if (romanMatches.length >= 2) {
+        let outroText = bodyTxt.substring(lastRomanIdx).trim();
+        const lastStmt = romanMatches[romanMatches.length - 1];
+        const outroLineMatch = lastStmt.text.match(/(?:\r?\n)(?:In the light of|Choose the correct|Select the|Which of the|How many of|The (?:correct|incorrect) statement|From the above|Identify the)[\s\S]*$/i);
+        if (outroLineMatch) {
+            outroText = (outroLineMatch[0] + (outroText ? '\n' + outroText : '')).trim();
+            lastStmt.text = lastStmt.text.substring(0, outroLineMatch.index).trim();
+        }
         const introText = bodyTxt.substring(0, firstRomanIdx).trim();
         return { introText, statements: romanMatches, outroText };
     }
@@ -1723,14 +1827,28 @@ function BodyMatchFollowing({
                     marginTop: '4px',
                     alignItems: 'start',
                 }}>
-                    {opts.map((opt, i) => (
-                        <div key={i} style={Q.optRow}>
-                            <span style={Q.optLbl}>({getOptionLabelText(i, optionFormat, labels, classes)})</span>
-                            <span style={{ flex: 1, minWidth: 0, maxWidth: '100%', fontWeight: 400 }}>
+                    {opts.map((opt, i) => {
+                        const isAnswersMode = displayMode === '2. Questions with Answers' || displayMode === '3. Questions with Answers & Solutions';
+                        const isCorrect = isAnswersMode && isOptionSelectedCorrect(i, q);
+                        return (
+                        <div key={i} style={{
+                            ...Q.optRow,
+                            ...(isCorrect ? {
+                                backgroundColor: '#dcfce7',
+                                color: '#15803d',
+                                borderRadius: '4px',
+                                padding: '1px 5px',
+                                fontWeight: 700,
+                            } : {})
+                        }}>
+                            <span style={{ ...Q.optLbl, ...(isCorrect ? { color: '#15803d', fontWeight: 800 } : {}) }}>
+                                ({getOptionLabelText(i, optionFormat, labels, classes)}){isCorrect ? ' ✓' : ''}
+                            </span>
+                            <span style={{ flex: 1, minWidth: 0, maxWidth: '100%', fontWeight: isCorrect ? 700 : 400 }}>
                                 <MathRenderer inline text={cleanOptionText(typeof opt === 'object' ? (opt.text || opt.option || '') : opt)} />
                             </span>
                         </div>
-                    ))}
+                    );})}
                 </div>
             )}
         </>
@@ -1756,9 +1874,24 @@ function BodyStatementBased({
 }) {
     const { introText, statements: parsedStmts, outroText } = parseStatementsFromText(q);
     const statements = (Array.isArray(q.statements) && q.statements.length > 0) 
-        ? q.statements.map((s, idx) => ({ label: `Statement ${idx + 1}:`, text: typeof s === 'object' ? (s.text || '') : String(s) }))
+        ? q.statements.map((s, idx) => ({ 
+            label: (typeof s === 'object' && s.label) ? s.label : `(${String.fromCharCode(65 + idx)})`, 
+            text: typeof s === 'object' ? (s.text || s.statement || '') : String(s) 
+        }))
         : parsedStmts;
-    const opts = q.options || [];
+
+    const rawOptions = extractOptionsIfMissing(q);
+    let opts = (rawOptions && rawOptions.length >= 2) ? rawOptions : (q.options || []);
+    opts = opts.filter(opt => {
+        const raw = typeof opt === 'object' ? (opt.text || opt.optionText || opt.value || opt.option || '') : String(opt || '');
+        return raw.trim().length > 0;
+    });
+    if (opts.length < 2) {
+        const directOpts = [q.opt_a, q.opt_b, q.opt_c, q.opt_d, q.option_a, q.option_b, q.option_c, q.option_d].filter(o => o && String(o).trim().length > 0);
+        if (directOpts.length >= 2) {
+            opts = directOpts;
+        }
+    }
     const rawQText = cleanQuestionText(statements.length > 0 ? (introText || '') : (q.questionText || q.question || ''));
     const { cleanText: qText, diagramUrl: imageUrl } = extractDiagramFromText(rawQText, q.imageUrl || q.image_url);
     const labels = getQuestionOptionLabels(q, optionFormat);
@@ -1828,14 +1961,28 @@ function BodyStatementBased({
                     marginTop: '4px',
                     alignItems: 'start'
                 }}>
-                    {opts.map((opt, i) => (
-                        <div key={i} style={Q.optRow}>
-                            <span style={Q.optLbl}>({getOptionLabelText(i, optionFormat, labels, classes)})</span>
-                            <span style={{ flex: 1, minWidth: 0, maxWidth: '100%', fontWeight: 400 }}>
+                    {opts.map((opt, i) => {
+                        const isAnswersMode = displayMode === '2. Questions with Answers' || displayMode === '3. Questions with Answers & Solutions';
+                        const isCorrect = isAnswersMode && isOptionSelectedCorrect(i, q);
+                        return (
+                        <div key={i} style={{
+                            ...Q.optRow,
+                            ...(isCorrect ? {
+                                backgroundColor: '#dcfce7',
+                                color: '#15803d',
+                                borderRadius: '4px',
+                                padding: '1px 5px',
+                                fontWeight: 700,
+                            } : {})
+                        }}>
+                            <span style={{ ...Q.optLbl, ...(isCorrect ? { color: '#15803d', fontWeight: 800 } : {}) }}>
+                                ({getOptionLabelText(i, optionFormat, labels, classes)}){isCorrect ? ' ✓' : ''}
+                            </span>
+                            <span style={{ flex: 1, minWidth: 0, maxWidth: '100%', fontWeight: isCorrect ? 700 : 400 }}>
                                 <MathRenderer inline text={cleanOptionText(typeof opt === 'object' ? (opt.text || opt.option || '') : opt)} />
                             </span>
                         </div>
-                    ))}
+                    );})}
                 </div>
             )}
         </>
@@ -1852,6 +1999,41 @@ function BodyStatementBased({
  * - Renders question text, LaTeX equations, diagrams.
  * - Renders a clean standardized numerical answer blank / box.
  */
+
+function BodyTrueFalse({
+    q,
+    displayNum,
+    displayMode = '1. Questions',
+}) {
+    const rawQText = cleanQuestionText(q.questionText || q.question || '', q);
+    const qId = q._id || q.id || displayNum;
+    const isAnswersMode = displayMode === '2. Questions with Answers' || displayMode === '3. Questions with Answers & Solutions';
+    const isTrue = /^[Aa]$/.test(String(q.correct_option).trim()) || /^true$/i.test(String(q.answer).trim());
+
+    return (
+        <div style={{ width: '100%' }}>
+            <div style={{ ...Q.qTextBold, marginBottom: '4px', display: 'block' }}>
+                <MathRenderer inline text={rawQText} questionId={qId} />
+            </div>
+            {isAnswersMode && (
+                <div style={{
+                    marginTop: '4px',
+                    display: 'inline-block',
+                    padding: '2px 8px',
+                    backgroundColor: '#dcfce7',
+                    border: '1px solid #86efac',
+                    borderRadius: '4px',
+                    color: '#15803d',
+                    fontWeight: 800,
+                    fontSize: '11px',
+                }}>
+                    ✓ Answer: {isTrue ? 'True' : 'False'}
+                </div>
+            )}
+        </div>
+    );
+}
+
 function BodyNumerical({
     q,
     classes = [],
@@ -2024,6 +2206,7 @@ export default function QuestionBlock({
     const stmtData = parseStatementsFromText(q);
     const hasStatements = (Array.isArray(q.statements) && q.statements.length > 0) || (stmtData.statements && stmtData.statements.length >= 2);
     const isStatement = qType.includes('STATEMENT') || hasStatements;
+    const isTF = qType.includes('TRUE_FALSE') || qType === 'TF';
 
     const isJeeExam = (examType || q.examType || '').toUpperCase().includes('JEE');
     const isNumerical = isJeeExam && (
@@ -2036,6 +2219,9 @@ export default function QuestionBlock({
     );
 
     const renderBody = () => {
+        if (isTF) {
+            return <BodyTrueFalse q={q} displayNum={displayNum} displayMode={displayMode} />;
+        }
         if (isNumerical) {
             return (
                 <BodyNumerical
@@ -2126,8 +2312,18 @@ export default function QuestionBlock({
         const showSol = displayMode === '3. Questions with Answers & Solutions';
         if (!showAns && !showSol) return null;
 
+        const isTF = (q.type || q.q_type || '').toUpperCase().includes('TRUE_FALSE') || (q.type || q.q_type || '').toUpperCase() === 'TF';
+        const isNum = (q.type || q.q_type || '').toUpperCase().includes('NUMERICAL') || Boolean(q.num_answer);
         const ansKey = formatOptionKey(q, optionFormat);
         const solText = q.solutionText || q.solution_text || q.solution;
+
+        let ansDisplay = 'Option (' + ansKey + ')';
+        if (isTF) {
+            const isTrue = /^[Aa]$/.test(String(q.correct_option).trim()) || /^true$/i.test(String(q.answer).trim());
+            ansDisplay = isTrue ? 'True' : 'False';
+        } else if (isNum) {
+            ansDisplay = 'Value: ' + (q.num_answer || q.answer || ansKey);
+        }
 
         return (
             <div style={{ marginTop: '5px', clear: 'both' }}>
@@ -2147,7 +2343,7 @@ export default function QuestionBlock({
                         }}
                     >
                         <span>✓ Answer:</span>
-                        <span>Option ({ansKey})</span>
+                        <span>{ansDisplay}</span>
                     </div>
                 )}
                 {showSol && (
