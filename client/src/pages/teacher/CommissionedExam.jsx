@@ -113,6 +113,7 @@ export default function CommissionedExam() {
 
     // Transition Loader state
     const [stepLoading, setStepLoading] = useState(false);
+    const [isMetadataLoading, setIsMetadataLoading] = useState(false);
     const [loadingMessage, setLoadingMessage] = useState('');
     const [fetchError, setFetchError] = useState(null); // in-page error state for fetch failures
 
@@ -276,10 +277,9 @@ export default function CommissionedExam() {
     // Fetch chapters and concepts for selected subject
     const fetchMetadata = async (subj) => {
         const normSub = normalizeSubjectName(subj);
-        setStepLoading(true);
-        setLoadingMessage(`Loading ${normSub} repository...`);
+        setIsMetadataLoading(true);
         try {
-            const res = await api.get(`/api/questions/meta?subject=${encodeURIComponent(normSub)}&classes=${encodeURIComponent(selectedClass === 'Both' ? '' : selectedClass)}`);
+            const res = await api.get(`/api/questions/meta?subject=${encodeURIComponent(normSub)}&classes=${encodeURIComponent(selectedClass === 'Both' ? '' : selectedClass)}`, { timeout: 20000 });
             const chs = Array.isArray(res.data?.chapters) ? res.data.chapters : [];
             
             // Normalize concepts safely to { chapter: string, name: string } to prevent any React child object crashes
@@ -297,8 +297,7 @@ export default function CommissionedExam() {
         } catch (err) {
             console.error('Error fetching metadata:', err);
         } finally {
-            setStepLoading(false);
-            setLoadingMessage('');
+            setIsMetadataLoading(false);
         }
     };
 
@@ -1415,7 +1414,16 @@ export default function CommissionedExam() {
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 max-h-[460px] overflow-y-auto pr-2">
-                            {availableChapters
+                            {isMetadataLoading ? (
+                                <div className="col-span-full py-16 flex flex-col items-center justify-center text-slate-500 gap-3">
+                                    <Loader text={`Loading ${selectedSubject} chapters...`} />
+                                </div>
+                            ) : availableChapters.length === 0 ? (
+                                <div className="col-span-full py-16 text-center text-slate-400 font-bold">
+                                    No chapters found for ${selectedSubject}.
+                                </div>
+                            ) : (
+                                availableChapters
                                 .filter(ch => ch.toLowerCase().includes(chapterSearch.toLowerCase()))
                                 .map((ch, idx) => {
                                     const isChecked = selectedChapters.includes(ch);
@@ -1443,7 +1451,7 @@ export default function CommissionedExam() {
                                             </span>
                                         </div>
                                     );
-                                })}
+                                }))}
                         </div>
 
                         <div className="flex justify-between items-center pt-4 border-t border-slate-100">
