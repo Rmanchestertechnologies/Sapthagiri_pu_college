@@ -457,16 +457,6 @@ export function cleanOptionText(text) {
         }
     }
     str = str.replace(/\\,\s*A\}?/g, ' \\text{ A}');
-        if (q) {
-        const topicName = String(q.topic || q.concept || '').trim();
-        if (topicName && topicName.length > 2) {
-            const firstLineBreak = str.indexOf('\n');
-            const firstLine = firstLineBreak >= 0 ? str.slice(0, firstLineBreak).trim() : str.trim();
-            if (firstLine.toLowerCase() === topicName.toLowerCase() || firstLine.toLowerCase() === ('concept: ' + topicName.toLowerCase())) {
-                str = firstLineBreak >= 0 ? str.slice(firstLineBreak + 1).trim() : '';
-            }
-        }
-    }
     return str.trim();
 }
 
@@ -799,6 +789,18 @@ export function cleanQuestionText(text, q = null) {
 
     // 5. Strip trailing isolated newline numbers like "\n1" or "\n 2"
     str = str.replace(/(?:\r?\n)\s*\d{1,2}\s*$/i, '');
+
+    // 6. Clean first line if it matches topic/concept name
+    if (q) {
+        const topicName = String(q.topic || q.concept || '').trim();
+        if (topicName && topicName.length > 2) {
+            const firstLineBreak = str.indexOf('\n');
+            const firstLine = firstLineBreak >= 0 ? str.slice(0, firstLineBreak).trim() : str.trim();
+            if (firstLine.toLowerCase() === topicName.toLowerCase() || firstLine.toLowerCase() === ('concept: ' + topicName.toLowerCase())) {
+                str = firstLineBreak >= 0 ? str.slice(firstLineBreak + 1).trim() : '';
+            }
+        }
+    }
 
     return str.trim();
 }

@@ -97,7 +97,7 @@ export function smartConvertRaw(text) {
 
     // Unicode fractions
     const fracMap = { '½': '\\frac{1}{2}', '¼': '\\frac{1}{4}', '¾': '\\frac{3}{4}', '⅓': '\\frac{1}{3}', '⅔': '\\frac{2}{3}' };
-    res = res.replace(/[½¼¾⅓⅔]/g, (m) => `$${fracMap[m]}$`);
+    res = res.replace(/[½¼¾⅓⅔]/g, (m) => fracMap[m]);
 
     // Unicode superscripts & subscripts
     const superMap = { '⁰': '^0', '¹': '^1', '²': '^2', '³': '^3', '⁴': '^4', '⁵': '^5', '⁶': '^6', '⁷': '^7', '⁸': '^8', '⁹': '^9', '⁺': '^+', '⁻': '^-' };
