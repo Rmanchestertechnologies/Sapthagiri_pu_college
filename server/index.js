@@ -40,6 +40,7 @@ const omrRoutes = require('./routes/omr.js');
 dotenv.config();
 
 const app = express();
+app.set('trust proxy', 1);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SECURITY: Helmet — HTTP security headers
@@ -79,7 +80,6 @@ app.use(mongoSanitize);
 // ─────────────────────────────────────────────────────────────────────────────
 // RATE LIMITING — Global API limiter
 // ─────────────────────────────────────────────────────────────────────────────
-app.use('/api/', apiLimiter);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Static Files
@@ -120,6 +120,7 @@ app.get('/api/health', (req, res) => {
 // API Routes
 // ─────────────────────────────────────────────────────────────────────────────
 app.use('/api/auth', authRoutes);
+app.use('/api/', apiLimiter); // General rate limiting excludes auth
 app.use('/api/admin', adminRoutes);
 app.use('/api/questions', questionRoutes);
 app.use('/api/papers', paperRoutes);

@@ -27,7 +27,7 @@ const UnifiedLogin = () => {
                 navigate('/teacher/dashboard');
             }
         } catch (err) {
-            setError(err.msg || 'Invalid email or password. Please try again.');
+            setError(err.msg || err.message || 'Invalid email or password. Please try again.');
         } finally {
             setIsSubmitting(false);
         }

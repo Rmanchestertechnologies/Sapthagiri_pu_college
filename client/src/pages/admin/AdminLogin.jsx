@@ -19,7 +19,7 @@ const AdminLogin = () => {
                 setError('Not authorized as admin');
             }
         } catch (err) {
-            setError(err.msg || 'Login failed');
+            setError(err.msg || err.message || 'Login failed');
         }
     };
 
