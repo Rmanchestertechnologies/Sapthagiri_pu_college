@@ -33,11 +33,21 @@ const EXAM_PATTERNS = {
     CET: {
         id: 'CET',
         title: 'KCET (Karnataka Common Entrance Test)',
-        badge: 'Exclusively JEE & NEET Questions (0 CET Qs)',
+        badge: 'Karnataka CET',
         subjects: ['Physics', 'Chemistry', 'Mathematics', 'Biology'],
         defaultTotal: 60,
         marksPerQ: 1,
         supportsNumerical: false,
+    },
+    ASSIGNMENT: {
+        id: 'ASSIGNMENT',
+        title: 'Institutional Assignment / Practice Paper',
+        badge: 'Assignment',
+        subjects: ['Physics', 'Chemistry', 'Mathematics', 'Biology', 'All Subjects'],
+        defaultTotal: 30,
+        marksPerQ: 1,
+        supportsNumerical: true,
+        isAssignment: true,
     },
     CUSTOM: {
         id: 'CUSTOM',
@@ -303,7 +313,8 @@ export default function CommissionedExam() {
 
     // When subject is picked in Step 1, open modal to choose Auto Fetch vs Manual Fetch
     const handleSelectSubjectBlock = (sub, patternId = null) => {
-        const norm = normalizeSubjectName(sub);
+        const isAll = sub === 'All Subjects';
+        const norm = isAll ? 'Physics, Chemistry, Mathematics, Biology' : normalizeSubjectName(sub);
         if (patternId) setSelectedExamPattern(patternId);
         setSelectedSubject(norm);
         fetchMetadata(norm);
@@ -1067,7 +1078,9 @@ export default function CommissionedExam() {
 
     const currentPaperObject = useMemo(() => {
         const rawType = String(selectedExamPattern || '').toUpperCase();
-        const marksPerQ = rawType.includes('CET') ? 1 : 4;
+        const marksPerQ = settings?.marksPerQuestion !== undefined
+            ? Number(settings.marksPerQuestion)
+            : (patternConfig.marksPerQ || (rawType.includes('CET') || rawType.includes('ASSIGNMENT') ? 1 : 4));
         const totalMarks = selectedQuestions.length * marksPerQ;
         const defaultDuration = rawType.includes('NEET') ? '200 Minutes' : (rawType.includes('JEE') ? '180 Minutes' : '80 Minutes');
         const effectiveDuration = settings?.duration || (settings?.durationMinutes ? `${settings.durationMinutes} Minutes` : defaultDuration);
@@ -1077,13 +1090,14 @@ export default function CommissionedExam() {
             subject: selectedSubject || 'General',
             examType: selectedExamPattern,
             classes: selectedClass === 'Both' ? ['11', '12'] : [selectedClass],
-            questions: selectedQuestions.map((q, idx) => ({ ...q, questionNumber: idx + 1, marks: q.marks || marksPerQ })),
+            questions: selectedQuestions.map((q, idx) => ({ ...q, questionNumber: idx + 1, marks: marksPerQ })),
+            marksPerQuestion: marksPerQ,
             totalMarks: totalMarks,
             duration: effectiveDuration,
             institutionName: 'SAPTHAGIRI PU COLLEGE',
             subHeader: 'DEPARTMENT OF PRE-UNIVERSITY EDUCATION, KARNATAKA',
         };
-    }, [examTitle, selectedSubject, selectedExamPattern, selectedClass, selectedQuestions, settings?.duration, settings?.durationMinutes]);
+    }, [examTitle, selectedSubject, selectedExamPattern, selectedClass, selectedQuestions, settings?.duration, settings?.durationMinutes, settings?.marksPerQuestion, patternConfig]);
 
     const effectiveActivePaper = useMemo(() => {
         if (!setsActive || activeSet === 'P') return { ...currentPaperObject, setName: setsActive ? 'P' : '' };
@@ -1208,8 +1222,8 @@ export default function CommissionedExam() {
                         </div>
 
                         {/* Exam Pattern & Subject Cards */}
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                            {['NEET', 'JEE', 'CET'].map(patternKey => {
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                            {['NEET', 'JEE', 'CET', 'ASSIGNMENT'].map(patternKey => {
                                 const pattern = EXAM_PATTERNS[patternKey];
                                 const isSelected = selectedExamPattern === pattern.id;
                                 return (

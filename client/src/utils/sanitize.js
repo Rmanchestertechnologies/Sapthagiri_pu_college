@@ -335,7 +335,7 @@ export function parseAnswerIndices(rawAns, options = []) {
  */
 export function getResolvedAnswerLabel(q, optionFormat = null) {
     if (!q) return 'N/A';
-    const rawAns = q.answer ?? q.correct_option ?? q.correctAnswer ?? '';
+    const rawAns = q.correct_option ?? q.answer ?? q.correctAnswer ?? q.num_answer ?? '';
     const options = Array.isArray(q.options) ? q.options : [];
     const labels = getQuestionOptionLabels(q, optionFormat);
 

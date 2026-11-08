@@ -110,13 +110,19 @@ export default function A4PaperEngine({
     }, [paper, isJEEPaper]);
     const classes = useMemo(() => paper?.classes || [], [paper]);
     const totalMarks = useMemo(() => {
+        if (settings?.marksPerQuestion && !isNaN(Number(settings.marksPerQuestion))) {
+            return questions.length * Number(settings.marksPerQuestion);
+        }
+        if (paper?.marksPerQuestion && !isNaN(Number(paper.marksPerQuestion))) {
+            return questions.length * Number(paper.marksPerQuestion);
+        }
         const rawType = String(paper?.examType || paper?.exam_type || '').toUpperCase();
         if (rawType.includes('CET')) return questions.length * 1;
         if (rawType.includes('NEET') || rawType.includes('JEE')) return questions.length * 4;
         if (paper?.totalMarks && !isNaN(Number(paper.totalMarks))) return Number(paper.totalMarks);
         if (paper?.pattern?.length) return paper.pattern.reduce((s, sec) => s + (sec.marks || 0), 0);
         return calcTotal(questions, classes, rawType);
-    }, [paper, questions, classes]);
+    }, [paper, questions, classes, settings?.marksPerQuestion]);
 
     const isAssignmentPaper = isAssignment || paper?.category === 'assignment' || (paper?.title && /assignment/i.test(paper.title));
     const showCover = !isAssignmentPaper && settings.showCoverPage === true;

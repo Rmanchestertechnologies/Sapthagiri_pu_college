@@ -3,6 +3,7 @@ import api from '../api';
 import MathRenderer from './MathRenderer';
 import { getResolvedAnswerLabel } from '../utils/sanitize';
 import { generatePaperSet } from '../utils/pqrsGenerator';
+import * as XLSX from 'xlsx';
 
 export default function A4AnswerKey({
     paper = {},
@@ -115,18 +116,73 @@ export default function A4AnswerKey({
         }, 150);
     };
 
-    // Determine if question has a multi-line or descriptive answer
-    const isDescriptiveAnswer = (answerText) => {
-        if (!answerText) return false;
-        const str = String(answerText).trim();
-        return str.length > 5 || str.includes('\n') || str.includes(' ');
-    };
+    // Professional Excel (.xlsx) Answer Key Export
+    const handleDownloadExcel = () => {
+        try {
+            const marksPerQ = paper?.marksPerQuestion || 4;
+            const rows = resolvedQuestions.map((q, idx) => {
+                const currentQNo = q.setQNo || (startQNo + idx);
+                const answerLabel = getResolvedAnswerLabel(q);
+                return {
+                    'Question No': currentQNo,
+                    'Correct Option': answerLabel,
+                    'Subject': q.subject || paper?.subject || '',
+                    'Chapter': q.chapter || '',
+                    'Concept': q.concept || '',
+                    'Question Type': q.type || q.q_type || 'MCQ',
+                    'Marks': q.marks || marksPerQ,
+                };
+            });
 
-    const descriptiveQuestions = useMemo(() => {
-        return resolvedQuestions
-            .map((q, idx) => ({ q, idx, qNo: q.setQNo || (startQNo + idx) }))
-            .filter(item => isDescriptiveAnswer(item.q.answer || getResolvedAnswerLabel(item.q)));
-    }, [resolvedQuestions, startQNo]);
+            const wb = XLSX.utils.book_new();
+            const ws = XLSX.utils.json_to_sheet(rows);
+
+            ws['!cols'] = [
+                { wch: 14 },
+                { wch: 16 },
+                { wch: 18 },
+                { wch: 25 },
+                { wch: 25 },
+                { wch: 18 },
+                { wch: 10 },
+            ];
+
+            const sheetName = `Set_${activeSet}_Answer_Key`;
+            XLSX.utils.book_append_sheet(wb, ws, sheetName);
+
+            // Multi-set cross-reference sheet
+            const allSetsData = resolvedQuestions.map((q, idx) => {
+                const qNo = startQNo + idx;
+                const row = { 'Question No': qNo };
+                ['P', 'Q', 'R', 'S'].forEach(s => {
+                    const setPaper = generatePaperSet(paper, s);
+                    const setQ = setPaper.questions?.[idx];
+                    row[`Set ${s}`] = setQ ? getResolvedAnswerLabel(setQ) : getResolvedAnswerLabel(q);
+                });
+                row['Subject'] = q.subject || paper?.subject || '';
+                row['Chapter'] = q.chapter || '';
+                return row;
+            });
+
+            const wsAll = XLSX.utils.json_to_sheet(allSetsData);
+            wsAll['!cols'] = [
+                { wch: 14 },
+                { wch: 10 },
+                { wch: 10 },
+                { wch: 10 },
+                { wch: 10 },
+                { wch: 18 },
+                { wch: 25 },
+            ];
+            XLSX.utils.book_append_sheet(wb, wsAll, 'All_Sets_PQRS');
+
+            const safeTitle = (paperTitle || 'Answer_Key').replace(/[^a-zA-Z0-9_-]/g, '_');
+            XLSX.writeFile(wb, `${safeTitle}_Set_${activeSet}_Answer_Key.xlsx`);
+        } catch (err) {
+            console.error('Error generating Excel file:', err);
+            alert('Failed to generate Excel file: ' + err.message);
+        }
+    };
 
     return (
         <div className="a4-answer-key-modal fixed inset-0 bg-black/60 flex items-center justify-center z-50 backdrop-blur-sm p-4 overflow-y-auto">
@@ -204,6 +260,13 @@ export default function A4AnswerKey({
                             title="Open print dialog and choose Save as PDF"
                         >
                             <span>📥</span> PDF
+                        </button>
+                        <button
+                            onClick={handleDownloadExcel}
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl font-black text-xs uppercase tracking-wider transition shadow cursor-pointer flex items-center gap-1.5"
+                            title="Download formatted Excel (.xlsx) answer key"
+                        >
+                            <span>📊</span> Excel
                         </button>
                         {onClose && (
                             <button
@@ -300,6 +363,7 @@ export default function A4AnswerKey({
                                         <span>SET: <strong>{activeSet}</strong></span>
                                         {paper.subject && <span>Subject: <strong>{paper.subject}</strong></span>}
                                         <span>Total Qs: <strong>{resolvedQuestions.length}</strong></span>
+                                        <span>Max Marks: <strong>{paper.totalMarks || (resolvedQuestions.length * (paper.marksPerQuestion || 4))}</strong></span>
                                     </div>
                                     <div className="mt-1 text-center">
                                         <span className="inline-block bg-slate-900 text-amber-400 font-bold text-[11px] uppercase tracking-widest px-4 py-0.5 rounded-full">
@@ -320,7 +384,8 @@ export default function A4AnswerKey({
                                     {resolvedQuestions.map((q, idx) => {
                                         const currentQNo = q.setQNo || (startQNo + idx);
                                         const answerLabel = getResolvedAnswerLabel(q);
-                                        const isLong = isDescriptiveAnswer(q.answer || answerLabel);
+                                        const hasOptions = Array.isArray(q.options) && q.options.length > 0;
+                                        const displayVal = hasOptions ? answerLabel : (q.num_answer || answerLabel || q.answer);
 
                                         return (
                                             <div
@@ -337,12 +402,8 @@ export default function A4AnswerKey({
                                                         Q.{currentQNo}
                                                     </span>
                                                     {!isEditing && (
-                                                        <span className={`font-black px-2.5 py-0.5 rounded text-xs text-center shadow-2xs ${
-                                                            isLong
-                                                                ? 'bg-amber-100 text-amber-900 border border-amber-300'
-                                                                : 'bg-navy text-amber-400 min-w-[26px]'
-                                                        }`}>
-                                                            {isLong ? 'See Below' : answerLabel}
+                                                        <span className="font-black px-2.5 py-0.5 rounded text-xs text-center shadow-2xs bg-navy text-amber-400 min-w-[28px]">
+                                                            {displayVal}
                                                         </span>
                                                     )}
                                                 </div>
@@ -377,8 +438,7 @@ export default function A4AnswerKey({
                                                         />
                                                     </div>
                                                 ) : (
-                                                    // In view mode, show small preview if it's a short text answer
-                                                    !isLong && q.answer && q.answer !== answerLabel && (
+                                                    !hasOptions && q.answer && q.answer !== displayVal && (
                                                         <div className="text-[10px] text-slate-500 truncate mt-0.5">
                                                             {String(q.answer).slice(0, 20)}
                                                         </div>
@@ -388,46 +448,6 @@ export default function A4AnswerKey({
                                         );
                                     })}
                                 </div>
-
-                                {/* ── Descriptive / 1-Line / 2-Line Formatted Answers Section (If Any) ── */}
-                                {descriptiveQuestions.length > 0 && (
-                                    <div className="mt-8 pt-6 border-t-2 border-slate-300">
-                                        <div className="flex items-center gap-2 mb-3">
-                                            <span className="bg-navy text-gold text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full">
-                                                Section B
-                                            </span>
-                                            <h4 className="text-xs font-black text-navy uppercase tracking-wider">
-                                                Descriptive & Numerical Answer Explanations
-                                            </h4>
-                                        </div>
-
-                                        <div className="space-y-3">
-                                            {descriptiveQuestions.map(({ q, qNo, idx }) => (
-                                                <div 
-                                                    key={idx}
-                                                    className="p-3 rounded-xl border border-slate-200 bg-slate-50/80 flex flex-col sm:flex-row sm:items-start gap-3"
-                                                    style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}
-                                                >
-                                                    <div className="flex items-center gap-2 sm:min-w-[70px]">
-                                                        <span className="font-black text-navy text-xs">Q.{qNo}:</span>
-                                                        <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-1.5 py-0.5 rounded">
-                                                            Answer
-                                                        </span>
-                                                    </div>
-                                                    <div className="flex-1 text-xs text-slate-800 leading-relaxed font-medium">
-                                                        <MathRenderer inline text={String(q.answer || getResolvedAnswerLabel(q))} />
-                                                        {q.solution && (
-                                                            <div className="text-[11px] text-slate-500 mt-1 pt-1 border-t border-slate-200">
-                                                                <span className="font-bold text-slate-700">Note: </span>
-                                                                <MathRenderer inline text={q.solution} />
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
 
                                 {/* ── Document Footer ── */}
                                 <div className="mt-12 pt-4 border-t border-slate-300 text-center text-[11px] text-slate-500 flex justify-between items-center">

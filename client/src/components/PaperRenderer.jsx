@@ -62,6 +62,7 @@ export const DEFAULT_SETTINGS = {
     optionFormat: '(1) (2) (3) (4)', // 3 styles from Image 3
     optionsLayout: 'line', // options 1, 2, 3, 4 in a line
     durationMinutes: 200,
+    marksPerQuestion: 4,
     duration: '200 Minutes',
     startQNo: 1,
     optionSpacing: 'Default', // No Spacing, Default, 5, 10, 15 from Image 5
@@ -320,6 +321,20 @@ export function SettingsPanel({
                             setSettings(s => ({ ...s, durationMinutes: val, duration: `${val} Minutes` }));
                         }}
                         placeholder="Duration in mins (e.g. 180, 200)"
+                    />
+                </SettingField>
+
+                <SettingField label="Marks Per Question *">
+                    <input
+                        type="number"
+                        min="1"
+                        style={inputStyle}
+                        value={settings.marksPerQuestion !== undefined ? settings.marksPerQuestion : (paper?.marksPerQuestion || 4)}
+                        onChange={e => {
+                            const val = Math.max(1, parseInt(e.target.value, 10) || 1);
+                            setSettings(s => ({ ...s, marksPerQuestion: val }));
+                        }}
+                        placeholder="e.g. 1, 2, 4"
                     />
                 </SettingField>
 
@@ -624,14 +639,12 @@ export function PaperHeader({
                 </div>
             )}
 
-            {!isAssignment && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11.5px', color: '#111', fontWeight: 700, borderTop: '1px solid #777', paddingTop: '4px', marginTop: '4px' }}>
-                    <span>Subject: <strong>{displaySubject}</strong></span>
-                    <span>Class: <strong>{displayClass}</strong></span>
-                    <span>Time: <strong>{displayDuration}</strong></span>
-                    <span>Max Marks: <strong>{displayMarks}</strong></span>
-                </div>
-            )}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11.5px', color: '#111', fontWeight: 700, borderTop: '1px solid #777', paddingTop: '4px', marginTop: '4px' }}>
+                <span>Subject: <strong>{displaySubject}</strong></span>
+                <span>Class: <strong>{displayClass}</strong></span>
+                <span>Time: <strong>{displayDuration}</strong></span>
+                <span>Max Marks: <strong>{displayMarks}</strong></span>
+            </div>
 
             {!isAssignment && instructions.length > 0 && (
                 <div style={{ marginTop: '6px', padding: '5px 8px', border: '1px solid #777', borderRadius: '4px', background: '#fafafa', fontSize: '10px', lineHeight: '1.4', color: '#111' }}>
