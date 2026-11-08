@@ -34,6 +34,57 @@ const DashboardHome = () => {
         'Maths': '/mathslogo.jpeg'
     };
 
+    const departmentMeta = {
+        'Physics': {
+            icon: '⚛️',
+            subtitle: 'Physical Sciences',
+            badgeBg: 'bg-blue-50 text-blue-700 border-blue-200',
+            iconBg: 'bg-blue-600 text-white',
+            borderAccent: 'border-blue-100 hover:border-blue-300',
+            headerBg: 'bg-gradient-to-r from-blue-50/80 via-indigo-50/30 to-white'
+        },
+        'Chemistry': {
+            icon: '🧪',
+            subtitle: 'Chemical Sciences',
+            badgeBg: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+            iconBg: 'bg-emerald-600 text-white',
+            borderAccent: 'border-emerald-100 hover:border-emerald-300',
+            headerBg: 'bg-gradient-to-r from-emerald-50/80 via-teal-50/30 to-white'
+        },
+        'Mathematics': {
+            icon: '📐',
+            subtitle: 'Mathematical Sciences',
+            badgeBg: 'bg-indigo-50 text-indigo-700 border-indigo-200',
+            iconBg: 'bg-indigo-600 text-white',
+            borderAccent: 'border-indigo-100 hover:border-indigo-300',
+            headerBg: 'bg-gradient-to-r from-indigo-50/80 via-purple-50/30 to-white'
+        },
+        'Biology': {
+            icon: '🧬',
+            subtitle: 'Life Sciences (General)',
+            badgeBg: 'bg-teal-50 text-teal-700 border-teal-200',
+            iconBg: 'bg-teal-600 text-white',
+            borderAccent: 'border-teal-100 hover:border-teal-300',
+            headerBg: 'bg-gradient-to-r from-teal-50/80 via-emerald-50/30 to-white'
+        },
+        'Botany': {
+            icon: '🌿',
+            subtitle: 'Plant Sciences',
+            badgeBg: 'bg-lime-50 text-lime-800 border-lime-200',
+            iconBg: 'bg-lime-600 text-white',
+            borderAccent: 'border-lime-100 hover:border-lime-300',
+            headerBg: 'bg-gradient-to-r from-lime-50/80 via-emerald-50/30 to-white'
+        },
+        'Zoology': {
+            icon: '🦁',
+            subtitle: 'Animal Sciences',
+            badgeBg: 'bg-amber-50 text-amber-800 border-amber-200',
+            iconBg: 'bg-amber-600 text-white',
+            borderAccent: 'border-amber-100 hover:border-amber-300',
+            headerBg: 'bg-gradient-to-r from-amber-50/80 via-orange-50/30 to-white'
+        }
+    };
+
     const [commissionedExams, setCommissionedExams] = useState([]);
     const [allTeachers, setAllTeachers] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -78,6 +129,8 @@ const DashboardHome = () => {
     // Expandable Box States (One box when clicked the four will open)
     const [isExamSubjectsOpen, setIsExamSubjectsOpen] = useState(false);
     const [isSubjectDirectoryOpen, setIsSubjectDirectoryOpen] = useState(false);
+    const [selectedSubjectTab, setSelectedSubjectTab] = useState('ALL');
+    const [subjectDirectorySearch, setSubjectDirectorySearch] = useState('');
     const [allPapers, setAllPapers] = useState([]);
 
     const fetchData = async () => {
@@ -658,7 +711,7 @@ const DashboardHome = () => {
                 )}
             </div>
 
-            {/* ── SECTION 3: PCMB SUBJECT DIRECTORY (ONE BOX - CLICK TO OPEN 4 SUBJECTS) ── */}
+            {/* ── SECTION 3: PCMB SUBJECT DIRECTORY (ORGANIZED DEPARTMENT REPOSITORY) ── */}
             <div className="bg-white rounded-3xl shadow-sm border border-slate-200/80 overflow-hidden transition-all duration-300">
                 {/* Master Box Header (Click to Open/Close) */}
                 <div
@@ -675,18 +728,21 @@ const DashboardHome = () => {
                                     PCMB Subject Directory
                                 </h3>
                                 <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200">
-                                    4 Core Departments
+                                    6 Academic Departments
+                                </span>
+                                <span className="text-[10px] font-bold text-navy bg-slate-100 px-2.5 py-0.5 rounded-full border border-slate-200">
+                                    {allPapers.length} Total Papers
                                 </span>
                             </div>
                             <p className="text-xs text-slate-400 font-medium mt-0.5">
-                                Tap to open department repositories: Physics • Chemistry • Mathematics • Biology
+                                Browse institutional question paper repositories: Physics • Chemistry • Mathematics • Biology • Botany • Zoology
                             </p>
                         </div>
                     </div>
 
                     <div className="flex items-center gap-4 self-end md:self-auto">
                         <span className="text-xs font-bold text-slate-500 hidden sm:inline-block">
-                            {isSubjectDirectoryOpen ? 'Hide 4 Departments' : 'Open 4 Departments'}
+                            {isSubjectDirectoryOpen ? 'Hide Department Repositories' : 'View Department Repositories'}
                         </span>
                         <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-base transition-all duration-300 ${
                             isSubjectDirectoryOpen ? 'bg-navy text-gold rotate-180 shadow-md' : 'bg-slate-100 text-navy hover:bg-slate-200'
@@ -696,116 +752,230 @@ const DashboardHome = () => {
                     </div>
                 </div>
 
-                {/* WHEN CLICKED: THE 4 SUBJECT CARDS OPEN WITH TEACHER PAPERS */}
+                {/* WHEN CLICKED: ORGANIZED 3-COLUMN DEPARTMENT GRID WITH FILTER TABS */}
                 {isSubjectDirectoryOpen && (
-                    <div className="p-6 pt-0 border-t border-slate-100 animate-fade-in bg-slate-50/30">
-                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4 pt-4">
-                            {subjects.map(sub => {
+                    <div className="p-6 pt-0 border-t border-slate-100 animate-fade-in bg-slate-50/40">
+                        {/* Control Bar: Subject Filter Tabs & Quick Search */}
+                        <div className="pt-4 pb-2 flex flex-col lg:flex-row lg:items-center justify-between gap-3 border-b border-slate-200/70">
+                            {/* Filter Tabs */}
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                                <button
+                                    type="button"
+                                    onClick={() => setSelectedSubjectTab('ALL')}
+                                    className={`px-3.5 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition cursor-pointer flex items-center gap-1.5 ${
+                                        selectedSubjectTab === 'ALL'
+                                            ? 'bg-navy text-gold shadow-sm'
+                                            : 'bg-white hover:bg-slate-100 text-slate-600 border border-slate-200'
+                                    }`}
+                                >
+                                    <span>🌐</span> All Departments (6)
+                                </button>
+                                {subjects.map(sub => {
+                                    const meta = departmentMeta[sub] || {};
+                                    const subCount = allPapers.filter(p => {
+                                        const s = String(p.subject || '').toLowerCase().trim();
+                                        const cur = sub.toLowerCase().trim();
+                                        if (cur === 'botany') return s.includes('botan');
+                                        if (cur === 'zoology') return s.includes('zool');
+                                        if (cur === 'biology') return (s === 'biology' || s === 'bio') && !s.includes('botan') && !s.includes('zool');
+                                        if (cur === 'mathematics') return s.includes('math');
+                                        if (cur === 'physics') return s.includes('physic');
+                                        if (cur === 'chemistry') return s.includes('chem');
+                                        return s.includes(cur) || cur.includes(s);
+                                    }).length;
+                                    const isActive = selectedSubjectTab === sub;
+                                    return (
+                                        <button
+                                            key={sub}
+                                            type="button"
+                                            onClick={() => setSelectedSubjectTab(sub)}
+                                            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                                                isActive
+                                                    ? 'bg-navy text-gold shadow-sm font-black'
+                                                    : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
+                                            }`}
+                                        >
+                                            <span>{meta.icon || '📚'}</span>
+                                            <span>{sub}</span>
+                                            <span className={`text-[10px] font-black px-1.5 py-0.2 rounded-full ${
+                                                isActive ? 'bg-gold/30 text-gold' : 'bg-slate-100 text-slate-600'
+                                            }`}>
+                                                {subCount}
+                                            </span>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+
+                            {/* Search Filter Box */}
+                            <div className="relative min-w-[240px]">
+                                <input
+                                    type="text"
+                                    value={subjectDirectorySearch}
+                                    onChange={(e) => setSubjectDirectorySearch(e.target.value)}
+                                    placeholder="Search papers by title or exam..."
+                                    className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-1.5 text-xs text-navy placeholder:text-slate-400 focus:outline-none focus:border-navy focus:ring-1 focus:ring-navy"
+                                />
+                                {subjectDirectorySearch && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setSubjectDirectorySearch('')}
+                                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 hover:text-slate-600"
+                                    >
+                                        ✕
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Responsive Organized Grid: 3 columns on large screens */}
+                        <div className={`pt-4 ${
+                            selectedSubjectTab !== 'ALL'
+                                ? 'max-w-4xl mx-auto'
+                                : 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'
+                        }`}>
+                            {(selectedSubjectTab === 'ALL' ? subjects : [selectedSubjectTab]).map(sub => {
+                                const meta = departmentMeta[sub] || {
+                                    icon: '📚',
+                                    subtitle: 'Department Repository',
+                                    badgeBg: 'bg-slate-50 text-slate-700 border-slate-200',
+                                    iconBg: 'bg-navy text-gold',
+                                    headerBg: 'bg-slate-50',
+                                    borderAccent: 'border-slate-200'
+                                };
                                 const subPapers = allPapers.filter(p => {
                                     const s = String(p.subject || '').toLowerCase().trim();
                                     const cur = sub.toLowerCase().trim();
-                                    if (cur === 'botany') {
-                                        return s.includes('botan');
-                                    }
-                                    if (cur === 'zoology') {
-                                        return s.includes('zool');
-                                    }
-                                    if (cur === 'biology') {
-                                        return (s === 'biology' || s === 'bio') && !s.includes('botan') && !s.includes('zool');
-                                    }
-                                    if (cur === 'mathematics') {
-                                        return s.includes('math');
-                                    }
-                                    if (cur === 'physics') {
-                                        return s.includes('physic');
-                                    }
-                                    if (cur === 'chemistry') {
-                                        return s.includes('chem');
-                                    }
+                                    if (cur === 'botany') return s.includes('botan');
+                                    if (cur === 'zoology') return s.includes('zool');
+                                    if (cur === 'biology') return (s === 'biology' || s === 'bio') && !s.includes('botan') && !s.includes('zool');
+                                    if (cur === 'mathematics') return s.includes('math');
+                                    if (cur === 'physics') return s.includes('physic');
+                                    if (cur === 'chemistry') return s.includes('chem');
                                     return s.includes(cur) || cur.includes(s);
                                 });
+
+                                const filteredPapers = subPapers.filter(p => {
+                                    if (!subjectDirectorySearch.trim()) return true;
+                                    const q = subjectDirectorySearch.toLowerCase();
+                                    return (
+                                        String(p.title || '').toLowerCase().includes(q) ||
+                                        String(p.examType || '').toLowerCase().includes(q) ||
+                                        (Array.isArray(p.classes) && p.classes.some(c => String(c).includes(q)))
+                                    );
+                                });
+
                                 return (
                                     <div
                                         key={sub}
-                                        className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 flex flex-col justify-between hover:border-navy/50 hover:shadow-md transition duration-200"
+                                        className={`bg-white rounded-2xl shadow-sm border border-slate-200/90 flex flex-col justify-between hover:border-navy/40 hover:shadow-md transition duration-200 overflow-hidden ${meta.borderAccent || ''}`}
                                     >
-                                        {/* Header */}
+                                        {/* Department Header */}
                                         <div>
-                                            <div className="flex items-center justify-between gap-3 mb-4 pb-3 border-b border-slate-100">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="w-12 h-12 rounded-xl flex items-center justify-center overflow-hidden bg-slate-50 p-1.5 border border-slate-100 shrink-0 shadow-inner">
-                                                        <img
-                                                            src={logoMap[sub] || '/physicslogo.jpeg'}
-                                                            alt={sub}
-                                                            className="w-full h-full object-contain"
-                                                            onError={(e) => {
-                                                                e.target.onerror = null;
-                                                                e.target.parentNode.innerHTML = `<div class="bg-gray-50 text-gold w-full h-full flex items-center justify-center text-lg font-black">${sub.charAt(0)}</div>`;
-                                                            }}
-                                                        />
+                                            <div className={`p-4 border-b border-slate-100 ${meta.headerBg}`}>
+                                                <div className="flex items-center justify-between gap-3">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className={`w-11 h-11 rounded-xl flex items-center justify-center text-xl shadow-xs shrink-0 ${meta.iconBg}`}>
+                                                            {meta.icon}
+                                                        </div>
+                                                        <div>
+                                                            <h4 className="font-black text-navy text-base tracking-tight leading-none">{sub}</h4>
+                                                            <p className="text-[11px] font-semibold text-slate-500 mt-0.5">{meta.subtitle}</p>
+                                                        </div>
                                                     </div>
-                                                    <div>
-                                                        <h4 className="font-black text-navy text-base tracking-tight">{sub}</h4>
-                                                        <span className="text-[11px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
-                                                            {subPapers.length} {subPapers.length === 1 ? 'Paper' : 'Papers'} Created
-                                                        </span>
-                                                    </div>
+                                                    <span className={`text-[11px] font-black px-2.5 py-1 rounded-full border shadow-2xs ${meta.badgeBg}`}>
+                                                        {subPapers.length} {subPapers.length === 1 ? 'Paper' : 'Papers'}
+                                                    </span>
                                                 </div>
                                             </div>
 
-                                            {/* Papers List */}
-                                            <div className="space-y-2 mb-4 max-h-[260px] overflow-y-auto pr-1">
-                                                {subPapers.slice(0, 5).map(p => {
-                                                    const teacherName = 'Sapthagiri PU College';
+                                            {/* Department Papers List */}
+                                            <div className="p-4 space-y-2.5 max-h-[340px] overflow-y-auto">
+                                                {filteredPapers.slice(0, 6).map(p => {
                                                     const qCount = Array.isArray(p.questions) ? p.questions.length : 0;
+                                                    const examBadgeColor = 
+                                                        p.examType === 'NEET' ? 'bg-teal-50 text-teal-700 border-teal-200' :
+                                                        p.examType === 'JEE' ? 'bg-indigo-50 text-indigo-700 border-indigo-200' :
+                                                        p.examType === 'ASSIGNMENT' ? 'bg-purple-50 text-purple-700 border-purple-200' :
+                                                        'bg-amber-50 text-amber-700 border-amber-200';
                                                     return (
                                                         <div
                                                             key={p._id || p.id}
-                                                            className="p-2.5 rounded-xl bg-slate-50 hover:bg-amber-50/50 border border-slate-100 hover:border-amber-200 transition text-left"
+                                                            className="p-3 rounded-xl bg-slate-50/80 hover:bg-amber-50/30 border border-slate-200/80 hover:border-amber-200 transition"
                                                         >
-                                                            <div className="font-bold text-xs text-navy truncate" title={p.title || 'Assessment Paper'}>
-                                                                {p.title || `${sub} Question Paper`}
+                                                            <div className="flex items-start justify-between gap-2">
+                                                                <h5
+                                                                    className="font-bold text-xs text-navy leading-snug line-clamp-2"
+                                                                    title={p.title || `${sub} Question Paper`}
+                                                                >
+                                                                    {p.title || `${sub} Question Paper`}
+                                                                </h5>
+                                                                {p.examType && (
+                                                                    <span className={`text-[9px] font-black px-1.5 py-0.5 rounded border uppercase shrink-0 ${examBadgeColor}`}>
+                                                                        {p.examType}
+                                                                    </span>
+                                                                )}
                                                             </div>
-                                                            <div className="flex items-center justify-between text-[10px] text-slate-500 mt-1 font-medium">
-                                                                <span className="truncate max-w-[140px] font-semibold text-slate-600">🏛️ Sapthagiri • {p.classes?.join(', ') || 'Class 12'}</span>
-                                                                <span>📝 {qCount} Qs</span>
+                                                            <div className="flex items-center justify-between text-[11px] text-slate-500 mt-2 font-medium">
+                                                                <span className="font-semibold text-slate-600">
+                                                                    🏛️ {p.classes?.length ? `Class ${p.classes.join(', ')}` : 'Class 12'}
+                                                                </span>
+                                                                <span className="font-bold text-navy bg-white px-2 py-0.5 rounded-md border border-slate-200/80 shadow-2xs">
+                                                                    📝 {qCount} Qs
+                                                                </span>
                                                             </div>
-                                                            <div className="flex items-center gap-1.5 mt-2 pt-1.5 border-t border-slate-200/60">
+                                                            <div className="flex items-center gap-2 mt-2.5 pt-2 border-t border-slate-200/60">
                                                                 <button
                                                                     type="button"
                                                                     onClick={() => navigate(`/admin/dashboard/preview/${p._id || p.id}`)}
-                                                                    className="flex-1 bg-navy text-gold hover:bg-navy/90 py-1 px-2 rounded-lg text-[10px] font-black uppercase tracking-wider transition text-center cursor-pointer shadow-xs"
+                                                                    className="flex-1 bg-navy text-gold hover:bg-navy/90 py-1.5 px-2.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition text-center cursor-pointer shadow-xs flex items-center justify-center gap-1"
                                                                 >
-                                                                    👁 View Paper
+                                                                    <span>👁</span> View Paper
                                                                 </button>
                                                                 <button
                                                                     type="button"
-                                                                    onClick={() => setSelectedAnalysisPaper(p)}
-                                                                    className="bg-gold/20 hover:bg-gold text-navy py-1 px-2 rounded-lg text-[10px] font-black uppercase tracking-wider transition cursor-pointer"
+                                                                    onClick={() => setSelectedAnalysisExam({
+                                                                        title: p.title || `${sub} Question Paper`,
+                                                                        allQuestions: p.questions || [],
+                                                                        examType: p.examType || 'CET'
+                                                                    })}
+                                                                    className="bg-amber-50 hover:bg-amber-100 text-navy border border-amber-200 py-1.5 px-2.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition cursor-pointer flex items-center gap-1"
                                                                     title="View Paper Analysis"
                                                                 >
-                                                                    📊
+                                                                    <span>📊</span> Stats
                                                                 </button>
                                                             </div>
                                                         </div>
                                                     );
                                                 })}
 
-                                                {subPapers.length === 0 && (
+                                                {filteredPapers.length > 6 && (
+                                                    <div className="text-center pt-1">
+                                                        <span className="text-[11px] font-bold text-slate-400">
+                                                            + {filteredPapers.length - 6} more papers in department archive
+                                                        </span>
+                                                    </div>
+                                                )}
+
+                                                {filteredPapers.length === 0 && (
                                                     <div className="py-8 text-center text-slate-400 text-xs font-semibold border border-dashed border-slate-200 rounded-xl bg-slate-50/50">
-                                                        No papers submitted yet
+                                                        {subjectDirectorySearch.trim()
+                                                            ? `No papers match "${subjectDirectorySearch}" in ${sub}`
+                                                            : `No papers submitted yet for ${sub}`}
                                                     </div>
                                                 )}
                                             </div>
                                         </div>
 
                                         {/* Footer Link */}
-                                        <Link
-                                            to={`/admin/dashboard/subject/${sub}`}
-                                            className="mt-2 block text-center py-2 px-3 rounded-xl bg-slate-100 hover:bg-navy hover:text-gold text-navy text-xs font-black uppercase tracking-wider transition font-mono"
-                                        >
-                                            Open Department Archive →
-                                        </Link>
+                                        <div className="p-4 pt-0">
+                                            <Link
+                                                to={`/admin/dashboard/subject/${sub}`}
+                                                className="w-full block text-center py-2 px-3 rounded-xl bg-slate-100 hover:bg-navy hover:text-gold text-navy text-xs font-black uppercase tracking-wider transition font-mono border border-slate-200/60"
+                                            >
+                                                Open {sub} Archive ({subPapers.length}) →
+                                            </Link>
+                                        </div>
                                     </div>
                                 );
                             })}

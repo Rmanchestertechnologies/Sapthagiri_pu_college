@@ -149,6 +149,7 @@ export default function CommissionedExam() {
     // Step 4: Questions from each chapter how many questions (UNLIMITED CAPACITY)
     // chapterQuotas: { [chapterName]: number }
     const [chapterQuotas, setChapterQuotas] = useState({});
+    const [targetQuestionCount, setTargetQuestionCount] = useState(30);
 
     // Step 5: From each type how many questions (Defaults strictly to 100% MCQs for NEET & CET)
     // typeAllocations: { mcq: number, ar: number, match: number, diag: number, stmt: number, numerical: number }
@@ -228,6 +229,12 @@ export default function CommissionedExam() {
     const [selectedDraftIdsToMerge, setSelectedDraftIdsToMerge] = useState([]);
 
     const patternConfig = EXAM_PATTERNS[selectedExamPattern] || EXAM_PATTERNS.NEET;
+
+    useEffect(() => {
+        if (patternConfig?.defaultTotal) {
+            setTargetQuestionCount(patternConfig.defaultTotal);
+        }
+    }, [selectedExamPattern]);
 
     // Sum of questions from all chapters (UNLIMITED CAPACITY)
     const totalChapterQuestions = useMemo(() => {
@@ -328,10 +335,10 @@ export default function CommissionedExam() {
         setCurrentStep(2); // Jump to Chapter Selection (Step 2)
     };
 
-    // Step 4: Auto-distribute evenly across selected chapters (defaults to 10 per chapter or custom)
+    // Step 4: Auto-distribute evenly across selected chapters (custom target or pattern default)
     const handleDistributeEvenly = (targetTotal = null) => {
         if (selectedChapters.length === 0) return;
-        const total = targetTotal || (patternConfig.defaultTotal || 50);
+        const total = targetTotal || targetQuestionCount || (patternConfig.defaultTotal || 30);
         const count = selectedChapters.length;
         const base = Math.floor(total / count);
         const remainder = total % count;
@@ -1621,27 +1628,27 @@ export default function CommissionedExam() {
                                 </p>
                             </div>
 
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2.5 bg-slate-50 border border-slate-200 rounded-2xl p-2 px-3 shadow-2xs">
+                                <label className="text-xs font-black text-navy whitespace-nowrap">
+                                    Total Questions Desired:
+                                </label>
+                                <input
+                                    type="number"
+                                    min="1"
+                                    value={targetQuestionCount}
+                                    onChange={(e) => {
+                                        const val = Math.max(1, parseInt(e.target.value, 10) || 1);
+                                        setTargetQuestionCount(val);
+                                    }}
+                                    className="w-20 text-center font-black text-xs py-1.5 px-2 border border-slate-300 rounded-xl bg-white outline-none focus:ring-2 focus:ring-gold text-navy"
+                                    placeholder="e.g. 25, 50"
+                                />
                                 <button
                                     type="button"
-                                    onClick={() => handleDistributeEvenly(45)}
-                                    className="bg-slate-100 hover:bg-slate-200 text-navy text-xs font-bold px-3 py-1.5 rounded-xl transition cursor-pointer"
+                                    onClick={() => handleDistributeEvenly(targetQuestionCount)}
+                                    className="bg-navy hover:bg-navy/90 text-gold text-xs font-black px-3.5 py-1.5 rounded-xl transition cursor-pointer shadow-xs whitespace-nowrap"
                                 >
-                                    Preset 45
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => handleDistributeEvenly(60)}
-                                    className="bg-slate-100 hover:bg-slate-200 text-navy text-xs font-bold px-3 py-1.5 rounded-xl transition cursor-pointer"
-                                >
-                                    Preset 60
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => handleDistributeEvenly(100)}
-                                    className="bg-slate-100 hover:bg-slate-200 text-navy text-xs font-bold px-3 py-1.5 rounded-xl transition cursor-pointer"
-                                >
-                                    Preset 100
+                                    Distribute Evenly
                                 </button>
                             </div>
                         </div>
