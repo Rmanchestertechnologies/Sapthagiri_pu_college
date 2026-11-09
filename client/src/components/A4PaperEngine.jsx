@@ -615,15 +615,27 @@ export default function A4PaperEngine({
                     display: inline !important;
                 }
                 .math-renderer.block-math,
-                .math-renderer:has(.resizable-diagram-wrap) {
+                .math-renderer:has(.resizable-diagram-wrap:not(.is-option-diagram)) {
                     display: block !important;
                 }
-                .resizable-diagram-wrap {
+                .math-renderer:has(.resizable-diagram-wrap.is-option-diagram) {
+                    display: inline-block !important;
+                }
+                .resizable-diagram-wrap:not(.is-option-diagram) {
                     width: 100% !important;
                     text-align: center !important;
                     margin: 2px 0 !important;
                     break-inside: avoid !important;
                     page-break-inside: avoid !important;
+                    position: relative;
+                    z-index: 2;
+                }
+                .resizable-diagram-wrap.is-option-diagram {
+                    display: inline-block !important;
+                    max-width: 100% !important;
+                    width: auto !important;
+                    text-align: center !important;
+                    margin: 2px auto !important;
                     position: relative;
                     z-index: 2;
                 }

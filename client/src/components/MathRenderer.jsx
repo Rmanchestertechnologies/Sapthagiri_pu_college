@@ -267,7 +267,7 @@ const MathRenderer = ({
                 return {
                     type: 'image',
                     src: imgMatch1[1].trim(),
-                    alt: 'Question Diagram',
+                    alt: '',
                     key: index,
                 };
             }
@@ -276,7 +276,7 @@ const MathRenderer = ({
                 return {
                     type: 'image',
                     src: imgMatch2[2].trim(),
-                    alt: imgMatch2[1] || 'Question Diagram',
+                    alt: '',
                     key: index,
                 };
             }

@@ -841,7 +841,7 @@ const DashboardHome = () => {
                                 </span>
                             </div>
                             <p className="text-xs text-slate-400 font-medium mt-0.5">
-                                Browse and manage saved question papers: Individual Subjects (PCMB & BZ) and Competitive Exams (NEET, JEE, CET)
+                                Browse and manage saved question papers: Individual Subjects (Physics, Chemistry, Mathematics, Biology, Botany, Zoology) and Competitive Exams (NEET, JEE, CET)
                             </p>
                         </div>
                     </div>
