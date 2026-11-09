@@ -111,6 +111,16 @@ export default function A4PaperEngine({
     }, [paper, isJEEPaper]);
     const classes = useMemo(() => paper?.classes || [], [paper]);
     const totalMarks = useMemo(() => {
+        // 1. Explicit user-defined Total Marks override takes highest priority across all paper types
+        if (settings?.totalMarks !== undefined && settings?.totalMarks !== null && !isNaN(Number(settings.totalMarks))) {
+            return Number(settings.totalMarks);
+        }
+        if (paper?.totalMarks !== undefined && paper?.totalMarks !== null && !isNaN(Number(paper.totalMarks))) {
+            return Number(paper.totalMarks);
+        }
+        if (paper?.total_marks !== undefined && paper?.total_marks !== null && !isNaN(Number(paper.total_marks))) {
+            return Number(paper.total_marks);
+        }
         if (settings?.marksPerQuestion && !isNaN(Number(settings.marksPerQuestion))) {
             return questions.length * Number(settings.marksPerQuestion);
         }
@@ -120,10 +130,9 @@ export default function A4PaperEngine({
         const rawType = String(paper?.examType || paper?.exam_type || '').toUpperCase();
         if (rawType.includes('CET')) return questions.length * 1;
         if (rawType.includes('NEET') || rawType.includes('JEE')) return questions.length * 4;
-        if (paper?.totalMarks && !isNaN(Number(paper.totalMarks))) return Number(paper.totalMarks);
         if (paper?.pattern?.length) return paper.pattern.reduce((s, sec) => s + (sec.marks || 0), 0);
         return calcTotal(questions, classes, rawType);
-    }, [paper, questions, classes, settings?.marksPerQuestion]);
+    }, [paper, questions, classes, settings?.marksPerQuestion, settings?.totalMarks]);
 
     const isAssignmentPaper = isAssignment || paper?.category === 'assignment' || (paper?.title && /assignment/i.test(paper.title));
     const showCover = !isAssignmentPaper && settings.showCoverPage === true;
@@ -201,7 +210,7 @@ export default function A4PaperEngine({
                                 title={paper?.title}
                                 subject={paper?.subject}
                                 classes={classes}
-                                duration={settings?.duration || (settings?.durationMinutes ? `${settings.durationMinutes} Minutes` : paper?.duration)}
+                                duration={settings?.duration || (settings?.durationMinutes ? `${settings.durationMinutes} Minutes` : (paper?.duration || (paper?.duration_minutes ? `${paper.duration_minutes} Minutes` : '3 Hours 15 Minutes')))}
                                 totalMarks={totalMarks}
                                 templateUrl={activeTemplate?.fileUrl}
                                 isAssignment={isAssignment}

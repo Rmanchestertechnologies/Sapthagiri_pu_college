@@ -131,6 +131,7 @@ const DashboardHome = () => {
     const [isExamSubjectsOpen, setIsExamSubjectsOpen] = useState(false);
     const [isSavedPapersOpen, setIsSavedPapersOpen] = useState(true);
     const [savedPapersCategory, setSavedPapersCategory] = useState('ALL');
+    const [isCategoryDropdownOpen, setIsCategoryDropdownOpen] = useState(false);
     const [savedPapersSearch, setSavedPapersSearch] = useState('');
     const [deletingPaperId, setDeletingPaperId] = useState(null);
     const [allPapers, setAllPapers] = useState([]);
@@ -864,38 +865,120 @@ const DashboardHome = () => {
                     <div className="p-6 pt-0 border-t border-slate-100 animate-fade-in bg-slate-50/40">
                         {/* Control Bar: Dropdown Selector & Search Filter */}
                         <div className="pt-4 pb-3 flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-200/70">
-                            {/* Dropdown Selector */}
+                            {/* Custom Modern Dropdown Selector */}
                             <div className="flex flex-col sm:flex-row sm:items-center gap-2.5">
                                 <label className="text-xs font-black text-navy uppercase tracking-wider flex items-center gap-1.5 shrink-0">
                                     <Filter className="w-3.5 h-3.5 text-navy" />
-                                    <span>Select Papers:</span>
+                                    <span>Filter Repository:</span>
                                 </label>
                                 <div className="relative">
-                                    <select
-                                        value={savedPapersCategory}
-                                        onChange={(e) => setSavedPapersCategory(e.target.value)}
-                                        className="w-full sm:w-auto appearance-none bg-white border-2 border-navy/20 hover:border-navy text-navy font-bold text-xs rounded-xl pl-3.5 pr-9 py-2 shadow-xs focus:outline-none focus:ring-2 focus:ring-navy/30 transition cursor-pointer"
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsCategoryDropdownOpen(!isCategoryDropdownOpen)}
+                                        className="w-full sm:w-auto flex items-center justify-between gap-3 bg-white border-2 border-slate-200 hover:border-navy text-navy font-bold text-xs rounded-xl px-4 py-2 shadow-xs transition cursor-pointer select-none"
                                     >
-                                        <option value="ALL">📁 All Saved Papers ({allPapers.length})</option>
-                                        
-                                        <optgroup label="── Competitive Examinations ──">
-                                            <option value="NEET">🎯 NEET Papers ({getSavedCategoryCount('NEET')})</option>
-                                            <option value="JEE">⚡ JEE Papers ({getSavedCategoryCount('JEE')})</option>
-                                            <option value="CET">🏆 CET Papers ({getSavedCategoryCount('CET')})</option>
-                                        </optgroup>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-base">
+                                                {savedPapersCategory === 'ALL' ? '📁' :
+                                                 savedPapersCategory === 'NEET' ? '🎯' :
+                                                 savedPapersCategory === 'JEE' ? '⚡' :
+                                                 savedPapersCategory === 'CET' ? '🏆' :
+                                                 (departmentMeta[savedPapersCategory]?.icon || '📚')}
+                                            </span>
+                                            <span className="font-black text-navy">
+                                                {savedPapersCategory === 'ALL' ? 'All Saved Papers' :
+                                                 savedPapersCategory === 'NEET' ? 'NEET Papers' :
+                                                 savedPapersCategory === 'JEE' ? 'JEE Papers' :
+                                                 savedPapersCategory === 'CET' ? 'CET Papers' :
+                                                 `${savedPapersCategory} (Individual Only)`}
+                                            </span>
+                                        </div>
+                                        <div className="flex items-center gap-1.5">
+                                            <span className="bg-slate-100 text-slate-700 font-black text-[10px] px-2 py-0.5 rounded-full border border-slate-200">
+                                                {getSavedCategoryCount(savedPapersCategory)}
+                                            </span>
+                                            <ChevronDown className={`w-3.5 h-3.5 text-slate-500 transition-transform duration-200 ${isCategoryDropdownOpen ? 'rotate-180 text-navy' : ''}`} />
+                                        </div>
+                                    </button>
 
-                                        <optgroup label="── Individual Subjects (PCMB & BZ) ──">
-                                            <option value="Physics">⚛️ Physics (Individual Only) ({getSavedCategoryCount('Physics')})</option>
-                                            <option value="Chemistry">🧪 Chemistry (Individual Only) ({getSavedCategoryCount('Chemistry')})</option>
-                                            <option value="Mathematics">📐 Mathematics (Individual Only) ({getSavedCategoryCount('Mathematics')})</option>
-                                            <option value="Biology">🧬 Biology (Individual Only) ({getSavedCategoryCount('Biology')})</option>
-                                            <option value="Botany">🌿 Botany (Individual Only) ({getSavedCategoryCount('Botany')})</option>
-                                            <option value="Zoology">🦁 Zoology (Individual Only) ({getSavedCategoryCount('Zoology')})</option>
-                                        </optgroup>
-                                    </select>
-                                    <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-navy">
-                                        <ChevronDown className="w-4 h-4" />
-                                    </div>
+                                    {/* Floating Dropdown Card */}
+                                    {isCategoryDropdownOpen && (
+                                        <>
+                                            <div className="fixed inset-0 z-20" onClick={() => setIsCategoryDropdownOpen(false)} />
+                                            <div className="absolute left-0 mt-2 w-80 bg-white rounded-2xl shadow-2xl border border-slate-200/90 p-2.5 z-30 animate-fade-in text-xs font-semibold">
+                                                {/* All option */}
+                                                <button
+                                                    type="button"
+                                                    onClick={() => { setSavedPapersCategory('ALL'); setIsCategoryDropdownOpen(false); }}
+                                                    className={`w-full flex items-center justify-between p-2.5 rounded-xl transition cursor-pointer ${
+                                                        savedPapersCategory === 'ALL' ? 'bg-navy text-gold font-black shadow-xs' : 'hover:bg-slate-50 text-slate-700'
+                                                    }`}
+                                                >
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="text-base">📁</span>
+                                                        <span>All Saved Papers</span>
+                                                    </div>
+                                                    <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${savedPapersCategory === 'ALL' ? 'bg-gold/30 text-gold' : 'bg-slate-100 text-slate-600'}`}>
+                                                        {allPapers.length}
+                                                    </span>
+                                                </button>
+
+                                                <div className="my-2 border-t border-slate-100 px-2 pt-1.5 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                                    Competitive Examinations
+                                                </div>
+                                                {['NEET', 'JEE', 'CET'].map(exam => {
+                                                    const count = getSavedCategoryCount(exam);
+                                                    const isAct = savedPapersCategory === exam;
+                                                    const icon = exam === 'NEET' ? '🎯' : exam === 'JEE' ? '⚡' : '🏆';
+                                                    return (
+                                                        <button
+                                                            key={exam}
+                                                            type="button"
+                                                            onClick={() => { setSavedPapersCategory(exam); setIsCategoryDropdownOpen(false); }}
+                                                            className={`w-full flex items-center justify-between p-2 rounded-xl transition cursor-pointer ${
+                                                                isAct ? 'bg-navy text-gold font-black shadow-xs' : 'hover:bg-slate-50 text-slate-700'
+                                                            }`}
+                                                        >
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="text-base">{icon}</span>
+                                                                <span>{exam} Papers</span>
+                                                            </div>
+                                                            <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${isAct ? 'bg-gold/30 text-gold' : 'bg-slate-100 text-slate-600'}`}>
+                                                                {count}
+                                                            </span>
+                                                        </button>
+                                                    );
+                                                })}
+
+                                                <div className="my-2 border-t border-slate-100 px-2 pt-1.5 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                                    Individual Subjects (PCMB & BZ)
+                                                </div>
+                                                {subjects.map(sub => {
+                                                    const count = getSavedCategoryCount(sub);
+                                                    const isAct = savedPapersCategory === sub;
+                                                    const meta = departmentMeta[sub] || {};
+                                                    return (
+                                                        <button
+                                                            key={sub}
+                                                            type="button"
+                                                            onClick={() => { setSavedPapersCategory(sub); setIsCategoryDropdownOpen(false); }}
+                                                            className={`w-full flex items-center justify-between p-2 rounded-xl transition cursor-pointer ${
+                                                                isAct ? 'bg-navy text-gold font-black shadow-xs' : 'hover:bg-slate-50 text-slate-700'
+                                                            }`}
+                                                        >
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="text-base">{meta.icon || '📚'}</span>
+                                                                <span>{sub} (Individual Only)</span>
+                                                            </div>
+                                                            <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${isAct ? 'bg-gold/30 text-gold' : 'bg-slate-100 text-slate-600'}`}>
+                                                                {count}
+                                                            </span>
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                        </>
+                                    )}
                                 </div>
                             </div>
 

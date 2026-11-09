@@ -41,6 +41,12 @@ const AdminPaperPreview = () => {
     const [settings, setSettings] = useState(DEFAULT_SETTINGS);
     const [showAlignment, setShowAlignment] = useState(false);
 
+    // Duration & Total Marks custom editing (applies to all paper types)
+    const [editableDuration, setEditableDuration] = useState('');
+    const [editableMarks, setEditableMarks] = useState('');
+    const [savingHeader, setSavingHeader] = useState(false);
+    const [headerSavedNotice, setHeaderSavedNotice] = useState('');
+
     // Modals
     const [showAnalysisModal, setShowAnalysisModal] = useState(false);
     const [showAnswerKeyModal, setShowAnswerKeyModal] = useState(false);
@@ -88,6 +94,61 @@ const AdminPaperPreview = () => {
         };
         fetchData();
     }, [paperId]);
+
+    // Initialize editable duration & marks from paper
+    useEffect(() => {
+        if (selectedPaper) {
+            const rawType = String(selectedPaper.examType || selectedPaper.exam_type || '').toUpperCase();
+            const qCount = Array.isArray(selectedPaper.questions) ? selectedPaper.questions.length : 0;
+            const defaultMins = rawType.includes('CET') ? '80 Mins' : (rawType.includes('NEET') ? '200 Minutes' : '180 Minutes');
+            const d = selectedPaper.duration || (selectedPaper.duration_minutes ? `${selectedPaper.duration_minutes} Minutes` : defaultMins);
+            setEditableDuration(d);
+
+            const defaultMarks = rawType.includes('CET') ? qCount * 1 : (rawType.includes('NEET') || rawType.includes('JEE') ? qCount * 4 : 70);
+            const m = selectedPaper.totalMarks ?? selectedPaper.total_marks ?? defaultMarks;
+            setEditableMarks(String(m));
+        }
+    }, [selectedPaper]);
+
+    // Save customized duration and marks to paper
+    const handleSaveHeaderDetails = async () => {
+        if (!selectedPaper) return;
+        const pId = selectedPaper._id || selectedPaper.id;
+        if (!pId) return;
+
+        setSavingHeader(true);
+        try {
+            const numMarks = parseInt(editableMarks, 10) || selectedPaper.totalMarks || 70;
+            const parsedMins = parseInt(editableDuration, 10) || 180;
+            await api.put(`/api/papers/${pId}`, {
+                duration: editableDuration,
+                duration_minutes: parsedMins,
+                total_marks: numMarks,
+                totalMarks: numMarks,
+            });
+
+            setSelectedPaper(prev => ({
+                ...prev,
+                duration: editableDuration,
+                duration_minutes: parsedMins,
+                total_marks: numMarks,
+                totalMarks: numMarks,
+            }));
+            setSettings(prev => ({
+                ...prev,
+                duration: editableDuration,
+                durationMinutes: parsedMins,
+                totalMarks: numMarks,
+            }));
+            setHeaderSavedNotice('Saved to paper!');
+            setTimeout(() => setHeaderSavedNotice(''), 3500);
+        } catch (err) {
+            console.error('Error saving header duration/marks:', err);
+            alert('Failed to save header settings: ' + (err.response?.data?.msg || err.message));
+        } finally {
+            setSavingHeader(false);
+        }
+    };
 
     // Ensure questions are valid objects before PQRS generation
     const validPaper = useMemo(() => {
@@ -238,6 +299,67 @@ const AdminPaperPreview = () => {
                     </div>
                 </div>
 
+                {/* ── DURATION & MARKS QUICK EDITOR (FOR ALL TYPES OF PAPERS) ── */}
+                <div className="mt-4 p-3.5 rounded-2xl bg-amber-50/70 border border-amber-200/90 flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-2xs">
+                    <div className="flex items-center gap-2.5">
+                        <span className="text-xl">⏱️</span>
+                        <div>
+                            <h4 className="text-xs font-black text-navy uppercase tracking-wider">Exam Duration & Marks Settings</h4>
+                            <p className="text-[11px] text-slate-500 font-medium">Modify duration & total marks for this paper — updates preview, headers, exports & answer key</p>
+                        </div>
+                    </div>
+
+                    <div className="flex items-center gap-2.5 flex-wrap">
+                        {/* Time / Duration Input */}
+                        <div className="flex items-center gap-1.5 bg-white px-3 py-1.5 rounded-xl border border-slate-300 shadow-2xs">
+                            <span className="text-xs font-bold text-slate-600">Duration:</span>
+                            <input
+                                type="text"
+                                value={editableDuration}
+                                onChange={(e) => {
+                                    setEditableDuration(e.target.value);
+                                    setSettings(s => ({ ...s, duration: e.target.value }));
+                                }}
+                                placeholder="e.g. 80 Mins, 3 Hours"
+                                className="w-28 text-xs font-black text-navy px-1.5 py-0.5 border-b border-navy/30 focus:border-navy outline-none"
+                            />
+                        </div>
+
+                        {/* Max Marks Input */}
+                        <div className="flex items-center gap-1.5 bg-white px-3 py-1.5 rounded-xl border border-slate-300 shadow-2xs">
+                            <span className="text-xs font-bold text-slate-600">Max Marks:</span>
+                            <input
+                                type="number"
+                                min="1"
+                                value={editableMarks}
+                                onChange={(e) => {
+                                    setEditableMarks(e.target.value);
+                                    setSettings(s => ({ ...s, totalMarks: Number(e.target.value) }));
+                                }}
+                                placeholder="e.g. 60, 720, 300"
+                                className="w-20 text-xs font-black text-navy px-1.5 py-0.5 border-b border-navy/30 focus:border-navy outline-none"
+                            />
+                        </div>
+
+                        {/* Save Button */}
+                        <button
+                            type="button"
+                            onClick={handleSaveHeaderDetails}
+                            disabled={savingHeader}
+                            className="bg-navy text-gold hover:bg-gold hover:text-navy px-3.5 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition shadow-xs cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+                        >
+                            <span>{savingHeader ? '⏳' : '💾'}</span>
+                            <span>{savingHeader ? 'Saving...' : 'Save Settings'}</span>
+                        </button>
+
+                        {headerSavedNotice && (
+                            <span className="text-xs font-bold text-emerald-700 animate-fade-in flex items-center gap-1 bg-emerald-50 px-2 py-1 rounded-lg border border-emerald-200">
+                                <span>✓</span> {headerSavedNotice}
+                            </span>
+                        )}
+                    </div>
+                </div>
+
                 {/* ── PQRS SET SWITCHER TABS ── */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-4">
                     <div className="flex items-center gap-2 flex-wrap">
@@ -282,9 +404,18 @@ const AdminPaperPreview = () => {
             {/* ── CENTRAL A4 PREVIEW RENDERER ── */}
             <div className="w-full flex justify-center">
                 <PaperRenderer
-                    paper={currentPaperSet}
+                    paper={{
+                        ...currentPaperSet,
+                        duration: editableDuration || currentPaperSet?.duration,
+                        totalMarks: editableMarks ? Number(editableMarks) : currentPaperSet?.totalMarks,
+                        total_marks: editableMarks ? Number(editableMarks) : currentPaperSet?.total_marks,
+                    }}
                     activeTemplate={activeTemplate}
-                    settings={settings}
+                    settings={{
+                        ...settings,
+                        duration: editableDuration || settings?.duration,
+                        totalMarks: editableMarks ? Number(editableMarks) : settings?.totalMarks,
+                    }}
                     setSettings={setSettings}
                     showSettingsPanel={showAlignment}
                     onDiagramResize={handleDiagramResize}

@@ -73,8 +73,18 @@ export default function ResizableDiagram({
     const initialParsed = initialHeight ? parsePx(initialHeight, defaultFallbackHeight) : null;
     const [height, setHeight] = useState(initialParsed || defaultFallbackHeight);
     const [smartHeight, setSmartHeight] = useState(initialParsed || defaultFallbackHeight);
+    const [currentSrc, setCurrentSrc] = useState(src);
+    const [retryCount, setRetryCount] = useState(0);
+    const [hasError, setHasError] = useState(false);
     const hasManualOverride = useRef(Boolean(isManual));
     const containerRef = useRef(null);
+
+    // Sync src when prop changes
+    useEffect(() => {
+        setCurrentSrc(src);
+        setRetryCount(0);
+        setHasError(false);
+    }, [src]);
 
     // Sync if initialHeight changes externally
     useEffect(() => {
@@ -185,16 +195,21 @@ export default function ResizableDiagram({
 
             {/* ── THE DIAGRAM IMAGE (Transparent Background & Watermark Blend) ── */}
             <img
-                src={src}
+                src={currentSrc}
                 alt={alt}
-                onLoad={handleImageLoad}
+                onLoad={(e) => {
+                    setHasError(false);
+                    handleImageLoad(e);
+                }}
+                referrerPolicy="no-referrer"
+                crossOrigin="anonymous"
                 style={{
                     height: `${height}px`,
                     maxHeight: `${height}px`,
                     maxWidth: isOption ? '140px' : (maxWidth || '100%'),
                     width: 'auto',
                     objectFit: 'contain',
-                    display: 'block',
+                    display: hasError ? 'none' : 'block',
                     margin: '0 auto',
                     borderRadius: '4px',
                     backgroundColor: 'transparent',
@@ -206,10 +221,35 @@ export default function ResizableDiagram({
                 }}
                 className="rounded"
                 loading="eager"
-                onError={(e) => {
-                    e.currentTarget.style.display = 'none';
+                onError={() => {
+                    if (retryCount < 2) {
+                        const nextRetry = retryCount + 1;
+                        setRetryCount(nextRetry);
+                        const sep = src.includes('?') ? '&' : '?';
+                        setTimeout(() => {
+                            setCurrentSrc(src + sep + 'r=' + Date.now() + '_' + nextRetry);
+                        }, 250);
+                    } else {
+                        setHasError(true);
+                    }
                 }}
             />
+            {hasError && (
+                <div
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        setHasError(false);
+                        setRetryCount(0);
+                        const sep = src.includes('?') ? '&' : '?';
+                        setCurrentSrc(src + sep + 'r=' + Date.now());
+                    }}
+                    className="no-print inline-flex items-center gap-1 px-2 py-1 bg-amber-50 hover:bg-amber-100 border border-amber-300 rounded text-[10px] text-amber-900 cursor-pointer transition select-none shadow-2xs"
+                    title="Click to reload diagram"
+                >
+                    <span>🔄</span>
+                    <span className="font-bold">Reload Diagram</span>
+                </div>
+            )}
         </div>
     );
 }

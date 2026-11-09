@@ -5,6 +5,30 @@ import { getResolvedAnswerLabel } from '../utils/sanitize';
 import { generatePaperSet } from '../utils/pqrsGenerator';
 import * as XLSX from 'xlsx';
 
+// Helper: map full subject name to 3-4 letter uppercase standard abbreviation
+function getSubjectAbbr(sub = '') {
+    if (!sub) return 'GEN';
+    const s = String(sub).trim().toLowerCase();
+    if (s.includes('physic') || s === 'phy') return 'PHY';
+    if (s.includes('chem')) return 'CHEM';
+    if (s.includes('math')) return 'MATH';
+    if (s.includes('botan')) return 'BOT';
+    if (s.includes('zool')) return 'ZOO';
+    if (s.includes('bio')) return 'BIO';
+    return s.slice(0, 4).toUpperCase();
+}
+
+// Helper: convert letter options (A, B, C, D) to numeric keys (1, 2, 3, 4)
+function toNumericKey(val) {
+    if (val === undefined || val === null || val === '') return '';
+    const s = String(val).trim().toUpperCase();
+    if (s === 'A' || s === '(1)' || s === '1') return '1';
+    if (s === 'B' || s === '(2)' || s === '2') return '2';
+    if (s === 'C' || s === '(3)' || s === '3') return '3';
+    if (s === 'D' || s === '(4)' || s === '4') return '4';
+    return s;
+}
+
 export default function A4AnswerKey({
     paper = {},
     questions = [],
@@ -18,6 +42,8 @@ export default function A4AnswerKey({
     const [localQuestions, setLocalQuestions] = useState([]);
     const [saving, setSaving] = useState(false);
     const [saveStatus, setSaveStatus] = useState({ type: '', msg: '' });
+    // Default to numeric keys (1, 2, 3, 4) matching institutional CET / PUC standard
+    const [useNumericKeys, setUseNumericKeys] = useState(true);
 
     // Sync activeSet if setName prop changes
     useEffect(() => {
@@ -56,6 +82,37 @@ export default function A4AnswerKey({
     }, [activePaper, localQuestions, paper]);
 
     const paperTitle = activePaper?.title || paper.title || `${paper.subject || 'Academic'} Assessment`;
+
+    // Formatted Exam Date for Title (DD.MM.YYYY)
+    const formattedExamDate = useMemo(() => {
+        const raw = paper?.examDate || paper?.createdAt || paper?.created_at || new Date();
+        try {
+            const d = new Date(raw);
+            if (isNaN(d.getTime())) return '';
+            const day = String(d.getDate()).padStart(2, '0');
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const year = d.getFullYear();
+            return `${day}.${month}.${year}`;
+        } catch {
+            return '';
+        }
+    }, [paper]);
+
+    // Chunk questions into standardized blocks of 15 questions (as shown in official key template)
+    const questionChunks = useMemo(() => {
+        const chunks = [];
+        const chunkSize = 15;
+        for (let i = 0; i < resolvedQuestions.length; i += chunkSize) {
+            chunks.push(resolvedQuestions.slice(i, i + chunkSize));
+        }
+        return chunks;
+    }, [resolvedQuestions]);
+
+    // Header Title matching Image 1: e.g. "II PUC (C ) CET DPT - 35 KEY ANS (PCMB) 07.11.2026"
+    const headerTitleText = useMemo(() => {
+        const subStr = paper?.subject || 'PCMB';
+        return `${paperTitle} KEY ANS (${subStr}) ${formattedExamDate}`.trim();
+    }, [paperTitle, paper?.subject, formattedExamDate]);
 
     // Handle editing a specific question's answer in localQuestions
     const handleAnswerChange = (qIndex, newAnswer) => {
@@ -114,68 +171,60 @@ export default function A4AnswerKey({
         }, 150);
     };
 
-    // Professional Excel (.xlsx) Answer Key Export
+    // Professional Excel (.xlsx) Answer Key Export matching Image 1 layout 100%
     const handleDownloadExcel = () => {
         try {
-            const marksPerQ = paper?.marksPerQuestion || 4;
-            const rows = resolvedQuestions.map((q, idx) => {
-                const currentQNo = q.setQNo || (startQNo + idx);
-                const answerLabel = getResolvedAnswerLabel(q);
-                return {
-                    'Question No': currentQNo,
-                    'Correct Option': answerLabel,
-                    'Subject': q.subject || paper?.subject || '',
-                    'Chapter': q.chapter || '',
-                    'Concept': q.concept || '',
-                    'Question Type': q.type || q.q_type || 'MCQ',
-                    'Marks': q.marks || marksPerQ,
-                };
-            });
-
             const wb = XLSX.utils.book_new();
-            const ws = XLSX.utils.json_to_sheet(rows);
+            const wsData = [];
 
-            ws['!cols'] = [
-                { wch: 14 },
-                { wch: 16 },
-                { wch: 18 },
-                { wch: 25 },
-                { wch: 25 },
-                { wch: 18 },
-                { wch: 10 },
-            ];
+            // Row 1: Merged Centered Title Header
+            wsData.push([headerTitleText]);
+            // Row 2: Empty spacer
+            wsData.push([]);
 
-            const sheetName = `Set_${activeSet}_Answer_Key`;
-            XLSX.utils.book_append_sheet(wb, ws, sheetName);
+            // Chunks of 15 questions per subject block
+            questionChunks.forEach((chunk, chunkIdx) => {
+                const firstQ = chunk[0];
+                const subAbbr = getSubjectAbbr(firstQ?.sectionSubject || firstQ?.subject || paper?.subject);
 
-            // Multi-set cross-reference sheet
-            const allSetsData = resolvedQuestions.map((q, idx) => {
-                const qNo = startQNo + idx;
-                const row = { 'Question No': qNo };
-                ['P', 'Q', 'R', 'S'].forEach(s => {
-                    const setPaper = generatePaperSet(paper, s);
-                    const setQ = setPaper.questions?.[idx];
-                    row[`Set ${s}`] = setQ ? getResolvedAnswerLabel(setQ) : getResolvedAnswerLabel(q);
+                // Row A: [SUB], Q. NO, 1..15
+                const qNoRow = [subAbbr, 'Q. NO'];
+                chunk.forEach((q, idx) => {
+                    const qNo = q.setQNo || (startQNo + chunkIdx * 15 + idx);
+                    qNoRow.push(qNo);
                 });
-                row['Subject'] = q.subject || paper?.subject || '';
-                row['Chapter'] = q.chapter || '';
-                return row;
+                while (qNoRow.length < 17) qNoRow.push('');
+                wsData.push(qNoRow);
+
+                // Row B: [SUB], KEY, k1..k15
+                const keyRow = [subAbbr, 'KEY'];
+                chunk.forEach((q) => {
+                    const rawAns = getResolvedAnswerLabel(q);
+                    const displayKey = useNumericKeys ? toNumericKey(rawAns) : rawAns;
+                    keyRow.push(displayKey);
+                });
+                while (keyRow.length < 17) keyRow.push('');
+                wsData.push(keyRow);
+
+                // Row spacer between blocks
+                wsData.push([]);
             });
 
-            const wsAll = XLSX.utils.json_to_sheet(allSetsData);
-            wsAll['!cols'] = [
-                { wch: 14 },
-                { wch: 10 },
-                { wch: 10 },
-                { wch: 10 },
-                { wch: 10 },
-                { wch: 18 },
-                { wch: 25 },
-            ];
-            XLSX.utils.book_append_sheet(wb, wsAll, 'All_Sets_PQRS');
+            const ws = XLSX.utils.aoa_to_sheet(wsData);
 
-            const safeTitle = (paperTitle || 'Answer_Key').replace(/[^a-zA-Z0-9_-]/g, '_');
-            XLSX.writeFile(wb, `${safeTitle}_Set_${activeSet}_Answer_Key.xlsx`);
+            // Merge Title across 17 columns (A1:Q1)
+            ws['!merges'] = [
+                { s: { r: 0, c: 0 }, e: { r: 0, c: 16 } }
+            ];
+
+            // Column widths: Col A: 10, Col B: 10, Cols C to Q: 6 each
+            const colWidths = [{ wch: 10 }, { wch: 10 }];
+            for (let c = 0; c < 15; c++) colWidths.push({ wch: 6 });
+            ws['!cols'] = colWidths;
+
+            XLSX.utils.book_append_sheet(wb, ws, `KEY_ANS_SET_${activeSet}`);
+            const safeTitle = (paperTitle || 'KEY_ANS').replace(/[^a-zA-Z0-9_-]/g, '_');
+            XLSX.writeFile(wb, `${safeTitle}_KEY_ANS_SET_${activeSet}.xlsx`);
         } catch (err) {
             console.error('Error generating Excel file:', err);
             alert('Failed to generate Excel file: ' + err.message);
@@ -192,6 +241,8 @@ export default function A4AnswerKey({
                         <span className="text-xs font-black text-gold uppercase tracking-widest bg-navy px-3 py-1 rounded-full">
                             Official Answer Key
                         </span>
+                        
+                        {/* Set Switcher */}
                         <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-300">
                             <span className="text-[10px] font-black text-navy uppercase px-1.5">Set:</span>
                             {['P', 'Q', 'R', 'S'].map((s) => (
@@ -209,9 +260,16 @@ export default function A4AnswerKey({
                                 </button>
                             ))}
                         </div>
-                        <h3 className="text-sm font-black text-navy uppercase tracking-tight">
-                            SET {activeSet} ({resolvedQuestions.length} Questions)
-                        </h3>
+
+                        {/* Numeric vs Letter Key Toggle */}
+                        <button
+                            type="button"
+                            onClick={() => setUseNumericKeys(!useNumericKeys)}
+                            className="text-xs font-bold px-3 py-1 bg-slate-100 hover:bg-slate-200 text-navy rounded-xl border border-slate-300 transition cursor-pointer"
+                            title="Toggle between Numeric keys (1, 2, 3, 4) and Letter keys (A, B, C, D)"
+                        >
+                            Keys: <strong>{useNumericKeys ? '1, 2, 3, 4' : 'A, B, C, D'}</strong>
+                        </button>
                     </div>
 
                     <div className="flex items-center gap-2 flex-wrap">
@@ -240,9 +298,9 @@ export default function A4AnswerKey({
                             <button
                                 onClick={() => setIsEditing(true)}
                                 className="bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-xl font-black text-xs uppercase tracking-wider transition shadow cursor-pointer flex items-center gap-1.5"
-                                title="Edit wrong answers or customize 1-2 line answers"
+                                title="Edit answer keys"
                             >
-                                <span>✏️</span> Edit Answer Key
+                                <span>✏️</span> Edit Key
                             </button>
                         )}
 
@@ -255,14 +313,14 @@ export default function A4AnswerKey({
                         <button
                             onClick={handlePrint}
                             className="bg-slate-800 text-white hover:bg-black px-4 py-2 rounded-xl font-black text-xs uppercase tracking-wider transition shadow cursor-pointer flex items-center gap-1.5"
-                            title="Open print dialog and choose Save as PDF"
+                            title="Save as PDF via Print dialog"
                         >
                             <span>📥</span> PDF
                         </button>
                         <button
                             onClick={handleDownloadExcel}
                             className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl font-black text-xs uppercase tracking-wider transition shadow cursor-pointer flex items-center gap-1.5"
-                            title="Download formatted Excel (.xlsx) answer key"
+                            title="Download formatted Excel (.xlsx) answer key matching official format"
                         >
                             <span>📊</span> Excel
                         </button>
@@ -291,312 +349,231 @@ export default function A4AnswerKey({
                     </div>
                 )}
 
-                {/* ── A4 Sheet Preview Area ── */}
+                {/* ── Official Answer Key Table Document (Matches Image 1 100%) ── */}
                 <div className="a4-answer-key-body flex-1 overflow-y-auto p-4 sm:p-8 bg-slate-300/80 min-h-0">
-                    <div className="mx-auto w-full max-w-[794px]">
+                    <div className="mx-auto w-full max-w-[860px]">
                         <div
                             id="print-target-answer-key"
-                            className="a4-answer-key-sheet bg-white shadow-2xl rounded-2xl p-6 sm:p-10 w-full text-slate-800 border border-slate-300 relative"
+                            className="a4-answer-key-sheet bg-white shadow-2xl rounded-2xl p-6 sm:p-8 w-full text-slate-900 border border-slate-300 relative"
                             style={{
                                 minHeight: 'auto',
                                 boxSizing: 'border-box',
-                                fontFamily: 'Calibri, "Segoe UI", Arial, sans-serif',
+                                fontFamily: 'Calibri, Arial, sans-serif',
                             }}
                         >
-                            {/* Official Sapthagiri PU College Crest Watermark - Non-intrusive background layer */}
-                            <div 
-                                className="a4-watermark-wrapper"
-                                style={{
-                                    position: 'fixed',
-                                    top: 0,
-                                    left: 0,
-                                    width: '100vw',
-                                    height: '100vh',
-                                    pointerEvents: 'none',
-                                    zIndex: 0,
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                }}
-                            >
-                                <img 
-                                    src="/SapthagiriLogo.jpg" 
-                                    alt="College Crest Watermark" 
-                                    className="a4-watermark-logo"
-                                    style={{
-                                        width: '340px',
-                                        height: '340px',
-                                        objectFit: 'contain',
-                                        borderRadius: '50%',
-                                        opacity: 0.045,
-                                        filter: 'grayscale(100%)',
-                                        display: 'block',
-                                        pointerEvents: 'none',
-                                    }}
-                                />
+                            {/* Official Table Header Title (as shown in Image 1) */}
+                            <div className="text-center mb-4">
+                                <h2 className="text-lg sm:text-xl font-black text-black tracking-wide uppercase">
+                                    {headerTitleText}
+                                </h2>
                             </div>
 
-                            <div style={{ position: 'relative', zIndex: 1 }}>
-                                {/* ── College Header ── */}
-                                <div className="text-center border-b-2 border-slate-900 pb-4 mb-6">
-                                    <div className="flex items-center justify-center gap-3 mb-2">
-                                        <img
-                                            src="/SapthagiriLogo.jpg"
-                                            alt="Sapthagiri PU College"
-                                            className="w-14 h-14 object-contain rounded-full border border-slate-200 shadow-xs"
-                                            onError={e => { e.currentTarget.style.display = 'none'; }}
-                                        />
-                                        <div className="text-left">
-                                            <h1 className="text-xl sm:text-2xl font-black text-navy uppercase tracking-tight leading-tight">
-                                                Sapthagiri Pre University College
-                                            </h1>
-                                            <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest">
-                                                Davanagere • The Land of Opportunity
-                                            </p>
-                                        </div>
-                                    </div>
+                            {/* Standardized 15-Question Institutional Grid Table */}
+                            <div className="overflow-x-auto">
+                                <table
+                                    className="w-full border-collapse text-center select-none"
+                                    style={{
+                                        border: '2px solid #000',
+                                        fontSize: '12.5px',
+                                        fontFamily: 'Calibri, Arial, sans-serif',
+                                    }}
+                                >
+                                    <tbody>
+                                        {questionChunks.map((chunk, chunkIdx) => {
+                                            const firstQ = chunk[0];
+                                            const subAbbr = getSubjectAbbr(firstQ?.sectionSubject || firstQ?.subject || paper?.subject);
 
-                                    <div className="mt-3 pt-2 border-t border-slate-200 flex flex-wrap justify-between items-center text-xs font-semibold text-slate-700">
-                                        <span className="font-bold text-navy">{paperTitle}</span>
-                                        <span>SET: <strong>{activeSet}</strong></span>
-                                        {paper.subject && <span>Subject: <strong>{paper.subject}</strong></span>}
-                                        <span>Total Qs: <strong>{resolvedQuestions.length}</strong></span>
-                                        <span>Max Marks: <strong>{paper.totalMarks || (resolvedQuestions.length * (paper.marksPerQuestion || 4))}</strong></span>
-                                    </div>
-                                    <div className="mt-1 text-center">
-                                        <span className="inline-block bg-slate-900 text-amber-400 font-bold text-[11px] uppercase tracking-widest px-4 py-0.5 rounded-full">
-                                            Official Answer Key
-                                        </span>
-                                    </div>
-                                </div>
+                                            return (
+                                                <React.Fragment key={chunkIdx}>
+                                                    {/* Row 1: Subject (spanning 2 rows), Q. NO, numbers 1..15 */}
+                                                    <tr style={{ borderTop: chunkIdx > 0 ? '2px solid #000' : 'none' }}>
+                                                        {/* Subject cell spanning both Q. NO and KEY rows */}
+                                                        <td
+                                                            rowSpan={2}
+                                                            style={{
+                                                                width: '60px',
+                                                                fontWeight: 900,
+                                                                fontSize: '13px',
+                                                                letterSpacing: '0.05em',
+                                                                borderRight: '2px solid #000',
+                                                                borderBottom: '2px solid #000',
+                                                                backgroundColor: '#ffffff',
+                                                                padding: '6px 2px',
+                                                                verticalAlign: 'middle',
+                                                                color: '#000',
+                                                            }}
+                                                        >
+                                                            {subAbbr}
+                                                        </td>
 
-                                {/* ── Edit Instructions Banner (when editing) ── */}
-                                {isEditing && (
-                                    <div className="bg-amber-50 border border-amber-300 p-3 rounded-xl mb-4 text-xs text-amber-900 font-semibold no-print">
-                                        ✏️ <strong>Edit Mode Active:</strong> Click the option (A, B, C, D) or type custom 1-2 line answers below for any question. When finished, click <strong>"Save Changes"</strong> on the top right.
-                                    </div>
-                                )}
+                                                        {/* "Q. NO" label cell */}
+                                                        <td
+                                                            style={{
+                                                                width: '54px',
+                                                                fontWeight: 900,
+                                                                fontSize: '11px',
+                                                                borderRight: '1.5px solid #000',
+                                                                borderBottom: '1.5px solid #000',
+                                                                backgroundColor: '#e5e7eb',
+                                                                padding: '6px 2px',
+                                                                whiteSpace: 'nowrap',
+                                                                color: '#000',
+                                                            }}
+                                                        >
+                                                            Q. NO
+                                                        </td>
 
-                                {/* ── Primary Answer Key Grid (5 columns on desktop, clean balanced cards) ── */}
-                                <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 gap-2.5 sm:gap-3 text-xs">
-                                    {resolvedQuestions.map((q, idx) => {
-                                        const currentQNo = q.setQNo || (startQNo + idx);
-                                        const answerLabel = getResolvedAnswerLabel(q);
-                                        const hasOptions = Array.isArray(q.options) && q.options.length > 0;
-                                        const displayVal = hasOptions ? answerLabel : (q.num_answer || answerLabel || q.answer);
-
-                                        return (
-                                            <div
-                                                key={idx}
-                                                className={`border rounded-xl p-2.5 flex flex-col justify-between transition ${
-                                                    isEditing 
-                                                        ? 'bg-amber-50/40 border-amber-300 shadow-xs' 
-                                                        : 'border-slate-300 bg-slate-50/50 hover:bg-slate-100'
-                                                }`}
-                                                style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}
-                                            >
-                                                <div className="flex items-center justify-between gap-1 mb-1.5">
-                                                    <span className="font-black text-slate-700 text-xs">
-                                                        Q.{currentQNo}
-                                                    </span>
-                                                    {!isEditing && (
-                                                        <span className="font-black px-2.5 py-0.5 rounded text-xs text-center shadow-2xs bg-navy text-amber-400 min-w-[28px]">
-                                                            {displayVal}
-                                                        </span>
-                                                    )}
-                                                </div>
-
-                                                {/* Edit Mode Controls */}
-                                                {isEditing ? (
-                                                    <div className="space-y-1.5 pt-1">
-                                                        {/* Quick option pills for MCQ */}
-                                                        <div className="flex items-center gap-1 justify-between">
-                                                            {['A', 'B', 'C', 'D'].map(optKey => (
-                                                                <button
-                                                                    key={optKey}
-                                                                    type="button"
-                                                                    onClick={() => handleAnswerChange(idx, optKey)}
-                                                                    className={`flex-1 py-1 rounded text-[11px] font-black transition cursor-pointer ${
-                                                                        answerLabel === optKey
-                                                                            ? 'bg-navy text-gold shadow-sm ring-1 ring-gold'
-                                                                            : 'bg-white text-slate-600 hover:bg-slate-200 border border-slate-300'
-                                                                    }`}
+                                                        {/* 15 Question Number Cells */}
+                                                        {Array.from({ length: 15 }).map((_, colIdx) => {
+                                                            const q = chunk[colIdx];
+                                                            const qNo = q ? (q.setQNo || (startQNo + chunkIdx * 15 + colIdx)) : '';
+                                                            return (
+                                                                <td
+                                                                    key={colIdx}
+                                                                    style={{
+                                                                        fontWeight: 800,
+                                                                        borderRight: colIdx < 14 ? '1.5px solid #000' : 'none',
+                                                                        borderBottom: '1.5px solid #000',
+                                                                        backgroundColor: '#e5e7eb',
+                                                                        padding: '6px 2px',
+                                                                        minWidth: '32px',
+                                                                        color: '#000',
+                                                                    }}
                                                                 >
-                                                                    {optKey}
-                                                                </button>
-                                                            ))}
-                                                        </div>
-                                                        {/* Custom answer text input for numerical or 1-line answer */}
-                                                        <input
-                                                            type="text"
-                                                            value={q.answer || ''}
-                                                            onChange={e => handleAnswerChange(idx, e.target.value)}
-                                                            placeholder="Or type answer..."
-                                                            className="w-full text-[11px] font-bold px-2 py-1 border border-slate-300 rounded bg-white text-navy outline-none focus:border-navy"
-                                                        />
-                                                    </div>
-                                                ) : (
-                                                    !hasOptions && q.answer && q.answer !== displayVal && (
-                                                        <div className="text-[10px] text-slate-500 truncate mt-0.5">
-                                                            {String(q.answer).slice(0, 20)}
-                                                        </div>
-                                                    )
-                                                )}
-                                            </div>
-                                        );
-                                    })}
-                                </div>
+                                                                    {qNo}
+                                                                </td>
+                                                            );
+                                                        })}
+                                                    </tr>
 
-                                {/* ── Document Footer ── */}
-                                <div className="mt-12 pt-4 border-t border-slate-300 text-center text-[11px] text-slate-500 flex justify-between items-center">
-                                    <span>Sapthagiri PU College Examination Authority</span>
-                                    <span>Official Answer Key • Set {activeSet}</span>
-                                </div>
+                                                    {/* Row 2: KEY label and answer keys */}
+                                                    <tr style={{ borderBottom: '2px solid #000' }}>
+                                                        {/* "KEY" label cell */}
+                                                        <td
+                                                            style={{
+                                                                fontWeight: 900,
+                                                                fontSize: '11px',
+                                                                borderRight: '1.5px solid #000',
+                                                                backgroundColor: '#ffffff',
+                                                                padding: '6px 2px',
+                                                                whiteSpace: 'nowrap',
+                                                                color: '#000',
+                                                            }}
+                                                        >
+                                                            KEY
+                                                        </td>
+
+                                                        {/* 15 Key Value Cells */}
+                                                        {Array.from({ length: 15 }).map((_, colIdx) => {
+                                                            const q = chunk[colIdx];
+                                                            if (!q) {
+                                                                return (
+                                                                    <td
+                                                                        key={colIdx}
+                                                                        style={{
+                                                                            borderRight: colIdx < 14 ? '1.5px solid #000' : 'none',
+                                                                            backgroundColor: '#ffffff',
+                                                                            padding: '6px 2px',
+                                                                        }}
+                                                                    ></td>
+                                                                );
+                                                            }
+
+                                                            const rawAns = getResolvedAnswerLabel(q);
+                                                            const displayKey = useNumericKeys ? toNumericKey(rawAns) : rawAns;
+                                                            const qGlobalIdx = chunkIdx * 15 + colIdx;
+
+                                                            return (
+                                                                <td
+                                                                    key={colIdx}
+                                                                    style={{
+                                                                        fontWeight: 800,
+                                                                        fontSize: '13px',
+                                                                        borderRight: colIdx < 14 ? '1.5px solid #000' : 'none',
+                                                                        backgroundColor: isEditing ? '#fef3c7' : '#ffffff',
+                                                                        padding: isEditing ? '2px' : '6px 2px',
+                                                                        color: '#000',
+                                                                    }}
+                                                                >
+                                                                    {isEditing ? (
+                                                                        <select
+                                                                            value={rawAns}
+                                                                            onChange={(e) => handleAnswerChange(qGlobalIdx, e.target.value)}
+                                                                            className="w-full text-xs font-black text-center bg-white border border-amber-400 rounded py-0.5 outline-none cursor-pointer"
+                                                                        >
+                                                                            {['A', 'B', 'C', 'D'].map(k => (
+                                                                                <option key={k} value={k}>
+                                                                                    {useNumericKeys ? toNumericKey(k) : k}
+                                                                                </option>
+                                                                            ))}
+                                                                        </select>
+                                                                    ) : (
+                                                                        displayKey
+                                                                    )}
+                                                                </td>
+                                                            );
+                                                        })}
+                                                    </tr>
+                                                </React.Fragment>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            {/* Document Footer (Print only) */}
+                            <div className="mt-8 pt-2 text-center text-[10px] text-slate-500 font-semibold flex justify-between items-center">
+                                <span>Sapthagiri Pre-University College • Davanagere</span>
+                                <span>Answer Key Set {activeSet} • Total Qs: {resolvedQuestions.length}</span>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                {/* ── Self-Contained Print Styles ── */}
+                {/* ── Print Styles for Crisp A4 Print & PDF ── */}
                 <style>{`
                     @media print {
                         @page {
-                            size: A4 portrait;
-                            margin: 8mm 10mm;
+                            size: A4 landscape;
+                            margin: 10mm 12mm;
                         }
                         html, body {
                             background: #ffffff !important;
                             margin: 0 !important;
                             padding: 0 !important;
-                            width: 100% !important;
-                            height: auto !important;
-                            min-height: 0 !important;
-                            overflow: visible !important;
                         }
-                        .no-print, nav, header, button, .diagram-resize-toolbar {
+                        .no-print {
                             display: none !important;
                         }
-                        .a4-engine-wrapper,
-                        .a4-print-document,
-                        .paper-renderer-wrapper,
-                        .paper-preview-container {
-                            display: none !important;
-                            height: 0 !important;
-                            max-height: 0 !important;
-                            margin: 0 !important;
-                            padding: 0 !important;
-                            overflow: hidden !important;
-                        }
-                        body * {
-                            visibility: hidden !important;
-                        }
-                        .a4-answer-key-modal,
-                        body.printing-answer-key .a4-answer-key-modal {
+                        .a4-answer-key-modal {
                             position: static !important;
-                            display: block !important;
                             background: transparent !important;
                             padding: 0 !important;
-                            margin: 0 !important;
-                            height: auto !important;
-                            min-height: 0 !important;
-                            inset: auto !important;
                             overflow: visible !important;
-                            z-index: auto !important;
                         }
-                        .a4-answer-key-card,
-                        body.printing-answer-key .a4-answer-key-card {
-                            position: static !important;
-                            display: block !important;
-                            background: transparent !important;
-                            box-shadow: none !important;
+                        .a4-answer-key-card {
                             border: none !important;
-                            margin: 0 !important;
-                            padding: 0 !important;
+                            box-shadow: none !important;
+                            max-width: 100% !important;
                             max-height: none !important;
-                            max-width: 100% !important;
-                            overflow: visible !important;
+                            background: transparent !important;
                         }
-                        .a4-answer-key-body,
-                        body.printing-answer-key .a4-answer-key-body {
-                            position: static !important;
-                            display: block !important;
+                        .a4-answer-key-body {
                             background: transparent !important;
                             padding: 0 !important;
-                            margin: 0 !important;
                             overflow: visible !important;
                         }
-                        body.printing-answer-key .a4-watermark-wrapper,
-                        body.printing-answer-key .a4-watermark-wrapper * {
-                            visibility: visible !important;
-                        }
-                        body.printing-answer-key .a4-watermark-wrapper {
-                            position: fixed !important;
-                            top: 0 !important;
-                            left: 0 !important;
-                            right: 0 !important;
-                            bottom: 0 !important;
-                            width: 100vw !important;
-                            height: 100vh !important;
-                            display: flex !important;
-                            align-items: center !important;
-                            justify-content: center !important;
-                            pointer-events: none !important;
-                            z-index: 0 !important;
-                            -webkit-print-color-adjust: exact !important;
-                            print-color-adjust: exact !important;
-                        }
-                        body.printing-answer-key .a4-watermark-logo {
-                            width: 340px !important;
-                            height: 340px !important;
-                            object-fit: contain !important;
-                            border-radius: 50% !important;
-                            opacity: 0.045 !important;
-                            filter: grayscale(100%) !important;
-                            display: block !important;
-                            visibility: visible !important;
-                            pointer-events: none !important;
-                            -webkit-print-color-adjust: exact !important;
-                            print-color-adjust: exact !important;
-                        }
-
-                        body.printing-answer-key #print-target-answer-key,
-                        body.printing-answer-key #print-target-answer-key * {
-                            visibility: visible !important;
-                        }
-                        body.printing-answer-key #print-target-answer-key {
-                            position: static !important;
-                            top: auto !important;
-                            left: auto !important;
-                            width: 100% !important;
-                            max-width: 100% !important;
-                            min-height: 0 !important;
-                            margin: 0 auto !important;
-                            padding: 4mm 6mm !important;
+                        .a4-answer-key-sheet {
                             box-shadow: none !important;
                             border: none !important;
-                            display: block !important;
-                            overflow: visible !important;
-                            background: #ffffff !important;
-                            break-inside: auto !important;
-                            page-break-after: auto !important;
-                            position: relative !important;
-                            z-index: 1 !important;
+                            padding: 0 !important;
+                        }
+                        table {
+                            width: 100% !important;
+                            border-collapse: collapse !important;
                         }
                     }
                 `}</style>
-
-                {/* ── Bottom Modal Footer (Hidden during print) ── */}
-                <div className="p-4 bg-white border-t border-gray-200 flex justify-between items-center no-print">
-                    <p className="text-xs text-slate-500 font-medium">
-                        Standard A4 printable format. Click "Edit Answer Key" to override incorrect answers.
-                    </p>
-                    <button
-                        onClick={onClose}
-                        className="bg-slate-200 hover:bg-slate-300 text-slate-800 px-6 py-2 rounded-xl font-bold text-xs uppercase tracking-wider transition cursor-pointer"
-                    >
-                        Close
-                    </button>
-                </div>
             </div>
         </div>
     );
