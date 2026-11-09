@@ -28,18 +28,25 @@ async function generatePaperPdf(paper, options = {}) {
 
     const questions = paper.questions || [];
     const title = paper.title || 'Question Paper';
-    const examType = paper.exam_type || paper.examType || 'JEE_PCM';
+    const rawExamType = paper.exam_type || paper.examType;
+    const examType = rawExamType || (title && /CET|KCET/i.test(title) ? 'CET' : (title && /NEET/i.test(title) ? 'NEET' : 'CUSTOM'));
     const classes = paper.classes || ['12'];
-    const duration = paper.duration || '180 Minutes';
-    const totalMarks = paper.total_marks || (questions.length * 4);
-    const instructions = paper.instructions || 'Read all questions carefully. Each question carries 4 marks. -1 mark for each incorrect response in single-correct MCQs.';
+    const duration = paper.duration || (examType === 'CET' ? '80 Minutes' : '180 Minutes');
+    const totalMarks = paper.total_marks || (questions.length * (examType === 'CET' ? 1 : 4));
+    const instructions = paper.instructions || (examType === 'CET' ? 'Read all questions carefully. Each question carries 1 mark. No negative marking.' : 'Read all questions carefully. Each question carries 4 marks. -1 mark for each incorrect response in single-correct MCQs.');
     const katexCss = getCss();
 
     // Group questions by section / subject
     const sections = Array.isArray(paper.sections) && paper.sections.length > 0 ? paper.sections : null;
     let renderedSectionsHtml = '';
 
-    const isJEE = Boolean(String(examType || title || '').toUpperCase().includes('JEE'));
+    const examTypeStr = String(examType || title || '').toUpperCase();
+    const isExplicitNonJEE = examTypeStr.includes('CET') ||
+                             examTypeStr.includes('KCET') ||
+                             examTypeStr.includes('NEET') ||
+                             questions.length !== 75;
+
+    const isJEE = !isExplicitNonJEE && Boolean(examTypeStr.includes('JEE') && questions.length === 75);
 
     if (sections && sections.length > 0) {
         let globalQIndex = 1;
@@ -50,7 +57,7 @@ async function generatePaperPdf(paper, options = {}) {
             
             if (secQs.length === 0) return;
 
-            if (isJEE) {
+            if (isJEE && secQs.length > 25) {
                 const isNum = (q) => {
                     const t = (q.type || q.q_type || '').toUpperCase();
                     return Boolean(q.isNumerical) || t.includes('NUMERICAL') || t.includes('INTEGER') || t === 'NUM' ||
@@ -60,7 +67,9 @@ async function generatePaperPdf(paper, options = {}) {
                 };
                 const secA = secQs.filter(q => !isNum(q)).slice(0, 20).map(q => ({ ...q, isNumerical: false }));
                 const secB = secQs.filter(q => isNum(q)).slice(0, 5).map(q => ({ ...q, isNumerical: true, options: [] }));
-                secQs = [...secA, ...secB];
+                if (secA.length + secB.length === 25) {
+                    secQs = [...secA, ...secB];
+                }
             }
 
             renderedSectionsHtml += `

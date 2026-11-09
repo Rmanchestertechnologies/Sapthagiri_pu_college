@@ -42,14 +42,12 @@ export default function A4SolutionKey({
                                  examTypeStr.includes('KCET') ||
                                  String(paper?.subject || '').toUpperCase().includes('BOTANY') ||
                                  String(paper?.subject || '').toUpperCase().includes('ZOOLOGY') ||
-                                 (baseList.length > 85);
+                                 (baseList.length !== 75);
 
         const isJEE = !isExplicitNonJEE && Boolean(
-            examTypeStr.includes('JEE') ||
-            (Array.isArray(paper?.classes) && paper.classes.some(c => String(c).toUpperCase().includes('JEE'))) ||
-            (baseList.length >= 70 && baseList.length <= 85)
+            examTypeStr.includes('JEE') && baseList.length === 75
         );
-        return isJEE ? baseList.slice(0, 75) : baseList;
+        return (isJEE && baseList.length === 75) ? baseList.slice(0, 75) : baseList;
     }, [activePaper, baseQuestions, paper]);
 
     const paperTitle = activePaper?.title || paper.title || `${paper.subject || 'Academic'} Assessment`;

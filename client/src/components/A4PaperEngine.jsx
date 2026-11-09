@@ -49,19 +49,18 @@ export default function A4PaperEngine({
                              examTypeStr.includes('KCET') ||
                              String(paper?.subject || '').toUpperCase().includes('BOTANY') ||
                              String(paper?.subject || '').toUpperCase().includes('ZOOLOGY') ||
-                             (paper?.questions && paper.questions.length > 85);
+                             (paper?.questions && paper.questions.length !== 75);
 
     const isJEEPaper = !isExplicitNonJEE && Boolean(
-        examTypeStr.includes('JEE') ||
-        (Array.isArray(paper?.classes) && paper.classes.some(c => String(c).toUpperCase().includes('JEE'))) ||
-        (paper?.questions && paper.questions.length >= 70 && paper.questions.length <= 85)
+        examTypeStr.includes('JEE') && (paper?.questions && paper.questions.length === 75)
     );
 
     const questions = useMemo(() => {
         const rawQs = paper?.questions || [];
+        // Never slice or drop questions for ANY paper - if there are 60 questions, preserve all 60!
         if (!isJEEPaper) return rawQs;
 
-        // Strictly enforce JEE Main PCM structure: exactly max 20 Section A + max 5 Section B per subject (Physics, Chemistry, Mathematics)
+        // Strictly enforce JEE Main PCM structure only when exactly 75 questions across 3 subjects exist
         const pcmBySub = {
             Physics: [],
             Chemistry: [],
@@ -75,6 +74,9 @@ export default function A4PaperEngine({
                 pcmBySub['Mathematics'].push(q);
             }
         });
+
+        const hasPCM = pcmBySub.Physics.length > 0 && pcmBySub.Chemistry.length > 0 && pcmBySub.Mathematics.length > 0;
+        if (!hasPCM) return rawQs;
 
         const clamped = [];
         ['Physics', 'Chemistry', 'Mathematics'].forEach(s => {
@@ -105,8 +107,7 @@ export default function A4PaperEngine({
             clamped.push(...secA, ...secB);
         });
 
-        const finalClamped = clamped.slice(0, 75);
-        return finalClamped.length > 0 ? finalClamped : rawQs.slice(0, 75);
+        return clamped.length === 75 ? clamped : rawQs;
     }, [paper, isJEEPaper]);
     const classes = useMemo(() => paper?.classes || [], [paper]);
     const totalMarks = useMemo(() => {
@@ -129,7 +130,7 @@ export default function A4PaperEngine({
     const startQNo = settings.startQNo || 1;
     const endQNo = settings.endQNo ?? (startQNo + questions.length - 1);
     const rawVisibleCount = Math.max(0, endQNo - startQNo + 1);
-    const visibleCount = isJEEPaper ? Math.min(75, rawVisibleCount) : rawVisibleCount;
+    const visibleCount = (isJEEPaper && questions.length === 75) ? Math.min(75, rawVisibleCount) : rawVisibleCount;
     const visibleQuestions = useMemo(() => questions.slice(0, visibleCount), [questions, visibleCount]);
 
     const zoomScale = (zoom || 100) / 100;
@@ -303,7 +304,12 @@ export default function A4PaperEngine({
                                         let headerTitle = '';
                                         let directiveText = null;
 
-                                        if (isJEE) {
+                                        const isNumQ = (item) => {
+                                            const t = (item?.type || item?.q_type || '').toUpperCase();
+                                            return Boolean(item?.isNumerical) || t.includes('NUMERICAL') || t.includes('INTEGER') || t === 'NUM';
+                                        };
+
+                                        if (isJEE && questions.length === 75) {
                                             if (isSubjectChange) {
                                                 showHeader = true;
                                                 headerTitle = curSubject ? (curSubject.toUpperCase() + ' • PART A (SECTION A)') : 'PART A (SECTION A)';
@@ -321,17 +327,17 @@ export default function A4PaperEngine({
                                             }
                                         }
 
-                                        const effectiveQ = isJEE ? {
+                                        const effectiveQ = (isJEE && isNumQ(q)) ? {
                                             ...q,
-                                            isNumerical: subQIdx >= 20,
-                                            type: (subQIdx >= 20) ? 'NUMERICAL' : (q.type || 'MCQ'),
-                                            options: (subQIdx >= 20) ? [] : (q.options || []),
-                                            part: (subQIdx >= 20) ? 'SECTION B - NUMERICAL VALUE QUESTIONS' : 'SECTION A - MULTIPLE CHOICE QUESTIONS'
+                                            isNumerical: true,
+                                            type: 'NUMERICAL',
+                                            options: [],
+                                            part: 'SECTION B - NUMERICAL VALUE QUESTIONS'
                                         } : {
                                             ...q,
                                             isNumerical: false,
                                             num_answer: null,
-                                            type: (q.type === 'NUMERICAL' || q.q_type === 'numerical') ? 'MCQ' : (q.type || 'MCQ')
+                                            type: (q.type === 'NUMERICAL' || q.q_type === 'numerical') ? (isJEE ? 'NUMERICAL' : 'MCQ') : (q.type || 'MCQ')
                                         };
 
                                         return (

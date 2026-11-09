@@ -566,13 +566,17 @@ async function generatePaperDoc(paper, template = null) {
         });
     }
 
-    const isJEE = Boolean(
-        String(paper.exam_type || paper.examType || paper.title || '').toUpperCase().includes('JEE') ||
-        (Array.isArray(paper.classes) && paper.classes.some(c => String(c).toUpperCase().includes('JEE'))) ||
-        (questions.length >= 70 && questions.length <= 85)
+    const examTypeStr = String(paper.exam_type || paper.examType || paper.title || '').toUpperCase();
+    const isExplicitNonJEE = examTypeStr.includes('CET') ||
+                             examTypeStr.includes('KCET') ||
+                             examTypeStr.includes('NEET') ||
+                             questions.length !== 75;
+
+    const isJEE = !isExplicitNonJEE && Boolean(
+        examTypeStr.includes('JEE') && questions.length === 75
     );
     if (isJEE) {
-        // Enforce strictly max 20 Section A (non-numericals) + max 5 Section B (numericals) per subject: Physics, Chemistry, Mathematics
+        // Enforce strictly max 20 Section A + max 5 Section B numericals per subject ONLY when it is a full 3-subject JEE Main mock (75 PCM)
         const pcmBySub = {
             Physics: [],
             Chemistry: [],
@@ -587,40 +591,40 @@ async function generatePaperDoc(paper, template = null) {
             }
         });
 
-        const clamped = [];
-        ['Physics', 'Chemistry', 'Mathematics'].forEach(s => {
-            const list = pcmBySub[s] || [];
-            const isNum = (q) => {
-                const t = (q.type || q.q_type || '').toUpperCase();
-                return Boolean(q.isNumerical) || t.includes('NUMERICAL') || t.includes('INTEGER') || t === 'NUM' ||
-                       (q.part && q.part.toUpperCase().includes('NUMERICAL')) ||
-                       (q.part && q.part.toUpperCase().includes('SECTION B')) ||
-                       (q.part && q.part.toUpperCase().includes('SECTION-B'));
-            };
-            const secA = list.filter(q => !isNum(q)).slice(0, 20).map(q => ({
-                ...q,
-                subject: s,
-                sectionSubject: s,
-                isNumerical: false,
-                part: 'SECTION A - MULTIPLE CHOICE QUESTIONS'
-            }));
-            const secB = list.filter(q => isNum(q)).slice(0, 5).map(q => ({
-                ...q,
-                subject: s,
-                sectionSubject: s,
-                isNumerical: true,
-                type: 'NUMERICAL',
-                options: [],
-                part: 'SECTION B - NUMERICAL VALUE QUESTIONS'
-            }));
-            clamped.push(...secA, ...secB);
-        });
+        const hasPCM = pcmBySub.Physics.length > 0 && pcmBySub.Chemistry.length > 0 && pcmBySub.Mathematics.length > 0;
+        if (hasPCM) {
+            const clamped = [];
+            ['Physics', 'Chemistry', 'Mathematics'].forEach(s => {
+                const list = pcmBySub[s] || [];
+                const isNum = (q) => {
+                    const t = (q.type || q.q_type || '').toUpperCase();
+                    return Boolean(q.isNumerical) || t.includes('NUMERICAL') || t.includes('INTEGER') || t === 'NUM' ||
+                           (q.part && q.part.toUpperCase().includes('NUMERICAL')) ||
+                           (q.part && q.part.toUpperCase().includes('SECTION B')) ||
+                           (q.part && q.part.toUpperCase().includes('SECTION-B'));
+                };
+                const secA = list.filter(q => !isNum(q)).slice(0, 20).map(q => ({
+                    ...q,
+                    subject: s,
+                    sectionSubject: s,
+                    isNumerical: false,
+                    part: 'SECTION A - MULTIPLE CHOICE QUESTIONS'
+                }));
+                const secB = list.filter(q => isNum(q)).slice(0, 5).map(q => ({
+                    ...q,
+                    subject: s,
+                    sectionSubject: s,
+                    isNumerical: true,
+                    type: 'NUMERICAL',
+                    options: [],
+                    part: 'SECTION B - NUMERICAL VALUE QUESTIONS'
+                }));
+                clamped.push(...secA, ...secB);
+            });
 
-        const finalClamped = clamped.slice(0, 75);
-        if (finalClamped.length > 0) {
-            questions = finalClamped;
-        } else {
-            questions = questions.slice(0, 75);
+            if (clamped.length === 75) {
+                questions = clamped;
+            }
         }
     }
 
@@ -747,7 +751,6 @@ async function generatePaperDoc(paper, template = null) {
     );
 
     // ── 3. GENERAL INSTRUCTIONS ──
-    const examTypeStr = String(paper.examType || paper.exam_type || '').toUpperCase();
 
     const instructionText = isJEE
         ? "1. All questions are compulsory. Total 25 questions (100 Marks).  2. Section A contains 20 Multiple Choice Questions (+4 for correct, -1 for incorrect).  3. Section B contains 5 Numerical Value Questions (+4 for correct, 0 for unattempted). No options are provided.  4. Use of calculators or electronic devices is strictly prohibited."

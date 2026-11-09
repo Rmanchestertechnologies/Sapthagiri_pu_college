@@ -58,8 +58,8 @@ function mapPaperRow(r) {
         subject: r.subject,
         class_level: r.class_level,
         classes: r.classes || [r.class_level || '12'],
-        exam_type: r.exam_type || 'JEE_PCM',
-        examType: r.exam_type || 'JEE_PCM',
+        exam_type: r.exam_type || (r.title && /CET|KCET/i.test(r.title) ? 'CET' : (r.title && /NEET/i.test(r.title) ? 'NEET' : 'CUSTOM')),
+        examType: r.exam_type || (r.title && /CET|KCET/i.test(r.title) ? 'CET' : (r.title && /NEET/i.test(r.title) ? 'NEET' : 'CUSTOM')),
         duration_minutes: r.duration_minutes,
         duration: r.duration || `${r.duration_minutes || 180} mins`,
         total_marks: r.total_marks,
@@ -271,16 +271,22 @@ async function getTeacherAssignments(userId, userSubject) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 async function savePaper(paperData) {
+    const rawExamType = paperData.examType || paperData.exam_type;
+    const inferredExamType = rawExamType 
+        ? rawExamType 
+        : ((paperData.title && /CET|KCET/i.test(paperData.title)) ? 'CET' 
+           : ((paperData.title && /NEET/i.test(paperData.title)) ? 'NEET' : 'CUSTOM'));
+
     const {
         paper_id = `paper_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
         title,
         subject = 'General',
         class_level = '12',
         classes = ['12'],
-        exam_type = 'JEE_PCM',
-        examType = 'JEE_PCM',
-        duration_minutes = 180,
-        total_marks = 180,
+        exam_type = inferredExamType,
+        examType = inferredExamType,
+        duration_minutes = (inferredExamType === 'CET' ? 80 : 180),
+        total_marks = (inferredExamType === 'CET' ? (paperData.questions?.length || 60) : 180),
         instructions = '',
         questions = [],
         questionObjects = [],
@@ -295,12 +301,14 @@ async function savePaper(paperData) {
         pattern = [],
         difficultyDistribution = { easy: 40, medium: 40, hard: 20 },
         isAssignment = false,
-        duration = '180 mins',
+        duration = (inferredExamType === 'CET' ? '80 mins' : '180 mins'),
         startQNo = 1,
         endQNo = null,
         status = 'DRAFT',
         metadata = {}
     } = paperData;
+
+    const resolvedExamType = paperData.exam_type || paperData.examType || inferredExamType;
 
     const tId = teacherId || created_by || author_id;
 
@@ -345,7 +353,7 @@ async function savePaper(paperData) {
         title,
         subject,
         class_level,
-        exam_type || examType,
+        resolvedExamType,
         duration_minutes,
         total_marks,
         instructions,
@@ -454,7 +462,7 @@ async function updatePaper(id, updateData) {
         merged.title,
         merged.subject,
         merged.class_level || merged.classLevel,
-        merged.exam_type || merged.examType,
+        merged.exam_type || merged.examType || (merged.title && /CET|KCET/i.test(merged.title) ? 'CET' : 'CUSTOM'),
         merged.duration_minutes || merged.durationMinutes,
         merged.total_marks || merged.totalMarks,
         merged.instructions,

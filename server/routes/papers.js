@@ -84,8 +84,11 @@ async function populatePaperQuestions(paper) {
 router.post('/', [auth, checkRole(['admin', 'teacher'])], async (req, res) => {
     try {
         const { examId, ...rest } = req.body;
+        const examType = req.body.examType || req.body.exam_type || (req.body.title && /CET|KCET/i.test(req.body.title) ? 'CET' : (req.body.title && /NEET/i.test(req.body.title) ? 'NEET' : 'CUSTOM'));
         const paperData = {
             ...rest,
+            examType,
+            exam_type: examType,
             subject: req.body.subject || (req.user.role === 'admin' ? 'Physics' : req.user.subject),
             teacherId: req.user.id,
             examId: examId || null
@@ -277,6 +280,8 @@ router.patch('/:id/section', [auth, checkRole(['teacher', 'admin'])], async (req
 router.post('/export-word', [auth, checkRole(['teacher', 'admin'])], async (req, res) => {
     try {
         const paper = req.body || {};
+        if (!paper.exam_type && paper.examType) paper.exam_type = paper.examType;
+        if (!paper.examType && paper.exam_type) paper.examType = paper.exam_type;
         const { generatePaperDoc } = require('../services/wordExport');
         const buffer = await generatePaperDoc(paper);
 

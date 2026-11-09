@@ -502,7 +502,7 @@ export default function CommissionedExam() {
                 try {
                     const res = await api.get(`/api/questions?${p.toString()}`);
                     const rows = Array.isArray(res.data?.questions) ? res.data.questions : (Array.isArray(res.data) ? res.data : []);
-                    return rows.filter(q => !isCetQ(q));
+                    return (selectedExamPattern === 'CET') ? rows : rows.filter(q => !isCetQ(q));
                 } catch (e) {
                     return [];
                 }
@@ -728,8 +728,8 @@ export default function CommissionedExam() {
                 allRows = Array.isArray(retryRes.data?.questions) ? retryRes.data.questions : (Array.isArray(retryRes.data) ? retryRes.data : []);
             }
 
-            // Client-side CET guard
-            const filteredRows = allRows.filter(q => !isCetQ(q));
+            // Client-side CET guard (never filter out CET questions when creating CET exam)
+            const filteredRows = (selectedExamPattern === 'CET') ? allRows : allRows.filter(q => !isCetQ(q));
 
             // Populate candidate pool for manual mode
             setManualPool(filteredRows);
@@ -956,8 +956,10 @@ export default function CommissionedExam() {
                 title: examTitle || `${selectedExamPattern} Examination`,
                 subject: selectedSubject || 'General',
                 examType: selectedExamPattern,
+                exam_type: selectedExamPattern,
                 classes: selectedClass === 'Both' ? ['11', '12'] : [selectedClass],
                 questions: selectedQuestions.map((q, idx) => ({ ...q, questionNumber: idx + 1 })),
+                questionObjects: selectedQuestions.map((q, idx) => ({ ...q, questionNumber: idx + 1 })),
                 totalQuestions: selectedQuestions.length,
                 totalMarks: selectedQuestions.length * patternConfig.marksPerQ,
                 status: 'Draft',
@@ -1052,11 +1054,11 @@ export default function CommissionedExam() {
             };
             const activePaper = setsActive && activeSet !== 'P' ? generatePaperSet(basePaper, activeSet) : basePaper;
             const rawActiveQs = activePaper?.questions || baseQs;
-            const isJEE = selectedExamPattern === 'JEE';
             const paperData = {
                 ...activePaper,
                 examType: selectedExamPattern,
-                questions: isJEE ? rawActiveQs.slice(0, 75) : rawActiveQs,
+                exam_type: selectedExamPattern,
+                questions: rawActiveQs,
                 setName: setsActive ? activeSet : 'P',
                 startQNo: settings?.startQNo || 1,
             };
