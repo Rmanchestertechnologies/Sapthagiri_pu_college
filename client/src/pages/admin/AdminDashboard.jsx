@@ -159,10 +159,24 @@ const DashboardHome = () => {
         return isNeetPaper(p) || isJeePaper(p) || isCetPaper(p);
     };
 
+    const isPcmbPaper = (p) => {
+        const title = String(p.title || '').toUpperCase();
+        const s = String(p.subject || '').toUpperCase();
+        const et = String(p.examType || p.exam_type || '').toUpperCase();
+        return s.includes('PCMB') || title.includes('PCMB') || et.includes('PCMB');
+    };
+
+    const isBzPaper = (p) => {
+        const title = String(p.title || '').toUpperCase();
+        const s = String(p.subject || '').toUpperCase();
+        return s.includes('BZ') || title.includes('BZ') || (s.includes('BOTAN') && s.includes('ZOOL')) || (title.includes('BOTAN') && title.includes('ZOOL'));
+    };
+
     // Strict check for individual single-subject papers:
-    // Excludes NEET, JEE, CET competitive exams, and excludes multi-subject papers.
+    // Excludes NEET, JEE, CET competitive exams, and excludes multi-subject papers (PCMB, BZ).
     const isIndividualSubjectPaper = (p, targetSub) => {
         if (isCompetitivePaper(p)) return false;
+        if (isPcmbPaper(p) || isBzPaper(p)) return false;
 
         const s = String(p.subject || '').toLowerCase().trim();
         const target = targetSub.toLowerCase().trim();
@@ -185,6 +199,8 @@ const DashboardHome = () => {
         if (category === 'NEET') return allPapers.filter(isNeetPaper);
         if (category === 'JEE') return allPapers.filter(isJeePaper);
         if (category === 'CET') return allPapers.filter(isCetPaper);
+        if (category === 'PCMB') return allPapers.filter(isPcmbPaper);
+        if (category === 'BZ') return allPapers.filter(isBzPaper);
         if (['Physics', 'Chemistry', 'Mathematics', 'Biology', 'Botany', 'Zoology'].includes(category)) {
             return allPapers.filter(p => isIndividualSubjectPaper(p, category));
         }
@@ -951,7 +967,36 @@ const DashboardHome = () => {
                                                 })}
 
                                                 <div className="my-2 border-t border-slate-100 px-2 pt-1.5 text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                                                    Individual Subjects (PCMB & BZ)
+                                                    Multi-Subject Combinations
+                                                </div>
+                                                {[
+                                                    { key: 'PCMB', label: 'PCMB (Phy, Chem, Math, Bio)', icon: '🧬' },
+                                                    { key: 'BZ', label: 'BZ (Botany & Zoology)', icon: '🌿' }
+                                                ].map(combo => {
+                                                    const count = getSavedCategoryCount(combo.key);
+                                                    const isAct = savedPapersCategory === combo.key;
+                                                    return (
+                                                        <button
+                                                            key={combo.key}
+                                                            type="button"
+                                                            onClick={() => { setSavedPapersCategory(combo.key); setIsCategoryDropdownOpen(false); }}
+                                                            className={`w-full flex items-center justify-between p-2 rounded-xl transition cursor-pointer ${
+                                                                isAct ? 'bg-navy text-gold font-black shadow-xs' : 'hover:bg-slate-50 text-slate-700'
+                                                            }`}
+                                                        >
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="text-base">{combo.icon}</span>
+                                                                <span>{combo.label}</span>
+                                                            </div>
+                                                            <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${isAct ? 'bg-gold/30 text-gold' : 'bg-slate-100 text-slate-600'}`}>
+                                                                {count}
+                                                            </span>
+                                                        </button>
+                                                    );
+                                                })}
+
+                                                <div className="my-2 border-t border-slate-100 px-2 pt-1.5 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                                    Individual Subjects (Isolated Only)
                                                 </div>
                                                 {subjects.map(sub => {
                                                     const count = getSavedCategoryCount(sub);
@@ -1045,6 +1090,37 @@ const DashboardHome = () => {
                                     >
                                         <span>{icon}</span>
                                         <span>{exam}</span>
+                                        <span className={`text-[10px] font-black px-1.5 py-0.2 rounded-full ${
+                                            isActive ? 'bg-gold/30 text-gold' : 'bg-slate-100 text-slate-700'
+                                        }`}>
+                                            {count}
+                                        </span>
+                                    </button>
+                                );
+                            })}
+
+                            <div className="h-4 w-px bg-slate-200 mx-1 hidden sm:block"></div>
+
+                            {/* Multi-Subject Combination Pills */}
+                            {[
+                                { key: 'PCMB', label: 'PCMB', icon: '🧬' },
+                                { key: 'BZ', label: 'BZ', icon: '🌿' }
+                            ].map(combo => {
+                                const count = getSavedCategoryCount(combo.key);
+                                const isActive = savedPapersCategory === combo.key;
+                                return (
+                                    <button
+                                        key={combo.key}
+                                        type="button"
+                                        onClick={() => setSavedPapersCategory(combo.key)}
+                                        className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                                            isActive
+                                                ? 'bg-navy text-gold shadow-xs font-black'
+                                                : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
+                                        }`}
+                                    >
+                                        <span>{combo.icon}</span>
+                                        <span>{combo.label}</span>
                                         <span className={`text-[10px] font-black px-1.5 py-0.2 rounded-full ${
                                             isActive ? 'bg-gold/30 text-gold' : 'bg-slate-100 text-slate-700'
                                         }`}>

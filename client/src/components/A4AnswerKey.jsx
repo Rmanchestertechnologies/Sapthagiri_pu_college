@@ -4,6 +4,8 @@ import MathRenderer from './MathRenderer';
 import { getResolvedAnswerLabel } from '../utils/sanitize';
 import { generatePaperSet } from '../utils/pqrsGenerator';
 import * as XLSX from 'xlsx';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 // Helper: map full subject name to 3-4 letter uppercase standard abbreviation
 function getSubjectAbbr(sub = '') {
@@ -18,15 +20,60 @@ function getSubjectAbbr(sub = '') {
     return s.slice(0, 4).toUpperCase();
 }
 
-// Helper: convert letter options (A, B, C, D) to numeric keys (1, 2, 3, 4)
+// Subject resolution for each 15-question chunk
+function getSubjectAbbrForChunk(chunkIdx, totalChunks, paper, firstQ) {
+    const title = String(paper?.title || '').toUpperCase();
+    const paperSub = String(paper?.subject || '').toUpperCase();
+    const examType = String(paper?.examType || paper?.exam_type || '').toUpperCase();
+
+    const isPCMB = paperSub.includes('PCMB') || title.includes('PCMB') || (examType.includes('CET') && totalChunks === 4);
+
+    if (isPCMB && totalChunks === 4) {
+        const pcmbSubs = ['PHY', 'CHEM', 'MATH', 'BIO'];
+        return pcmbSubs[chunkIdx] || 'GEN';
+    }
+
+    const qSub = firstQ?.sectionSubject || firstQ?.subject;
+    if (qSub && getSubjectAbbr(qSub) !== 'GEN') {
+        return getSubjectAbbr(qSub);
+    }
+
+    return getSubjectAbbr(paper?.subject || 'GEN');
+}
+
+// Convert any answer representation (A, B, C, D, 1, 2, 3, 4, etc.) to 1, 2, 3, 4
 function toNumericKey(val) {
-    if (val === undefined || val === null || val === '') return '';
+    if (val === undefined || val === null || val === '') return '-';
     const s = String(val).trim().toUpperCase();
-    if (s === 'A' || s === '(1)' || s === '1') return '1';
-    if (s === 'B' || s === '(2)' || s === '2') return '2';
-    if (s === 'C' || s === '(3)' || s === '3') return '3';
-    if (s === 'D' || s === '(4)' || s === '4') return '4';
-    return s;
+    if (s === '1' || s === '(1)' || s === '[1]' || s === '1.') return '1';
+    if (s === '2' || s === '(2)' || s === '[2]' || s === '2.') return '2';
+    if (s === '3' || s === '(3)' || s === '[3]' || s === '3.') return '3';
+    if (s === '4' || s === '(4)' || s === '[4]' || s === '4.') return '4';
+    if (s === 'A' || s === '(A)' || s === '[A]' || s === 'A.') return '1';
+    if (s === 'B' || s === '(B)' || s === '[B]' || s === 'B.') return '2';
+    if (s === 'C' || s === '(C)' || s === '[C]' || s === 'C.') return '3';
+    if (s === 'D' || s === '(D)' || s === '[D]' || s === 'D.') return '4';
+    const numMatch = s.match(/(?:^|\b|\(|\[)([1-4])(?:\)|\b|\]|\.)/);
+    if (numMatch) return numMatch[1];
+    const alphaMatch = s.match(/(?:^|\b|\(|\[)([A-D])(?:\)|\b|\]|\.)/);
+    if (alphaMatch) return String(alphaMatch[1].charCodeAt(0) - 64);
+    return s || '-';
+}
+
+// Convert any answer representation to A, B, C, D
+function toAlphaKey(val) {
+    if (val === undefined || val === null || val === '') return '-';
+    const s = String(val).trim().toUpperCase();
+    if (s === '1' || s === '(1)' || s === '[1]' || s === '1.') return 'A';
+    if (s === '2' || s === '(2)' || s === '[2]' || s === '2.') return 'B';
+    if (s === '3' || s === '(3)' || s === '[3]' || s === '3.') return 'C';
+    if (s === '4' || s === '(4)' || s === '[4]' || s === '4.') return 'D';
+    if (s === 'A' || s === 'B' || s === 'C' || s === 'D') return s;
+    const alphaMatch = s.match(/(?:^|\b|\(|\[)([A-D])(?:\)|\b|\]|\.)/);
+    if (alphaMatch) return alphaMatch[1];
+    const numMatch = s.match(/(?:^|\b|\(|\[)([1-4])(?:\)|\b|\]|\.)/);
+    if (numMatch) return String.fromCharCode(64 + parseInt(numMatch[1], 10));
+    return s || '-';
 }
 
 export default function A4AnswerKey({
@@ -115,15 +162,19 @@ export default function A4AnswerKey({
     }, [paperTitle, paper?.subject, formattedExamDate]);
 
     // Handle editing a specific question's answer in localQuestions
-    const handleAnswerChange = (qIndex, newAnswer) => {
+    const handleAnswerChange = (qIndex, selectedVal) => {
         setLocalQuestions(prev => {
             const copy = [...prev];
             const target = copy[qIndex];
             if (target) {
+                const numVal = toNumericKey(selectedVal);
+                const alphaVal = toAlphaKey(selectedVal);
                 copy[qIndex] = {
                     ...target,
-                    answer: newAnswer,
-                    correctAnswer: newAnswer,
+                    answer: alphaVal,
+                    correct_option: alphaVal,
+                    correctAnswer: alphaVal,
+                    num_answer: numVal,
                 };
             }
             return copy;
@@ -161,6 +212,7 @@ export default function A4AnswerKey({
         }
     };
 
+    // Clean system print
     const handlePrint = () => {
         document.body.classList.add('printing-answer-key');
         setTimeout(() => {
@@ -171,7 +223,84 @@ export default function A4AnswerKey({
         }, 150);
     };
 
-    // Professional Excel (.xlsx) Answer Key Export matching Image 1 layout 100%
+    // High-fidelity Vector PDF export matching user reference image exactly
+    const handleDownloadPdf = () => {
+        try {
+            const doc = new jsPDF({
+                orientation: 'landscape',
+                unit: 'mm',
+                format: 'a4'
+            });
+
+            // Title at the top matching user image:
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(13);
+            doc.text(headerTitleText, 148.5, 14, { align: 'center' });
+
+            // Build table data for autotable
+            const tableBody = [];
+
+            questionChunks.forEach((chunk, chunkIdx) => {
+                const firstQ = chunk[0];
+                const subAbbr = getSubjectAbbrForChunk(chunkIdx, questionChunks.length, paper, firstQ);
+
+                // Row 1: Subject (rowSpan: 2), Q. NO, q numbers 1..15
+                const qNoRow = [
+                    { content: subAbbr, rowSpan: 2, styles: { halign: 'center', valign: 'middle', fontStyle: 'bold', fontSize: 10, fillColor: [255, 255, 255] } },
+                    { content: 'Q. NO', styles: { halign: 'center', fontStyle: 'bold', fontSize: 8.5, fillColor: [240, 240, 240] } }
+                ];
+                for (let i = 0; i < 15; i++) {
+                    const q = chunk[i];
+                    const qNo = q ? (q.setQNo || (startQNo + chunkIdx * 15 + i)) : '';
+                    qNoRow.push({ content: String(qNo), styles: { halign: 'center', fontStyle: 'bold', fontSize: 9, fillColor: [240, 240, 240] } });
+                }
+                tableBody.push(qNoRow);
+
+                // Row 2: KEY, display keys
+                const keyRow = [
+                    { content: 'KEY', styles: { halign: 'center', fontStyle: 'bold', fontSize: 8.5, fillColor: [255, 255, 255] } }
+                ];
+                for (let i = 0; i < 15; i++) {
+                    const q = chunk[i];
+                    let displayKey = '';
+                    if (q) {
+                        const rawAns = getResolvedAnswerLabel(q);
+                        displayKey = useNumericKeys ? toNumericKey(rawAns) : toAlphaKey(rawAns);
+                    }
+                    keyRow.push({ content: String(displayKey), styles: { halign: 'center', fontStyle: 'bold', fontSize: 9.5, fillColor: [255, 255, 255] } });
+                }
+                tableBody.push(keyRow);
+            });
+
+            autoTable(doc, {
+                startY: 19,
+                margin: { left: 10, right: 10 },
+                body: tableBody,
+                theme: 'grid',
+                styles: {
+                    lineColor: [0, 0, 0],
+                    lineWidth: 0.35,
+                    textColor: [0, 0, 0],
+                    cellPadding: 2,
+                    font: 'helvetica'
+                },
+                columnStyles: {
+                    0: { cellWidth: 16 },
+                    1: { cellWidth: 14 },
+                    // 15 questions columns:
+                    ...Object.fromEntries(Array.from({ length: 15 }, (_, i) => [i + 2, { cellWidth: 16.4 }]))
+                }
+            });
+
+            const safeTitle = (paperTitle || 'KEY_ANS').replace(/[^a-zA-Z0-9_-]/g, '_');
+            doc.save(`${safeTitle}_KEY_ANS_SET_${activeSet}.pdf`);
+        } catch (err) {
+            console.error('Error generating PDF:', err);
+            alert('Failed to generate PDF: ' + err.message);
+        }
+    };
+
+    // Professional Excel (.xlsx) Answer Key Export matching user reference layout 100%
     const handleDownloadExcel = () => {
         try {
             const wb = XLSX.utils.book_new();
@@ -185,7 +314,7 @@ export default function A4AnswerKey({
             // Chunks of 15 questions per subject block
             questionChunks.forEach((chunk, chunkIdx) => {
                 const firstQ = chunk[0];
-                const subAbbr = getSubjectAbbr(firstQ?.sectionSubject || firstQ?.subject || paper?.subject);
+                const subAbbr = getSubjectAbbrForChunk(chunkIdx, questionChunks.length, paper, firstQ);
 
                 // Row A: [SUB], Q. NO, 1..15
                 const qNoRow = [subAbbr, 'Q. NO'];
@@ -200,7 +329,7 @@ export default function A4AnswerKey({
                 const keyRow = [subAbbr, 'KEY'];
                 chunk.forEach((q) => {
                     const rawAns = getResolvedAnswerLabel(q);
-                    const displayKey = useNumericKeys ? toNumericKey(rawAns) : rawAns;
+                    const displayKey = useNumericKeys ? toNumericKey(rawAns) : toAlphaKey(rawAns);
                     keyRow.push(displayKey);
                 });
                 while (keyRow.length < 17) keyRow.push('');
@@ -238,7 +367,7 @@ export default function A4AnswerKey({
                 {/* ── Action Toolbar (Hidden during print) ── */}
                 <div className="flex flex-wrap justify-between items-center px-6 py-4 bg-white border-b border-gray-200 gap-3 no-print">
                     <div className="flex items-center gap-3 flex-wrap">
-                        <span className="text-xs font-black text-gold uppercase tracking-widest bg-navy px-3 py-1 rounded-full">
+                        <span className="text-xs font-black text-gold uppercase tracking-widest bg-navy px-3 py-1 rounded-full shadow-xs">
                             Official Answer Key
                         </span>
                         
@@ -261,15 +390,29 @@ export default function A4AnswerKey({
                             ))}
                         </div>
 
-                        {/* Numeric vs Letter Key Toggle */}
-                        <button
-                            type="button"
-                            onClick={() => setUseNumericKeys(!useNumericKeys)}
-                            className="text-xs font-bold px-3 py-1 bg-slate-100 hover:bg-slate-200 text-navy rounded-xl border border-slate-300 transition cursor-pointer"
-                            title="Toggle between Numeric keys (1, 2, 3, 4) and Letter keys (A, B, C, D)"
-                        >
-                            Keys: <strong>{useNumericKeys ? '1, 2, 3, 4' : 'A, B, C, D'}</strong>
-                        </button>
+                        {/* Numeric vs Letter Key Segmented Toggle */}
+                        <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-300 shadow-inner">
+                            <button
+                                type="button"
+                                onClick={() => setUseNumericKeys(true)}
+                                className={`px-2.5 py-1 rounded-lg text-xs font-black transition cursor-pointer ${
+                                    useNumericKeys ? 'bg-navy text-gold shadow-xs' : 'text-slate-600 hover:text-navy'
+                                }`}
+                                title="Show keys as 1, 2, 3, 4 (Standard for CET / PUC)"
+                            >
+                                1, 2, 3, 4 (CET)
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setUseNumericKeys(false)}
+                                className={`px-2.5 py-1 rounded-lg text-xs font-black transition cursor-pointer ${
+                                    !useNumericKeys ? 'bg-navy text-gold shadow-xs' : 'text-slate-600 hover:text-navy'
+                                }`}
+                                title="Show keys as A, B, C, D"
+                            >
+                                A, B, C, D
+                            </button>
+                        </div>
                     </div>
 
                     <div className="flex items-center gap-2 flex-wrap">
@@ -311,9 +454,9 @@ export default function A4AnswerKey({
                             <span>🖨️</span> Print Key
                         </button>
                         <button
-                            onClick={handlePrint}
+                            onClick={handleDownloadPdf}
                             className="bg-slate-800 text-white hover:bg-black px-4 py-2 rounded-xl font-black text-xs uppercase tracking-wider transition shadow cursor-pointer flex items-center gap-1.5"
-                            title="Save as PDF via Print dialog"
+                            title="Direct PDF download formatted to institutional standard"
                         >
                             <span>📥</span> PDF
                         </button>
@@ -349,7 +492,7 @@ export default function A4AnswerKey({
                     </div>
                 )}
 
-                {/* ── Official Answer Key Table Document (Matches Image 1 100%) ── */}
+                {/* ── Official Answer Key Table Document (Matches user reference exactly) ── */}
                 <div className="a4-answer-key-body flex-1 overflow-y-auto p-4 sm:p-8 bg-slate-300/80 min-h-0">
                     <div className="mx-auto w-full max-w-[860px]">
                         <div
@@ -361,7 +504,7 @@ export default function A4AnswerKey({
                                 fontFamily: 'Calibri, Arial, sans-serif',
                             }}
                         >
-                            {/* Official Table Header Title (as shown in Image 1) */}
+                            {/* Official Table Header Title (as shown in user reference image) */}
                             <div className="text-center mb-4">
                                 <h2 className="text-lg sm:text-xl font-black text-black tracking-wide uppercase">
                                     {headerTitleText}
@@ -381,7 +524,7 @@ export default function A4AnswerKey({
                                     <tbody>
                                         {questionChunks.map((chunk, chunkIdx) => {
                                             const firstQ = chunk[0];
-                                            const subAbbr = getSubjectAbbr(firstQ?.sectionSubject || firstQ?.subject || paper?.subject);
+                                            const subAbbr = getSubjectAbbrForChunk(chunkIdx, questionChunks.length, paper, firstQ);
 
                                             return (
                                                 <React.Fragment key={chunkIdx}>
@@ -480,7 +623,7 @@ export default function A4AnswerKey({
                                                             }
 
                                                             const rawAns = getResolvedAnswerLabel(q);
-                                                            const displayKey = useNumericKeys ? toNumericKey(rawAns) : rawAns;
+                                                            const currentKey = useNumericKeys ? toNumericKey(rawAns) : toAlphaKey(rawAns);
                                                             const qGlobalIdx = chunkIdx * 15 + colIdx;
 
                                                             return (
@@ -497,18 +640,22 @@ export default function A4AnswerKey({
                                                                 >
                                                                     {isEditing ? (
                                                                         <select
-                                                                            value={rawAns}
+                                                                            value={currentKey}
                                                                             onChange={(e) => handleAnswerChange(qGlobalIdx, e.target.value)}
                                                                             className="w-full text-xs font-black text-center bg-white border border-amber-400 rounded py-0.5 outline-none cursor-pointer"
                                                                         >
-                                                                            {['A', 'B', 'C', 'D'].map(k => (
-                                                                                <option key={k} value={k}>
-                                                                                    {useNumericKeys ? toNumericKey(k) : k}
-                                                                                </option>
-                                                                            ))}
+                                                                            {useNumericKeys ? (
+                                                                                ['1', '2', '3', '4'].map(k => (
+                                                                                    <option key={k} value={k}>{k}</option>
+                                                                                ))
+                                                                            ) : (
+                                                                                ['A', 'B', 'C', 'D'].map(k => (
+                                                                                    <option key={k} value={k}>{k}</option>
+                                                                                ))
+                                                                            )}
                                                                         </select>
                                                                     ) : (
-                                                                        displayKey
+                                                                        currentKey
                                                                     )}
                                                                 </td>
                                                             );
@@ -520,60 +667,9 @@ export default function A4AnswerKey({
                                     </tbody>
                                 </table>
                             </div>
-
-                            {/* Document Footer (Print only) */}
-                            <div className="mt-8 pt-2 text-center text-[10px] text-slate-500 font-semibold flex justify-between items-center">
-                                <span>Sapthagiri Pre-University College • Davanagere</span>
-                                <span>Answer Key Set {activeSet} • Total Qs: {resolvedQuestions.length}</span>
-                            </div>
                         </div>
                     </div>
                 </div>
-
-                {/* ── Print Styles for Crisp A4 Print & PDF ── */}
-                <style>{`
-                    @media print {
-                        @page {
-                            size: A4 landscape;
-                            margin: 10mm 12mm;
-                        }
-                        html, body {
-                            background: #ffffff !important;
-                            margin: 0 !important;
-                            padding: 0 !important;
-                        }
-                        .no-print {
-                            display: none !important;
-                        }
-                        .a4-answer-key-modal {
-                            position: static !important;
-                            background: transparent !important;
-                            padding: 0 !important;
-                            overflow: visible !important;
-                        }
-                        .a4-answer-key-card {
-                            border: none !important;
-                            box-shadow: none !important;
-                            max-width: 100% !important;
-                            max-height: none !important;
-                            background: transparent !important;
-                        }
-                        .a4-answer-key-body {
-                            background: transparent !important;
-                            padding: 0 !important;
-                            overflow: visible !important;
-                        }
-                        .a4-answer-key-sheet {
-                            box-shadow: none !important;
-                            border: none !important;
-                            padding: 0 !important;
-                        }
-                        table {
-                            width: 100% !important;
-                            border-collapse: collapse !important;
-                        }
-                    }
-                `}</style>
             </div>
         </div>
     );

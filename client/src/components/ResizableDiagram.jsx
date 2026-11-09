@@ -202,7 +202,6 @@ export default function ResizableDiagram({
                     handleImageLoad(e);
                 }}
                 referrerPolicy="no-referrer"
-                crossOrigin="anonymous"
                 style={{
                     height: `${height}px`,
                     maxHeight: `${height}px`,
@@ -222,13 +221,22 @@ export default function ResizableDiagram({
                 className="rounded"
                 loading="eager"
                 onError={() => {
+                    const isAlreadyProxy = typeof currentSrc === 'string' && currentSrc.includes('/api/papers/proxy-image');
+                    if (!isAlreadyProxy && src && (src.startsWith('http://') || src.startsWith('https://'))) {
+                        const proxyUrl = '/api/papers/proxy-image?url=' + encodeURIComponent(src);
+                        setCurrentSrc(proxyUrl);
+                        return;
+                    }
                     if (retryCount < 2) {
                         const nextRetry = retryCount + 1;
                         setRetryCount(nextRetry);
-                        const sep = src.includes('?') ? '&' : '?';
                         setTimeout(() => {
-                            setCurrentSrc(src + sep + 'r=' + Date.now() + '_' + nextRetry);
-                        }, 250);
+                            if (src && (src.startsWith('http://') || src.startsWith('https://'))) {
+                                setCurrentSrc('/api/papers/proxy-image?url=' + encodeURIComponent(src) + '&t=' + Date.now());
+                            } else {
+                                setCurrentSrc(src);
+                            }
+                        }, 300);
                     } else {
                         setHasError(true);
                     }
@@ -240,8 +248,11 @@ export default function ResizableDiagram({
                         e.stopPropagation();
                         setHasError(false);
                         setRetryCount(0);
-                        const sep = src.includes('?') ? '&' : '?';
-                        setCurrentSrc(src + sep + 'r=' + Date.now());
+                        if (src && (src.startsWith('http://') || src.startsWith('https://'))) {
+                            setCurrentSrc('/api/papers/proxy-image?url=' + encodeURIComponent(src) + '&t=' + Date.now());
+                        } else {
+                            setCurrentSrc(src);
+                        }
                     }}
                     className="no-print inline-flex items-center gap-1 px-2 py-1 bg-amber-50 hover:bg-amber-100 border border-amber-300 rounded text-[10px] text-amber-900 cursor-pointer transition select-none shadow-2xs"
                     title="Click to reload diagram"

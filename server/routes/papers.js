@@ -78,6 +78,39 @@ async function populatePaperQuestions(paper) {
     return pObj;
 }
 
+// @route   GET /api/papers/proxy-image
+// @desc    Guaranteed fallback image proxy for diagrams (bypasses ad-blockers, CORS taint, and mobile network errors)
+// @access  Public
+router.get('/proxy-image', async (req, res) => {
+    try {
+        const targetUrl = req.query.url;
+        if (!targetUrl || typeof targetUrl !== 'string') {
+            return res.status(400).send('Missing url parameter');
+        }
+        const parsed = new URL(targetUrl);
+        if (!['http:', 'https:'].includes(parsed.protocol)) {
+            return res.status(400).send('Invalid protocol');
+        }
+        const upstream = await fetch(targetUrl, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            }
+        });
+        if (!upstream.ok) {
+            return res.status(upstream.status).send('Upstream image error: ' + upstream.statusText);
+        }
+        const contentType = upstream.headers.get('content-type') || 'image/jpeg';
+        res.setHeader('Content-Type', contentType);
+        res.setHeader('Cache-Control', 'public, max-age=604800, immutable');
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        const buffer = Buffer.from(await upstream.arrayBuffer());
+        res.send(buffer);
+    } catch (err) {
+        console.error('Image proxy error:', err.message);
+        res.status(502).send('Failed to proxy image: ' + err.message);
+    }
+});
+
 // @route   POST /api/papers
 // @desc    Save a paper (stores Supabase question IDs and paper pattern)
 // @access  Teacher / Admin
