@@ -1,6 +1,7 @@
 import React, { useContext, useState, useEffect } from 'react';
 import { AuthContext } from '../../context/AuthContext';
 import { useNavigate, Routes, Route, Link, useLocation } from 'react-router-dom';
+import { Trash2, Eye, Clock, Calendar, ChevronDown, Filter, Search, X, FolderOpen, BookOpen, AlertCircle } from 'lucide-react';
 import UploadTemplate from './UploadTemplate';
 import CreateTeacher from './CreateTeacher';
 import SubjectDetails from './SubjectDetails';
@@ -128,10 +129,116 @@ const DashboardHome = () => {
 
     // Expandable Box States (One box when clicked the four will open)
     const [isExamSubjectsOpen, setIsExamSubjectsOpen] = useState(false);
-    const [isSubjectDirectoryOpen, setIsSubjectDirectoryOpen] = useState(false);
-    const [selectedSubjectTab, setSelectedSubjectTab] = useState('ALL');
-    const [subjectDirectorySearch, setSubjectDirectorySearch] = useState('');
+    const [isSavedPapersOpen, setIsSavedPapersOpen] = useState(true);
+    const [savedPapersCategory, setSavedPapersCategory] = useState('ALL');
+    const [savedPapersSearch, setSavedPapersSearch] = useState('');
+    const [deletingPaperId, setDeletingPaperId] = useState(null);
     const [allPapers, setAllPapers] = useState([]);
+
+    // Categorization & Strict Isolation Helpers for Saved Papers
+    const isNeetPaper = (p) => {
+        const et = String(p.examType || p.exam_type || '').toUpperCase();
+        const title = String(p.title || '').toUpperCase();
+        return et.includes('NEET') || title.includes('NEET');
+    };
+
+    const isJeePaper = (p) => {
+        const et = String(p.examType || p.exam_type || '').toUpperCase();
+        const title = String(p.title || '').toUpperCase();
+        return !isNeetPaper(p) && (et.includes('JEE') || title.includes('JEE'));
+    };
+
+    const isCetPaper = (p) => {
+        const et = String(p.examType || p.exam_type || '').toUpperCase();
+        const title = String(p.title || '').toUpperCase();
+        return !isNeetPaper(p) && !isJeePaper(p) && (et.includes('CET') || et.includes('KCET') || title.includes('CET') || title.includes('KCET'));
+    };
+
+    const isCompetitivePaper = (p) => {
+        return isNeetPaper(p) || isJeePaper(p) || isCetPaper(p);
+    };
+
+    // Strict check for individual single-subject papers:
+    // Excludes NEET, JEE, CET competitive exams, and excludes multi-subject papers.
+    const isIndividualSubjectPaper = (p, targetSub) => {
+        if (isCompetitivePaper(p)) return false;
+
+        const s = String(p.subject || '').toLowerCase().trim();
+        const target = targetSub.toLowerCase().trim();
+
+        // Multi-subject check
+        if (s.includes('•') || s.includes(',') || s.includes('&') || s.includes(' and ')) {
+            return false;
+        }
+
+        if (target === 'botany') return s.includes('botan');
+        if (target === 'zoology') return s.includes('zool');
+        if (target === 'biology') return (s === 'biology' || s === 'bio' || s.startsWith('bio')) && !s.includes('botan') && !s.includes('zool');
+        if (target === 'mathematics' || target === 'maths') return s.includes('math');
+        if (target === 'physics') return s.includes('physic');
+        if (target === 'chemistry') return s.includes('chem');
+        return s === target;
+    };
+
+    const getPapersByCategory = (category) => {
+        if (category === 'NEET') return allPapers.filter(isNeetPaper);
+        if (category === 'JEE') return allPapers.filter(isJeePaper);
+        if (category === 'CET') return allPapers.filter(isCetPaper);
+        if (['Physics', 'Chemistry', 'Mathematics', 'Biology', 'Botany', 'Zoology'].includes(category)) {
+            return allPapers.filter(p => isIndividualSubjectPaper(p, category));
+        }
+        return allPapers;
+    };
+
+    const getSavedCategoryCount = (category) => {
+        return getPapersByCategory(category).length;
+    };
+
+    const formatPaperDateTime = (dateVal) => {
+        if (!dateVal) return { date: 'Date N/A', time: '', full: 'Date not recorded' };
+        try {
+            const d = new Date(dateVal);
+            if (isNaN(d.getTime())) return { date: String(dateVal), time: '', full: String(dateVal) };
+            const dateStr = d.toLocaleDateString('en-IN', {
+                day: '2-digit',
+                month: 'short',
+                year: 'numeric'
+            });
+            const timeStr = d.toLocaleTimeString('en-IN', {
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: true
+            });
+            return { date: dateStr, time: timeStr, full: `${dateStr} • ${timeStr}` };
+        } catch {
+            return { date: String(dateVal), time: '', full: String(dateVal) };
+        }
+    };
+
+    const handleDeletePaper = async (e, paper) => {
+        e.stopPropagation();
+        const paperId = paper._id || paper.id;
+        const paperTitle = paper.title || 'Untitled Question Paper';
+        const dt = formatPaperDateTime(paper.createdAt || paper.created_at);
+
+        if (!paperId) return;
+
+        const confirmed = window.confirm(
+            `Are you sure you want to permanently delete this paper?\n\n"${paperTitle}"\nCreated: ${dt.full}\n\nThis action cannot be undone.`
+        );
+        if (!confirmed) return;
+
+        try {
+            setDeletingPaperId(paperId);
+            await api.delete(`/api/papers/${paperId}`);
+            setAllPapers(prev => prev.filter(p => String(p._id || p.id) !== String(paperId)));
+        } catch (err) {
+            console.error('Error deleting paper:', err);
+            alert(`Failed to delete paper: ${err.response?.data?.msg || err.message}`);
+        } finally {
+            setDeletingPaperId(null);
+        }
+    };
 
     const fetchData = async () => {
         try {
@@ -711,115 +818,103 @@ const DashboardHome = () => {
                 )}
             </div>
 
-            {/* ── SECTION 3: PCMB SUBJECT DIRECTORY (ORGANIZED DEPARTMENT REPOSITORY) ── */}
+            {/* ── SECTION 3: SAVED PAPERS (ORGANIZED BY SUBJECTS & COMPETITIVE EXAMS) ── */}
             <div className="bg-white rounded-3xl shadow-sm border border-slate-200/80 overflow-hidden transition-all duration-300">
                 {/* Master Box Header (Click to Open/Close) */}
                 <div
-                    onClick={() => setIsSubjectDirectoryOpen(!isSubjectDirectoryOpen)}
+                    onClick={() => setIsSavedPapersOpen(!isSavedPapersOpen)}
                     className="p-6 cursor-pointer hover:bg-slate-50/70 transition flex flex-col md:flex-row md:items-center justify-between gap-4 select-none"
                 >
                     <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center text-2xl font-black shadow-inner shrink-0">
-                            🏛️
+                        <div className="w-12 h-12 rounded-2xl bg-navy text-gold flex items-center justify-center text-2xl font-black shadow-inner shrink-0">
+                            📁
                         </div>
                         <div>
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 flex-wrap">
                                 <h3 className="font-black text-lg text-navy uppercase tracking-tight">
-                                    PCMB Subject Directory
+                                    Saved Papers
                                 </h3>
-                                <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200">
-                                    6 Academic Departments
-                                </span>
-                                <span className="text-[10px] font-bold text-navy bg-slate-100 px-2.5 py-0.5 rounded-full border border-slate-200">
+                                <span className="text-[10px] font-bold text-navy bg-gold/20 text-navy px-2.5 py-0.5 rounded-full border border-gold/40">
                                     {allPapers.length} Total Papers
+                                </span>
+                                <span className="text-[10px] font-bold text-slate-600 bg-slate-100 px-2.5 py-0.5 rounded-full border border-slate-200">
+                                    Filter: {savedPapersCategory === 'ALL' ? 'All Papers' : savedPapersCategory}
                                 </span>
                             </div>
                             <p className="text-xs text-slate-400 font-medium mt-0.5">
-                                Browse institutional question paper repositories: Physics • Chemistry • Mathematics • Biology • Botany • Zoology
+                                Browse and manage saved question papers: Individual Subjects (PCMB & BZ) and Competitive Exams (NEET, JEE, CET)
                             </p>
                         </div>
                     </div>
 
                     <div className="flex items-center gap-4 self-end md:self-auto">
                         <span className="text-xs font-bold text-slate-500 hidden sm:inline-block">
-                            {isSubjectDirectoryOpen ? 'Hide Department Repositories' : 'View Department Repositories'}
+                            {isSavedPapersOpen ? 'Hide Saved Papers' : 'View Saved Papers'}
                         </span>
                         <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-base transition-all duration-300 ${
-                            isSubjectDirectoryOpen ? 'bg-navy text-gold rotate-180 shadow-md' : 'bg-slate-100 text-navy hover:bg-slate-200'
+                            isSavedPapersOpen ? 'bg-navy text-gold rotate-180 shadow-md' : 'bg-slate-100 text-navy hover:bg-slate-200'
                         }`}>
                             ▾
                         </div>
                     </div>
                 </div>
 
-                {/* WHEN CLICKED: ORGANIZED 3-COLUMN DEPARTMENT GRID WITH FILTER TABS */}
-                {isSubjectDirectoryOpen && (
+                {/* WHEN OPEN: CONTROLS, DROPDOWN, QUICK PILLS, AND PAPERS GRID */}
+                {isSavedPapersOpen && (
                     <div className="p-6 pt-0 border-t border-slate-100 animate-fade-in bg-slate-50/40">
-                        {/* Control Bar: Subject Filter Tabs & Quick Search */}
-                        <div className="pt-4 pb-2 flex flex-col lg:flex-row lg:items-center justify-between gap-3 border-b border-slate-200/70">
-                            {/* Filter Tabs */}
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                                <button
-                                    type="button"
-                                    onClick={() => setSelectedSubjectTab('ALL')}
-                                    className={`px-3.5 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition cursor-pointer flex items-center gap-1.5 ${
-                                        selectedSubjectTab === 'ALL'
-                                            ? 'bg-navy text-gold shadow-sm'
-                                            : 'bg-white hover:bg-slate-100 text-slate-600 border border-slate-200'
-                                    }`}
-                                >
-                                    <span>🌐</span> All Departments (6)
-                                </button>
-                                {subjects.map(sub => {
-                                    const meta = departmentMeta[sub] || {};
-                                    const subCount = allPapers.filter(p => {
-                                        const s = String(p.subject || '').toLowerCase().trim();
-                                        const cur = sub.toLowerCase().trim();
-                                        if (cur === 'botany') return s.includes('botan');
-                                        if (cur === 'zoology') return s.includes('zool');
-                                        if (cur === 'biology') return (s === 'biology' || s === 'bio') && !s.includes('botan') && !s.includes('zool');
-                                        if (cur === 'mathematics') return s.includes('math');
-                                        if (cur === 'physics') return s.includes('physic');
-                                        if (cur === 'chemistry') return s.includes('chem');
-                                        return s.includes(cur) || cur.includes(s);
-                                    }).length;
-                                    const isActive = selectedSubjectTab === sub;
-                                    return (
-                                        <button
-                                            key={sub}
-                                            type="button"
-                                            onClick={() => setSelectedSubjectTab(sub)}
-                                            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
-                                                isActive
-                                                    ? 'bg-navy text-gold shadow-sm font-black'
-                                                    : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
-                                            }`}
-                                        >
-                                            <span>{meta.icon || '📚'}</span>
-                                            <span>{sub}</span>
-                                            <span className={`text-[10px] font-black px-1.5 py-0.2 rounded-full ${
-                                                isActive ? 'bg-gold/30 text-gold' : 'bg-slate-100 text-slate-600'
-                                            }`}>
-                                                {subCount}
-                                            </span>
-                                        </button>
-                                    );
-                                })}
+                        {/* Control Bar: Dropdown Selector & Search Filter */}
+                        <div className="pt-4 pb-3 flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-200/70">
+                            {/* Dropdown Selector */}
+                            <div className="flex flex-col sm:flex-row sm:items-center gap-2.5">
+                                <label className="text-xs font-black text-navy uppercase tracking-wider flex items-center gap-1.5 shrink-0">
+                                    <Filter className="w-3.5 h-3.5 text-navy" />
+                                    <span>Select Papers:</span>
+                                </label>
+                                <div className="relative">
+                                    <select
+                                        value={savedPapersCategory}
+                                        onChange={(e) => setSavedPapersCategory(e.target.value)}
+                                        className="w-full sm:w-auto appearance-none bg-white border-2 border-navy/20 hover:border-navy text-navy font-bold text-xs rounded-xl pl-3.5 pr-9 py-2 shadow-xs focus:outline-none focus:ring-2 focus:ring-navy/30 transition cursor-pointer"
+                                    >
+                                        <option value="ALL">📁 All Saved Papers ({allPapers.length})</option>
+                                        
+                                        <optgroup label="── Competitive Examinations ──">
+                                            <option value="NEET">🎯 NEET Papers ({getSavedCategoryCount('NEET')})</option>
+                                            <option value="JEE">⚡ JEE Papers ({getSavedCategoryCount('JEE')})</option>
+                                            <option value="CET">🏆 CET Papers ({getSavedCategoryCount('CET')})</option>
+                                        </optgroup>
+
+                                        <optgroup label="── Individual Subjects (PCMB & BZ) ──">
+                                            <option value="Physics">⚛️ Physics (Individual Only) ({getSavedCategoryCount('Physics')})</option>
+                                            <option value="Chemistry">🧪 Chemistry (Individual Only) ({getSavedCategoryCount('Chemistry')})</option>
+                                            <option value="Mathematics">📐 Mathematics (Individual Only) ({getSavedCategoryCount('Mathematics')})</option>
+                                            <option value="Biology">🧬 Biology (Individual Only) ({getSavedCategoryCount('Biology')})</option>
+                                            <option value="Botany">🌿 Botany (Individual Only) ({getSavedCategoryCount('Botany')})</option>
+                                            <option value="Zoology">🦁 Zoology (Individual Only) ({getSavedCategoryCount('Zoology')})</option>
+                                        </optgroup>
+                                    </select>
+                                    <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-navy">
+                                        <ChevronDown className="w-4 h-4" />
+                                    </div>
+                                </div>
                             </div>
 
                             {/* Search Filter Box */}
-                            <div className="relative min-w-[240px]">
+                            <div className="relative min-w-[260px]">
+                                <div className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
+                                    <Search className="w-3.5 h-3.5" />
+                                </div>
                                 <input
                                     type="text"
-                                    value={subjectDirectorySearch}
-                                    onChange={(e) => setSubjectDirectorySearch(e.target.value)}
-                                    placeholder="Search papers by title or exam..."
-                                    className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-1.5 text-xs text-navy placeholder:text-slate-400 focus:outline-none focus:border-navy focus:ring-1 focus:ring-navy"
+                                    value={savedPapersSearch}
+                                    onChange={(e) => setSavedPapersSearch(e.target.value)}
+                                    placeholder="Search saved papers by title or exam..."
+                                    className="w-full bg-white border border-slate-200 rounded-xl pl-8 pr-8 py-2 text-xs text-navy placeholder:text-slate-400 focus:outline-none focus:border-navy focus:ring-1 focus:ring-navy"
                                 />
-                                {subjectDirectorySearch && (
+                                {savedPapersSearch && (
                                     <button
                                         type="button"
-                                        onClick={() => setSubjectDirectorySearch('')}
+                                        onClick={() => setSavedPapersSearch('')}
                                         className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 hover:text-slate-600"
                                     >
                                         ✕
@@ -828,158 +923,282 @@ const DashboardHome = () => {
                             </div>
                         </div>
 
-                        {/* Responsive Organized Grid: 3 columns on large screens */}
-                        <div className={`pt-4 ${
-                            selectedSubjectTab !== 'ALL'
-                                ? 'max-w-4xl mx-auto'
-                                : 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'
-                        }`}>
-                            {(selectedSubjectTab === 'ALL' ? subjects : [selectedSubjectTab]).map(sub => {
-                                const meta = departmentMeta[sub] || {
-                                    icon: '📚',
-                                    subtitle: 'Department Repository',
-                                    badgeBg: 'bg-slate-50 text-slate-700 border-slate-200',
-                                    iconBg: 'bg-navy text-gold',
-                                    headerBg: 'bg-slate-50',
-                                    borderAccent: 'border-slate-200'
-                                };
-                                const subPapers = allPapers.filter(p => {
-                                    const s = String(p.subject || '').toLowerCase().trim();
-                                    const cur = sub.toLowerCase().trim();
-                                    if (cur === 'botany') return s.includes('botan');
-                                    if (cur === 'zoology') return s.includes('zool');
-                                    if (cur === 'biology') return (s === 'biology' || s === 'bio') && !s.includes('botan') && !s.includes('zool');
-                                    if (cur === 'mathematics') return s.includes('math');
-                                    if (cur === 'physics') return s.includes('physic');
-                                    if (cur === 'chemistry') return s.includes('chem');
-                                    return s.includes(cur) || cur.includes(s);
-                                });
+                        {/* Quick Selection Pills */}
+                        <div className="pt-3 pb-3 flex items-center gap-1.5 flex-wrap border-b border-slate-200/50">
+                            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 mr-1 hidden sm:inline">
+                                Quick Select:
+                            </span>
+                            <button
+                                type="button"
+                                onClick={() => setSavedPapersCategory('ALL')}
+                                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                                    savedPapersCategory === 'ALL'
+                                        ? 'bg-navy text-gold shadow-xs font-black'
+                                        : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
+                                }`}
+                            >
+                                <span>📁</span>
+                                <span>All</span>
+                                <span className="text-[10px] font-black px-1.5 py-0.2 rounded-full bg-slate-100 text-slate-700">
+                                    {allPapers.length}
+                                </span>
+                            </button>
 
-                                const filteredPapers = subPapers.filter(p => {
-                                    if (!subjectDirectorySearch.trim()) return true;
-                                    const q = subjectDirectorySearch.toLowerCase();
-                                    return (
-                                        String(p.title || '').toLowerCase().includes(q) ||
-                                        String(p.examType || '').toLowerCase().includes(q) ||
-                                        (Array.isArray(p.classes) && p.classes.some(c => String(c).includes(q)))
-                                    );
-                                });
-
+                            {/* Competitive Exam Pills */}
+                            {['NEET', 'JEE', 'CET'].map(exam => {
+                                const count = getSavedCategoryCount(exam);
+                                const isActive = savedPapersCategory === exam;
+                                const icon = exam === 'NEET' ? '🎯' : exam === 'JEE' ? '⚡' : '🏆';
                                 return (
-                                    <div
-                                        key={sub}
-                                        className={`bg-white rounded-2xl shadow-sm border border-slate-200/90 flex flex-col justify-between hover:border-navy/40 hover:shadow-md transition duration-200 overflow-hidden ${meta.borderAccent || ''}`}
+                                    <button
+                                        key={exam}
+                                        type="button"
+                                        onClick={() => setSavedPapersCategory(exam)}
+                                        className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                                            isActive
+                                                ? 'bg-navy text-gold shadow-xs font-black'
+                                                : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
+                                        }`}
                                     >
-                                        {/* Department Header */}
-                                        <div>
-                                            <div className={`p-4 border-b border-slate-100 ${meta.headerBg}`}>
-                                                <div className="flex items-center justify-between gap-3">
-                                                    <div className="flex items-center gap-3">
-                                                        <div className={`w-11 h-11 rounded-xl flex items-center justify-center text-xl shadow-xs shrink-0 ${meta.iconBg}`}>
-                                                            {meta.icon}
-                                                        </div>
-                                                        <div>
-                                                            <h4 className="font-black text-navy text-base tracking-tight leading-none">{sub}</h4>
-                                                            <p className="text-[11px] font-semibold text-slate-500 mt-0.5">{meta.subtitle}</p>
-                                                        </div>
-                                                    </div>
-                                                    <span className={`text-[11px] font-black px-2.5 py-1 rounded-full border shadow-2xs ${meta.badgeBg}`}>
-                                                        {subPapers.length} {subPapers.length === 1 ? 'Paper' : 'Papers'}
-                                                    </span>
-                                                </div>
-                                            </div>
+                                        <span>{icon}</span>
+                                        <span>{exam}</span>
+                                        <span className={`text-[10px] font-black px-1.5 py-0.2 rounded-full ${
+                                            isActive ? 'bg-gold/30 text-gold' : 'bg-slate-100 text-slate-700'
+                                        }`}>
+                                            {count}
+                                        </span>
+                                    </button>
+                                );
+                            })}
 
-                                            {/* Department Papers List */}
-                                            <div className="p-4 space-y-2.5 max-h-[340px] overflow-y-auto">
-                                                {filteredPapers.slice(0, 6).map(p => {
-                                                    const qCount = Array.isArray(p.questions) ? p.questions.length : 0;
-                                                    const examBadgeColor = 
-                                                        p.examType === 'NEET' ? 'bg-teal-50 text-teal-700 border-teal-200' :
-                                                        p.examType === 'JEE' ? 'bg-indigo-50 text-indigo-700 border-indigo-200' :
-                                                        p.examType === 'ASSIGNMENT' ? 'bg-purple-50 text-purple-700 border-purple-200' :
-                                                        'bg-amber-50 text-amber-700 border-amber-200';
-                                                    return (
-                                                        <div
-                                                            key={p._id || p.id}
-                                                            className="p-3 rounded-xl bg-slate-50/80 hover:bg-amber-50/30 border border-slate-200/80 hover:border-amber-200 transition"
-                                                        >
-                                                            <div className="flex items-start justify-between gap-2">
-                                                                <h5
-                                                                    className="font-bold text-xs text-navy leading-snug line-clamp-2"
-                                                                    title={p.title || `${sub} Question Paper`}
-                                                                >
-                                                                    {p.title || `${sub} Question Paper`}
-                                                                </h5>
-                                                                {p.examType && (
-                                                                    <span className={`text-[9px] font-black px-1.5 py-0.5 rounded border uppercase shrink-0 ${examBadgeColor}`}>
-                                                                        {p.examType}
+                            <div className="h-4 w-px bg-slate-200 mx-1 hidden sm:block"></div>
+
+                            {/* Subject Pills */}
+                            {subjects.map(sub => {
+                                const count = getSavedCategoryCount(sub);
+                                const isActive = savedPapersCategory === sub;
+                                const meta = departmentMeta[sub] || {};
+                                return (
+                                    <button
+                                        key={sub}
+                                        type="button"
+                                        onClick={() => setSavedPapersCategory(sub)}
+                                        className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                                            isActive
+                                                ? 'bg-navy text-gold shadow-xs font-black'
+                                                : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
+                                        }`}
+                                    >
+                                        <span>{meta.icon || '📚'}</span>
+                                        <span>{sub}</span>
+                                        <span className={`text-[10px] font-black px-1.5 py-0.2 rounded-full ${
+                                            isActive ? 'bg-gold/30 text-gold' : 'bg-slate-100 text-slate-700'
+                                        }`}>
+                                            {count}
+                                        </span>
+                                    </button>
+                                );
+                            })}
+                        </div>
+
+                        {/* Active Category Header Banner */}
+                        {(() => {
+                            const categoryPapers = getPapersByCategory(savedPapersCategory);
+                            const filteredPapers = categoryPapers.filter(p => {
+                                if (!savedPapersSearch.trim()) return true;
+                                const q = savedPapersSearch.toLowerCase().trim();
+                                return (
+                                    String(p.title || '').toLowerCase().includes(q) ||
+                                    String(p.subject || '').toLowerCase().includes(q) ||
+                                    String(p.examType || p.exam_type || '').toLowerCase().includes(q) ||
+                                    (Array.isArray(p.classes) && p.classes.some(c => String(c).includes(q)))
+                                );
+                            });
+
+                            const isIndividual = ['Physics', 'Chemistry', 'Mathematics', 'Biology', 'Botany', 'Zoology'].includes(savedPapersCategory);
+
+                            return (
+                                <div className="pt-4">
+                                    {/* Category Context Info */}
+                                    <div className="mb-4 p-3 rounded-2xl bg-white border border-slate-200/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 shadow-2xs">
+                                        <div className="flex items-center gap-2.5">
+                                            <span className="text-xl">
+                                                {savedPapersCategory === 'ALL' ? '📁' :
+                                                 savedPapersCategory === 'NEET' ? '🎯' :
+                                                 savedPapersCategory === 'JEE' ? '⚡' :
+                                                 savedPapersCategory === 'CET' ? '🏆' :
+                                                 (departmentMeta[savedPapersCategory]?.icon || '📚')}
+                                            </span>
+                                            <div>
+                                                <h4 className="font-black text-navy text-sm">
+                                                    {savedPapersCategory === 'ALL' ? 'All Saved Question Papers' :
+                                                     savedPapersCategory === 'NEET' ? 'NEET Assessment Papers' :
+                                                     savedPapersCategory === 'JEE' ? 'JEE Examination Papers' :
+                                                     savedPapersCategory === 'CET' ? 'CET / KCET Question Papers' :
+                                                     `${savedPapersCategory} (Individual Subject Papers)`}
+                                                </h4>
+                                                <p className="text-[11px] text-slate-500 font-medium">
+                                                    {isIndividual
+                                                        ? `Strictly showing papers created for ${savedPapersCategory} alone. Competitive exams (NEET/JEE/CET) are excluded.`
+                                                        : savedPapersCategory === 'ALL'
+                                                        ? 'Showing all institutional question papers across all categories.'
+                                                        : `Showing all saved ${savedPapersCategory} question papers.`}
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
+                                            <span className="text-xs font-black text-navy bg-amber-50 border border-amber-200 px-3 py-1 rounded-xl">
+                                                {filteredPapers.length} {filteredPapers.length === 1 ? 'Paper Found' : 'Papers Found'}
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    {/* Papers Responsive Grid */}
+                                    {filteredPapers.length > 0 ? (
+                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                            {filteredPapers.map(p => {
+                                                const pId = p._id || p.id;
+                                                const qCount = Array.isArray(p.questions) ? p.questions.length : 0;
+                                                const dt = formatPaperDateTime(p.createdAt || p.created_at);
+                                                const isDeleting = deletingPaperId === pId;
+
+                                                const examBadgeColor = 
+                                                    isNeetPaper(p) ? 'bg-teal-50 text-teal-700 border-teal-200' :
+                                                    isJeePaper(p) ? 'bg-indigo-50 text-indigo-700 border-indigo-200' :
+                                                    isCetPaper(p) ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                                                    p.examType === 'ASSIGNMENT' ? 'bg-purple-50 text-purple-700 border-purple-200' :
+                                                    'bg-blue-50 text-blue-700 border-blue-200';
+
+                                                return (
+                                                    <div
+                                                        key={pId}
+                                                        onClick={() => navigate(`/admin/dashboard/preview/${pId}`)}
+                                                        className="group bg-white rounded-2xl p-4 shadow-sm border border-slate-200/90 hover:border-navy hover:shadow-md transition-all duration-200 cursor-pointer flex flex-col justify-between relative"
+                                                    >
+                                                        {/* Top Row: Exam Type, Subject, and Delete Button */}
+                                                        <div>
+                                                            <div className="flex items-start justify-between gap-2 mb-2">
+                                                                <div className="flex items-center gap-1.5 flex-wrap">
+                                                                    <span className={`text-[10px] font-black px-2 py-0.5 rounded-md border uppercase ${examBadgeColor}`}>
+                                                                        {p.examType || p.exam_type || 'PAPER'}
                                                                     </span>
+                                                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 border border-slate-200">
+                                                                        {p.subject || 'All Subjects'}
+                                                                    </span>
+                                                                </div>
+
+                                                                {/* Delete Icon Button */}
+                                                                <button
+                                                                    type="button"
+                                                                    disabled={isDeleting}
+                                                                    onClick={(e) => handleDeletePaper(e, p)}
+                                                                    title="Delete Paper"
+                                                                    className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-red-600 hover:bg-red-50 border border-transparent hover:border-red-200 transition cursor-pointer shrink-0"
+                                                                >
+                                                                    {isDeleting ? (
+                                                                        <span className="animate-spin text-xs">⏳</span>
+                                                                    ) : (
+                                                                        <Trash2 className="w-4 h-4" />
+                                                                    )}
+                                                                </button>
+                                                            </div>
+
+                                                            {/* Paper Title / Name */}
+                                                            <h5
+                                                                className="font-black text-navy text-sm leading-snug line-clamp-2 group-hover:text-blue-700 transition"
+                                                                title={p.title || 'Untitled Question Paper'}
+                                                            >
+                                                                {p.title || 'Untitled Question Paper'}
+                                                            </h5>
+
+                                                            {/* Creation Date & Time */}
+                                                            <div className="mt-2.5 p-2 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-between text-[11px] text-slate-600 font-medium">
+                                                                <div className="flex items-center gap-1.5">
+                                                                    <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                                                                    <span className="font-semibold">{dt.date}</span>
+                                                                </div>
+                                                                {dt.time && (
+                                                                    <div className="flex items-center gap-1 text-slate-500">
+                                                                        <Clock className="w-3.5 h-3.5 text-slate-400" />
+                                                                        <span>{dt.time}</span>
+                                                                    </div>
                                                                 )}
                                                             </div>
+
+                                                            {/* Metadata: Classes & Question Count */}
                                                             <div className="flex items-center justify-between text-[11px] text-slate-500 mt-2 font-medium">
                                                                 <span className="font-semibold text-slate-600">
                                                                     🏛️ {p.classes?.length ? `Class ${p.classes.join(', ')}` : 'Class 12'}
                                                                 </span>
-                                                                <span className="font-bold text-navy bg-white px-2 py-0.5 rounded-md border border-slate-200/80 shadow-2xs">
-                                                                    📝 {qCount} Qs
+                                                                <span className="font-bold text-navy bg-white px-2 py-0.5 rounded-md border border-slate-200 shadow-2xs">
+                                                                    📝 {qCount} Questions
                                                                 </span>
                                                             </div>
-                                                            <div className="flex items-center gap-2 mt-2.5 pt-2 border-t border-slate-200/60">
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => navigate(`/admin/dashboard/preview/${p._id || p.id}`)}
-                                                                    className="flex-1 bg-navy text-gold hover:bg-navy/90 py-1.5 px-2.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition text-center cursor-pointer shadow-xs flex items-center justify-center gap-1"
-                                                                >
-                                                                    <span>👁</span> View Paper
-                                                                </button>
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => setSelectedAnalysisExam({
-                                                                        title: p.title || `${sub} Question Paper`,
-                                                                        allQuestions: p.questions || [],
-                                                                        examType: p.examType || 'CET'
-                                                                    })}
-                                                                    className="bg-amber-50 hover:bg-amber-100 text-navy border border-amber-200 py-1.5 px-2.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition cursor-pointer flex items-center gap-1"
-                                                                    title="View Paper Analysis"
-                                                                >
-                                                                    <span>📊</span> Stats
-                                                                </button>
-                                                            </div>
                                                         </div>
-                                                    );
-                                                })}
 
-                                                {filteredPapers.length > 6 && (
-                                                    <div className="text-center pt-1">
-                                                        <span className="text-[11px] font-bold text-slate-400">
-                                                            + {filteredPapers.length - 6} more papers in department archive
-                                                        </span>
+                                                        {/* Bottom Action Buttons */}
+                                                        <div className="flex items-center gap-2 mt-3 pt-2.5 border-t border-slate-100">
+                                                            <button
+                                                                type="button"
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    navigate(`/admin/dashboard/preview/${pId}`);
+                                                                }}
+                                                                className="flex-1 bg-navy text-gold hover:bg-navy/90 py-1.5 px-3 rounded-xl text-xs font-black uppercase tracking-wider transition text-center cursor-pointer shadow-xs flex items-center justify-center gap-1.5"
+                                                            >
+                                                                <Eye className="w-3.5 h-3.5" />
+                                                                <span>View Paper</span>
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    setSelectedAnalysisExam({
+                                                                        title: p.title || `${p.subject || 'Saved'} Question Paper`,
+                                                                        allQuestions: p.questions || [],
+                                                                        examType: p.examType || p.exam_type || 'CET'
+                                                                    });
+                                                                }}
+                                                                className="bg-amber-50 hover:bg-amber-100 text-navy border border-amber-200 py-1.5 px-3 rounded-xl text-xs font-black uppercase tracking-wider transition cursor-pointer flex items-center gap-1"
+                                                                title="View Paper Analysis"
+                                                            >
+                                                                <span>📊</span> Stats
+                                                            </button>
+                                                        </div>
                                                     </div>
-                                                )}
-
-                                                {filteredPapers.length === 0 && (
-                                                    <div className="py-8 text-center text-slate-400 text-xs font-semibold border border-dashed border-slate-200 rounded-xl bg-slate-50/50">
-                                                        {subjectDirectorySearch.trim()
-                                                            ? `No papers match "${subjectDirectorySearch}" in ${sub}`
-                                                            : `No papers submitted yet for ${sub}`}
-                                                    </div>
-                                                )}
+                                                );
+                                            })}
+                                        </div>
+                                    ) : (
+                                        <div className="py-12 px-4 text-center rounded-2xl bg-white border border-dashed border-slate-200">
+                                            <div className="w-12 h-12 mx-auto rounded-full bg-slate-100 flex items-center justify-center text-slate-400 mb-3">
+                                                <AlertCircle className="w-6 h-6" />
                                             </div>
-                                        </div>
-
-                                        {/* Footer Link */}
-                                        <div className="p-4 pt-0">
-                                            <Link
-                                                to={`/admin/dashboard/subject/${sub}`}
-                                                className="w-full block text-center py-2 px-3 rounded-xl bg-slate-100 hover:bg-navy hover:text-gold text-navy text-xs font-black uppercase tracking-wider transition font-mono border border-slate-200/60"
+                                            <h5 className="font-bold text-sm text-navy">
+                                                {savedPapersSearch.trim()
+                                                    ? `No papers match "${savedPapersSearch}" in ${savedPapersCategory}`
+                                                    : `No papers saved under ${savedPapersCategory}`}
+                                            </h5>
+                                            <p className="text-xs text-slate-400 mt-1 max-w-md mx-auto">
+                                                {isIndividual
+                                                    ? `Only papers created purely for ${savedPapersCategory} appear here. Competitive tests like NEET, JEE, or CET are kept in their own exam categories.`
+                                                    : `There are currently no papers cataloged under ${savedPapersCategory}.`}
+                                            </p>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setSavedPapersCategory('ALL');
+                                                    setSavedPapersSearch('');
+                                                }}
+                                                className="mt-4 px-4 py-2 rounded-xl bg-navy text-gold text-xs font-bold uppercase tracking-wider hover:bg-navy/90 transition cursor-pointer"
                                             >
-                                                Open {sub} Archive ({subPapers.length}) →
-                                            </Link>
+                                                View All Saved Papers ({allPapers.length})
+                                            </button>
                                         </div>
-                                    </div>
-                                );
-                            })}
-                        </div>
+                                    )}
+                                </div>
+                            );
+                        })()}
                     </div>
                 )}
             </div>
