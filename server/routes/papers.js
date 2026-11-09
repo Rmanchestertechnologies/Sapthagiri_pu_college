@@ -78,6 +78,9 @@ async function populatePaperQuestions(paper) {
     return pObj;
 }
 
+// In-memory cache for proxied diagram buffers to eliminate duplicate upstream fetches and ECONNRESET drops
+const imageBufferCache = new Map();
+
 // @route   GET /api/papers/proxy-image
 // @desc    Guaranteed fallback image proxy for diagrams (bypasses ad-blockers, CORS taint, and mobile network errors)
 // @access  Public
@@ -91,19 +94,56 @@ router.get('/proxy-image', async (req, res) => {
         if (!['http:', 'https:'].includes(parsed.protocol)) {
             return res.status(400).send('Invalid protocol');
         }
-        const upstream = await fetch(targetUrl, {
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-            }
-        });
-        if (!upstream.ok) {
-            return res.status(upstream.status).send('Upstream image error: ' + upstream.statusText);
+
+        // Return from memory cache if already fetched
+        if (imageBufferCache.has(targetUrl)) {
+            const cached = imageBufferCache.get(targetUrl);
+            res.setHeader('Content-Type', cached.contentType);
+            res.setHeader('Cache-Control', 'public, max-age=604800, immutable');
+            res.setHeader('Access-Control-Allow-Origin', '*');
+            return res.send(cached.buffer);
         }
-        const contentType = upstream.headers.get('content-type') || 'image/jpeg';
+
+        let buffer = null;
+        let contentType = 'image/jpeg';
+        let lastErr = null;
+
+        // Retry up to 3 times on ECONNRESET / TLS drops
+        for (let attempt = 1; attempt <= 3; attempt++) {
+            try {
+                const upstream = await fetch(targetUrl, {
+                    headers: {
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                    }
+                });
+                if (upstream.ok) {
+                    contentType = upstream.headers.get('content-type') || 'image/jpeg';
+                    buffer = Buffer.from(await upstream.arrayBuffer());
+                    break;
+                }
+            } catch (fetchErr) {
+                lastErr = fetchErr;
+                if (attempt < 3) {
+                    await new Promise(resolve => setTimeout(resolve, 150 * attempt));
+                }
+            }
+        }
+
+        if (!buffer) {
+            console.error('Image proxy fetch failed after 3 attempts:', lastErr ? lastErr.message : 'Unknown');
+            return res.status(502).send('Failed to fetch image upstream');
+        }
+
+        // Keep in cache (cap cache at 500 items)
+        if (imageBufferCache.size > 500) {
+            const firstKey = imageBufferCache.keys().next().value;
+            if (firstKey) imageBufferCache.delete(firstKey);
+        }
+        imageBufferCache.set(targetUrl, { buffer, contentType });
+
         res.setHeader('Content-Type', contentType);
         res.setHeader('Cache-Control', 'public, max-age=604800, immutable');
         res.setHeader('Access-Control-Allow-Origin', '*');
-        const buffer = Buffer.from(await upstream.arrayBuffer());
         res.send(buffer);
     } catch (err) {
         console.error('Image proxy error:', err.message);

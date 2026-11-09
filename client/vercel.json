@@ -1,6 +1,10 @@
 {
   "rewrites": [
     {
+      "source": "/api/:path*",
+      "destination": "https://sapthagiri-pu-college-api.onrender.com/api/:path*"
+    },
+    {
       "source": "/((?!assets/|SapthagiriLogo.jpg|SapthagiriCampus.webp|watermark_faded.png|favicon.*|.*\\.[a-zA-Z0-9]+$).*)",
       "destination": "/index.html"
     }

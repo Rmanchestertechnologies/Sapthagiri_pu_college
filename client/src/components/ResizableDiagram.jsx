@@ -208,7 +208,7 @@ export default function ResizableDiagram({
                     maxWidth: isOption ? '140px' : (maxWidth || '100%'),
                     width: 'auto',
                     objectFit: 'contain',
-                    display: hasError ? 'none' : 'block',
+                    display: 'block',
                     margin: '0 auto',
                     borderRadius: '4px',
                     backgroundColor: 'transparent',
@@ -221,22 +221,23 @@ export default function ResizableDiagram({
                 className="rounded"
                 loading="eager"
                 onError={() => {
+                    const API_BASE = (import.meta.env.VITE_API_URL || '').replace(/\/+$/, '');
                     const isAlreadyProxy = typeof currentSrc === 'string' && currentSrc.includes('/api/papers/proxy-image');
                     if (!isAlreadyProxy && src && (src.startsWith('http://') || src.startsWith('https://'))) {
-                        const proxyUrl = '/api/papers/proxy-image?url=' + encodeURIComponent(src);
+                        const proxyUrl = `${API_BASE}/api/papers/proxy-image?url=${encodeURIComponent(src)}`;
                         setCurrentSrc(proxyUrl);
                         return;
                     }
-                    if (retryCount < 2) {
+                    if (retryCount < 3) {
                         const nextRetry = retryCount + 1;
                         setRetryCount(nextRetry);
                         setTimeout(() => {
                             if (src && (src.startsWith('http://') || src.startsWith('https://'))) {
-                                setCurrentSrc('/api/papers/proxy-image?url=' + encodeURIComponent(src) + '&t=' + Date.now());
+                                setCurrentSrc(`${API_BASE}/api/papers/proxy-image?url=${encodeURIComponent(src)}&t=${Date.now()}`);
                             } else {
                                 setCurrentSrc(src);
                             }
-                        }, 300);
+                        }, 250 * nextRetry);
                     } else {
                         setHasError(true);
                     }
@@ -248,8 +249,9 @@ export default function ResizableDiagram({
                         e.stopPropagation();
                         setHasError(false);
                         setRetryCount(0);
+                        const API_BASE = (import.meta.env.VITE_API_URL || '').replace(/\/+$/, '');
                         if (src && (src.startsWith('http://') || src.startsWith('https://'))) {
-                            setCurrentSrc('/api/papers/proxy-image?url=' + encodeURIComponent(src) + '&t=' + Date.now());
+                            setCurrentSrc(`${API_BASE}/api/papers/proxy-image?url=${encodeURIComponent(src)}&t=${Date.now()}`);
                         } else {
                             setCurrentSrc(src);
                         }
