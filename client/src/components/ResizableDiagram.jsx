@@ -252,7 +252,6 @@ export default function ResizableDiagram({
                 alt={alt || ''}
                 loading="eager"
                 decoding="async"
-                crossOrigin="anonymous"
                 referrerPolicy="no-referrer"
                 onLoad={handleImageLoad}
                 onError={handleImageError}

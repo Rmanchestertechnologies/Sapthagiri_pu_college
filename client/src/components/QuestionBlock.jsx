@@ -1339,7 +1339,13 @@ function BodyAssertionReason({
                                 ({getOptionLabelText(i, optionFormat, labels, classes)}){isCorrect ? ' ✓' : ''}
                             </span>
                             <span style={{ flex: 1, minWidth: 0, maxWidth: '100%', fontWeight: isCorrect ? 700 : 400 }}>
-                                <MathRenderer inline text={cleanOptionText(typeof opt === 'object' ? (opt.text || opt.option || '') : opt)} />
+                                <MathRenderer
+                                    inline
+                                    text={cleanOptionText(typeof opt === 'object' ? (opt.text || opt.option || '') : opt)}
+                                    questionId={qId}
+                                    isOption={true}
+                                    optionIndex={i}
+                                />
                             </span>
                         </div>
                     );})}
@@ -1608,37 +1614,44 @@ function parseMatchFromText(q) {
 /** Parse statement-based questions from text */
 function parseStatementsFromText(q) {
     const rawTxt = cleanQuestionText(q.questionText || q.question || '', q);
-    // If the question text contains "Statement I" or "Statement 1" or has embedded diagrams/statements,
-    // ALWAYS parse directly from question text so that multi-statement questions and embedded images are NEVER lost!
-    const hasInlineStatements = /(?:^|\r?\n)\s*@?Statement\s*[-–—]?\s*(?:\(?[IVXLCDM0-9A-D]+\)?)\s*[:.\-)–—]/i.test(rawTxt);
-    const hasImgInQ = /\{\{IMG::|!\[|<img|https?:\/\/res\.cloudinary\.com\//i.test(rawTxt);
+    const bodyTxt = (rawTxt || '').trim();
 
-    if (q && q.statement1 && q.statement2 && !hasInlineStatements && !hasImgInQ && !String(q.statement2).includes('[DIAGRAM REQUIRED]')) {
-        let intro = rawTxt.replace(/(?:^|\r?\n)\s*@?Statement\s*[-–—]?\s*(?:\(?I|\(?1|\(?A\)?)\s*[:.\-)–—]?[\s\S]*$/i, '').trim();
-        return {
-            introText: intro,
-            statements: [
-                { label: 'Statement I:', text: cleanStatementText(q.statement1) },
-                { label: 'Statement II:', text: cleanStatementText(q.statement2) }
-            ],
-            outroText: ''
-        };
-    }
+    // Check if q already has valid statements
     if (Array.isArray(q.statements) && q.statements.length > 0) {
-        return { 
-            introText: cleanQuestionText(q.questionText || q.question || ''), 
-            statements: q.statements.map((s, idx) => ({ 
-                label: (typeof s === 'object' && s.label) ? s.label : `(${String.fromCharCode(65 + idx)})`, 
-                text: cleanStatementText(typeof s === 'object' ? (s.text || s.statement || '') : s) 
-            })),
-            outroText: '' 
-        };
-    }
-    if (!rawTxt) return { introText: '', statements: [], outroText: '' };
-    const bodyTxt = rawTxt.trim();
+        // Detect if any statement text in q.statements has internal embedded statements like "Statement-III:"
+        const hasEmbeddedSubStatements = q.statements.some(s => {
+            const txt = typeof s === 'object' ? (s.text || s.statement || '') : String(s);
+            return /(?:^|\r?\n|\s{2,}|\b)\s*@?Statement\s*[-–—]?\s*(?:\(?[IVXLCDM0-9A-D]+\)?)\s*[:.\-)–—]/i.test(txt);
+        });
 
-    // Pattern A: Statement I: ... Statement II: ... or Statement 1: ... or Statement (I): ... or Statement-I: ...
-    const stmtRegex = /(?:^|\r?\n)\s*Statement\s*[-–—]?\s*(?:\(?([IVXLCDM0-9A-D]+)\)?)\s*[:\-]?\s*([\s\S]*?)(?=(?:\r?\n\s*Statement\s*[-–—]?\s*(?:\(?[IVXLCDM0-9A-D]+\)?)\s*[:\-])|$)/gi;
+        if (!hasEmbeddedSubStatements) {
+            // Intro text should ONLY be non-statement preamble before Statement I / Statement 1
+            let introText = cleanQuestionText(q.questionText || q.question || '');
+            if (/(?:^|\r?\n|\b)\s*@?Statement\s*[-–—]?\s*(?:\(?I|\(?1|\(?A\)?)\s*[:.\-)–—]?/i.test(introText)) {
+                introText = introText.replace(/(?:^|\r?\n|\b)\s*@?Statement\s*[-–—]?\s*(?:\(?I|\(?1|\(?A\)?)\s*[:.\-)–—]?[\s\S]*$/i, '').trim();
+            }
+            // Outro text
+            let outroText = q.outroText || '';
+            const stmts = q.statements.map((s, idx) => ({ 
+                label: (typeof s === 'object' && s.label) ? s.label : `Statement ${idx + 1}:`, 
+                text: cleanStatementText(typeof s === 'object' ? (s.text || s.statement || '') : s) 
+            }));
+            if (!outroText && stmts.length > 0) {
+                const last = stmts[stmts.length - 1];
+                const outroLineMatch = last.text.match(/(?:\r?\n|\s{2,})?(?:In the light of|Choose the correct|Select the|Which of the|How many of|The (?:correct|incorrect) statement|From the above|Identify the|The (?:correct|incorrect) combination is)[\s\S]*$/i);
+                if (outroLineMatch) {
+                    outroText = outroLineMatch[0].trim();
+                    last.text = last.text.substring(0, outroLineMatch.index).trim();
+                }
+            }
+            return { introText, statements: stmts, outroText };
+        }
+    }
+
+    if (!rawTxt) return { introText: '', statements: [], outroText: '' };
+
+    // Pattern A: Statement I: ... Statement II: ... or Statement 1: ... or Statement-III: ...
+    const stmtRegex = /(?:^|\r?\n|\s{2,}|\b)\s*@?Statement\s*[-–—]?\s*(?:\(?([IVXLCDM0-9A-D]+)\)?)\s*[:.\-)–—]\s*([\s\S]*?)(?=(?:(?:\r?\n|\s{2,}|\b)\s*@?Statement\s*[-–—]?\s*(?:\(?[IVXLCDM0-9A-D]+\)?)\s*[:.\-)–—])|$)/gi;
     let matches = [];
     let m;
     let firstIdx = -1;
@@ -1652,14 +1665,14 @@ function parseStatementsFromText(q) {
         });
     }
     if (matches.length >= 2) {
-        let outroText = bodyTxt.substring(lastIdx).trim();
+        let outroText = q.outroText || bodyTxt.substring(lastIdx).trim();
         const lastStmt = matches[matches.length - 1];
-        const outroLineMatch = lastStmt.text.match(/(?:\r?\n)?(?:In the light of|Choose the correct|Select the|Which of the|How many of|The (?:correct|incorrect) statement|From the above|Identify the|The (?:correct|incorrect) combination is)[\s\S]*$/i);
+        const outroLineMatch = lastStmt.text.match(/(?:\r?\n|\s{2,})?(?:In the light of|Choose the correct|Select the|Which of the|How many of|The (?:correct|incorrect) statement|From the above|Identify the|The (?:correct|incorrect) combination is)[\s\S]*$/i);
         if (outroLineMatch) {
             outroText = (outroLineMatch[0] + (outroText ? '\n' + outroText : '')).trim();
             lastStmt.text = lastStmt.text.substring(0, outroLineMatch.index).trim();
         }
-        const introText = bodyTxt.substring(0, firstIdx).trim();
+        const introText = firstIdx > 0 ? bodyTxt.substring(0, firstIdx).trim() : '';
         return { introText, statements: matches, outroText };
     }
 
@@ -1943,7 +1956,13 @@ function BodyMatchFollowing({
                                 ({getOptionLabelText(i, optionFormat, labels, classes)}){isCorrect ? ' ✓' : ''}
                             </span>
                             <span style={{ flex: 1, minWidth: 0, maxWidth: '100%', fontWeight: isCorrect ? 700 : 400 }}>
-                                <MathRenderer inline text={cleanOptionText(typeof opt === 'object' ? (opt.text || opt.option || '') : opt)} />
+                                <MathRenderer
+                                    inline
+                                    text={cleanOptionText(typeof opt === 'object' ? (opt.text || opt.option || '') : opt)}
+                                    questionId={qId}
+                                    isOption={true}
+                                    optionIndex={i}
+                                />
                             </span>
                         </div>
                     );})}
@@ -1973,13 +1992,7 @@ function BodyStatementBased({
     imageBelowQuestion = false,
     optionsLayout = 'line',
 }) {
-    const { introText, statements: parsedStmts, outroText } = parseStatementsFromText(q);
-    const statements = (Array.isArray(q.statements) && q.statements.length > 0) 
-        ? q.statements.map((s, idx) => ({ 
-            label: (typeof s === 'object' && s.label) ? s.label : `(${String.fromCharCode(65 + idx)})`, 
-            text: typeof s === 'object' ? (s.text || s.statement || '') : String(s) 
-        }))
-        : parsedStmts;
+    const { introText, statements, outroText } = parseStatementsFromText(q);
 
     const rawOptions = extractOptionsIfMissing(q);
     let opts = (rawOptions && rawOptions.length >= 2) ? rawOptions : (q.options || []);
@@ -1993,7 +2006,8 @@ function BodyStatementBased({
             opts = directOpts;
         }
     }
-    const rawQText = cleanQuestionText(statements.length > 0 ? (introText || '') : (q.questionText || q.question || ''));
+    const hasStatementPreamble = Boolean(introText && !/(?:^|\r?\n|\b)\s*@?Statement\s*[-–—]?\s*(?:\(?I|\(?1|\(?A\)?)\s*[:.\-)–—]?/i.test(introText));
+    const rawQText = cleanQuestionText(hasStatementPreamble ? introText : '');
     const { cleanText: qText, diagramUrl: imageUrl } = extractDiagramFromText(rawQText, q.imageUrl || q.image_url);
     const labels = getQuestionOptionLabels(q, optionFormat);
     const qId = q._id || q.id || displayNum;
@@ -2009,9 +2023,14 @@ function BodyStatementBased({
     const effectivePerLine = Number(optionsPerLine) || (optionsLayout === '4' ? 4 : (optionsLayout === '2col' ? 2 : (optionsLayout === 'stacked' ? 1 : (isTwoCol ? 1 : 4))));
     const gridColsClass = effectivePerLine === 4 ? 'grid-cols-4' : (effectivePerLine === 2 ? 'grid-cols-2' : 'grid-cols-1');
 
+    const hasEmbeddedDiagInStmts = (statements || []).some(s => {
+        const txt = typeof s === 'object' ? (s.text || s.statement || '') : String(s);
+        return /\{\{IMG::|!\[|<img|https?:\/\/res\.cloudinary\.com\//i.test(txt);
+    });
+
     return (
         <>
-            {qText && (
+            {qText && hasStatementPreamble && (
                 <div style={{ ...Q.qTextBold, marginBottom: '2px', display: 'block' }}>
                     <MathRenderer
                         inline
@@ -2041,7 +2060,7 @@ function BodyStatementBased({
                     <MathRenderer inline text={outroText} />
                 </div>
             )}
-            {imageUrl && (
+            {imageUrl && !hasEmbeddedDiagInStmts && (
                 <div style={{ textAlign: 'center', margin: '2px auto 4px', clear: 'both', maxWidth: sizeScale ? `${sizeScale}%` : '100%', display: 'block' }}>
                     <ResizableDiagram
                         src={imageUrl}
@@ -2087,7 +2106,13 @@ function BodyStatementBased({
                                 ({getOptionLabelText(i, optionFormat, labels, classes)}){isCorrect ? ' ✓' : ''}
                             </span>
                             <span style={{ flex: 1, minWidth: 0, maxWidth: '100%', fontWeight: isCorrect ? 700 : 400 }}>
-                                <MathRenderer inline text={cleanOptionText(typeof opt === 'object' ? (opt.text || opt.option || '') : opt)} />
+                                <MathRenderer
+                                    inline
+                                    text={cleanOptionText(typeof opt === 'object' ? (opt.text || opt.option || '') : opt)}
+                                    questionId={qId}
+                                    isOption={true}
+                                    optionIndex={i}
+                                />
                             </span>
                         </div>
                     );})}

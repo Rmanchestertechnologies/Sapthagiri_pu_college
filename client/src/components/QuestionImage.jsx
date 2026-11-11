@@ -53,7 +53,7 @@ export default function QuestionImage({
     className = '',
     style = {},
     loading = 'eager',
-    crossOrigin = 'anonymous',
+    crossOrigin = null,
     referrerPolicy = 'no-referrer',
     onError,
     onLoad,

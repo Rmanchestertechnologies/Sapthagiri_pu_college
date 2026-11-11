@@ -240,7 +240,7 @@ function mapSupabaseToQuestion(row, usageMap = null) {
     }
 
     // Field-Specific Fallbacks: Statement-Based
-    // Ground truth: If cleanQuestion already has statements or Cloudinary images, don't overwrite with stale OCR [DIAGRAM REQUIRED]
+    // Ground truth: Support multi-statement questions (Statement I, II, III, IV...) without dropping statements or diagrams
     let statement1 = row.statement1 || '';
     let statement2 = row.statement2 || '';
     const qbpHasMissingDiagram = (qbpData?.statement1 && qbpData.statement1.includes('[DIAGRAM REQUIRED]')) ||
@@ -248,11 +248,42 @@ function mapSupabaseToQuestion(row, usageMap = null) {
     if (!statement1 && qbpData?.statement1 && !qbpHasMissingDiagram) statement1 = qbpData.statement1;
     if (!statement2 && qbpData?.statement2 && !qbpHasMissingDiagram) statement2 = qbpData.statement2;
 
-    if (!statement1 || !statement2) {
-        const s1Match = cleanQuestion.match(/(?:^|\n)\s*@?Statement\s*[-–—]?\s*\(?\s*(?:I|1|A)\s*\)?\s*[:.\-)–—]?\s*([\s\S]*?)(?=\n\s*@?Statement\s*[-–—]?\s*\(?\s*(?:II|2|B)\s*\)?)/i);
-        const s2Match = cleanQuestion.match(/(?:^|\n)\s*@?Statement\s*[-–—]?\s*\(?\s*(?:II|2|B)\s*\)?\s*[:.\-)–—]?\s*([\s\S]*?)(?=\n\s*(?:\(?[A-D]\)?\s*[).:\-]|(?:Ans|Answer|Solution|Explanation)\s*[:.\-])|$)/i);
-        if (!statement1 && s1Match) statement1 = s1Match[1].trim();
-        if (!statement2 && s2Match) statement2 = s2Match[1].trim();
+    let dynamicStatements = [];
+    let statementOutro = '';
+    const hasStatementPatterns = /(?:^|\r?\n|\s{2,}|\b)\s*@?Statement\s*[-–—]?\s*(?:\(?[IVXLCDM0-9A-D]+\)?)\s*[:.\-)–—]/i.test(cleanQuestion);
+
+    if (hasStatementPatterns) {
+        const stmtRegex = /(?:^|\r?\n|\s{2,}|\b)\s*@?Statement\s*[-–—]?\s*(?:\(?([IVXLCDM0-9A-D]+)\)?)\s*[:.\-)–—]\s*([\s\S]*?)(?=(?:(?:\r?\n|\s{2,})\s*@?Statement\s*[-–—]?\s*(?:\(?[IVXLCDM0-9A-D]+\)?)\s*[:.\-)–—])|$)/gi;
+        let sm;
+        let firstStmtIdx = -1;
+        let lastStmtEndIdx = -1;
+        while ((sm = stmtRegex.exec(cleanQuestion)) !== null) {
+            if (firstStmtIdx === -1) firstStmtIdx = sm.index;
+            lastStmtEndIdx = stmtRegex.lastIndex;
+            let sText = sm[2].trim();
+            const outroLineMatch = sText.match(/(?:\r?\n|\s{2,})?(?:In the light of|Choose the correct|Select the|Which of the|How many of|The (?:correct|incorrect) statement|From the above|Identify the|The (?:correct|incorrect) combination is)[\s\S]*$/i);
+            if (outroLineMatch) {
+                statementOutro = (outroLineMatch[0] + (statementOutro ? '\n' + statementOutro : '')).trim();
+                sText = sText.substring(0, outroLineMatch.index).trim();
+            }
+            if (sText) {
+                dynamicStatements.push({
+                    label: `Statement ${sm[1]}:`,
+                    text: cleanDifficultyTags(sText)
+                });
+            }
+        }
+        if (dynamicStatements.length >= 2) {
+            const preamble = firstStmtIdx > 0 ? cleanQuestion.substring(0, firstStmtIdx).trim() : '';
+            const trailing = cleanQuestion.substring(lastStmtEndIdx).trim();
+            if (trailing && !statementOutro) statementOutro = trailing;
+            cleanQuestion = preamble;
+        }
+    } else if (statement1 && statement2) {
+        dynamicStatements = [
+            { label: 'Statement I:', text: cleanDifficultyTags(statement1) },
+            { label: 'Statement II:', text: cleanDifficultyTags(statement2) }
+        ];
     }
 
     // Numerical answer fallback
@@ -449,10 +480,10 @@ function mapSupabaseToQuestion(row, usageMap = null) {
     const qIdStr = (row.id || '').toString();
     const usage = (usageMap && usageMap.get(qIdStr)) || null;
 
-    const statementsArray = (statement1 && statement2) ? [
+    const statementsArray = dynamicStatements.length > 0 ? dynamicStatements : ((statement1 && statement2) ? [
         { label: 'Statement I:', text: cleanDifficultyTags(statement1) },
         { label: 'Statement II:', text: cleanDifficultyTags(statement2) }
-    ] : undefined;
+    ] : undefined);
 
     return {
         _id: row.id,
@@ -467,9 +498,14 @@ function mapSupabaseToQuestion(row, usageMap = null) {
         type: type,
         q_type: effectiveQType,
         questionText: cleanQuestion,
+        outroText: statementOutro || null,
         imageUrl: row.image_url || row.imageUrl || null,
         solutionImageUrl: row.solution_image_url || row.solutionImageUrl || null,
         options: options,
+        opt_a: row.opt_a || options[0] || '',
+        opt_b: row.opt_b || options[1] || '',
+        opt_c: row.opt_c || options[2] || '',
+        opt_d: row.opt_d || options[3] || '',
         answer: answer,
         correct_option: correctOption,
         num_answer: numAnswer,
@@ -697,6 +733,7 @@ function buildQueryFilters(filters) {
             } else if (t.includes('diagram') || t.includes('image')) {
                 qTypeClauses.push(`(
                     q.q_type ILIKE '%diagram%' OR q.q_type ILIKE '%image%'
+                    OR (q.image_url IS NOT NULL AND length(trim(q.image_url)) > 0)
                     OR q.question ILIKE '%{{IMG::%' OR q.question ILIKE '%<img%' OR q.question ILIKE '%![%' OR q.question ILIKE '%https://res.cloudinary.com/%'
                     OR q.opt_a ILIKE '%{{IMG::%' OR q.opt_b ILIKE '%{{IMG::%' OR q.opt_c ILIKE '%{{IMG::%' OR q.opt_d ILIKE '%{{IMG::%'
                     OR q.opt_a ILIKE '%https://res.cloudinary.com/%' OR q.opt_b ILIKE '%https://res.cloudinary.com/%' OR q.opt_c ILIKE '%https://res.cloudinary.com/%' OR q.opt_d ILIKE '%https://res.cloudinary.com/%'
