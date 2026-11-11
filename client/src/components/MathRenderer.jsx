@@ -301,8 +301,8 @@ const MathRenderer = ({
 
     return (
         <span
-            className={`math-renderer ${inline && !hasImages ? 'inline-math' : 'block-math'} ${className}`}
-            style={{ display: inline && !hasImages ? 'inline' : 'block', ...style }}
+            className={`math-renderer ${inline && !hasImages ? 'inline-math' : (isOption ? 'inline-math option-math' : 'block-math')} ${className}`}
+            style={{ display: (inline && !hasImages) || isOption ? 'inline-block' : 'block', ...style }}
         >
             {tokens.map((token) => {
                 if (token.type === 'text') {

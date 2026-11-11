@@ -650,6 +650,15 @@ export default function CommissionedExam() {
                 }
             } else if (cat === 'diag') {
                 q.type = 'DIAGRAM_BASED';
+                if (!q.options || q.options.filter(o => o && String(o).trim().length > 0).length < 2) {
+                    const extracted = extractOptionsIfMissing(q);
+                    if (extracted.length >= 2) {
+                        q.options = extracted;
+                    } else {
+                        const directOpts = [q.opt_a, q.opt_b, q.opt_c, q.opt_d].filter(o => o && String(o).trim().length > 0);
+                        if (directOpts.length >= 2) q.options = directOpts;
+                    }
+                }
             } else {
                 if (!q.options || q.options.filter(o => o && String(o).trim().length > 0).length < 2) {
                     const extracted = extractOptionsIfMissing(q);
@@ -847,6 +856,15 @@ export default function CommissionedExam() {
                         }
                     } else if (cat === 'diag') {
                         q.type = 'DIAGRAM_BASED';
+                        if (!q.options || q.options.filter(o => o && String(o).trim().length > 0).length < 2) {
+                            const extracted = extractOptionsIfMissing(q);
+                            if (extracted.length >= 2) {
+                                q.options = extracted;
+                            } else {
+                                const directOpts = [q.opt_a, q.opt_b, q.opt_c, q.opt_d].filter(o => o && String(o).trim().length > 0);
+                                if (directOpts.length >= 2) q.options = directOpts;
+                            }
+                        }
                     } else {
                         if (!q.options || q.options.filter(o => o && String(o).trim().length > 0).length < 2) {
                             const extracted = extractOptionsIfMissing(q);

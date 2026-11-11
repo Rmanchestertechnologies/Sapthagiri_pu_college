@@ -614,12 +614,13 @@ export default function A4PaperEngine({
                 .math-renderer.inline-math {
                     display: inline !important;
                 }
-                .math-renderer.block-math,
-                .math-renderer:has(.resizable-diagram-wrap:not(.is-option-diagram)) {
-                    display: block !important;
-                }
+                .math-renderer.option-math,
                 .math-renderer:has(.resizable-diagram-wrap.is-option-diagram) {
                     display: inline-block !important;
+                }
+                .math-renderer.block-math:not(.option-math):not(:has(.is-option-diagram)),
+                .math-renderer:has(.resizable-diagram-wrap:not(.is-option-diagram)) {
+                    display: block !important;
                 }
                 .resizable-diagram-wrap:not(.is-option-diagram) {
                     width: 100% !important;

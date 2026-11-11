@@ -111,6 +111,15 @@ export function extractOptionsIfMissing(q) {
         return opts;
     }
 
+    // Direct database columns fallback (opt_a, opt_b, opt_c, opt_d / option_a, option_b...)
+    const directOpts = [
+        q.opt_a, q.opt_b, q.opt_c, q.opt_d,
+        q.option_a, q.option_b, q.option_c, q.option_d
+    ].filter(o => o && String(o).trim().length > 0);
+    if (directOpts.length >= 2) {
+        return directOpts;
+    }
+
     const textToSearch = `${q.questionText || q.question || ''}\n${q.raw_question || ''}\n${q.solution_text || q.solution || ''}`;
 
     // IMPORTANT: For MATCH_FOLLOWING questions, (A), (B), (C), (D) in the question text

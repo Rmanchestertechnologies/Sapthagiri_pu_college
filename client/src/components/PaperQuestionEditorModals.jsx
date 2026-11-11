@@ -467,64 +467,122 @@ export function SwapQuestionModal({
     const subject = oldQuestion.subject || paperSubject || 'Physics';
     const initialChapter = oldQuestion.chapter || '';
 
-    const [chapter, setChapter] = useState(initialChapter);
+    // Cascading Filter States
+    const [chaptersList, setChaptersList] = useState([]);
+    const [conceptsList, setConceptsList] = useState([]);
+    const [selectedChapter, setSelectedChapter] = useState(initialChapter);
+    const [selectedConcept, setSelectedConcept] = useState('');
+    const [selectedType, setSelectedType] = useState('');
+    const [selectedLevel, setSelectedLevel] = useState('');
     const [searchKeyword, setSearchKeyword] = useState('');
-    const [levelFilter, setLevelFilter] = useState('');
+
     const [candidates, setCandidates] = useState([]);
     const [loading, setLoading] = useState(false);
     const [errorMsg, setErrorMsg] = useState('');
+    const [swappedSuccess, setSwappedSuccess] = useState(false);
 
+    // Fetch Subject Taxonomy (Chapters & Concepts)
+    useEffect(() => {
+        let isMounted = true;
+        const fetchMeta = async () => {
+            try {
+                const res = await api.get(`/api/questions/meta?subject=${encodeURIComponent(subject)}`);
+                if (!isMounted) return;
+                const chs = Array.isArray(res.data?.chapters) ? res.data.chapters : [];
+                const cpts = Array.isArray(res.data?.concepts) ? res.data.concepts : [];
+                setChaptersList(chs);
+                setConceptsList(cpts);
+            } catch (err) {
+                console.warn('Failed to load subject metadata for swap:', err.message);
+            }
+        };
+        fetchMeta();
+        return () => { isMounted = false; };
+    }, [subject]);
+
+    // Compute concepts filtered by selected chapter
+    const filteredConcepts = useMemo(() => {
+        if (!selectedChapter || selectedChapter === 'All') {
+            // Distinct list of all concept names
+            const allNames = conceptsList.map(c => (typeof c === 'string' ? c : c?.name)).filter(Boolean);
+            return Array.from(new Set(allNames)).sort();
+        }
+        const relevant = conceptsList
+            .filter(c => {
+                if (typeof c === 'string') return true;
+                return c?.chapter && c.chapter.trim().toLowerCase() === selectedChapter.trim().toLowerCase();
+            })
+            .map(c => (typeof c === 'string' ? c : c?.name))
+            .filter(Boolean);
+        return Array.from(new Set(relevant)).sort();
+    }, [conceptsList, selectedChapter]);
+
+    // Fetch Candidates from API
     const fetchCandidates = async () => {
         setLoading(true);
         setErrorMsg('');
         try {
             const queryParams = new URLSearchParams({
                 subject,
-                limit: '50',
+                limit: '60',
                 paginated: 'true',
             });
             if (paperExamType) queryParams.append('examType', paperExamType);
-            if (chapter && chapter !== 'All') queryParams.append('chapter', chapter);
+            if (selectedChapter && selectedChapter !== 'All') queryParams.append('chapter', selectedChapter);
+            if (selectedConcept && selectedConcept !== 'All') queryParams.append('concept', selectedConcept);
+            if (selectedType && selectedType !== 'All') queryParams.append('type', selectedType);
+            if (selectedLevel && selectedLevel !== 'All') queryParams.append('level', selectedLevel);
             if (searchKeyword.trim()) queryParams.append('search', searchKeyword.trim());
-            if (levelFilter) queryParams.append('level', levelFilter);
 
             const res = await api.get(`/api/questions?${queryParams.toString()}`);
             const list = Array.isArray(res.data?.questions)
                 ? res.data.questions
                 : (Array.isArray(res.data) ? res.data : []);
 
-            // Filter out the current question ID so user doesn't swap with same question
+            // Filter out the current question ID so teacher does not swap with the identical item
             const oldId = String(oldQuestion._id || oldQuestion.id || '');
             const filtered = list.filter(q => String(q._id || q.id || '') !== oldId);
             setCandidates(filtered);
         } catch (err) {
             console.error('Fetch swap candidates error:', err);
-            setErrorMsg('Failed to load replacement questions. Please try a different search.');
+            setErrorMsg('Failed to load replacement questions. Please adjust your filters or search.');
         } finally {
             setLoading(false);
         }
     };
 
+    // Auto-fetch when cascading filters change
     useEffect(() => {
         fetchCandidates();
-    }, [chapter, levelFilter]);
+    }, [selectedChapter, selectedConcept, selectedType, selectedLevel]);
 
     const handleSearchSubmit = (e) => {
         e.preventDefault();
         fetchCandidates();
     };
 
+    const handleResetFilters = () => {
+        setSelectedChapter('');
+        setSelectedConcept('');
+        setSelectedType('');
+        setSelectedLevel('');
+        setSearchKeyword('');
+    };
+
     const handleSelectQuestion = (chosenQ) => {
+        setSwappedSuccess(true);
         const swapFn = onSelectSwap || onSwap;
         if (typeof swapFn === 'function') {
             swapFn(questionIndex, chosenQ);
         }
-        onClose();
+        setTimeout(() => {
+            onClose();
+        }, 900);
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-navy/60 backdrop-blur-sm animate-fade-in no-print">
-            <div className="bg-white rounded-3xl shadow-2xl border-2 border-navy/20 w-full max-w-4xl max-h-[92vh] flex flex-col overflow-hidden">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-navy/60 backdrop-blur-sm animate-fade-in no-print">
+            <div className="bg-white rounded-3xl shadow-2xl border-2 border-navy/20 w-full max-w-5xl max-h-[94vh] flex flex-col overflow-hidden">
                 {/* Header */}
                 <div className="px-6 py-4 bg-navy text-white flex items-center justify-between border-b-2 border-gold flex-shrink-0">
                     <div className="flex items-center gap-3">
@@ -534,80 +592,166 @@ export function SwapQuestionModal({
                                 Swap Question #{displayNum}
                             </h3>
                             <p className="text-[11px] font-bold text-gold/80">
-                                Select a replacement question from verified JEE & NEET repositories
+                                Filter by Chapter, Concept, Type & Level to find the perfect replacement
                             </p>
                         </div>
                     </div>
                     <button
                         type="button"
                         onClick={onClose}
+                        disabled={swappedSuccess}
                         className="w-8 h-8 rounded-xl bg-white/10 hover:bg-white/20 text-white font-black flex items-center justify-center transition cursor-pointer"
                     >
                         ✕
                     </button>
                 </div>
 
+                {/* Success Banner */}
+                {swappedSuccess && (
+                    <div className="px-6 py-3 bg-emerald-500 text-white font-black text-sm flex items-center justify-center gap-2 shadow-inner animate-pulse">
+                        <span className="text-lg">✓</span>
+                        <span>Swapped successfully! Updating your paper...</span>
+                    </div>
+                )}
+
                 {/* Body (Scrollable) */}
-                <div className="flex-1 overflow-y-auto p-6 space-y-5">
+                <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
                     {/* Currently In Paper Preview */}
                     <div className="p-4 bg-amber-50/70 border-2 border-amber-300 rounded-2xl">
                         <div className="flex items-center justify-between mb-2">
                             <span className="text-[10px] font-black uppercase tracking-widest text-amber-900 bg-amber-200/80 px-2 py-0.5 rounded">
                                 Currently in Paper (Q#{displayNum})
                             </span>
-                            <span className="text-[11px] font-bold text-amber-800">
-                                Chapter: {oldQuestion.chapter || 'General'}
-                            </span>
+                            <div className="flex items-center gap-2">
+                                <span className="text-[11px] font-bold text-amber-800">
+                                    Subject: <span className="font-black">{subject}</span>
+                                </span>
+                                {oldQuestion.chapter && (
+                                    <span className="text-[11px] font-bold text-amber-800">
+                                        • Chapter: <span className="font-black">{oldQuestion.chapter}</span>
+                                    </span>
+                                )}
+                            </div>
                         </div>
                         <div className="text-xs text-slate-900 font-medium leading-relaxed">
                             <MathRenderer text={oldQuestion.questionText || oldQuestion.question || ''} />
                         </div>
                     </div>
 
-                    {/* Filter Bar */}
-                    <form onSubmit={handleSearchSubmit} className="p-4 bg-slate-50 border border-slate-200 rounded-2xl flex flex-wrap items-center gap-3">
-                        <div className="flex-1 min-w-[200px]">
+                    {/* Cascading Filter Bar */}
+                    <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
+                        <div className="flex items-center justify-between">
+                            <span className="text-[11px] font-black uppercase tracking-wider text-navy">
+                                🔍 Cascading Question Filter
+                            </span>
+                            {(selectedChapter || selectedConcept || selectedType || selectedLevel || searchKeyword) && (
+                                <button
+                                    type="button"
+                                    onClick={handleResetFilters}
+                                    className="text-[11px] font-bold text-rose-600 hover:text-rose-800 underline cursor-pointer"
+                                >
+                                    Reset Filters
+                                </button>
+                            )}
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+                            {/* 1. Chapter Dropdown */}
+                            <div>
+                                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1">
+                                    1. Chapter
+                                </label>
+                                <select
+                                    value={selectedChapter}
+                                    onChange={e => {
+                                        setSelectedChapter(e.target.value);
+                                        setSelectedConcept(''); // reset concept when chapter changes
+                                    }}
+                                    className="w-full p-2 text-xs font-bold bg-white border border-slate-300 rounded-xl outline-none focus:border-navy text-slate-800"
+                                >
+                                    <option value="">All Chapters</option>
+                                    {chaptersList.map((ch, idx) => (
+                                        <option key={idx} value={ch}>
+                                            {ch}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            {/* 2. Concept Dropdown (Filtered by Chapter) */}
+                            <div>
+                                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1">
+                                    2. Concept / Topic
+                                </label>
+                                <select
+                                    value={selectedConcept}
+                                    onChange={e => setSelectedConcept(e.target.value)}
+                                    className="w-full p-2 text-xs font-bold bg-white border border-slate-300 rounded-xl outline-none focus:border-navy text-slate-800"
+                                >
+                                    <option value="">All Concepts</option>
+                                    {filteredConcepts.map((cpt, idx) => (
+                                        <option key={idx} value={cpt}>
+                                            {cpt}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            {/* 3. Question Type Dropdown */}
+                            <div>
+                                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1">
+                                    3. Question Type
+                                </label>
+                                <select
+                                    value={selectedType}
+                                    onChange={e => setSelectedType(e.target.value)}
+                                    className="w-full p-2 text-xs font-bold bg-white border border-slate-300 rounded-xl outline-none focus:border-navy text-slate-800"
+                                >
+                                    <option value="">All Types</option>
+                                    <option value="MCQ">MCQ (Single Choice)</option>
+                                    <option value="ASSERTION_REASON">Assertion - Reason</option>
+                                    <option value="STATEMENT_BASED">Statement Based</option>
+                                    <option value="MATCH_FOLLOWING">Match the Following</option>
+                                    <option value="NUMERICAL">Numerical / Integer</option>
+                                    <option value="DIAGRAM_BASED">Diagram Based</option>
+                                </select>
+                            </div>
+
+                            {/* 4. Level Dropdown */}
+                            <div>
+                                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1">
+                                    4. Level / Difficulty
+                                </label>
+                                <select
+                                    value={selectedLevel}
+                                    onChange={e => setSelectedLevel(e.target.value)}
+                                    className="w-full p-2 text-xs font-bold bg-white border border-slate-300 rounded-xl outline-none focus:border-navy text-slate-800"
+                                >
+                                    <option value="">All Levels</option>
+                                    <option value="easy">Easy</option>
+                                    <option value="medium">Medium</option>
+                                    <option value="hard">Hard</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        {/* Keyword Search Input Bar */}
+                        <form onSubmit={handleSearchSubmit} className="flex items-center gap-2 pt-1">
                             <input
                                 type="text"
                                 value={searchKeyword}
                                 onChange={e => setSearchKeyword(e.target.value)}
-                                placeholder="Search keyword, formula, or topic..."
-                                className="w-full p-2.5 text-xs bg-white border border-slate-300 rounded-xl outline-none focus:border-navy"
+                                placeholder="Optional search keyword, formula, or phrase..."
+                                className="flex-1 p-2 text-xs bg-white border border-slate-300 rounded-xl outline-none focus:border-navy"
                             />
-                        </div>
-
-                        {initialChapter && (
                             <button
-                                type="button"
-                                onClick={() => setChapter(c => c === 'All' ? initialChapter : 'All')}
-                                className={`px-3 py-2 rounded-xl text-xs font-bold border transition cursor-pointer ${
-                                    chapter !== 'All'
-                                        ? 'bg-navy text-gold border-navy'
-                                        : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
-                                }`}
+                                type="submit"
+                                className="px-4 py-2 bg-navy hover:bg-navy/90 text-gold rounded-xl font-black text-xs uppercase tracking-wider shadow-sm transition cursor-pointer"
                             >
-                                {chapter !== 'All' ? `Same Chapter (${initialChapter})` : 'All Chapters'}
+                                Search
                             </button>
-                        )}
-
-                        <select
-                            value={levelFilter}
-                            onChange={e => setLevelFilter(e.target.value)}
-                            className="p-2.5 text-xs font-bold bg-white border border-slate-300 rounded-xl outline-none focus:border-navy"
-                        >
-                            <option value="">All Difficulties</option>
-                            <option value="easy">Easy</option>
-                            <option value="medium">Medium</option>
-                            <option value="hard">Hard</option>
-                        </select>
-
-                        <button
-                            type="submit"
-                            className="px-4 py-2.5 bg-navy hover:bg-navy/90 text-gold rounded-xl font-black text-xs uppercase tracking-wider shadow-sm transition cursor-pointer"
-                        >
-                            🔍 Search
-                        </button>
-                    </form>
+                        </form>
+                    </div>
 
                     {/* Error Message */}
                     {errorMsg && (
@@ -630,15 +774,22 @@ export function SwapQuestionModal({
                             </div>
                         ) : candidates.length === 0 ? (
                             <div className="py-12 text-center text-slate-400 text-xs font-bold bg-slate-50 rounded-2xl border border-dashed border-slate-200">
-                                No questions found matching this search criteria.<br />
-                                Try searching "All Chapters" or clear the search keywords.
+                                No questions found matching this filter criteria.<br />
+                                Try selecting "All Chapters" or "All Concepts", or clear your search term.
                             </div>
                         ) : (
                             candidates.map((cand, idx) => {
                                 const candId = cand._id || cand.id;
                                 const candOptions = Array.isArray(cand.options) && cand.options.length > 0
                                     ? cand.options
-                                    : [cand.opt_a, cand.opt_b, cand.opt_c, cand.opt_d].filter(Boolean);
+                                    : [
+                                        cand.opt_a || cand.option_a,
+                                        cand.opt_b || cand.option_b,
+                                        cand.opt_c || cand.option_c,
+                                        cand.opt_d || cand.option_d
+                                    ].filter(Boolean);
+
+                                const candImg = cand.imageUrl || cand.image_url;
 
                                 return (
                                     <div
@@ -653,6 +804,11 @@ export function SwapQuestionModal({
                                                 <span className="text-[10px] font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded">
                                                     {cand.chapter || 'General'}
                                                 </span>
+                                                {cand.topic && (
+                                                    <span className="text-[10px] font-bold text-slate-500 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded">
+                                                        {cand.topic}
+                                                    </span>
+                                                )}
                                                 {cand.level && (
                                                     <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded ${
                                                         cand.level.toLowerCase() === 'easy' ? 'bg-emerald-100 text-emerald-800' :
@@ -660,6 +816,11 @@ export function SwapQuestionModal({
                                                         'bg-amber-100 text-amber-800'
                                                     }`}>
                                                         {cand.level}
+                                                    </span>
+                                                )}
+                                                {cand.type && (
+                                                    <span className="text-[10px] font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded">
+                                                        {cand.type}
                                                     </span>
                                                 )}
                                                 {cand.sourceExam && (
@@ -672,7 +833,8 @@ export function SwapQuestionModal({
                                             <button
                                                 type="button"
                                                 onClick={() => handleSelectQuestion(cand)}
-                                                className="px-4 py-1.5 bg-gold hover:bg-amber-400 text-navy font-black text-xs uppercase tracking-wider rounded-xl shadow-xs transition hover:scale-105 cursor-pointer flex items-center gap-1.5 flex-shrink-0"
+                                                disabled={swappedSuccess}
+                                                className="px-4 py-1.5 bg-gold hover:bg-amber-400 text-navy font-black text-xs uppercase tracking-wider rounded-xl shadow-xs transition hover:scale-105 cursor-pointer flex items-center gap-1.5 flex-shrink-0 disabled:opacity-50"
                                             >
                                                 <span>✓</span> Select & Swap
                                             </button>
@@ -683,13 +845,14 @@ export function SwapQuestionModal({
                                             <MathRenderer text={cand.questionText || cand.question || ''} />
                                         </div>
 
-                                        {/* Diagram if present */}
-                                        {(cand.imageUrl || cand.image_url) && (
-                                            <div className="max-w-xs p-1 bg-slate-50 border border-slate-200 rounded-lg">
+                                        {/* Question Diagram if present */}
+                                        {candImg && (
+                                            <div className="inline-block p-1 bg-slate-50 border border-slate-200 rounded-lg">
                                                 <img
-                                                    src={cand.imageUrl || cand.image_url}
-                                                    alt="Diagram"
-                                                    className="max-h-24 object-contain rounded"
+                                                    src={candImg}
+                                                    alt="Question Diagram"
+                                                    crossOrigin="anonymous"
+                                                    className="max-h-36 object-contain rounded"
                                                     onError={e => { e.currentTarget.style.display = 'none'; }}
                                                 />
                                             </div>
@@ -697,17 +860,20 @@ export function SwapQuestionModal({
 
                                         {/* Options Grid */}
                                         {candOptions.length > 0 && (
-                                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 border-t border-slate-100 text-[11px] text-slate-700">
-                                                {candOptions.slice(0, 4).map((opt, oIdx) => (
-                                                    <div key={oIdx} className="flex items-start gap-1 truncate">
-                                                        <span className="font-bold text-navy">
-                                                            ({String.fromCharCode(65 + oIdx)})
-                                                        </span>
-                                                        <span className="truncate">
-                                                            <MathRenderer inline text={typeof opt === 'object' ? (opt.text || opt.value || '') : String(opt)} />
-                                                        </span>
-                                                    </div>
-                                                ))}
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 pt-2 border-t border-slate-100 text-[11px] text-slate-700">
+                                                {candOptions.slice(0, 4).map((opt, oIdx) => {
+                                                    const optText = typeof opt === 'object' ? (opt.text || opt.value || '') : String(opt);
+                                                    return (
+                                                        <div key={oIdx} className="flex items-start gap-1 p-1 bg-slate-50/50 rounded border border-slate-100">
+                                                            <span className="font-black text-navy text-[11px]">
+                                                                ({String.fromCharCode(65 + oIdx)})
+                                                            </span>
+                                                            <div className="flex-1 min-w-0">
+                                                                <MathRenderer isOption inline text={optText} />
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
                                             </div>
                                         )}
                                     </div>
@@ -725,7 +891,8 @@ export function SwapQuestionModal({
                     <button
                         type="button"
                         onClick={onClose}
-                        className="px-5 py-2 bg-white hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-xs border border-slate-300 transition cursor-pointer"
+                        disabled={swappedSuccess}
+                        className="px-5 py-2 bg-white hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-xs border border-slate-300 transition cursor-pointer disabled:opacity-50"
                     >
                         Cancel
                     </button>

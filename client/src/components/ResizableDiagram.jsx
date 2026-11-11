@@ -10,9 +10,9 @@
  *   can effortlessly fine-tune dimensions with a single click.
  * - Zero Print Footprint:
  *   The +/- toolbar has the .no-print class so it completely vanishes in print and PDF export.
- * - Zero-Failure Silent Self-Healing:
- *   Auto-retries transient CDN connection drops (e.g. ECONNRESET) with staggered backoff
- *   and server proxy fallback silently in the background. No broken reload buttons.
+ * - Robust Direct CDN Delivery:
+ *   Natively renders high-res diagrams from Cloudinary CDN without relying on sleeping
+ *   backend proxies. Auto-recovers gracefully from any brief network glitch.
  */
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 
@@ -158,7 +158,7 @@ export default function ResizableDiagram({
         }
     };
 
-    // Silent, self-healing background recovery for transient CDN drops / ECONNRESET
+    // Resilient background recovery directly against CDN
     const handleImageError = useCallback(() => {
         if (!src) return;
         const attempt = retryAttemptRef.current + 1;
@@ -168,29 +168,14 @@ export default function ResizableDiagram({
             clearTimeout(retryTimerRef.current);
         }
 
-        // Staggered exponential backoff (breaks concurrency saturation):
-        // 150ms -> 350ms -> 750ms -> 1500ms -> 2500ms
-        const delay = Math.min(2500, Math.round(150 * Math.pow(1.8, attempt - 1)));
-
-        retryTimerRef.current = setTimeout(() => {
-            const API_BASE = (import.meta.env.VITE_API_URL || '').replace(/\/+$/, '');
-            const sep = src.includes('?') ? '&' : '?';
-
-            if (attempt === 1) {
-                // Tier 1: Cache-busting query param on direct CDN (routes to clean edge node)
-                setCurrentSrc(`${src}${sep}_retry=${Date.now()}`);
-            } else if (attempt === 2 || attempt === 3) {
-                // Tier 2: Server-side proxy with dedicated in-memory buffer
-                setCurrentSrc(`${API_BASE}/api/papers/proxy-image?url=${encodeURIComponent(src)}&_cb=${Date.now()}`);
-            } else {
-                // Tier 3: Alternating fallback
-                if (attempt % 2 === 0) {
-                    setCurrentSrc(`${API_BASE}/api/papers/proxy-image?url=${encodeURIComponent(src)}&_cb=${Date.now()}`);
-                } else {
-                    setCurrentSrc(`${src}${sep}_retry=${attempt}_${Date.now()}`);
-                }
-            }
-        }, delay);
+        // Only retry up to 4 times with staggered delays (200ms, 500ms, 1000ms, 2000ms)
+        if (attempt <= 4) {
+            const delay = Math.min(2000, 200 * Math.pow(1.8, attempt - 1));
+            retryTimerRef.current = setTimeout(() => {
+                const sep = src.includes('?') ? '&' : '?';
+                setCurrentSrc(`${src}${sep}_cb=${Date.now()}`);
+            }, delay);
+        }
     }, [src]);
 
     if (!src) return null;
@@ -201,7 +186,13 @@ export default function ResizableDiagram({
             className={`resizable-diagram-wrap relative select-none ${
                 isOption ? 'is-option-diagram inline-block my-0.5 mx-0.5 align-middle' : 'block my-1.5 mx-auto text-center'
             }`}
-            style={{ position: 'relative', zIndex: 2, ...extraStyle }}
+            style={{
+                position: 'relative',
+                zIndex: 2,
+                display: isOption ? 'inline-block' : 'block',
+                textAlign: 'center',
+                ...extraStyle
+            }}
         >
             {/* ── ALWAYS-VISIBLE RESIZE TOOLBAR (+ / −) FOR MAIN DIAGRAMS ── */}
             {!isOption && (
@@ -247,16 +238,17 @@ export default function ResizableDiagram({
             <img
                 src={currentSrc}
                 alt={alt || ''}
+                crossOrigin="anonymous"
                 onLoad={handleImageLoad}
                 onError={handleImageError}
-                referrerPolicy="no-referrer"
                 style={{
                     height: `${height}px`,
                     maxHeight: `${height}px`,
+                    minHeight: isOption ? '45px' : '70px',
                     maxWidth: isOption ? '140px' : (maxWidth || '100%'),
                     width: 'auto',
                     objectFit: 'contain',
-                    display: 'block',
+                    display: isOption ? 'inline-block' : 'block',
                     margin: '0 auto',
                     borderRadius: '4px',
                     backgroundColor: 'transparent',
@@ -264,6 +256,7 @@ export default function ResizableDiagram({
                     position: 'relative',
                     zIndex: 2,
                     boxSizing: 'border-box',
+                    verticalAlign: 'middle',
                     transition: 'height 0.15s ease, max-height 0.15s ease',
                 }}
                 className="rounded"
