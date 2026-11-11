@@ -156,13 +156,18 @@ const DashboardHome = () => {
     };
 
     const isCompetitivePaper = (p) => {
-        return isNeetPaper(p) || isJeePaper(p) || isCetPaper(p);
+        const et = String(p.examType || p.exam_type || '').toUpperCase();
+        const title = String(p.title || '').toUpperCase();
+        return isNeetPaper(p) || isJeePaper(p) || isCetPaper(p) || et.includes('PCM') || et.includes('PCB') || et.includes('PCMB') || title.includes('GRAND ASSESSMENT');
     };
 
     // Strict check for individual single-subject papers:
     // Matches papers created for that specific subject alone.
-    // Excludes multi-subject papers that combine multiple subjects (e.g. "Physics • Chemistry • Botany • Zoology").
+    // Excludes competitive exams (NEET, JEE, CET) and multi-subject papers (e.g. "Physics • Chemistry • Botany • Zoology").
     const isIndividualSubjectPaper = (p, targetSub) => {
+        // Competitive papers (NEET, JEE, CET, Grand Assessments) must NEVER appear under individual subjects
+        if (isCompetitivePaper(p)) return false;
+
         const s = String(p.subject || '').toLowerCase().trim();
         // If subject string contains multiple combined subjects, exclude from individual subject view
         if (s.includes('•') || s.includes(',') || s.includes('&') || s.includes(' and ') || s.includes('pcmb')) {

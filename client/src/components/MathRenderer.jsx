@@ -254,12 +254,15 @@ const MathRenderer = ({
     optionIndex,
 }) => {
     const safeText = typeof text === 'string' ? text : (text ? String(text) : '');
-    const imgRegex = /(\{\{IMG::.*?\}\}|!\[.*?\]\(.*?\)|\[DIAGRAM:\s*[^\]]+\]|<img[^>]+src=["'][^"']+["'][^>]*>|https?:\/\/res\.cloudinary\.com\/[^\s"')]+|https?:\/\/[^\s"')]+\.(?:png|jpg|jpeg|webp|gif|svg)(?:\?[^\s"')]+)?)/gi;
-    const hasImages = imgRegex.test(safeText);
+    // Stateless test regex without /g flag to avoid lastIndex mutation across re-renders
+    const testImgRegex = /(\{\{IMG::.*?\}\}|!\[.*?\]\(.*?\)|\[DIAGRAM:\s*[^\]]+\]|<img[^>]+src=["'][^"']+["'][^>]*>|https?:\/\/res\.cloudinary\.com\/[^\s"')]+|https?:\/\/[^\s"')]+\.(?:png|jpg|jpeg|webp|gif|svg)(?:\?[^\s"')]+)?)/i;
+    const hasImages = testImgRegex.test(safeText);
 
     const tokens = useMemo(() => {
         if (!hasImages) return null;
-        const parts = safeText.split(imgRegex);
+        // Split regex with capture groups
+        const splitImgRegex = /(\{\{IMG::.*?\}\}|!\[.*?\]\(.*?\)|\[DIAGRAM:\s*[^\]]+\]|<img[^>]+src=["'][^"']+["'][^>]*>|https?:\/\/res\.cloudinary\.com\/[^\s"')]+|https?:\/\/[^\s"')]+\.(?:png|jpg|jpeg|webp|gif|svg)(?:\?[^\s"')]+)?)/gi;
+        const parts = safeText.split(splitImgRegex);
         return parts.map((part, index) => {
             if (!part) return null;
             let src = null;

@@ -158,7 +158,7 @@ export default function ResizableDiagram({
         }
     };
 
-    // Resilient background recovery directly against CDN
+    // Resilient background recovery: direct CDN -> cache-busted retry -> robust server proxy fallback
     const handleImageError = useCallback(() => {
         if (!src) return;
         const attempt = retryAttemptRef.current + 1;
@@ -166,13 +166,22 @@ export default function ResizableDiagram({
 
         if (retryTimerRef.current) {
             clearTimeout(retryTimerRef.current);
+            retryTimerRef.current = null;
         }
 
         if (attempt <= 3) {
-            const delay = 250 * attempt;
+            const delay = 150 * attempt;
             retryTimerRef.current = setTimeout(() => {
-                const clean = src.split('?')[0];
-                setCurrentSrc(attempt === 1 ? clean : `${clean}?cb=${Date.now()}`);
+                const API_BASE = (import.meta.env.VITE_API_URL || '').replace(/\/+$/, '');
+                if (attempt === 1) {
+                    // Attempt 1: Add cache buster query parameter to force browser to re-request
+                    const sep = src.includes('?') ? '&' : '?';
+                    setCurrentSrc(`${src}${sep}_cb=${Date.now()}`);
+                } else {
+                    // Attempt 2 & 3: Fall back to backend image proxy (bypasses browser rate limits, ad-blockers, CORS drops)
+                    const proxyUrl = `${API_BASE}/api/papers/proxy-image?url=${encodeURIComponent(src)}&_cb=${Date.now()}`;
+                    setCurrentSrc(proxyUrl);
+                }
             }, delay);
         }
     }, [src]);
@@ -238,12 +247,15 @@ export default function ResizableDiagram({
                 src={currentSrc}
                 alt={alt || ''}
                 loading="eager"
+                decoding="async"
+                referrerPolicy="no-referrer"
                 onLoad={handleImageLoad}
                 onError={handleImageError}
                 style={{
                     height: `${height}px`,
                     maxHeight: `${height}px`,
                     minHeight: isOption ? '45px' : '70px',
+                    minWidth: isOption ? '45px' : '60px',
                     maxWidth: isOption ? '140px' : (maxWidth || '100%'),
                     width: 'auto',
                     objectFit: 'contain',

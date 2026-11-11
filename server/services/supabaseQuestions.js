@@ -696,7 +696,7 @@ function buildQueryFilters(filters) {
                 qTypeClauses.push(`(q.q_type ILIKE '%statement%' OR q.question ILIKE '%Statement I%' OR q.question ILIKE '%Statement 1%' OR q.question ILIKE '%Statement-1%')`);
             } else if (t.includes('diagram') || t.includes('image')) {
                 qTypeClauses.push(`(
-                    q.q_type ILIKE '%diagram%' OR q.q_type ILIKE '%image%' OR q.image_url IS NOT NULL 
+                    q.q_type ILIKE '%diagram%' OR q.q_type ILIKE '%image%'
                     OR q.question ILIKE '%{{IMG::%' OR q.question ILIKE '%<img%' OR q.question ILIKE '%![%' OR q.question ILIKE '%https://res.cloudinary.com/%'
                     OR q.opt_a ILIKE '%{{IMG::%' OR q.opt_b ILIKE '%{{IMG::%' OR q.opt_c ILIKE '%{{IMG::%' OR q.opt_d ILIKE '%{{IMG::%'
                     OR q.opt_a ILIKE '%https://res.cloudinary.com/%' OR q.opt_b ILIKE '%https://res.cloudinary.com/%' OR q.opt_c ILIKE '%https://res.cloudinary.com/%' OR q.opt_d ILIKE '%https://res.cloudinary.com/%'
