@@ -15,6 +15,7 @@
  *   backend proxies. Auto-recovers gracefully from any brief network glitch.
  */
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { resolveImageUrl } from './QuestionImage';
 
 function parsePx(val, fallback = 180) {
     if (typeof val === 'number' && !isNaN(val) && val > 0) return val;
@@ -70,13 +71,15 @@ export default function ResizableDiagram({
     onSizeChange,
     isOption = false,
     maxWidth = '100%',
+    sizeScale = null,
     extraStyle = {},
 }) {
+    const resolvedSrc = resolveImageUrl(src);
     const defaultFallbackHeight = isOption ? 60 : 160;
     const initialParsed = initialHeight ? parsePx(initialHeight, defaultFallbackHeight) : null;
     const [height, setHeight] = useState(initialParsed || defaultFallbackHeight);
     const [smartHeight, setSmartHeight] = useState(initialParsed || defaultFallbackHeight);
-    const [currentSrc, setCurrentSrc] = useState(src);
+    const [currentSrc, setCurrentSrc] = useState(resolvedSrc);
     const hasManualOverride = useRef(Boolean(isManual));
     const containerRef = useRef(null);
     const retryTimerRef = useRef(null);
@@ -84,7 +87,8 @@ export default function ResizableDiagram({
 
     // Sync src when prop changes
     useEffect(() => {
-        setCurrentSrc(src);
+        const next = resolveImageUrl(src);
+        setCurrentSrc(next);
         retryAttemptRef.current = 0;
         if (retryTimerRef.current) {
             clearTimeout(retryTimerRef.current);
@@ -248,6 +252,7 @@ export default function ResizableDiagram({
                 alt={alt || ''}
                 loading="eager"
                 decoding="async"
+                crossOrigin="anonymous"
                 referrerPolicy="no-referrer"
                 onLoad={handleImageLoad}
                 onError={handleImageError}
@@ -256,7 +261,7 @@ export default function ResizableDiagram({
                     maxHeight: `${height}px`,
                     minHeight: isOption ? '45px' : '70px',
                     minWidth: isOption ? '45px' : '60px',
-                    maxWidth: isOption ? '140px' : (maxWidth || '100%'),
+                    maxWidth: sizeScale ? `${sizeScale}%` : (isOption ? '140px' : (maxWidth || '100%')),
                     width: 'auto',
                     objectFit: 'contain',
                     display: isOption ? 'inline-block' : 'block',

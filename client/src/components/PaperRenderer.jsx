@@ -794,7 +794,7 @@ export default function PaperRenderer({
 
     const questions = useMemo(() => activePaper?.questions || [], [activePaper]);
 
-    // Layout change handler
+    // Layout change handler (persists alignment, sizing, and optionsPerLine in real time)
     const handleUpdateQuestionLayout = (qIndex, layoutChanges) => {
         const nextQuestions = [...localQuestions];
         nextQuestions[qIndex] = {
@@ -805,6 +805,17 @@ export default function PaperRenderer({
         const updatedPaper = { ...paper, questions: nextQuestions };
         if (onPaperUpdated) {
             onPaperUpdated(updatedPaper);
+        }
+        const paperId = paper?._id || paper?.id;
+        if (paperId) {
+            try {
+                api.put(`/api/papers/${paperId}`, {
+                    ...paper,
+                    questions: nextQuestions
+                }).catch(e => console.warn('Layout save warning:', e.message));
+            } catch (e) {
+                console.warn('Layout save error:', e.message);
+            }
         }
     };
 

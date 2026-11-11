@@ -538,9 +538,11 @@ export function isOptionSelectedCorrect(optIdx, q) {
 export function QuestionGearPopup({
     imageAlignment,
     optionsPerLine,
+    sizeScale = 100,
     currentDiagramHeight = 180,
     onAlignmentChange,
     onOptionsPerLineChange,
+    onSizeScaleChange,
     onDiagramSizeDelta,
     onClose,
     displayNum = 1,
@@ -652,11 +654,48 @@ export function QuestionGearPopup({
                     </div>
                 </div>
 
-                {/* 3. IMAGE SIZE matching Image 1 */}
+                {/* 3. IMAGE SCALE (% SCALING) */}
+                <div style={{ marginBottom: '12px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
+                        <span style={{ fontSize: '10.5px', fontWeight: 900, color: '#1e293b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                            IMAGE SCALE
+                        </span>
+                        <span style={{ fontSize: '10px', fontWeight: 800, color: '#001f6d', backgroundColor: '#e0e7ff', padding: '1px 6px', borderRadius: '4px' }}>
+                            {sizeScale || 100}%
+                        </span>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '4px' }}>
+                        {[50, 75, 100, 150, 250].map((scale) => {
+                            const isActive = Number(sizeScale || 100) === scale;
+                            return (
+                                <button
+                                    key={scale}
+                                    type="button"
+                                    onClick={() => onSizeScaleChange && onSizeScaleChange(scale)}
+                                    style={{
+                                        padding: '5px 0',
+                                        fontSize: '10px',
+                                        fontWeight: 800,
+                                        borderRadius: '6px',
+                                        border: isActive ? '1.5px solid #001f6d' : '1px solid #cbd5e1',
+                                        backgroundColor: isActive ? '#001f6d' : '#ffffff',
+                                        color: isActive ? '#ffffff' : '#1e293b',
+                                        cursor: 'pointer',
+                                        transition: 'all 0.15s ease',
+                                    }}
+                                >
+                                    {scale}%
+                                </button>
+                            );
+                        })}
+                    </div>
+                </div>
+
+                {/* 4. IMAGE SIZE (HEIGHT FINE-TUNING) */}
                 <div style={{ marginBottom: '14px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
                         <span style={{ fontSize: '10.5px', fontWeight: 900, color: '#1e293b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                            IMAGE SIZE
+                            IMAGE HEIGHT (PX)
                         </span>
                         <span style={{ fontSize: '10px', fontWeight: 800, color: '#475569', backgroundColor: '#f1f5f9', padding: '1px 6px', borderRadius: '4px' }}>
                             {parseInt(currentDiagramHeight, 10) || 180}px
@@ -859,6 +898,7 @@ function BodyMCQ({
     optionFormat = '(1) (2) (3) (4)',
     imageAlignment = null,
     optionsPerLine = null,
+    sizeScale = null,
     displayMode = '1. Questions',
     optionSpacing = 'Default',
     imageBelowQuestion = false,
@@ -892,15 +932,18 @@ function BodyMCQ({
                      optionSpacing === '10' ? '10px' :
                      optionSpacing === '15' ? '15px' : '3px';
 
+    const effectivePerLine = Number(optionsPerLine) || (optionsLayout === '4' ? 4 : (optionsLayout === '2col' ? 2 : (optionsLayout === 'stacked' ? 1 : null)));
+    const gridColsClass = effectivePerLine === 4 ? 'grid-cols-4' : effectivePerLine === 2 ? 'grid-cols-2' : (effectivePerLine === 1 ? 'grid-cols-1' : '');
+
     const getOptionsGridStyle = (forceSingle = false, isSide = false) => {
-        if (forceSingle || optionsPerLine === 1 || optionsLayout === 'stacked') {
+        if (effectivePerLine === 1 || forceSingle || optionsLayout === 'stacked') {
             return { display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: optGapPx + ' 6px', marginTop: '3px', alignItems: 'start' };
         }
-        if (optionsPerLine === 2 || optionsLayout === '2col') {
+        if (effectivePerLine === 2 || optionsLayout === '2col') {
             return { display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: isTwoCol ? optGapPx + ' 6px' : optGapPx + ' 12px', marginTop: '3px', alignItems: 'start' };
         }
-        if (optionsPerLine === 4) {
-            return { display: 'grid', gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))`, gap: optGapPx + ' 8px', marginTop: '3px', alignItems: 'start' };
+        if (effectivePerLine === 4) {
+            return { display: 'grid', gridTemplateColumns: `repeat(${options.length || 4}, minmax(0, 1fr))`, gap: optGapPx + ' 8px', marginTop: '3px', alignItems: 'start' };
         }
 
         // Check if options are Match-the-Following mappings e.g. "p → (iv), q → (iii), r → (ii), s → (i)"
@@ -969,7 +1012,10 @@ function BodyMCQ({
         });
 
         return (
-            <div style={getOptionsGridStyle(forceSingle, isSide)}>
+            <div
+                className={`options-container grid ${gridColsClass}`}
+                style={getOptionsGridStyle(forceSingle, isSide)}
+            >
                 {options.map((opt, i) => {
                     const rawOpt = typeof opt === 'object' ? (opt.text || opt.optionText || opt.value || opt.option || '') : String(opt || '');
                     let optText = cleanOptionText(rawOpt);
@@ -1029,7 +1075,7 @@ function BodyMCQ({
     if (imageUrl && effectiveAlign === 'top') {
         return (
             <>
-                <div style={{ textAlign: 'center', margin: '2px auto 4px', clear: 'both' }}>
+                <div style={{ textAlign: 'center', margin: '2px auto 6px', clear: 'both', maxWidth: sizeScale ? `${sizeScale}%` : '100%', display: 'block' }}>
                     <ResizableDiagram
                         src={imageUrl}
                         alt="Diagram"
@@ -1038,6 +1084,7 @@ function BodyMCQ({
                         initialHeight={currentDiagramHeight}
                         isManual={isMainManual}
                         onSizeChange={onDiagramResize ? (h, key) => onDiagramResize(qId, h, key || 'main') : undefined}
+                        sizeScale={sizeScale}
                         maxWidth="100%"
                     />
                 </div>
@@ -1061,8 +1108,8 @@ function BodyMCQ({
     // 2. LEFT ALIGNMENT (Diagram on Left, Question + Options on Right)
     if (imageUrl && effectiveAlign === 'left') {
         return (
-            <div style={Q.sideBySideContainer}>
-                <div style={Q.sideRightDiagram}>
+            <div>
+                <div style={{ float: 'left', margin: '0 14px 8px 0', display: 'block', maxWidth: sizeScale ? `${sizeScale}%` : '45%' }}>
                     <ResizableDiagram
                         src={imageUrl}
                         alt="Diagram"
@@ -1071,10 +1118,11 @@ function BodyMCQ({
                         initialHeight={currentDiagramHeight}
                         isManual={isMainManual}
                         onSizeChange={onDiagramResize ? (h, key) => onDiagramResize(qId, h, key || 'main') : undefined}
+                        sizeScale={sizeScale}
                         maxWidth="100%"
                     />
                 </div>
-                <div style={Q.sideLeftContent}>
+                <div>
                     {qText && (
                         <div style={{ ...Q.qTextBold, marginBottom: '3px' }}>
                             <MathRenderer
@@ -1089,6 +1137,7 @@ function BodyMCQ({
                     {renderOptions(false, true)}
                     {renderAnswerAndSolution()}
                 </div>
+                <div style={{ clear: 'both' }} />
             </div>
         );
     }
@@ -1096,8 +1145,21 @@ function BodyMCQ({
     // 3. RIGHT ALIGNMENT (Question + Options on Left, Diagram on Right)
     if (imageUrl && effectiveAlign === 'right') {
         return (
-            <div style={Q.sideBySideContainer}>
-                <div style={Q.sideLeftContent}>
+            <div>
+                <div style={{ float: 'right', margin: '0 0 8px 14px', display: 'block', maxWidth: sizeScale ? `${sizeScale}%` : '45%' }}>
+                    <ResizableDiagram
+                        src={imageUrl}
+                        alt="Diagram"
+                        questionId={qId}
+                        diagramKey="main"
+                        initialHeight={currentDiagramHeight}
+                        isManual={isMainManual}
+                        onSizeChange={onDiagramResize ? (h, key) => onDiagramResize(qId, h, key || 'main') : undefined}
+                        sizeScale={sizeScale}
+                        maxWidth="100%"
+                    />
+                </div>
+                <div>
                     {qText && (
                         <div style={{ ...Q.qTextBold, marginBottom: '3px' }}>
                             <MathRenderer
@@ -1112,18 +1174,7 @@ function BodyMCQ({
                     {renderOptions(false, true)}
                     {renderAnswerAndSolution()}
                 </div>
-                <div style={Q.sideRightDiagram}>
-                    <ResizableDiagram
-                        src={imageUrl}
-                        alt="Diagram"
-                        questionId={qId}
-                        diagramKey="main"
-                        initialHeight={currentDiagramHeight}
-                        isManual={isMainManual}
-                        onSizeChange={onDiagramResize ? (h, key) => onDiagramResize(qId, h, key || 'main') : undefined}
-                        maxWidth="100%"
-                    />
-                </div>
+                <div style={{ clear: 'both' }} />
             </div>
         );
     }
@@ -1143,7 +1194,7 @@ function BodyMCQ({
                 </div>
             )}
             {imageUrl && (
-                <div style={{ textAlign: effectiveAlign === 'center' ? 'center' : 'center', margin: '3px auto 5px', clear: 'both' }}>
+                <div style={{ textAlign: 'center', margin: '3px auto 5px', clear: 'both', maxWidth: sizeScale ? `${sizeScale}%` : '100%', display: 'block' }}>
                     <ResizableDiagram
                         src={imageUrl}
                         alt="Diagram"
@@ -1152,6 +1203,7 @@ function BodyMCQ({
                         initialHeight={currentDiagramHeight}
                         isManual={isMainManual}
                         onSizeChange={onDiagramResize ? (h, key) => onDiagramResize(qId, h, key || 'main') : undefined}
+                        sizeScale={sizeScale}
                         maxWidth="100%"
                     />
                 </div>
@@ -1176,6 +1228,9 @@ function BodyAssertionReason({
     onDiagramResize,
     displayNum,
     optionFormat = 'numeric',
+    imageAlignment = null,
+    optionsPerLine = null,
+    sizeScale = null,
     optionSpacing = 'Default',
     displayMode = '1. Questions',
     hideOptions = false,
@@ -1200,6 +1255,9 @@ function BodyAssertionReason({
                      optionSpacing === '10' ? '10px' :
                      optionSpacing === '15' ? '15px' : '3px';
     const shouldHideOptions = hideOptions || displayMode === '5. Only Questions with No Options';
+
+    const effectivePerLine = Number(optionsPerLine) || (optionsLayout === '4' ? 4 : (optionsLayout === '2col' ? 2 : (optionsLayout === 'stacked' ? 1 : (isTwoCol ? 1 : 2))));
+    const gridColsClass = effectivePerLine === 4 ? 'grid-cols-4' : (effectivePerLine === 2 ? 'grid-cols-2' : 'grid-cols-1');
 
     // Check if there is introductory directions text BEFORE the word "Assertion"
     let introText = '';
@@ -1237,7 +1295,7 @@ function BodyAssertionReason({
                 )}
             </div>
             {imageUrl && (
-                <div style={{ textAlign: 'center', margin: '3px auto 5px', clear: 'both' }}>
+                <div style={{ textAlign: 'center', margin: '3px auto 5px', clear: 'both', maxWidth: sizeScale ? `${sizeScale}%` : '100%', display: 'block' }}>
                     <ResizableDiagram
                         src={imageUrl}
                         alt="Diagram"
@@ -1246,6 +1304,7 @@ function BodyAssertionReason({
                         initialHeight={currentDiagramHeight}
                         isManual={isMainManual}
                         onSizeChange={onDiagramResize ? (h, key) => onDiagramResize(qId, h, key || 'main') : undefined}
+                        sizeScale={sizeScale}
                         maxWidth="100%"
                     />
                 </div>
@@ -1253,9 +1312,10 @@ function BodyAssertionReason({
             {/* Assertion-Reason Options: Stacked or 2x2 grid, never collapsed inline */}
             {!shouldHideOptions && (
                 <div
+                    className={`grid ${gridColsClass}`}
                     style={{
                         display: 'grid',
-                        gridTemplateColumns: isTwoCol ? 'minmax(0, 1fr)' : 'repeat(2, minmax(0, 1fr))',
+                        gridTemplateColumns: effectivePerLine === 1 ? 'minmax(0, 1fr)' : `repeat(${effectivePerLine}, minmax(0, 1fr))`,
                         gap: isTwoCol ? `${optGapPx} 6px` : `${optGapPx} 12px`,
                         marginTop: '4px',
                         alignItems: 'start'
@@ -1680,6 +1740,9 @@ function BodyMatchFollowing({
     onDiagramResize,
     displayNum,
     optionFormat = 'numeric',
+    imageAlignment = null,
+    optionsPerLine = null,
+    sizeScale = null,
     optionSpacing = 'Default',
     displayMode = '1. Questions',
     hideOptions = false,
@@ -1698,6 +1761,9 @@ function BodyMatchFollowing({
                      optionSpacing === '10' ? '10px' :
                      optionSpacing === '15' ? '15px' : '3px';
     const shouldHideOptions = hideOptions || displayMode === '5. Only Questions with No Options';
+
+    const effectivePerLine = Number(optionsPerLine) || (optionsLayout === '4' ? 4 : (optionsLayout === '2col' ? 2 : (optionsLayout === 'stacked' ? 1 : (isTwoCol ? 2 : 4))));
+    const gridColsClass = effectivePerLine === 4 ? 'grid-cols-4' : (effectivePerLine === 2 ? 'grid-cols-2' : 'grid-cols-1');
 
     // 1. Recover candidate options
     let rawCandidateOpts = [];
@@ -1746,12 +1812,6 @@ function BodyMatchFollowing({
     const currentDiagramHeight = q.customDiagramSizes?.['main'] || q.customDiagramHeight || diagramMaxHeight;
     const isMainManual = Boolean(q.customDiagramSizes?.['main'] || q.customDiagramHeight);
 
-    const avgLeftLen = pairs.reduce((acc, p) => acc + (p.left || '').length, 0) / (pairs.length || 1);
-    const avgRightLen = pairs.reduce((acc, p) => acc + (p.right || '').length, 0) / (pairs.length || 1);
-    // In 2-column mode, use 50%/50% so Column II is never squeezed or clipped!
-    const leftWidth = isTwoCol ? '50%' : (avgLeftLen > avgRightLen * 2 ? '58%' : (avgRightLen > avgLeftLen * 2 ? '42%' : '50%'));
-    const rightWidth = isTwoCol ? '50%' : (leftWidth === '58%' ? '42%' : (leftWidth === '42%' ? '58%' : '50%'));
-
     return (
         <>
             {qText && (
@@ -1766,7 +1826,7 @@ function BodyMatchFollowing({
                 </div>
             )}
             {imageUrl && (
-                <div style={{ textAlign: 'center', margin: '2px auto 4px', clear: 'both' }}>
+                <div style={{ textAlign: 'center', margin: '2px auto 4px', clear: 'both', maxWidth: sizeScale ? `${sizeScale}%` : '100%', display: 'block' }}>
                     <ResizableDiagram
                         src={imageUrl}
                         alt="Diagram"
@@ -1775,64 +1835,96 @@ function BodyMatchFollowing({
                         initialHeight={currentDiagramHeight}
                         isManual={isMainManual}
                         onSizeChange={onDiagramResize ? (h, key) => onDiagramResize(qId, h, key || 'main') : undefined}
+                        sizeScale={sizeScale}
                         maxWidth="100%"
                     />
                 </div>
             )}
             {pairs.length > 0 && (
-                <table style={Q.matchTable}>
-                    <thead>
-                        <tr>
-                            <th style={{ ...Q.matchTh, width: leftWidth }}>Column I</th>
-                            <th style={{ ...Q.matchTh, width: rightWidth }}>Column II</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {pairs.map((pair, pi) => {
-                            const leftVal = (pair.left || '').trim();
-                            const rightVal = (pair.right || '').trim();
-                            return (
-                                <tr key={pi}>
-                                    <td style={{
-                                        ...Q.matchTd,
-                                        width: leftWidth,
-                                        border: leftVal ? '1px solid #cbd5e1' : 'none',
-                                        background: leftVal ? '#ffffff' : 'transparent',
-                                    }}>
-                                        {leftVal ? (
-                                            <>
-                                                <strong style={{ marginRight: '6px', color: '#001f6d' }}>({String.fromCharCode(65 + pi)})</strong>
+                <div
+                    className="match-grid-container grid grid-cols-2"
+                    style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)',
+                        border: '1px solid #cbd5e1',
+                        borderRadius: '4px',
+                        overflow: 'hidden',
+                        margin: '4px 0 6px',
+                        backgroundColor: '#ffffff'
+                    }}
+                >
+                    {/* Header Row */}
+                    <div style={{ borderRight: '1px solid #cbd5e1', backgroundColor: '#f1f5f9', fontWeight: 800, padding: '4px 8px', fontSize: '11px', color: '#001f6d' }}>
+                        Column I
+                    </div>
+                    <div style={{ backgroundColor: '#f1f5f9', fontWeight: 800, padding: '4px 8px', fontSize: '11px', color: '#001f6d' }}>
+                        Column II
+                    </div>
+
+                    {/* Pair Rows */}
+                    {pairs.map((pair, pi) => {
+                        const leftVal = (pair.left || '').trim();
+                        const rightVal = (pair.right || '').trim();
+                        const letterLabel = String.fromCharCode(65 + pi);
+                        const numberLabel = pi + 1;
+
+                        return (
+                            <React.Fragment key={pi}>
+                                <div style={{
+                                    padding: '4px 8px',
+                                    borderTop: '1px solid #e2e8f0',
+                                    borderRight: '1px solid #cbd5e1',
+                                    display: 'flex',
+                                    alignItems: 'baseline',
+                                    gap: '6px',
+                                    fontSize: '11px',
+                                    lineHeight: 1.35
+                                }}>
+                                    {leftVal ? (
+                                        <>
+                                            <strong style={{ color: '#001f6d', minWidth: '22px' }}>({letterLabel})</strong>
+                                            <span style={{ flex: 1, minWidth: 0 }}>
                                                 <MathRenderer inline text={pair.left} />
-                                            </>
-                                        ) : null}
-                                    </td>
-                                    <td style={{
-                                        ...Q.matchTd,
-                                        width: rightWidth,
-                                        border: rightVal ? '1px solid #cbd5e1' : 'none',
-                                        background: rightVal ? '#ffffff' : 'transparent',
-                                    }}>
-                                        {rightVal ? (
-                                            <>
-                                                <strong style={{ marginRight: '6px', color: '#001f6d' }}>({hasRomanOpts ? (romanLabels[pi] || (pi + 1)) : (pi + 1)})</strong>
+                                            </span>
+                                        </>
+                                    ) : null}
+                                </div>
+                                <div style={{
+                                    padding: '4px 8px',
+                                    borderTop: '1px solid #e2e8f0',
+                                    display: 'flex',
+                                    alignItems: 'baseline',
+                                    gap: '6px',
+                                    fontSize: '11px',
+                                    lineHeight: 1.35
+                                }}>
+                                    {rightVal ? (
+                                        <>
+                                            <strong style={{ color: '#001f6d', minWidth: '22px' }}>({numberLabel})</strong>
+                                            <span style={{ flex: 1, minWidth: 0 }}>
                                                 <MathRenderer inline text={pair.right} />
-                                            </>
-                                        ) : null}
-                                    </td>
-                                </tr>
-                            );
-                        })}
-                    </tbody>
-                </table>
+                                            </span>
+                                        </>
+                                    ) : null}
+                                </div>
+                            </React.Fragment>
+                        );
+                    })}
+                </div>
             )}
             {!shouldHideOptions && opts.length > 0 && (
-                <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: isTwoCol ? 'repeat(2, minmax(0, 1fr))' : ((optionsLayout === 'line' || optionsLayout === '4') ? 'repeat(4, minmax(0, 1fr))' : 'repeat(2, minmax(0, 1fr))'),
-                    gap: isTwoCol ? `${optGapPx} 6px` : `${optGapPx} 12px`,
-                    marginTop: '4px',
-                    alignItems: 'start',
-                }}>
+                <div
+                    className={`options-container grid ${gridColsClass}`}
+                    style={{
+                        display: 'grid',
+                        gridTemplateColumns: isTwoCol
+                            ? 'repeat(2, minmax(0, 1fr))'
+                            : (effectivePerLine === 1 ? 'minmax(0, 1fr)' : `repeat(${effectivePerLine}, minmax(0, 1fr))`),
+                        gap: isTwoCol ? `${optGapPx} 6px` : `${optGapPx} 12px`,
+                        marginTop: '4px',
+                        alignItems: 'start',
+                    }}
+                >
                     {opts.map((opt, i) => {
                         const isAnswersMode = displayMode === '2. Questions with Answers' || displayMode === '3. Questions with Answers & Solutions';
                         const isCorrect = isAnswersMode && isOptionSelectedCorrect(i, q);
@@ -1872,6 +1964,9 @@ function BodyStatementBased({
     onDiagramResize,
     displayNum,
     optionFormat = 'numeric',
+    imageAlignment = null,
+    optionsPerLine = null,
+    sizeScale = null,
     optionSpacing = 'Default',
     displayMode = '1. Questions',
     hideOptions = false,
@@ -1911,6 +2006,9 @@ function BodyStatementBased({
                      optionSpacing === '15' ? '15px' : '3px';
     const shouldHideOptions = hideOptions || displayMode === '5. Only Questions with No Options';
 
+    const effectivePerLine = Number(optionsPerLine) || (optionsLayout === '4' ? 4 : (optionsLayout === '2col' ? 2 : (optionsLayout === 'stacked' ? 1 : (isTwoCol ? 1 : 4))));
+    const gridColsClass = effectivePerLine === 4 ? 'grid-cols-4' : (effectivePerLine === 2 ? 'grid-cols-2' : 'grid-cols-1');
+
     return (
         <>
             {qText && (
@@ -1944,7 +2042,7 @@ function BodyStatementBased({
                 </div>
             )}
             {imageUrl && (
-                <div style={{ textAlign: 'center', margin: '2px auto 4px', clear: 'both' }}>
+                <div style={{ textAlign: 'center', margin: '2px auto 4px', clear: 'both', maxWidth: sizeScale ? `${sizeScale}%` : '100%', display: 'block' }}>
                     <ResizableDiagram
                         src={imageUrl}
                         alt="Diagram"
@@ -1953,20 +2051,24 @@ function BodyStatementBased({
                         initialHeight={currentDiagramHeight}
                         isManual={isMainManual}
                         onSizeChange={onDiagramResize ? (h, key) => onDiagramResize(qId, h, key || 'main') : undefined}
+                        sizeScale={sizeScale}
                         maxWidth="100%"
                     />
                 </div>
             )}
             {!shouldHideOptions && opts.length > 0 && (
-                <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: isTwoCol
-                        ? 'minmax(0, 1fr)'
-                        : ((optionsLayout === 'line' || optionsLayout === '4') ? 'repeat(4, minmax(0, 1fr))' : 'repeat(2, minmax(0, 1fr))'),
-                    gap: isTwoCol ? `${optGapPx} 6px` : `${optGapPx} 12px`,
-                    marginTop: '4px',
-                    alignItems: 'start'
-                }}>
+                <div
+                    className={`options-container grid ${gridColsClass}`}
+                    style={{
+                        display: 'grid',
+                        gridTemplateColumns: isTwoCol
+                            ? (effectivePerLine === 1 ? 'minmax(0, 1fr)' : 'repeat(2, minmax(0, 1fr))')
+                            : (effectivePerLine === 1 ? 'minmax(0, 1fr)' : `repeat(${effectivePerLine}, minmax(0, 1fr))`),
+                        gap: isTwoCol ? `${optGapPx} 6px` : `${optGapPx} 12px`,
+                        marginTop: '4px',
+                        alignItems: 'start'
+                    }}
+                >
                     {opts.map((opt, i) => {
                         const isAnswersMode = displayMode === '2. Questions with Answers' || displayMode === '3. Questions with Answers & Solutions';
                         const isCorrect = isAnswersMode && isOptionSelectedCorrect(i, q);
@@ -2150,6 +2252,7 @@ export default function QuestionBlock({
         imageBelowQuestion ? 'Below' : (q.imageAlignment || null)
     );
     const [localOptionsPerLine, setLocalOptionsPerLine] = React.useState(q.optionsPerLine || null);
+    const [localSizeScale, setLocalSizeScale] = React.useState(q.sizeScale || 100);
     const [localDiagramHeight, setLocalDiagramHeight] = React.useState(
         parseInt(q.customDiagramSizes?.['main'] || q.customDiagramHeight || diagramMaxHeight || 180, 10)
     );
@@ -2172,6 +2275,10 @@ export default function QuestionBlock({
         if (q.optionsPerLine) setLocalOptionsPerLine(q.optionsPerLine);
     }, [q.optionsPerLine]);
 
+    React.useEffect(() => {
+        if (q.sizeScale) setLocalSizeScale(q.sizeScale);
+    }, [q.sizeScale]);
+
     const handleAlignmentChange = (newAlign) => {
         setLocalAlignment(newAlign);
         if (onLayoutChange) {
@@ -2183,6 +2290,13 @@ export default function QuestionBlock({
         setLocalOptionsPerLine(num);
         if (onLayoutChange) {
             onLayoutChange({ optionsPerLine: num });
+        }
+    };
+
+    const handleSizeScaleChange = (scale) => {
+        setLocalSizeScale(scale);
+        if (onLayoutChange) {
+            onLayoutChange({ sizeScale: scale });
         }
     };
 
@@ -2250,6 +2364,9 @@ export default function QuestionBlock({
                     onDiagramResize={onDiagramResize}
                     displayNum={displayNum}
                     optionFormat={optionFormat}
+                    imageAlignment={localAlignment}
+                    optionsPerLine={localOptionsPerLine}
+                    sizeScale={localSizeScale}
                     optionSpacing={optionSpacing}
                     displayMode={displayMode}
                     hideOptions={displayMode === '5. Only Questions with No Options'}
@@ -2268,6 +2385,9 @@ export default function QuestionBlock({
                     onDiagramResize={onDiagramResize}
                     displayNum={displayNum}
                     optionFormat={optionFormat}
+                    imageAlignment={localAlignment}
+                    optionsPerLine={localOptionsPerLine}
+                    sizeScale={localSizeScale}
                     optionSpacing={optionSpacing}
                     displayMode={displayMode}
                     hideOptions={displayMode === '5. Only Questions with No Options'}
@@ -2286,6 +2406,9 @@ export default function QuestionBlock({
                     onDiagramResize={onDiagramResize}
                     displayNum={displayNum}
                     optionFormat={optionFormat}
+                    imageAlignment={localAlignment}
+                    optionsPerLine={localOptionsPerLine}
+                    sizeScale={localSizeScale}
                     optionSpacing={optionSpacing}
                     displayMode={displayMode}
                     hideOptions={displayMode === '5. Only Questions with No Options'}
@@ -2305,6 +2428,7 @@ export default function QuestionBlock({
                 optionFormat={optionFormat}
                 imageAlignment={localAlignment}
                 optionsPerLine={localOptionsPerLine}
+                sizeScale={localSizeScale}
                 displayMode={displayMode}
                 optionSpacing={optionSpacing}
                 imageBelowQuestion={imageBelowQuestion}
@@ -2474,9 +2598,11 @@ export default function QuestionBlock({
                     displayNum={displayNum}
                     imageAlignment={localAlignment}
                     optionsPerLine={localOptionsPerLine}
+                    sizeScale={localSizeScale}
                     currentDiagramHeight={localDiagramHeight}
                     onAlignmentChange={handleAlignmentChange}
                     onOptionsPerLineChange={handleOptionsPerLineChange}
+                    onSizeScaleChange={handleSizeScaleChange}
                     onDiagramSizeDelta={handleDiagramSizeDelta}
                     onClose={() => setShowGearPopup(false)}
                 />

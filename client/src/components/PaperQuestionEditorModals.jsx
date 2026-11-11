@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import MathRenderer from './MathRenderer';
+import { resolveImageUrl } from './QuestionImage';
 import api from '../api';
 import { optionLabel, isOptionCorrect } from '../utils/sanitize';
 
@@ -139,17 +140,18 @@ export function EditQuestionModal({
             num_answer: numAnswer,
             type: qType,
             q_type: qType,
-            imageUrl: imageUrl || null,
-            image_url: imageUrl || null,
+            imageUrl: resolveImageUrl(imageUrl) || null,
+            image_url: resolveImageUrl(imageUrl) || null,
             difficulty: difficulty,
             topic: topic,
             chapter: topic,
-            // Invalidate stale parsed column caches so any edited Match The Following text re-parses dynamically
-            matchPairs: null,
-            column_a: null,
-            column_b: null,
-            columnA: null,
-            columnB: null,
+            // Preserve Match the Following column structure and table headers
+            matchPairs: question.matchPairs || (question.column_a && question.column_b ? question.column_a.map((left, i) => ({ left, right: question.column_b[i] || '' })) : null),
+            column_a: question.column_a || null,
+            column_b: question.column_b || null,
+            columnA: question.columnA || question.column_a || null,
+            columnB: question.columnB || question.column_b || null,
+            match_options: question.match_options || null,
         };
         onSave(updated, questionIndex);
         onClose();
@@ -569,8 +571,23 @@ export function SwapQuestionModal({
         setSearchKeyword('');
     };
 
-    const handleSelectQuestion = (chosenQ) => {
+    const handleSelectQuestion = (cand) => {
         setSwappedSuccess(true);
+        // Ensure all column structure, table headers, diagram references, and sub-options remain fully intact
+        const img = resolveImageUrl(cand.imageUrl || cand.image_url);
+        const chosenQ = {
+            ...cand,
+            _id: cand._id || cand.id,
+            id: cand.id || cand._id,
+            imageUrl: img || null,
+            image_url: img || null,
+            matchPairs: cand.matchPairs || (cand.column_a && cand.column_b ? cand.column_a.map((left, i) => ({ left, right: cand.column_b[i] || '' })) : null),
+            column_a: cand.column_a || null,
+            column_b: cand.column_b || null,
+            columnA: cand.columnA || cand.column_a || null,
+            columnB: cand.columnB || cand.column_b || null,
+            options: Array.isArray(cand.options) && cand.options.length > 0 ? cand.options : [cand.opt_a, cand.opt_b, cand.opt_c, cand.opt_d].filter(Boolean),
+        };
         const swapFn = onSelectSwap || onSwap;
         if (typeof swapFn === 'function') {
             swapFn(questionIndex, chosenQ);
@@ -789,7 +806,7 @@ export function SwapQuestionModal({
                                         cand.opt_d || cand.option_d
                                     ].filter(Boolean);
 
-                                const candImg = cand.imageUrl || cand.image_url;
+                                const candImg = resolveImageUrl(cand.imageUrl || cand.image_url);
 
                                 return (
                                     <div
