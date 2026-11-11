@@ -1547,9 +1547,14 @@ function parseMatchFromText(q) {
 
 /** Parse statement-based questions from text */
 function parseStatementsFromText(q) {
-    if (q && q.statement1 && q.statement2) {
-        let rawQ = cleanQuestionText(q.questionText || q.question || '', q);
-        let intro = rawQ.replace(/(?:^|\r?\n)\s*@?Statement\s*[-–—]?\s*(?:\(?I|\(?1|\(?A\)?)\s*[:.\-)–—]?[\s\S]*$/i, '').trim();
+    const rawTxt = cleanQuestionText(q.questionText || q.question || '', q);
+    // If the question text contains "Statement I" or "Statement 1" or has embedded diagrams/statements,
+    // ALWAYS parse directly from question text so that multi-statement questions and embedded images are NEVER lost!
+    const hasInlineStatements = /(?:^|\r?\n)\s*@?Statement\s*[-–—]?\s*(?:\(?[IVXLCDM0-9A-D]+\)?)\s*[:.\-)–—]/i.test(rawTxt);
+    const hasImgInQ = /\{\{IMG::|!\[|<img|https?:\/\/res\.cloudinary\.com\//i.test(rawTxt);
+
+    if (q && q.statement1 && q.statement2 && !hasInlineStatements && !hasImgInQ && !String(q.statement2).includes('[DIAGRAM REQUIRED]')) {
+        let intro = rawTxt.replace(/(?:^|\r?\n)\s*@?Statement\s*[-–—]?\s*(?:\(?I|\(?1|\(?A\)?)\s*[:.\-)–—]?[\s\S]*$/i, '').trim();
         return {
             introText: intro,
             statements: [
@@ -1569,7 +1574,6 @@ function parseStatementsFromText(q) {
             outroText: '' 
         };
     }
-    const rawTxt = cleanQuestionText(q.questionText || q.question || '');
     if (!rawTxt) return { introText: '', statements: [], outroText: '' };
     const bodyTxt = rawTxt.trim();
 
@@ -1590,7 +1594,7 @@ function parseStatementsFromText(q) {
     if (matches.length >= 2) {
         let outroText = bodyTxt.substring(lastIdx).trim();
         const lastStmt = matches[matches.length - 1];
-        const outroLineMatch = lastStmt.text.match(/(?:\r?\n)(?:In the light of|Choose the correct|Select the|Which of the|How many of|The (?:correct|incorrect) statement|From the above|Identify the)[\s\S]*$/i);
+        const outroLineMatch = lastStmt.text.match(/(?:\r?\n)?(?:In the light of|Choose the correct|Select the|Which of the|How many of|The (?:correct|incorrect) statement|From the above|Identify the|The (?:correct|incorrect) combination is)[\s\S]*$/i);
         if (outroLineMatch) {
             outroText = (outroLineMatch[0] + (outroText ? '\n' + outroText : '')).trim();
             lastStmt.text = lastStmt.text.substring(0, outroLineMatch.index).trim();

@@ -168,12 +168,11 @@ export default function ResizableDiagram({
             clearTimeout(retryTimerRef.current);
         }
 
-        // Only retry up to 4 times with staggered delays (200ms, 500ms, 1000ms, 2000ms)
-        if (attempt <= 4) {
-            const delay = Math.min(2000, 200 * Math.pow(1.8, attempt - 1));
+        if (attempt <= 3) {
+            const delay = 250 * attempt;
             retryTimerRef.current = setTimeout(() => {
-                const sep = src.includes('?') ? '&' : '?';
-                setCurrentSrc(`${src}${sep}_cb=${Date.now()}`);
+                const clean = src.split('?')[0];
+                setCurrentSrc(attempt === 1 ? clean : `${clean}?cb=${Date.now()}`);
             }, delay);
         }
     }, [src]);
@@ -238,7 +237,7 @@ export default function ResizableDiagram({
             <img
                 src={currentSrc}
                 alt={alt || ''}
-                crossOrigin="anonymous"
+                loading="eager"
                 onLoad={handleImageLoad}
                 onError={handleImageError}
                 style={{

@@ -240,8 +240,14 @@ function mapSupabaseToQuestion(row, usageMap = null) {
     }
 
     // Field-Specific Fallbacks: Statement-Based
-    let statement1 = row.statement1 || (qbpData && qbpData.statement1) || '';
-    let statement2 = row.statement2 || (qbpData && qbpData.statement2) || '';
+    // Ground truth: If cleanQuestion already has statements or Cloudinary images, don't overwrite with stale OCR [DIAGRAM REQUIRED]
+    let statement1 = row.statement1 || '';
+    let statement2 = row.statement2 || '';
+    const qbpHasMissingDiagram = (qbpData?.statement1 && qbpData.statement1.includes('[DIAGRAM REQUIRED]')) ||
+                                 (qbpData?.statement2 && qbpData.statement2.includes('[DIAGRAM REQUIRED]'));
+    if (!statement1 && qbpData?.statement1 && !qbpHasMissingDiagram) statement1 = qbpData.statement1;
+    if (!statement2 && qbpData?.statement2 && !qbpHasMissingDiagram) statement2 = qbpData.statement2;
+
     if (!statement1 || !statement2) {
         const s1Match = cleanQuestion.match(/(?:^|\n)\s*@?Statement\s*[-–—]?\s*\(?\s*(?:I|1|A)\s*\)?\s*[:.\-)–—]?\s*([\s\S]*?)(?=\n\s*@?Statement\s*[-–—]?\s*\(?\s*(?:II|2|B)\s*\)?)/i);
         const s2Match = cleanQuestion.match(/(?:^|\n)\s*@?Statement\s*[-–—]?\s*\(?\s*(?:II|2|B)\s*\)?\s*[:.\-)–—]?\s*([\s\S]*?)(?=\n\s*(?:\(?[A-D]\)?\s*[).:\-]|(?:Ans|Answer|Solution|Explanation)\s*[:.\-])|$)/i);
@@ -358,8 +364,9 @@ function mapSupabaseToQuestion(row, usageMap = null) {
         effectiveQType.includes('numerical') || 
         (!options.length && Boolean(numAnswer))
     );
-    const hasOptImages = options.length > 0 && options.every(opt => /\{\{IMG::|!\[|\[DIAGRAM:|<img|https?:\/\/.*?\.(png|jpg|jpeg|webp|svg|gif)|data:image\//i.test(String(opt)));
-    const hasDiag = Boolean(row.image_url || row.imageUrl || /\{\{IMG::|!\[/i.test(cleanQuestion) || hasOptImages);
+    const allOptStrings = [row.opt_a, row.opt_b, row.opt_c, row.opt_d, ...options].filter(Boolean);
+    const hasOptImages = allOptStrings.some(opt => /\{\{IMG::|!\[|\[DIAGRAM:|<img|https?:\/\/.*?\.(png|jpg|jpeg|webp|svg|gif)|https?:\/\/res\.cloudinary\.com\//i.test(String(opt)));
+    const hasDiag = Boolean(row.image_url || row.imageUrl || /\{\{IMG::|!\[|<img|https?:\/\/res\.cloudinary\.com\//i.test(cleanQuestion) || hasOptImages);
 
     if (isAR) {
         type = 'ASSERTION_REASON';
@@ -688,7 +695,12 @@ function buildQueryFilters(filters) {
                 // Match by q_type OR by Statement I / Statement II patterns
                 qTypeClauses.push(`(q.q_type ILIKE '%statement%' OR q.question ILIKE '%Statement I%' OR q.question ILIKE '%Statement 1%' OR q.question ILIKE '%Statement-1%')`);
             } else if (t.includes('diagram') || t.includes('image')) {
-                qTypeClauses.push(`(q.q_type ILIKE '%diagram%' OR q.q_type ILIKE '%image%' OR q.image_url IS NOT NULL OR q.question ILIKE '%{{IMG::%' OR q.question ILIKE '%<img%')`);
+                qTypeClauses.push(`(
+                    q.q_type ILIKE '%diagram%' OR q.q_type ILIKE '%image%' OR q.image_url IS NOT NULL 
+                    OR q.question ILIKE '%{{IMG::%' OR q.question ILIKE '%<img%' OR q.question ILIKE '%![%' OR q.question ILIKE '%https://res.cloudinary.com/%'
+                    OR q.opt_a ILIKE '%{{IMG::%' OR q.opt_b ILIKE '%{{IMG::%' OR q.opt_c ILIKE '%{{IMG::%' OR q.opt_d ILIKE '%{{IMG::%'
+                    OR q.opt_a ILIKE '%https://res.cloudinary.com/%' OR q.opt_b ILIKE '%https://res.cloudinary.com/%' OR q.opt_c ILIKE '%https://res.cloudinary.com/%' OR q.opt_d ILIKE '%https://res.cloudinary.com/%'
+                )`);
             } else if (t.includes('mcq')) {
                 // Standard MCQ: q_type is mcq_single OR mcq, but NOT assertion/match/statement/diagram patterns
                 qTypeClauses.push(`(q.q_type IN ('mcq_single', 'mcq', 'mcq_multiple') AND NOT (q.question ILIKE '%Assertion%' AND q.question ILIKE '%Reason%') AND NOT (q.question ILIKE '%Column I%') AND NOT (q.question ILIKE '%Statement I%') AND NOT (q.question ILIKE '%Statement 1%'))`);

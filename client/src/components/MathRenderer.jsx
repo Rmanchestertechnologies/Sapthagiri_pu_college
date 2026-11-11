@@ -254,29 +254,40 @@ const MathRenderer = ({
     optionIndex,
 }) => {
     const safeText = typeof text === 'string' ? text : (text ? String(text) : '');
-    const hasImages = /\{\{IMG::.*?\}\}|!\[.*?\]\(.*?\)/i.test(safeText);
+    const imgRegex = /(\{\{IMG::.*?\}\}|!\[.*?\]\(.*?\)|\[DIAGRAM:\s*[^\]]+\]|<img[^>]+src=["'][^"']+["'][^>]*>|https?:\/\/res\.cloudinary\.com\/[^\s"')]+|https?:\/\/[^\s"')]+\.(?:png|jpg|jpeg|webp|gif|svg)(?:\?[^\s"')]+)?)/gi;
+    const hasImages = imgRegex.test(safeText);
 
     const tokens = useMemo(() => {
         if (!hasImages) return null;
-        const regex = /(\{\{IMG::.*?\}\}|!\[.*?\]\(.*?\))/gi;
-        const parts = safeText.split(regex);
+        const parts = safeText.split(imgRegex);
         return parts.map((part, index) => {
             if (!part) return null;
+            let src = null;
+            let alt = '';
             const imgMatch1 = part.match(/^\{\{IMG::(.*?)\}\}$/i);
-            if (imgMatch1) {
-                return {
-                    type: 'image',
-                    src: imgMatch1[1].trim(),
-                    alt: '',
-                    key: index,
-                };
-            }
             const imgMatch2 = part.match(/^!\[(.*?)\]\((.*?)\)$/i);
-            if (imgMatch2) {
+            const imgMatch3 = part.match(/^\[DIAGRAM:\s*([^\]]+)\]/i);
+            const imgMatch4 = part.match(/^<img[^>]+src=["']([^"']+)["']/i);
+            const imgMatch5 = part.match(/^(https?:\/\/[^\s]+)$/i);
+
+            if (imgMatch1) {
+                src = imgMatch1[1].trim();
+            } else if (imgMatch2) {
+                src = imgMatch2[2].trim();
+                alt = imgMatch2[1].trim();
+            } else if (imgMatch3) {
+                src = imgMatch3[1].trim();
+            } else if (imgMatch4) {
+                src = imgMatch4[1].trim();
+            } else if (imgMatch5) {
+                src = imgMatch5[1].trim();
+            }
+
+            if (src) {
                 return {
                     type: 'image',
-                    src: imgMatch2[2].trim(),
-                    alt: '',
+                    src,
+                    alt,
                     key: index,
                 };
             }

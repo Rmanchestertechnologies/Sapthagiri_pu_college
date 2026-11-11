@@ -79,8 +79,24 @@ export const getQCategory = (q, isJee = false) => {
     if (isJee && (t === 'NUMERICAL' || (!q.options?.length && !q.opt_a && !q.opt_b && q.num_answer))) return 'numerical';
     if (t === 'ASSERTION_REASON' || /Assertion\s*(?:\(A\))?[:\-]/i.test(txt)) return 'ar';
     if (t === 'MATCH_FOLLOWING' || t.includes('MATCH') || /Column\s*(?:I|1|A)\b/i.test(txt) || /Match the following/i.test(txt)) return 'match';
+
+    // Comprehensive diagram detection: checks question text, imageUrl, diagram_urls, and options!
+    const allOptStrings = [q.opt_a, q.opt_b, q.opt_c, q.opt_d, ...(Array.isArray(q.options) ? q.options : [])].filter(Boolean);
+    const hasOptionDiag = allOptStrings.some(opt => {
+        const s = typeof opt === 'object' ? (opt.text || opt.value || '') : String(opt || '');
+        return /\{\{IMG::|!\[|\[DIAGRAM:|<img|https?:\/\/res\.cloudinary\.com\//i.test(s);
+    });
+    const hasDiagram = (
+        t === 'DIAGRAM_BASED' ||
+        Boolean(q.imageUrl || q.image_url) ||
+        (Array.isArray(q.diagram_urls) && q.diagram_urls.length > 0) ||
+        (Array.isArray(q.diagramUrls) && q.diagramUrls.length > 0) ||
+        /\{\{IMG::|!\[|\[DIAGRAM:|<img|https?:\/\/res\.cloudinary\.com\//i.test(txt) ||
+        hasOptionDiag
+    );
+
     if (t === 'STATEMENT_BASED' || /Statement\s*(?:I|1|A)\b/i.test(txt)) return 'stmt';
-    if (t === 'DIAGRAM_BASED' || q.imageUrl || q.image_url || /\{\{IMG::|!\[|<img/i.test(txt)) return 'diag';
+    if (hasDiagram) return 'diag';
     return 'mcq';
 };
 
@@ -778,6 +794,41 @@ export default function CommissionedExam() {
                 Object.keys(buckets).forEach(k => {
                     buckets[k] = prioritize(buckets[k]);
                 });
+
+                // Target fetch for any specific type allocation that is short in the general pool
+                const targetTypes = [
+                    { key: 'diag', typeParam: 'diagram' },
+                    { key: 'match', typeParam: 'match' },
+                    { key: 'ar', typeParam: 'assertion' },
+                    { key: 'stmt', typeParam: 'statement' },
+                    ...(isJee ? [{ key: 'numerical', typeParam: 'numerical' }] : [])
+                ];
+
+                for (const target of targetTypes) {
+                    const desired = typeAllocations[target.key] || 0;
+                    const current = (buckets[target.key] || []).length;
+                    if (desired > current) {
+                        const needed = desired - current;
+                        try {
+                            const extraParams = new URLSearchParams(baseParams);
+                            extraParams.set('type', target.typeParam);
+                            extraParams.set('limit', String(Math.max(needed * 3, 25)));
+                            const extraRes = await api.get(`/api/questions?${extraParams.toString()}`);
+                            const extraList = Array.isArray(extraRes.data?.questions) ? extraRes.data.questions : (Array.isArray(extraRes.data) ? extraRes.data : []);
+                            extraList.forEach(q => {
+                                const id = String(q._id || q.id);
+                                if (!filteredRows.some(e => String(e._id || e.id) === id)) {
+                                    filteredRows.push(q);
+                                    const cat = getQCategory(q, isJee);
+                                    if (buckets[cat]) buckets[cat].push(q);
+                                    else buckets[target.key].push(q);
+                                }
+                            });
+                        } catch (e) {
+                            console.warn(`Targeted fetch for ${target.key} warning:`, e.message);
+                        }
+                    }
+                }
 
                 const picked = [];
                 const pickedIds = new Set();
