@@ -310,15 +310,46 @@ export function SettingsPanel({
                     </select>
                 </SettingField>
 
+                <SettingField label="Start Numbering From (Q.#) *">
+                    <input
+                        type="number"
+                        min="1"
+                        style={inputStyle}
+                        value={settings.startQNo !== undefined ? settings.startQNo : 1}
+                        onChange={e => {
+                            const raw = e.target.value;
+                            setSettings(s => ({
+                                ...s,
+                                startQNo: raw === '' ? '' : (parseInt(raw, 10) || 0)
+                            }));
+                        }}
+                        onBlur={() => {
+                            if (settings.startQNo === '' || isNaN(settings.startQNo) || Number(settings.startQNo) < 1) {
+                                setSettings(s => ({ ...s, startQNo: 1 }));
+                            }
+                        }}
+                        placeholder="e.g. 1, 10, 25"
+                    />
+                </SettingField>
+
                 <SettingField label="Duration (Minutes) *">
                     <input
                         type="number"
                         min="1"
                         style={inputStyle}
-                        value={settings.durationMinutes !== undefined ? settings.durationMinutes : (parseInt(settings.duration, 10) || 200)}
+                        value={settings.durationMinutes !== undefined ? settings.durationMinutes : (settings.duration ? (parseInt(settings.duration, 10) || '') : 180)}
                         onChange={e => {
-                            const val = Math.max(1, parseInt(e.target.value, 10) || 1);
-                            setSettings(s => ({ ...s, durationMinutes: val, duration: `${val} Minutes` }));
+                            const raw = e.target.value;
+                            setSettings(s => ({
+                                ...s,
+                                durationMinutes: raw === '' ? '' : (parseInt(raw, 10) || 0),
+                                duration: raw === '' ? '' : `${raw} Minutes`
+                            }));
+                        }}
+                        onBlur={() => {
+                            if (settings.durationMinutes === '' || isNaN(settings.durationMinutes) || Number(settings.durationMinutes) < 1) {
+                                setSettings(s => ({ ...s, durationMinutes: 180, duration: '180 Minutes' }));
+                            }
                         }}
                         placeholder="Duration in mins (e.g. 180, 200)"
                     />
@@ -329,10 +360,18 @@ export function SettingsPanel({
                         type="number"
                         min="1"
                         style={inputStyle}
-                        value={settings.marksPerQuestion !== undefined ? settings.marksPerQuestion : (paper?.marksPerQuestion || 4)}
+                        value={settings.marksPerQuestion !== undefined ? settings.marksPerQuestion : (paper?.marksPerQuestion ?? 4)}
                         onChange={e => {
-                            const val = Math.max(1, parseInt(e.target.value, 10) || 1);
-                            setSettings(s => ({ ...s, marksPerQuestion: val }));
+                            const raw = e.target.value;
+                            setSettings(s => ({
+                                ...s,
+                                marksPerQuestion: raw === '' ? '' : (parseInt(raw, 10) || 0)
+                            }));
+                        }}
+                        onBlur={() => {
+                            if (settings.marksPerQuestion === '' || isNaN(settings.marksPerQuestion) || Number(settings.marksPerQuestion) < 1) {
+                                setSettings(s => ({ ...s, marksPerQuestion: 4 }));
+                            }
                         }}
                         placeholder="e.g. 1, 2, 4"
                     />
@@ -789,8 +828,8 @@ export default function PaperRenderer({
     const activePaper = useMemo(() => {
         if (isAssignment || !effectivePaper) return effectivePaper;
         if (!setsActive || activeSet === 'P') return { ...effectivePaper, setName: setsActive ? 'P' : '' };
-        return generatePaperSet(effectivePaper, activeSet);
-    }, [effectivePaper, activeSet, isAssignment, setsActive]);
+        return generatePaperSet(effectivePaper, activeSet, Number(settings.startQNo) || 1);
+    }, [effectivePaper, activeSet, isAssignment, setsActive, settings.startQNo]);
 
     const questions = useMemo(() => activePaper?.questions || [], [activePaper]);
 

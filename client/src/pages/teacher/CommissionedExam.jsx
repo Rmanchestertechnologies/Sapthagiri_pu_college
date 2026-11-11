@@ -737,22 +737,36 @@ export default function CommissionedExam() {
             // Target total questions to assemble
             const targetTotal = totalChapterQuestions > 0 ? totalChapterQuestions : (patternConfig.defaultTotal || 45);
 
-            // Fetch a single optimized pool (requesting 2x-3x target, capped at 120 for instant response)
-            const requestLimit = Math.min(Math.max(targetTotal * 2, 70), 120);
-            baseParams.set('limit', String(requestLimit));
+            // Chapters to fetch
+            const chaptersToFetch = selectedChapters.length > 0 ? selectedChapters : [''];
+            const chapterPools = {};
 
-            let allRows = [];
-            try {
-                const res = await api.get(`/api/questions?${baseParams.toString()}`, { timeout: 35000 });
-                allRows = Array.isArray(res.data?.questions) ? res.data.questions : (Array.isArray(res.data) ? res.data : []);
-            } catch (netErr) {
-                console.warn('[FETCH] Primary request failed/slow, retrying with optimized limit...', netErr.message);
-                setLoadingMessage('Server is responding, completing fetch...');
-                baseParams.set('limit', String(Math.max(targetTotal + 10, 50)));
-                const retryRes = await api.get(`/api/questions?${baseParams.toString()}`, { timeout: 45000 });
-                allRows = Array.isArray(retryRes.data?.questions) ? retryRes.data.questions : (Array.isArray(retryRes.data) ? retryRes.data : []);
-            }
+            setLoadingMessage(`Fetching questions for ${chaptersToFetch.length} selected chapter${chaptersToFetch.length > 1 ? 's' : ''}...`);
 
+            // Fetch dedicated pool for each selected chapter in parallel
+            await Promise.all(
+                chaptersToFetch.map(async (ch) => {
+                    const rawQuota = chapterQuotas[ch];
+                    const chQuota = (rawQuota !== undefined && rawQuota !== '') ? Number(rawQuota) : Math.ceil(targetTotal / chaptersToFetch.length);
+                    const chParams = new URLSearchParams(baseParams);
+                    if (ch) chParams.set('chapter', ch);
+                    // Fetch a healthy pool for this chapter: 3x quota, min 40, max 100
+                    const chLimit = Math.min(Math.max(chQuota * 3, 40), 100);
+                    chParams.set('limit', String(chLimit));
+
+                    try {
+                        const res = await api.get(`/api/questions?${chParams.toString()}`, { timeout: 35000 });
+                        const rows = Array.isArray(res.data?.questions) ? res.data.questions : (Array.isArray(res.data) ? res.data : []);
+                        chapterPools[ch] = (selectedExamPattern === 'CET') ? rows : rows.filter(q => !isCetQ(q));
+                    } catch (err) {
+                        console.warn(`[FETCH] Chapter fetch fallback for "${ch}":`, err.message);
+                        chapterPools[ch] = [];
+                    }
+                })
+            );
+
+            // Flatten for manual mode and global backfill
+            const allRows = Object.values(chapterPools).flat();
             // Client-side CET guard (never filter out CET questions when creating CET exam)
             const filteredRows = (selectedExamPattern === 'CET') ? allRows : allRows.filter(q => !isCetQ(q));
 
@@ -765,37 +779,43 @@ export default function CommissionedExam() {
             }
 
             if (fetchMode === 'auto') {
-                setLoadingMessage('Assembling balanced question paper...');
+                setLoadingMessage('Assembling balanced question paper honoring chapter & type quotas...');
 
-                // Classify questions into category buckets
-                const buckets = {
-                    ar: [],
-                    match: [],
-                    stmt: [],
-                    diag: [],
-                    numerical: [],
-                    mcq: []
-                };
-
-                filteredRows.forEach(q => {
-                    const cat = getQCategory(q, isJee);
-                    if (buckets[cat]) buckets[cat].push(q);
-                    else buckets.mcq.push(q);
-                });
-
-                // Concept prioritization
+                // Helper to check concept match
                 const matchesConcept = (q) => {
                     if (selectedConcepts.length === 0) return true;
                     const qCpt = (q.concept || '').toLowerCase();
                     return selectedConcepts.some(c => c.toLowerCase() === qCpt);
                 };
-                const prioritize = (arr) => [...arr].sort((a, b) => (matchesConcept(b) ? 1 : 0) - (matchesConcept(a) ? 1 : 0));
 
-                Object.keys(buckets).forEach(k => {
-                    buckets[k] = prioritize(buckets[k]);
-                });
+                // Classify each chapter's questions into category buckets
+                const chBuckets = {};
+                for (const ch of chaptersToFetch) {
+                    chBuckets[ch] = {
+                        mcq: [],
+                        ar: [],
+                        match: [],
+                        diag: [],
+                        stmt: [],
+                        numerical: []
+                    };
+                    (chapterPools[ch] || []).forEach(q => {
+                        const cat = getQCategory(q, isJee);
+                        if (chBuckets[ch][cat]) chBuckets[ch][cat].push(q);
+                        else chBuckets[ch].mcq.push(q);
+                    });
+                    // Prioritize each bucket by concept match first, then shuffle
+                    Object.keys(chBuckets[ch]).forEach(cat => {
+                        chBuckets[ch][cat].sort((a, b) => {
+                            const matchDiff = (matchesConcept(b) ? 1 : 0) - (matchesConcept(a) ? 1 : 0);
+                            if (matchDiff !== 0) return matchDiff;
+                            return Math.random() - 0.5;
+                        });
+                    });
+                }
 
-                // Target fetch for any specific type allocation that is short in the general pool
+                // If specific type allocations (e.g. diagram, match) need more than what's available globally,
+                // do a targeted fetch for that type
                 const targetTypes = [
                     { key: 'diag', typeParam: 'diagram' },
                     { key: 'match', typeParam: 'match' },
@@ -806,9 +826,13 @@ export default function CommissionedExam() {
 
                 for (const target of targetTypes) {
                     const desired = typeAllocations[target.key] || 0;
-                    const current = (buckets[target.key] || []).length;
-                    if (desired > current) {
-                        const needed = desired - current;
+                    if (desired <= 0) continue;
+                    let totalAvailable = 0;
+                    for (const ch of chaptersToFetch) {
+                        totalAvailable += (chBuckets[ch][target.key] || []).length;
+                    }
+                    if (desired > totalAvailable) {
+                        const needed = desired - totalAvailable;
                         try {
                             const extraParams = new URLSearchParams(baseParams);
                             extraParams.set('type', target.typeParam);
@@ -819,9 +843,11 @@ export default function CommissionedExam() {
                                 const id = String(q._id || q.id);
                                 if (!filteredRows.some(e => String(e._id || e.id) === id)) {
                                     filteredRows.push(q);
+                                    const ch = q.chapter && chaptersToFetch.includes(q.chapter) ? q.chapter : chaptersToFetch[0];
+                                    if (!chapterPools[ch]) chapterPools[ch] = [];
+                                    chapterPools[ch].push(q);
                                     const cat = getQCategory(q, isJee);
-                                    if (buckets[cat]) buckets[cat].push(q);
-                                    else buckets[target.key].push(q);
+                                    if (chBuckets[ch] && chBuckets[ch][cat]) chBuckets[ch][cat].push(q);
                                 }
                             });
                         } catch (e) {
@@ -830,33 +856,99 @@ export default function CommissionedExam() {
                     }
                 }
 
-                const picked = [];
                 const pickedIds = new Set();
+                const pickedByChapter = {};
+                chaptersToFetch.forEach(ch => { pickedByChapter[ch] = []; });
 
-                const pickFromBucket = (cat, count) => {
-                    if (!count || count <= 0) return 0;
-                    const available = (buckets[cat] || []).filter(q => !pickedIds.has(q._id || q.id));
-                    const selected = available.slice(0, count);
-                    selected.forEach(q => pickedIds.add(q._id || q.id));
-                    picked.push(...selected);
-                    return selected.length;
-                };
+                // Target quota per chapter strictly honoring user input from Step 4
+                const targetChapterQuotas = {};
+                chaptersToFetch.forEach(ch => {
+                    const userQ = chapterQuotas[ch];
+                    targetChapterQuotas[ch] = (userQ !== undefined && userQ !== '')
+                        ? Math.max(0, Number(userQ))
+                        : Math.ceil(targetTotal / chaptersToFetch.length);
+                });
 
-                // Pick according to user's Step 5 allocations
-                if (isJee && patternConfig.supportsNumerical && typeAllocations.numerical > 0) {
-                    pickFromBucket('numerical', typeAllocations.numerical);
+                // Phase 1: Allocate requested special types across chapters in round-robin fashion
+                const specialTypes = [
+                    ...(isJee && patternConfig.supportsNumerical && typeAllocations.numerical > 0 ? [{ key: 'numerical', count: typeAllocations.numerical }] : []),
+                    ...(typeAllocations.diag > 0 ? [{ key: 'diag', count: typeAllocations.diag }] : []),
+                    ...(typeAllocations.ar > 0 ? [{ key: 'ar', count: typeAllocations.ar }] : []),
+                    ...(typeAllocations.match > 0 ? [{ key: 'match', count: typeAllocations.match }] : []),
+                    ...(typeAllocations.stmt > 0 ? [{ key: 'stmt', count: typeAllocations.stmt }] : []),
+                ];
+
+                for (const { key, count } of specialTypes) {
+                    let needed = count;
+                    let rounds = 0;
+                    while (needed > 0 && rounds < chaptersToFetch.length * 5) {
+                        rounds++;
+                        let pickedInRound = false;
+                        for (const ch of chaptersToFetch) {
+                            if (needed <= 0) break;
+                            const chQuota = targetChapterQuotas[ch] || 0;
+                            if (pickedByChapter[ch].length >= chQuota) continue;
+
+                            const candidate = (chBuckets[ch][key] || []).find(q => !pickedIds.has(q._id || q.id));
+                            if (candidate) {
+                                pickedIds.add(candidate._id || candidate.id);
+                                pickedByChapter[ch].push(candidate);
+                                needed--;
+                                pickedInRound = true;
+                            }
+                        }
+                        if (!pickedInRound) break;
+                    }
+
+                    // If any special questions still needed, pick from any chapter that has remaining quota
+                    if (needed > 0) {
+                        for (const ch of chaptersToFetch) {
+                            if (needed <= 0) break;
+                            const chQuota = targetChapterQuotas[ch] || 0;
+                            if (pickedByChapter[ch].length >= chQuota) continue;
+
+                            const candidate = (chBuckets[ch][key] || []).find(q => !pickedIds.has(q._id || q.id));
+                            if (candidate) {
+                                pickedIds.add(candidate._id || candidate.id);
+                                pickedByChapter[ch].push(candidate);
+                                needed--;
+                            }
+                        }
+                    }
                 }
-                if (typeAllocations.ar > 0) pickFromBucket('ar', typeAllocations.ar);
-                if (typeAllocations.match > 0) pickFromBucket('match', typeAllocations.match);
-                if (typeAllocations.diag > 0) pickFromBucket('diag', typeAllocations.diag);
-                if (typeAllocations.stmt > 0) pickFromBucket('stmt', typeAllocations.stmt);
-                if (typeAllocations.mcq > 0) pickFromBucket('mcq', typeAllocations.mcq);
 
-                // Backfill from remaining questions if specific quota was short
+                // Phase 2: Fill remaining chapter quota for each chapter using MCQs first, then any available question
+                for (const ch of chaptersToFetch) {
+                    const chQuota = targetChapterQuotas[ch] || 0;
+                    const neededForCh = chQuota - pickedByChapter[ch].length;
+                    if (neededForCh <= 0) continue;
+
+                    // Try MCQs from this chapter
+                    const availableMcq = (chBuckets[ch].mcq || []).filter(q => !pickedIds.has(q._id || q.id));
+                    const toTakeMcq = availableMcq.slice(0, neededForCh);
+                    toTakeMcq.forEach(q => {
+                        pickedIds.add(q._id || q.id);
+                        pickedByChapter[ch].push(q);
+                    });
+
+                    // If still short, pick ANY unpicked question from this chapter
+                    const stillNeeded = chQuota - pickedByChapter[ch].length;
+                    if (stillNeeded > 0) {
+                        const anyFromCh = (chapterPools[ch] || []).filter(q => !pickedIds.has(q._id || q.id));
+                        const toTakeAny = anyFromCh.slice(0, stillNeeded);
+                        toTakeAny.forEach(q => {
+                            pickedIds.add(q._id || q.id);
+                            pickedByChapter[ch].push(q);
+                        });
+                    }
+                }
+
+                // Phase 3: Global backfill if any chapter had insufficient questions in DB
+                let picked = Object.values(pickedByChapter).flat();
                 if (picked.length < targetTotal) {
-                    const remaining = filteredRows.filter(q => !pickedIds.has(q._id || q.id));
-                    const needed = targetTotal - picked.length;
-                    const backfill = remaining.slice(0, needed);
+                    const remainingGlobal = filteredRows.filter(q => !pickedIds.has(q._id || q.id));
+                    const deficit = targetTotal - picked.length;
+                    const backfill = remainingGlobal.slice(0, deficit);
                     backfill.forEach(q => pickedIds.add(q._id || q.id));
                     picked.push(...backfill);
                 }
@@ -1708,8 +1800,13 @@ export default function CommissionedExam() {
                                     min="1"
                                     value={targetQuestionCount}
                                     onChange={(e) => {
-                                        const val = Math.max(1, parseInt(e.target.value, 10) || 1);
-                                        setTargetQuestionCount(val);
+                                        const raw = e.target.value;
+                                        setTargetQuestionCount(raw === '' ? '' : (parseInt(raw, 10) || 0));
+                                    }}
+                                    onBlur={() => {
+                                        if (targetQuestionCount === '' || isNaN(targetQuestionCount) || Number(targetQuestionCount) < 1) {
+                                            setTargetQuestionCount(totalChapterQuestions > 0 ? totalChapterQuestions : (patternConfig.defaultTotal || 45));
+                                        }
                                     }}
                                     className="w-20 text-center font-black text-xs py-1.5 px-2 border border-slate-300 rounded-xl bg-white outline-none focus:ring-2 focus:ring-gold text-navy"
                                     placeholder="e.g. 25, 50"
@@ -1742,12 +1839,20 @@ export default function CommissionedExam() {
                                         <input
                                             type="number"
                                             min="0"
-                                            value={chapterQuotas[ch] ?? 0}
+                                            value={chapterQuotas[ch] !== undefined ? chapterQuotas[ch] : 0}
                                             onChange={(e) => {
-                                                const val = parseInt(e.target.value) || 0;
-                                                setChapterQuotas(prev => ({ ...prev, [ch]: Math.max(0, val) }));
+                                                const raw = e.target.value;
+                                                setChapterQuotas(prev => ({
+                                                    ...prev,
+                                                    [ch]: raw === '' ? '' : (parseInt(raw, 10) || 0)
+                                                }));
                                             }}
-                                            className="w-16 text-center font-black text-sm py-1 border border-slate-300 rounded-lg bg-white"
+                                            onBlur={() => {
+                                                if (chapterQuotas[ch] === '' || isNaN(chapterQuotas[ch])) {
+                                                    setChapterQuotas(prev => ({ ...prev, [ch]: 0 }));
+                                                }
+                                            }}
+                                            className="w-16 text-center font-black text-sm py-1 border border-slate-300 rounded-lg bg-white outline-none focus:ring-2 focus:ring-gold"
                                         />
                                         <button
                                             type="button"
@@ -1856,9 +1961,22 @@ export default function CommissionedExam() {
                                         >
                                             -
                                         </button>
-                                        <span className="w-10 text-center font-black text-sm text-navy">
-                                            {typeAllocations[item.key] || 0}
-                                        </span>
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            value={typeAllocations[item.key] !== undefined ? typeAllocations[item.key] : 0}
+                                            onChange={(e) => {
+                                                const raw = e.target.value;
+                                                const val = raw === '' ? '' : Math.max(0, parseInt(raw, 10) || 0);
+                                                setTypeAllocations(prev => ({ ...prev, [item.key]: val }));
+                                            }}
+                                            onBlur={() => {
+                                                if (typeAllocations[item.key] === '' || isNaN(typeAllocations[item.key])) {
+                                                    setTypeAllocations(prev => ({ ...prev, [item.key]: 0 }));
+                                                }
+                                            }}
+                                            className="w-14 text-center font-black text-sm text-navy py-1 border border-slate-300 rounded-lg bg-white outline-none focus:ring-2 focus:ring-gold"
+                                        />
                                         <button
                                             type="button"
                                             onClick={() => handleTypeCountChange(item.key, 1)}
@@ -1896,8 +2014,20 @@ export default function CommissionedExam() {
                                             type="number"
                                             min="0"
                                             max="100"
-                                            value={difficultyDistribution[key]}
-                                            onChange={(e) => handleDifficultyChange(key, e.target.value)}
+                                            value={difficultyDistribution[key] !== undefined ? difficultyDistribution[key] : ''}
+                                            onChange={(e) => {
+                                                const raw = e.target.value;
+                                                if (raw === '') {
+                                                    setDifficultyDistribution(prev => ({ ...prev, [key]: '' }));
+                                                } else {
+                                                    handleDifficultyChange(key, raw);
+                                                }
+                                            }}
+                                            onBlur={() => {
+                                                if (difficultyDistribution[key] === '' || isNaN(difficultyDistribution[key])) {
+                                                    handleDifficultyChange(key, 0);
+                                                }
+                                            }}
                                             className={`w-full text-center font-black text-lg py-1.5 border-2 border-${color}-300 rounded-lg bg-white outline-none focus:ring-2 focus:ring-${color}-400`}
                                         />
                                         <input
@@ -2351,6 +2481,8 @@ export default function CommissionedExam() {
                 <A4AnswerKey
                     paper={effectiveActivePaper}
                     questions={effectiveActivePaper.questions}
+                    startQNo={Number(paperSettings?.startQNo) || 1}
+                    setName={activeSet}
                     onClose={() => setShowAnswerKey(false)}
                 />
             )}
@@ -2360,6 +2492,8 @@ export default function CommissionedExam() {
                 <A4SolutionKey
                     paper={effectiveActivePaper}
                     questions={effectiveActivePaper.questions}
+                    startQNo={Number(paperSettings?.startQNo) || 1}
+                    setName={activeSet}
                     onClose={() => setShowSolutionGuide(false)}
                 />
             )}

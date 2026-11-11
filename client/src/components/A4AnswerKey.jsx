@@ -106,8 +106,8 @@ export default function A4AnswerKey({
     const activePaper = useMemo(() => {
         const effectivePaper = { ...paper, questions: localQuestions };
         if (!effectivePaper.questions || effectivePaper.questions.length === 0) return effectivePaper;
-        return generatePaperSet(effectivePaper, activeSet);
-    }, [paper, localQuestions, activeSet]);
+        return generatePaperSet(effectivePaper, activeSet, Number(startQNo) || 1);
+    }, [paper, localQuestions, activeSet, startQNo]);
 
     const resolvedQuestions = useMemo(() => {
         let baseList = [];

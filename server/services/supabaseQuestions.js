@@ -733,7 +733,6 @@ function buildQueryFilters(filters) {
             } else if (t.includes('diagram') || t.includes('image')) {
                 qTypeClauses.push(`(
                     q.q_type ILIKE '%diagram%' OR q.q_type ILIKE '%image%'
-                    OR (q.image_url IS NOT NULL AND length(trim(q.image_url)) > 0)
                     OR q.question ILIKE '%{{IMG::%' OR q.question ILIKE '%<img%' OR q.question ILIKE '%![%' OR q.question ILIKE '%https://res.cloudinary.com/%'
                     OR q.opt_a ILIKE '%{{IMG::%' OR q.opt_b ILIKE '%{{IMG::%' OR q.opt_c ILIKE '%{{IMG::%' OR q.opt_d ILIKE '%{{IMG::%'
                     OR q.opt_a ILIKE '%https://res.cloudinary.com/%' OR q.opt_b ILIKE '%https://res.cloudinary.com/%' OR q.opt_c ILIKE '%https://res.cloudinary.com/%' OR q.opt_d ILIKE '%https://res.cloudinary.com/%'

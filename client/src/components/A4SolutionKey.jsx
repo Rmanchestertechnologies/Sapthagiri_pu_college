@@ -29,8 +29,8 @@ export default function A4SolutionKey({
             questions: baseQuestions
         };
         if (!effectivePaper.questions || effectivePaper.questions.length === 0) return effectivePaper;
-        return generatePaperSet(effectivePaper, activeSet);
-    }, [paper, baseQuestions, activeSet]);
+        return generatePaperSet(effectivePaper, activeSet, Number(startQNo) || 1);
+    }, [paper, baseQuestions, activeSet, startQNo]);
 
     const resolvedQuestions = useMemo(() => {
         const baseList = (activePaper?.questions && activePaper.questions.length > 0)

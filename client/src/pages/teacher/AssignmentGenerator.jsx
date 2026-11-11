@@ -523,8 +523,16 @@ const AssignmentGenerator = () => {
                                 <input
                                     type="number"
                                     min={1}
-                                    value={targetCount}
-                                    onChange={e => setTargetCount(parseInt(e.target.value) || 10)}
+                                    value={targetCount !== undefined ? targetCount : 10}
+                                    onChange={e => {
+                                        const raw = e.target.value;
+                                        setTargetCount(raw === '' ? '' : (parseInt(raw, 10) || 0));
+                                    }}
+                                    onBlur={() => {
+                                        if (targetCount === '' || isNaN(targetCount) || Number(targetCount) < 1) {
+                                            setTargetCount(10);
+                                        }
+                                    }}
                                     className="w-full border-2 border-gray-200 focus:border-navy rounded-2xl px-4 py-2.5 text-xs font-bold text-navy outline-none"
                                 />
                             </div>
@@ -533,8 +541,16 @@ const AssignmentGenerator = () => {
                                 <input
                                     type="number"
                                     min={1}
-                                    value={startQNo}
-                                    onChange={e => setStartQNo(parseInt(e.target.value) || 1)}
+                                    value={startQNo !== undefined ? startQNo : 1}
+                                    onChange={e => {
+                                        const raw = e.target.value;
+                                        setStartQNo(raw === '' ? '' : (parseInt(raw, 10) || 0));
+                                    }}
+                                    onBlur={() => {
+                                        if (startQNo === '' || isNaN(startQNo) || Number(startQNo) < 1) {
+                                            setStartQNo(1);
+                                        }
+                                    }}
                                     className="w-full border-2 border-gray-200 focus:border-navy rounded-2xl px-4 py-2.5 text-xs font-bold text-navy outline-none"
                                 />
                             </div>

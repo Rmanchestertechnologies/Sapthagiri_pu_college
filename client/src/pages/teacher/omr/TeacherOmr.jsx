@@ -455,8 +455,16 @@ const TeacherOmr = () => {
                                                 <span className="block text-[9px] font-black text-emerald-600 uppercase mb-1">Correct</span>
                                                 <input
                                                     type="number"
-                                                    value={markingScheme.correct}
-                                                    onChange={(e) => setMarkingScheme({ ...markingScheme, correct: Number(e.target.value) })}
+                                                    value={markingScheme.correct !== undefined ? markingScheme.correct : ''}
+                                                    onChange={(e) => {
+                                                        const raw = e.target.value;
+                                                        setMarkingScheme(prev => ({ ...prev, correct: raw === '' ? '' : (parseFloat(raw) || 0) }));
+                                                    }}
+                                                    onBlur={() => {
+                                                        if (markingScheme.correct === '' || isNaN(markingScheme.correct)) {
+                                                            setMarkingScheme(prev => ({ ...prev, correct: 4 }));
+                                                        }
+                                                    }}
                                                     className="w-full border border-gray-200 p-2.5 rounded-xl font-black text-center text-navy text-sm outline-none focus:border-navy"
                                                 />
                                             </div>
@@ -464,8 +472,16 @@ const TeacherOmr = () => {
                                                 <span className="block text-[9px] font-black text-red-600 uppercase mb-1">Wrong</span>
                                                 <input
                                                     type="number"
-                                                    value={markingScheme.wrong}
-                                                    onChange={(e) => setMarkingScheme({ ...markingScheme, wrong: Number(e.target.value) })}
+                                                    value={markingScheme.wrong !== undefined ? markingScheme.wrong : ''}
+                                                    onChange={(e) => {
+                                                        const raw = e.target.value;
+                                                        setMarkingScheme(prev => ({ ...prev, wrong: raw === '' ? '' : (parseFloat(raw) || 0) }));
+                                                    }}
+                                                    onBlur={() => {
+                                                        if (markingScheme.wrong === '' || isNaN(markingScheme.wrong)) {
+                                                            setMarkingScheme(prev => ({ ...prev, wrong: -1 }));
+                                                        }
+                                                    }}
                                                     className="w-full border border-gray-200 p-2.5 rounded-xl font-black text-center text-navy text-sm outline-none focus:border-navy"
                                                 />
                                             </div>
@@ -473,8 +489,16 @@ const TeacherOmr = () => {
                                                 <span className="block text-[9px] font-black text-slate-500 uppercase mb-1">Blank</span>
                                                 <input
                                                     type="number"
-                                                    value={markingScheme.blank}
-                                                    onChange={(e) => setMarkingScheme({ ...markingScheme, blank: Number(e.target.value) })}
+                                                    value={markingScheme.blank !== undefined ? markingScheme.blank : ''}
+                                                    onChange={(e) => {
+                                                        const raw = e.target.value;
+                                                        setMarkingScheme(prev => ({ ...prev, blank: raw === '' ? '' : (parseFloat(raw) || 0) }));
+                                                    }}
+                                                    onBlur={() => {
+                                                        if (markingScheme.blank === '' || isNaN(markingScheme.blank)) {
+                                                            setMarkingScheme(prev => ({ ...prev, blank: 0 }));
+                                                        }
+                                                    }}
                                                     className="w-full border border-gray-200 p-2.5 rounded-xl font-black text-center text-navy text-sm outline-none focus:border-navy"
                                                 />
                                             </div>

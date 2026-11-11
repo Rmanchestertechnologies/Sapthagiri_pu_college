@@ -333,11 +333,42 @@ const AdminPaperPreview = () => {
                                 min="1"
                                 value={editableMarks}
                                 onChange={(e) => {
-                                    setEditableMarks(e.target.value);
-                                    setSettings(s => ({ ...s, totalMarks: Number(e.target.value) }));
+                                    const raw = e.target.value;
+                                    setEditableMarks(raw);
+                                    setSettings(s => ({ ...s, totalMarks: raw === '' ? '' : (parseInt(raw, 10) || 0) }));
+                                }}
+                                onBlur={() => {
+                                    if (editableMarks === '' || isNaN(editableMarks) || Number(editableMarks) < 1) {
+                                        setEditableMarks('70');
+                                        setSettings(s => ({ ...s, totalMarks: 70 }));
+                                    }
                                 }}
                                 placeholder="e.g. 60, 720, 300"
                                 className="w-20 text-xs font-black text-navy px-1.5 py-0.5 border-b border-navy/30 focus:border-navy outline-none"
+                            />
+                        </div>
+
+                        {/* Start Q.# Customization Input */}
+                        <div className="flex items-center gap-1.5 bg-white px-3 py-1.5 rounded-xl border border-slate-300 shadow-2xs">
+                            <span className="text-xs font-bold text-slate-600">Start Q.#:</span>
+                            <input
+                                type="number"
+                                min="1"
+                                value={settings.startQNo !== undefined ? settings.startQNo : 1}
+                                onChange={(e) => {
+                                    const raw = e.target.value;
+                                    setSettings(s => ({
+                                        ...s,
+                                        startQNo: raw === '' ? '' : (parseInt(raw, 10) || 0)
+                                    }));
+                                }}
+                                onBlur={() => {
+                                    if (settings.startQNo === '' || isNaN(settings.startQNo) || Number(settings.startQNo) < 1) {
+                                        setSettings(s => ({ ...s, startQNo: 1 }));
+                                    }
+                                }}
+                                placeholder="e.g. 1, 10"
+                                className="w-16 text-xs font-black text-navy px-1.5 py-0.5 border-b border-navy/30 focus:border-navy outline-none"
                             />
                         </div>
 
