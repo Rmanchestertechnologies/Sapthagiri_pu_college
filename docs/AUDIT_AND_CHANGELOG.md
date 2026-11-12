@@ -113,6 +113,26 @@ the PostgreSQL store, which is consistent with the defects below going unnoticed
 | MIG-01 | - | `server/migrations/`, `scripts/migrate.js` | No migration process. | Runner (dry run by default; records applied files; one transaction each). The first migration is not applied. A dry run briefly created an empty bookkeeping table in the live database; it was removed and the runner fixed to be read-only. | dry run |
 | DEAD-01 | LOW | `utils/mathToImage.js`, four scripts with passwords | Unreferenced code (the former loaded scripts from a CDN into Chrome); scripts contained database and admin passwords. | Deleted. | `git grep` found no references |
 
+### Fixed in the end-to-end pass (real browser + throwaway database)
+
+Found by driving the wizard, assignment, admin and student CBT screens against a local, throwaway PostgreSQL (PGlite). No production data was touched.
+
+| ID | Sev | Where | Problem → correction |
+|----|-----|-------|----------------------|
+| E2E-01 | CRITICAL | `index.js` CORS | `x-session-token` was not in `allowedHeaders`, so every student exam call failed from a different origin → added `allowedHeaders` / `exposedHeaders` (`cors.test.js`). |
+| E2E-02 | HIGH | `ExamEngine.jsx`, `ExamInstructions.jsx` | `student_info` was re-parsed on every render, so the init effect re-ran each second (3 requests/second per terminal, rate-limit lock-outs) → `useMemo`. |
+| E2E-03 | HIGH | `ExamEngine.jsx` | Server autosave was a debounce reset every second by the timer, so it never fired → fixed interval, sends on change and at least every 30 s. |
+| E2E-04 | HIGH | `ExamEngine.jsx` | Reloading the page counted as a tab switch and disqualified the student → `beforeunload` / `pagehide` guard. |
+| E2E-05 | HIGH | `exams.js` `/start` | A disqualified or finished student could start a new sitting; concurrent `/start` calls created duplicate sessions → one attempt per student (409), per-student serialisation, migration 003 (unique open session), admin `DELETE /api/exams/:id/sessions/:sessionId` and a "Reset attempt" button. |
+| E2E-06 | HIGH | `rateLimiter.js` | Labs share one IP, so the per-IP limit locked out whole rooms → exam traffic keyed per session with its own budget (`rateLimiter.test.js`). |
+| E2E-07 | HIGH | `cbtScoring.js` | Option questions were scored against the answer text instead of `correct_option` → letter key first. |
+| E2E-08 | HIGH | `questionSelector.js` | NEET/CET questions with no options could be picked → excluded (JEE numerical kept). |
+| E2E-09 | HIGH | `auth.js`, `init_db.js` | `users.omr_access` column missing in production-shaped schema → `userColumns.js`, migration 002, init adds it. |
+| E2E-10 | MEDIUM | `AddQuestion.jsx`, `Scorecard.jsx`, `AdminResults.jsx`, `CommissionedExam.jsx` | Crash on empty state, wrong "Total Questions" (page size), missing React keys, case-variant duplicate chapters, "Time" printed on assignments → fixed. |
+
+New environment variables: `DB_POOL_MAX`, `DB_POOL_IDLE_MS`, `DB_SSL` (ignored in production), `DB_SSL_CA`, `TRUST_PROXY_HOPS`, `ENV_FILE` (scripts only).
+Migrations 001–003 were applied and re-run (idempotent) on the throwaway database only; **none is applied to production**.
+
 ### Open (found, not fixed)
 
 | ID | Sev | File | Problem | Recommended correction |
@@ -189,18 +209,19 @@ data was changed.
 
 Latest run:
 
-* `npm --prefix server run test:unit` → 8 suites, **102 passed** (selection 20, CBT 25, security / OMR / access / subject areas 22, login and lockout 5, session tokens 13, login throttle 6, math 7, merge 5).
-* `npm --prefix client test` → **25 passed**. `npm --prefix client run build` succeeds; ESLint: 0 undefined variables, 0 hook-order errors.
+* `npm --prefix server run test:unit` → 10 suites, **117 passed** (adds rate limiter and CORS suites).
+* End-to-end API suite against the throwaway database: 75/75. Browser-driven on the real UI: wizard AutoFetch (10/10/10), P/Q/R/S keys, swap modal, assignment flow, student CBT (timer, autosave, refresh-resume, submit, scorecard, leaderboard), admin dashboard / results / CBT exams / faculty / blueprints / grand tests / PYQ / templates load without errors.
+* `npm --prefix client test` → **26 passed**. `npm --prefix client run build` succeeds; ESLint: 0 undefined variables, 0 hook-order errors.
 * Started the real server with the environment-only configuration and ran a quota query against the live question bank (6 of 6, complete). Refused unauthenticated calls to all six student endpoints (401).
 * Rendered a sample paper through the server's own PDF exporter before and after the math fix and looked at both pages; sent a hostile scorecard through the old and new report generator against a local trap server (3 requests before, 0 after).
 * Read-only database checks: no unhashed passwords (0 of 6), question tables are small (8–11 k rows) with usable indexes and 2–3 ms chapter queries, so the database is not the bottleneck.
 * Opened the production build in a browser: login, lab portal and lab terminal pages render with lazy loading.
 
-Not verified: no exam was sat end-to-end; the wizard, assignment, merge and OMR screens were not driven with real data (needs a login); no authenticated request was made against the live API; OMR accuracy; the integration suite; Word export output; behaviour on Render.
+Not verified: the OMR screen with real scanned sheets and OMR accuracy; the integration suite against real databases; Word export output; behaviour on Render; nothing was run against the production database.
 
 ## 5. Not done
 
-* **UI/UX redesign.** Not started. Only functional UI changes were made. A redesign needs your direction on the visual language and a way to review authenticated screens; doing it blind risks breaking working screens.
+* **UI/UX redesign.** Not done as a visual redesign; only functional and robustness fixes to reviewed screens. A redesign needs your direction on the visual language and a way to review authenticated screens; doing it blind risks breaking working screens.
 * **Credential rotation and history purge** (OPEN-18, OPEN-07), setting `ALLOWED_ORIGINS`, `LAB_IP`, `LAB_ID`, `LAB_PASSWORD`, `DB_SSL_CA`, `DB_QBP_CONTROL_KEY` in Render, and applying the migration: owner actions.
 * **OMR**: accuracy measurement and the engine's ~30 000 lines of Python.
 * **Word export** fidelity (it converts LaTeX to Unicode text, by design) and the remaining admin screens (`AdminQuestionBank`, `SubjectDetails`, `ExamManagement`, `BridgeApp`): permissions checked, logic not reviewed.

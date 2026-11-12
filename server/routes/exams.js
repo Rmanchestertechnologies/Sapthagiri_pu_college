@@ -8,7 +8,20 @@ const { detectLabIp } = require('../middleware/labIp');
 const pool = require('../config/postgres');
 const { createNotification } = require('./notifications');
 const cbt = require('../services/cbtScoring');
-const { issueSessionToken, requireSessionAccess, requireLabNetworkIfConfigured } = require('../middleware/sessionToken');
+const { issueSessionToken, requireSessionAccess, requireLabNetworkIfConfigured, isStaffRequest } = require('../middleware/sessionToken');
+
+// Runs `fn` after every earlier call with the same key has finished (per server process).
+const serialLocks = new Map();
+async function serialized(key, fn) {
+    const previous = serialLocks.get(key) || Promise.resolve();
+    const run = previous.catch(() => {}).then(fn);
+    serialLocks.set(key, run);
+    try { return await run; } finally { if (serialLocks.get(key) === run) serialLocks.delete(key); }
+}
+
+// Students can only open exams that have been published. Staff may preview drafts.
+const STUDENT_VISIBLE_STATUSES = ['live', 'scheduled', 'active'];
+const examOpenToStudent = (exam, req) => STUDENT_VISIBLE_STATUSES.includes(String(exam?.status || '').toLowerCase()) || (String(exam?.status || '').toLowerCase() === 'draft' && isStaffRequest(req));
 // Was used below without being imported, so every ID-only paper silently fell back to its cached copy.
 const supabaseQuestions = require('../services/supabaseQuestions');
 
@@ -693,7 +706,7 @@ router.get('/:id/take', detectLabIp, async (req, res) => {
         const rawExam = await storage.getExamById(req.params.id);
         if (!rawExam) return res.status(404).json({ msg: 'Exam not found' });
         const exam = await hydrateExamQuestions(rawExam);
-        if (!['live', 'scheduled', 'draft'].includes(exam.status)) {
+        if (!examOpenToStudent(exam, req)) {
             return res.status(403).json({ msg: 'Exam is not currently available.' });
         }
 
@@ -756,6 +769,11 @@ router.post('/:id/start', detectLabIp, requireLabNetworkIfConfigured, async (req
         // Hydrate so composite exams (questions held in subject papers) get a real answer sheet.
         const exam = await hydrateExamQuestions(rawExam);
 
+        // /start never checked the status at all: a draft or archived exam could be started by its id.
+        if (!examOpenToStudent(exam, req)) {
+            return res.status(403).json({ msg: 'Exam is not currently available.' });
+        }
+
         // Timing is decided by the server clock, not the student's computer.
         const withTiming = (session) => ({
             ...session,
@@ -793,40 +811,66 @@ router.post('/:id/start', detectLabIp, requireLabNetworkIfConfigured, async (req
             }
         }
 
-        // Check for existing active session
-        const existing = await storage.findActiveSession(req.params.id, studentEmail, rollNumber);
-        if (existing) return res.json({ msg: 'Session resumed', session: withTiming(existing) });
+        // The "is there a sitting?" check and the insert must not interleave for the same student: two requests arriving
+        // together (a double click, a re-render that fires the call twice, two terminals) each found nothing and each created
+        // a sitting, leaving duplicate open sessions. Requests for one student/exam now run one after another.
+        const lockKey = `${req.params.id}:${rollNumber || studentEmail || 'anonymous'}`;
+        const outcome = await serialized(lockKey, async () => {
+            // Check for existing active session
+            const existing = await storage.findActiveSession(req.params.id, studentEmail, rollNumber);
+            if (existing) return { status: 200, body: { msg: 'Session resumed', session: withTiming(existing) } };
 
-        const windowError = cbt.startWindowError(exam);
-        if (windowError) return res.status(403).json({ msg: windowError });
-        if ((exam.questions || []).length === 0) {
-            return res.status(409).json({ msg: 'This exam has no questions yet. Please inform the invigilator.' });
-        }
+            // One attempt per student. A student who was disqualified (or who submitted) used to be able to reload the portal
+            // and start a brand-new sitting with full time. An administrator can reset an attempt
+            // (DELETE /api/exams/:id/sessions/:sessionId).
+            const finished = await storage.findSubmittedSession(req.params.id, studentEmail, rollNumber);
+            if (finished) {
+                const disq = Boolean(finished.malpractice_flag || finished.malpracticeFlag);
+                return {
+                    status: 409,
+                    body: {
+                        msg: disq
+                            ? 'You were disqualified from this exam and cannot restart it. Please meet the invigilator.'
+                            : 'You have already submitted this exam.',
+                        alreadyFinished: true,
+                        disqualified: disq
+                    }
+                };
+            }
 
-        const studentId = rollNumber || studentEmail || 'anonymous';
-        let examQuestions = exam.questions || [];
-        if (exam.shuffleQuestions) {
-            examQuestions = seededShuffle(examQuestions, `${studentId}-${exam._id}`);
-        }
+            const windowError = cbt.startWindowError(exam);
+            if (windowError) return { status: 403, body: { msg: windowError } };
+            if ((exam.questions || []).length === 0) {
+                return { status: 409, body: { msg: 'This exam has no questions yet. Please inform the invigilator.' } };
+            }
 
-        const session = await storage.createSession({
-            examId: req.params.id,
-            studentId,
-            studentName: verifiedName || 'Student',
-            studentEmail: studentEmail || '',
-            rollNumber: rollNumber || '',
-            fromLabIp: req.isLabIp,
-            clientIp: req.clientIp,
-            answers: examQuestions.map((q, idx) => ({
-                questionId: cbt.questionKey(q, idx),
-                selectedOption: null,
-                markedForReview: false,
-                visited: false
-            })),
-            totalQuestions: examQuestions.length
+            const studentId = rollNumber || studentEmail || 'anonymous';
+            let examQuestions = exam.questions || [];
+            if (exam.shuffleQuestions) {
+                examQuestions = seededShuffle(examQuestions, `${studentId}-${exam._id}`);
+            }
+
+            const session = await storage.createSession({
+                examId: req.params.id,
+                studentId,
+                studentName: verifiedName || 'Student',
+                studentEmail: studentEmail || '',
+                rollNumber: rollNumber || '',
+                fromLabIp: req.isLabIp,
+                clientIp: req.clientIp,
+                answers: examQuestions.map((q, idx) => ({
+                    questionId: cbt.questionKey(q, idx),
+                    selectedOption: null,
+                    markedForReview: false,
+                    visited: false
+                })),
+                totalQuestions: examQuestions.length
+            });
+
+            return { status: 201, body: { msg: 'Session started', session: withTiming(session) } };
         });
 
-        res.status(201).json({ msg: 'Session started', session: withTiming(session) });
+        res.status(outcome.status).json(outcome.body);
     } catch (err) {
         console.error(err.message);
         res.status(500).json({ msg: 'Server Error: ' + err.message });
@@ -925,7 +969,7 @@ router.get('/:id/scorecard/:sessionId', detectLabIp, requireSessionAccess({ sess
             rollNumber: session.roll_number || session.rollNumber,
             examTitle: exam.title,
             examType: exam.examType,
-            score: session.score,
+            score: Number(session.score) || 0, // NUMERIC columns arrive as strings
             totalQuestions: session.total_questions || session.totalQuestions,
             attempted: session.attempted,
             correct: session.correct,
@@ -1012,6 +1056,23 @@ router.get('/:id/analytics', [auth, checkRole(['admin'])], async (req, res) => {
         res.json(analytics);
     } catch (err) {
         res.status(500).json({ msg: 'Server Error: ' + err.message });
+    }
+});
+
+// ─────────────────────────────────────────────────────────────────
+// ADMIN: Reset one student's attempt (e.g. after a disqualification caused by a power cut)
+// DELETE /api/exams/:id/sessions/:sessionId
+// ─────────────────────────────────────────────────────────────────
+router.delete('/:id/sessions/:sessionId', [auth, checkRole(['admin'])], async (req, res) => {
+    try {
+        const session = await storage.getSessionById(req.params.sessionId);
+        if (!session || !sessionBelongsToExam(session, req.params.id)) return res.status(404).json({ msg: 'Session not found' });
+        await storage.deleteSession(session._id);
+        console.log(`[ADMIN] ${req.user.id} reset attempt ${session._id} (roll ${session.roll_number}) of exam ${req.params.id}`);
+        res.json({ msg: 'Attempt reset. The student can start the exam again.' });
+    } catch (err) {
+        console.error('Reset attempt error:', err.message);
+        res.status(500).json({ msg: 'Server Error' });
     }
 });
 
@@ -1172,7 +1233,7 @@ router.get('/:id/leaderboard', requireSessionAccess(), async (req, res) => {
         const filtered = sessions.filter(s => s.submitted).map(s => ({
             studentName: s.student_name || s.studentName,
             rollNumber: s.roll_number || s.rollNumber,
-            score: s.score,
+            score: Number(s.score) || 0,
             correct: s.correct,
             incorrect: s.incorrect,
             unattempted: s.unattempted,

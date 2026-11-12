@@ -8,11 +8,10 @@ const labIpOnly = (req, res, next) => {
         .map(ip => ip.trim());
 
     // Get real client IP (handles proxies/nginx)
-    const clientIp =
-        req.headers['x-forwarded-for']?.split(',')[0]?.trim() ||
-        req.socket?.remoteAddress ||
-        req.ip ||
-        '';
+    // req.ip honours Express's "trust proxy" setting (TRUST_PROXY_HOPS, default 1 = the hosting platform's load balancer),
+    // so only addresses added by a trusted proxy count. The raw first X-Forwarded-For entry was taken before, which any
+    // caller can set to a lab address.
+    const clientIp = req.ip || req.socket?.remoteAddress || '';
 
     // Normalize IPv6 loopback
     const normalizedIp = clientIp.replace('::ffff:', '');
@@ -37,11 +36,7 @@ const detectLabIp = (req, res, next) => {
         .split(',')
         .map(ip => ip.trim());
 
-    const clientIp =
-        req.headers['x-forwarded-for']?.split(',')[0]?.trim() ||
-        req.socket?.remoteAddress ||
-        req.ip ||
-        '';
+    const clientIp = req.ip || req.socket?.remoteAddress || '';
 
     const normalizedIp = clientIp.replace('::ffff:', '');
     req.isLabIp = labIps.includes(normalizedIp);

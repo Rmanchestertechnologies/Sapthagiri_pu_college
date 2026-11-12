@@ -59,3 +59,19 @@ test('papers without an id use the same default seed on both sides', () => {
     const key = server.buildSeriesKey(paper, paper.questions, 'S');
     assert.deepEqual(key.map(k => k.questionId), client.questions.map(q => q._id));
 });
+
+test('a paper-level pqrsSeed (also inside metadata) decides the sets on both sides, whatever the id is', () => {
+    const base = makePaper('seeded', 24, { sections: true });
+    const a = { ...base, _id: '1', pqrsSeed: 'seed-A' };
+    const b = { ...base, _id: '999', metadata: { pqrsSeed: 'seed-A' } };   // different id, same seed (e.g. before / after saving)
+    const c = { ...base, _id: '1', pqrsSeed: 'seed-B' };                   // same id, different seed
+    for (const set of ['Q', 'R', 'S']) {
+        const ga = generatePaperSet(a, set).questions.map(q => q._id);
+        assert.deepEqual(generatePaperSet(b, set).questions.map(q => q._id), ga, `set ${set}: same seed, different id`);
+        assert.notDeepEqual(generatePaperSet(c, set).questions.map(q => q._id), ga, `set ${set}: different seed`);
+        assert.deepEqual(server.buildSeriesKey(b, b.questions, set).map(k => k.questionId), ga, `set ${set}: server follows the same seed`);
+    }
+    // papers without a seed still use the id, so sets that were already printed do not change
+    const legacy = { ...base, _id: '42' };
+    assert.deepEqual(generatePaperSet(legacy, 'Q').questions.map(q => q._id), server.buildSeriesKey(legacy, legacy.questions, 'Q').map(k => k.questionId));
+});

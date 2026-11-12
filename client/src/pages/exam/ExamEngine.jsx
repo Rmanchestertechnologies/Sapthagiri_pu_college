@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../../api';
 import { sanitize } from '../../utils/sanitize';
@@ -69,7 +69,13 @@ function getState(q) {
 export default function ExamEngine() {
     const { examId } = useParams();
     const navigate = useNavigate();
-    const studentInfo = JSON.parse(localStorage.getItem('student_info') || '{}');
+    // Parsed ONCE. It used to be parsed on every render, so `studentInfo` was a new object each time and the effect below
+    // (which depends on it) ran again on every render: with the countdown re-rendering every second, each terminal sent
+    // /take and /start about three times a second for the whole exam, reset its own state each time, and a lab quickly hit
+    // the rate limit ("Access Denied" and back to the portal).
+    const studentInfo = useMemo(() => {
+        try { return JSON.parse(localStorage.getItem('student_info') || '{}') || {}; } catch { return {}; }
+    }, []);
 
     const [exam, setExam] = useState(null);
     const [session, setSession] = useState(null);
@@ -227,9 +233,16 @@ export default function ExamEngine() {
         };
         window.addEventListener('keydown', handleKeyDown);
 
+        // Reloading or closing the page also makes the page "hidden" for a moment. That is not a tab switch, so it must not
+        // disqualify the student: a refresh has to resume the exam (answers and time are kept on the server).
+        let leavingPage = false;
+        const markLeaving = () => { leavingPage = true; };
+        window.addEventListener('beforeunload', markLeaving);
+        window.addEventListener('pagehide', markLeaving);
+
         // Detect switching tabs or minimizing window
         const handleVisibilityChange = () => {
-            if (isSubmittingOrFinished.current) return;
+            if (isSubmittingOrFinished.current || leavingPage) return;
             if (document.visibilityState === 'hidden') {
                 triggerMalpractice('Switched tabs or minimized window');
             }
@@ -238,7 +251,7 @@ export default function ExamEngine() {
         // Detect loss of window focus (e.g. system alerts, clicking outside browser, secondary monitors/overlays)
         const handleBlur = () => {
             setTimeout(() => {
-                if (isSubmittingOrFinished.current) return;
+                if (isSubmittingOrFinished.current || leavingPage) return;
                 if (!document.hasFocus()) {
                     triggerMalpractice('Window focus lost (possible overlay or secondary application opened)');
                 }
@@ -265,6 +278,8 @@ export default function ExamEngine() {
             document.removeEventListener('cut', preventDefault);
             document.removeEventListener('paste', preventDefault);
             window.removeEventListener('keydown', handleKeyDown);
+            window.removeEventListener('beforeunload', markLeaving);
+            window.removeEventListener('pagehide', markLeaving);
             document.removeEventListener('visibilitychange', handleVisibilityChange);
             window.removeEventListener('blur', handleBlur);
             document.removeEventListener('fullscreenchange', handleFullscreenChange);
@@ -288,41 +303,54 @@ export default function ExamEngine() {
         return () => clearInterval(timerRef.current);
     }, [timeLeft !== null, current]);
 
-    // ── Local Storage & Autosave Progress sync ──────────────────
+    // ── Local copy + server autosave ─────────────────────────────
+    // The browser copy is written on every change. The server copy used to be a 3-second DEBOUNCE of `answers`, but the
+    // countdown adds a second of time-taken to the current question every second, so `answers` changed every second, the
+    // timer was reset each time and the autosave NEVER fired: answers lived only in this browser. It is now a fixed
+    // interval that sends whenever the choices (not the clock) changed, and at least every 30 seconds.
+    const lastSavedRef = useRef('');
+    const lastSentAtRef = useRef(0);
+    const answerSignature = (list) => JSON.stringify(list.map(a => [a.questionId, a.selectedOption, a.markedForReview, a.visited]));
+
     useEffect(() => {
         if (!session?._id || answers.length === 0) return;
-        
-        // 1. Sync immediately to localStorage
-        const storageKey = `exam_answers_${examId}_${session._id}`;
-        localStorage.setItem(storageKey, JSON.stringify(answers));
+        try { localStorage.setItem(`exam_answers_${examId}_${session._id}`, JSON.stringify(answers)); } catch { /* storage full or blocked */ }
+    }, [answers, session?._id, examId]);
 
-        // 2. Debounced sync to database
-        const timer = setTimeout(async () => {
+    useEffect(() => {
+        if (!session?._id) return undefined;
+        let stopped = false;
+        const send = async () => {
+            const current = answersRef.current;
+            if (!current || current.length === 0) return;
+            const sig = answerSignature(current);
+            const stale = Date.now() - lastSentAtRef.current > 30000;
+            if (sig === lastSavedRef.current && !stale) return;
             try {
-                const res = await api.post(`/api/exams/${examId}/session/save-progress`, {
-                    sessionId: session._id,
-                    answers
-                });
+                const res = await api.post(`/api/exams/${examId}/session/save-progress`, { sessionId: session._id, answers: current });
+                if (stopped) return;
+                lastSavedRef.current = sig;
+                lastSentAtRef.current = Date.now();
                 setAutosaveFailed(false);
-                // Re-sync the countdown with the server clock; only ever correct it downwards
-                // or by a real drift, so the display does not jitter.
+                // Re-sync the countdown with the server clock only when it has really drifted, so the display does not jitter.
                 const serverLeft = Number(res.data?.remainingSeconds);
                 if (Number.isFinite(serverLeft)) {
                     setTimeLeft(t => (t === null || Math.abs(t - serverLeft) > 5 ? serverLeft : t));
                 }
             } catch (err) {
+                if (stopped) return;
                 console.error('Failed to autosave progress to server:', err);
                 if (err.response?.data?.timeOver) {
                     setTimeLeft(0);
                 } else {
-                    // Answers are still kept in this browser and are sent again with the next change and on submit.
+                    // The answers are still in this browser; the next tick sends them again.
                     setAutosaveFailed(true);
                 }
             }
-        }, 3000); // debounce 3 seconds
-
-        return () => clearTimeout(timer);
-    }, [answers, session?._id, examId]);
+        };
+        const id = setInterval(send, 4000);
+        return () => { stopped = true; clearInterval(id); };
+    }, [session?._id, examId]);
 
     const formatTime = (secs) => {
         const h = Math.floor(secs / 3600);

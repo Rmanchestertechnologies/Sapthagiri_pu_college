@@ -66,6 +66,18 @@ export default function AdminResults() {
         }
     };
 
+    // Lets a disqualified or finished student sit the exam again (they are otherwise refused: one attempt per student)
+    const resetAttempt = async (student) => {
+        if (!window.confirm(`Reset the attempt of ${student.studentName || student.rollNumber}? Their answers and score are deleted and they can start the exam again.`)) return;
+        try {
+            await api.delete(`/api/exams/${selectedExam}/sessions/${student._id}`);
+            setMsg('Attempt reset. The student can start the exam again.');
+            fetchResults(selectedExam);
+        } catch (err) {
+            setMsg(err.response?.data?.msg || 'Could not reset the attempt.');
+        }
+    };
+
     const downloadAllScorecardsZip = async () => {
         if (!selectedExam) return;
         try {
@@ -528,6 +540,13 @@ export default function AdminResults() {
                                                     }}
                                                 >
                                                     Download PDF
+                                                </button>
+                                                <button
+                                                    onClick={() => resetAttempt(r)}
+                                                    style={{ display: 'inline-block', padding: '4px 8px', backgroundColor: '#fff', color: '#b91c1c', border: '1px solid #fecaca', borderRadius: '4px', fontSize: '12px', fontWeight: '600', cursor: 'pointer' }}
+                                                    title="Delete this attempt so the student can sit the exam again"
+                                                >
+                                                    Reset attempt
                                                 </button>
                                             </div>
                                         </td>

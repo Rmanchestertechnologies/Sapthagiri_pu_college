@@ -310,6 +310,9 @@ router.put('/:id', [auth, checkRole(['teacher', 'admin'])], async (req, res) => 
         if (!paper) return;
 
         const updateData = { ...req.body };
+        // The P/Q/R/S seed is fixed when the paper is first saved; an update can never replace or drop it.
+        const keepSeed = paper.metadata && paper.metadata.pqrsSeed;
+        if (keepSeed) updateData.metadata = { ...(updateData.metadata || paper.metadata || {}), pqrsSeed: keepSeed };
         // Ownership and linkage are never taken from the request body.
         delete updateData.teacherId; delete updateData.teacher_id; delete updateData.created_by; delete updateData.author_id;
         const updated = await storage.updatePaper(req.params.id, updateData);

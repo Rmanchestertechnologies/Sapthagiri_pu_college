@@ -209,7 +209,10 @@ export function generatePaperSet(paper, setName = 'P', startQNo = 1) {
     if (!paper) return null;
     const rawQuestions = Array.isArray(paper.questions) ? paper.questions : [];
     const baseQuestions = paper.pqrsApplied ? restoreBaseQuestions(rawQuestions) : rawQuestions;
-    const paperId = paper._id || paper.id || 'qp-default';
+    // A paper made after this change carries its own pqrsSeed (created with the paper and saved in metadata), so its
+    // P/Q/R/S sets are identical in the wizard preview, after saving, on the saved-papers screen and in OMR grading.
+    // Older papers have no seed and keep using their id, so sets that were already printed do not change.
+    const paperId = paper.pqrsSeed || paper.metadata?.pqrsSeed || paper._id || paper.id || 'qp-default';
     const cleanSet = String(setName || 'P').toUpperCase();
     const seed = `${paperId}-${cleanSet}`;
     const random = createSeededRandom(seed);

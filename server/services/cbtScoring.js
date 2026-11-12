@@ -74,8 +74,14 @@ const isNumericalQuestion = (q) => {
  */
 function isAnswerCorrect(q, selected) {
     if (selected === null || selected === undefined || String(selected).trim() === '') return false;
-    const key = q?.answer ?? q?.correct_option ?? q?.correctAnswer ?? q?.num_answer;
-    if (key === null || key === undefined || String(key).trim() === '') return false;
+    // Questions coming from the question bank carry the correct OPTION LETTER in `correct_option` and the option's TEXT
+    // in `answer`; the letter is the authority (the printed answer key uses it too). Matching by text alone picks the
+    // first of two options that read the same. Older exam documents only have `answer`.
+    const present = v => v !== null && v !== undefined && String(v).trim() !== '';
+    const key = isNumericalQuestion(q)
+        ? [q?.num_answer, q?.answer, q?.correct_option, q?.correctAnswer].find(present)
+        : [q?.correct_option, q?.answer, q?.correctAnswer, q?.num_answer].find(present);
+    if (!present(key)) return false;
 
     const sel = String(selected).trim();
     const ans = String(key).trim();
@@ -113,14 +119,30 @@ function mergeAnswers(saved = [], submitted = []) {
     return map;
 }
 
+/**
+ * Marking rule for one question: the rules of its section when the exam defines them (merged exams do, one section per
+ * subject), otherwise the exam-type rule. The exam-type rule alone ignored every section rule.
+ */
+function schemeFor(exam, q, fallback) {
+    const sec = Array.isArray(exam?.sections) && q?.sectionName
+        ? exam.sections.find(s => s && s.sectionName === q.sectionName)
+        : null;
+    const r = sec && sec.markingRules;
+    if (r && Number.isFinite(Number(r.correct)) && Number.isFinite(Number(r.incorrect))) {
+        return { correct: Number(r.correct), incorrect: Number(r.incorrect), unattempted: Number.isFinite(Number(r.unattempted)) ? Number(r.unattempted) : 0 };
+    }
+    return fallback;
+}
+
 function scoreExam(exam, answerMap) {
-    const scheme = markingScheme(exam);
+    const defaultScheme = markingScheme(exam);
     const map = answerMap instanceof Map ? answerMap : mergeAnswers([], answerMap);
     let score = 0, correct = 0, incorrect = 0, unattempted = 0;
     const weakMap = {};
 
     const answers = (exam?.questions || []).map((q, idx) => {
         const id = questionKey(q, idx);
+        const scheme = schemeFor(exam, q, defaultScheme);
         const given = map.get(id);
         const raw = given?.selectedOption;
         const selected = (raw === null || raw === undefined || String(raw).trim() === '') ? null : String(raw);
@@ -210,6 +232,7 @@ module.exports = {
     isNumericalQuestion,
     isAnswerCorrect,
     markingScheme,
+    schemeFor,
     mergeAnswers,
     scoreExam,
     sessionDeadline,

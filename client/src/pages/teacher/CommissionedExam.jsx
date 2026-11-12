@@ -237,6 +237,9 @@ export default function CommissionedExam() {
     // sets shown (and the keys printed) match the saved paper, the OMR key and the saved-papers screen
     // only after the first save. Saving again updates this paper instead of creating a duplicate.
     const [savedPaperId, setSavedPaperId] = useState(null);
+    // Seed of the P/Q/R/S shuffles, created together with the paper and saved with it, so the sets never change when
+    // the paper is saved (they used to depend on the id the database assigns).
+    const [pqrsSeed] = useState(() => (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : `seed-${Date.now()}-${Math.random().toString(36).slice(2)}`);
 
     // Step 7: PQRS 4-Sets & Zoom & Word state (lifted up so bottom toolbar controls them)
     const [setsActive, setSetsActive] = useState(false);
@@ -987,6 +990,7 @@ export default function CommissionedExam() {
                 totalMarks: selectedQuestions.length * patternConfig.marksPerQ,
                 status: 'Draft',
                 settings,
+                metadata: { pqrsSeed },
             };
 
             const res = savedPaperId
@@ -1123,6 +1127,7 @@ export default function CommissionedExam() {
 
         return {
             ...(savedPaperId ? { _id: savedPaperId } : {}),
+            pqrsSeed,
             title: examTitle || `${selectedExamPattern} Examination`,
             subject: selectedSubject || 'General',
             examType: selectedExamPattern,
@@ -1134,7 +1139,7 @@ export default function CommissionedExam() {
             institutionName: 'SAPTHAGIRI PU COLLEGE',
             subHeader: 'DEPARTMENT OF PRE-UNIVERSITY EDUCATION, KARNATAKA',
         };
-    }, [savedPaperId, examTitle, selectedSubject, selectedExamPattern, selectedClass, selectedQuestions, settings?.duration, settings?.durationMinutes, settings?.marksPerQuestion, patternConfig]);
+    }, [savedPaperId, pqrsSeed, examTitle, selectedSubject, selectedExamPattern, selectedClass, selectedQuestions, settings?.duration, settings?.durationMinutes, settings?.marksPerQuestion, patternConfig]);
 
     // The MASTER paper is what gets passed down. PaperRenderer, A4AnswerKey and A4SolutionKey each
     // derive the active P/Q/R/S set from it themselves; handing them an already-permuted paper made
@@ -2309,13 +2314,6 @@ export default function CommissionedExam() {
                 ---------------------------------------------------------------- */}
                 {currentStep === 7 && (
                     <div className="space-y-6 animate-fade-in relative pb-12">
-
-                        {setsActive && activeSet !== 'P' && !savedPaperId && (
-                            <div role="note" className="max-w-4xl mx-auto rounded-2xl border border-amber-300 bg-amber-50 p-3 text-xs font-semibold text-amber-900">
-                                Set {activeSet} is a preview. Sets Q, R and S are shuffled with a seed taken from the saved paper's id, so save the paper first:
-                                the order you see now will change once it is saved, and only the saved version matches the answer key, the saved-papers screen and OMR grading.
-                            </div>
-                        )}
 
                         {/* Auto Fetch result: requested vs delivered, so partial generation is never silent */}
                         {fetchMode === 'auto' && generationReport && (

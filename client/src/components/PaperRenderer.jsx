@@ -722,7 +722,8 @@ export function PaperHeader({
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11.5px', color: '#111', fontWeight: 700, borderTop: '1px solid #777', paddingTop: '4px', marginTop: '4px' }}>
                 <span>Subject: <strong>{displaySubject}</strong></span>
                 <span>Class: <strong>{displayClass}</strong></span>
-                <span>Time: <strong>{displayDuration}</strong></span>
+                {/* an assignment has no exam duration (it showed the exam default, "200 Minutes") */}
+                {!isAssignment && <span>Time: <strong>{displayDuration}</strong></span>}
                 <span>Max Marks: <strong>{displayMarks}</strong></span>
             </div>
 

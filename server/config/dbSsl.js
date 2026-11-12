@@ -11,6 +11,8 @@ const fs = require('fs');
 let warned = false;
 
 function buildSsl() {
+    // DB_SSL=off is for a local development database that has no TLS. It is ignored in production.
+    if (process.env.DB_SSL === 'off' && process.env.NODE_ENV !== 'production') return false;
     const ca = process.env.DB_SSL_CA;
     if (ca) {
         const pem = ca.includes('BEGIN CERTIFICATE') ? ca.replace(/\\n/g, '\n') : fs.readFileSync(ca, 'utf8');

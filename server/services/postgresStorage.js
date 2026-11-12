@@ -870,6 +870,18 @@ async function saveTemplate(data) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 async function createSession(sessionData) {
+    try {
+        return await createSessionRow(sessionData);
+    } catch (err) {
+        if (err && err.code === '23505') {
+            const existing = await findActiveSession(sessionData.examId, sessionData.studentEmail, sessionData.rollNumber);
+            if (existing) return existing;
+        }
+        throw err;
+    }
+}
+
+async function createSessionRow(sessionData) {
     const {
         examId, studentId, studentName = 'Student', studentEmail = '',
         rollNumber = '', fromLabIp = false, clientIp = '',
@@ -894,12 +906,12 @@ async function findActiveSession(examId, studentEmail, rollNumber) {
     let res;
     if (rollNumber) {
         res = await pool.query(
-            'SELECT * FROM public.exam_sessions WHERE exam_id = $1 AND roll_number = $2 AND submitted = false LIMIT 1',
+            'SELECT * FROM public.exam_sessions WHERE exam_id = $1 AND roll_number = $2 AND submitted = false ORDER BY id ASC LIMIT 1',
             [String(examId), rollNumber]
         );
     } else if (studentEmail) {
         res = await pool.query(
-            'SELECT * FROM public.exam_sessions WHERE exam_id = $1 AND student_email = $2 AND submitted = false LIMIT 1',
+            'SELECT * FROM public.exam_sessions WHERE exam_id = $1 AND student_email = $2 AND submitted = false ORDER BY id ASC LIMIT 1',
             [String(examId), studentEmail]
         );
     }
@@ -908,6 +920,32 @@ async function findActiveSession(examId, studentEmail, rollNumber) {
         return { ...r, _id: String(r.id), answers: r.answers || [] };
     }
     return null;
+}
+
+/** The most recent FINISHED sitting (submitted or disqualified) of this student for this exam, if any. */
+async function findSubmittedSession(examId, studentEmail, rollNumber) {
+    let res = null;
+    if (rollNumber) {
+        res = await pool.query(
+            'SELECT * FROM public.exam_sessions WHERE exam_id = $1 AND roll_number = $2 AND submitted = true ORDER BY id DESC LIMIT 1',
+            [String(examId), rollNumber]
+        );
+    } else if (studentEmail) {
+        res = await pool.query(
+            'SELECT * FROM public.exam_sessions WHERE exam_id = $1 AND student_email = $2 AND submitted = true ORDER BY id DESC LIMIT 1',
+            [String(examId), studentEmail]
+        );
+    }
+    if (res && res.rows[0]) {
+        const r = res.rows[0];
+        return { ...r, _id: String(r.id), answers: r.answers || [] };
+    }
+    return null;
+}
+
+async function deleteSession(id) {
+    const res = await pool.query('DELETE FROM public.exam_sessions WHERE id::text = $1', [String(id).replace(/^sess_/, '')]);
+    return res.rowCount > 0;
 }
 
 async function getSessionById(id) {
@@ -1011,6 +1049,8 @@ module.exports = {
     // Sessions & Bridge
     createSession,
     findActiveSession,
+    findSubmittedSession,
+    deleteSession,
     getSessionById,
     updateSession,
     getSessionsByExam,

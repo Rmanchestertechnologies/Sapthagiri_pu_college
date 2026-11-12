@@ -44,6 +44,13 @@ function shuffle(arr, rng) {
 
 const qId = q => String(q._id || q.id || q.questionId || '');
 
+const optionNonEmpty = o => String(typeof o === 'object' && o ? (o.text || o.value || o.optionText || '') : (o ?? '')).trim().length > 0;
+/** A question can only be printed or answered as a multiple-choice item when it has at least two options. */
+function hasUsableOptions(q) {
+    if (Array.isArray(q.options) && q.options.filter(optionNonEmpty).length >= 2) return true;
+    return [q.opt_a, q.opt_b, q.opt_c, q.opt_d].filter(optionNonEmpty).length >= 2;
+}
+
 /**
  * Category of a question. Mirrors getQCategory in
  * client/src/pages/teacher/CommissionedExam.jsx - keep the two in sync.
@@ -144,6 +151,7 @@ function assembleByQuotas({
     // ---- Build de-duplicated, shuffled buckets per chapter -------------------
     const prefSet = new Set((preferredConcepts || []).map(c => String(c).toLowerCase()));
     const seenIds = new Set();
+    let skippedWithoutOptions = 0;
     const buckets = {};
     const poolSize = {};
     for (const { chapter } of quotas) {
@@ -153,6 +161,9 @@ function assembleByQuotas({
         for (const q of (chapterPools[chapter] || [])) {
             const id = qId(q);
             if (!id || seenIds.has(id)) continue; // same question listed under two chapters is used once
+            // Bank records typed NUMERICAL/other but without options used to be relabelled MCQ for NEET/KCET papers, which
+            // printed an unanswerable question and a key such as "RADIATION". Only JEE numerical questions may lack options.
+            if (!(isJee && getQuestionCategory(q, true) === 'numerical') && !hasUsableOptions(q)) { skippedWithoutOptions++; continue; }
             seenIds.add(id);
             unique.push(q);
         }
@@ -282,6 +293,10 @@ function assembleByQuotas({
         warnings.push(`Difficulty mix differs from the request (requested: ${fmt(levelTargets)}; delivered: ${fmt(levelPicked)}) because the selected chapters do not hold enough questions at every level.`);
     }
 
+    if (skippedWithoutOptions > 0) {
+        warnings.push(`${skippedWithoutOptions} bank question(s) without answer options were left out (they cannot be printed or answered as multiple-choice).`);
+    }
+
     const questions = quotas.flatMap(({ chapter }) => picked[chapter]);
 
     return {
@@ -292,11 +307,13 @@ function assembleByQuotas({
         distributionReport: chapterReport,
         typeReport,
         difficultyReport,
+        skippedWithoutOptions,
         warnings
     };
 }
 
 module.exports = {
+    hasUsableOptions,
     CATEGORY_KEYS,
     LEVEL_KEYS,
     createRng,

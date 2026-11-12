@@ -7,6 +7,7 @@ const mongoose = require('mongoose');
 const User = require('../models/User');
 const { loginLimiter } = require('../middleware/rateLimiter');
 const { loginThrottle } = require('../middleware/loginThrottle');
+const { OMR_ACCESS_SQL } = require('../config/userColumns');
 const auth = require('../middleware/auth');
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -217,7 +218,7 @@ router.get('/me', auth, async (req, res) => {
         // Try PostgreSQL first
         try {
             const pool = require('../config/postgres');
-            const pgRes = await pool.query('SELECT id, name, email, role, subject, omr_access FROM public.users WHERE id::text = $1', [id.toString()]);
+            const pgRes = await pool.query(`SELECT id, name, email, role, subject, ${OMR_ACCESS_SQL} AS omr_access FROM public.users u WHERE id::text = $1`, [id.toString()]);
             if (pgRes.rows.length > 0) {
                 const u = pgRes.rows[0];
                 return res.json({

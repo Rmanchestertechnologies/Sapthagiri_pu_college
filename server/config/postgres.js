@@ -15,8 +15,10 @@ if (!DATABASE_URL) {
 const pool = new Pool({
     connectionString: DATABASE_URL,
     ssl: buildSsl(),
-    max: 20,
-    idleTimeoutMillis: 30000,
+    // DB_POOL_MAX lets a local single-connection test database be used (default 20)
+    max: Number(process.env.DB_POOL_MAX) > 0 ? Number(process.env.DB_POOL_MAX) : 20,
+    // DB_POOL_IDLE_MS=0 keeps connections open (needed by a single-connection local test database)
+    idleTimeoutMillis: process.env.DB_POOL_IDLE_MS !== undefined && process.env.DB_POOL_IDLE_MS !== '' && Number(process.env.DB_POOL_IDLE_MS) >= 0 ? Number(process.env.DB_POOL_IDLE_MS) : 30000,
     connectionTimeoutMillis: 10000,
 });
 

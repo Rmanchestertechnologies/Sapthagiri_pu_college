@@ -8,7 +8,8 @@
  * Only the number of accounts and their e-mail addresses are printed; passwords never are.
  */
 const path = require('path');
-require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
+// ENV_FILE selects another environment file (e.g. a throwaway local test database) instead of server/.env
+require('dotenv').config({ path: process.env.ENV_FILE || path.resolve(__dirname, '../.env') });
 const bcrypt = require('bcryptjs');
 const pool = require('../config/postgres');
 

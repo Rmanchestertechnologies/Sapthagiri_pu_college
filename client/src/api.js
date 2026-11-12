@@ -63,9 +63,13 @@ api.interceptors.response.use(
             if (Array.isArray(response.data)) {
                 response.data = response.data.filter(q => !isCetQuestion(q));
             } else if (response.data && Array.isArray(response.data.questions)) {
+                const before = response.data.questions.length;
                 response.data.questions = response.data.questions.filter(q => !isCetQuestion(q));
-                if (response.data.pagination) {
-                    response.data.pagination.total = response.data.questions.length;
+                const removed = before - response.data.questions.length;
+                // Only subtract what was removed. The total used to be replaced by the size of the CURRENT PAGE, so the
+                // question bank showed "Total Questions: 50" for a bank of 13,897.
+                if (response.data.pagination && removed > 0 && Number.isFinite(response.data.pagination.total)) {
+                    response.data.pagination.total = Math.max(0, response.data.pagination.total - removed);
                 }
             }
         }

@@ -20,7 +20,7 @@ const connectDB = require('./config/db');
 // ── Security Middleware
 const helmet = require('helmet');
 const mongoSanitize = require('./middleware/mongoSanitize');
-const { apiLimiter } = require('./middleware/rateLimiter');
+const { apiLimiter, examLimiter } = require('./middleware/rateLimiter');
 const errorHandler = require('./middleware/errorHandler');
 const { parseAllowedOrigins, isOriginAllowed } = require('./services/accessRules');
 
@@ -41,7 +41,9 @@ const omrRoutes = require('./routes/omr.js');
 dotenv.config();
 
 const app = express();
-app.set('trust proxy', 1);
+// Number of reverse proxies in front of the API (Render's load balancer = 1). Used for req.ip, the lab-network check and
+// rate limiting; set TRUST_PROXY_HOPS if another proxy (CDN) is added.
+app.set('trust proxy', Number(process.env.TRUST_PROXY_HOPS) >= 0 && process.env.TRUST_PROXY_HOPS !== undefined && process.env.TRUST_PROXY_HOPS !== '' ? Number(process.env.TRUST_PROXY_HOPS) : 1);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SECURITY: Helmet — HTTP security headers
@@ -66,7 +68,11 @@ app.use(cors({
         callback(null, isOriginAllowed(origin, allowedOrigins));
     },
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'x-auth-token', 'Origin', 'Accept'],
+    // x-session-token carries the exam-session token. It was missing here, so from a browser on another origin (the real
+    // deployment: the SPA on one host, the API on another) every autosave, submit and scorecard request failed the
+    // CORS preflight. The exposed headers let the SPA read the question total, download file names and Retry-After.
+    allowedHeaders: ['Content-Type', 'Authorization', 'x-auth-token', 'x-session-token', 'Origin', 'Accept'],
+    exposedHeaders: ['X-Total-Count', 'X-Total-Pages', 'Content-Disposition', 'Retry-After'],
     credentials: true,
     optionsSuccessStatus: 200
 }));
@@ -127,7 +133,8 @@ app.get('/api/health', (req, res) => {
 // API Routes
 // ─────────────────────────────────────────────────────────────────────────────
 app.use('/api/auth', authRoutes);
-app.use('/api/', apiLimiter); // General rate limiting excludes auth
+app.use('/api/', apiLimiter);  // general budget per address (student exam traffic is excluded)
+app.use('/api/', examLimiter); // student exam traffic: per session, or a lab-sized budget per address
 app.use('/api/admin', adminRoutes);
 app.use('/api/questions', questionRoutes);
 app.use('/api/papers', paperRoutes);

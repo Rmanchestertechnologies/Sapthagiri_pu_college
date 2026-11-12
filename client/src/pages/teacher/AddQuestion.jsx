@@ -763,8 +763,9 @@ const AddQuestion = () => {
                             ) : q.type === 'STATEMENT_BASED' ? (
                                 <div className="space-y-2 mt-2 text-base text-gray-900 font-medium">
                                     <MathRenderer text={q.questionText} />
-                                    {q.statements.map((stmt, idx) => (
-                                        <p key={idx}><strong>Statement {idx+1}:</strong> <MathRenderer inline={true} text={stmt} /></p>
+                                    {/* statements may be missing, plain strings, or { label, text } objects (the question bank returns the latter) */}
+                                    {(Array.isArray(q.statements) ? q.statements : []).map((stmt, idx) => (
+                                        <p key={idx}><strong>{(stmt && stmt.label) || `Statement ${idx + 1}:`}</strong> <MathRenderer inline={true} text={typeof stmt === 'object' && stmt ? (stmt.text || '') : String(stmt ?? '')} /></p>
                                     ))}
                                 </div>
                             ) : q.type === 'MATCH_FOLLOWING' ? (
@@ -801,7 +802,7 @@ const AddQuestion = () => {
                             
                             {(q.type === 'MCQ' || q.type === 'DIAGRAM_BASED' || q.type === 'ASSERTION_REASON' || q.type === 'STATEMENT_BASED' || q.type === 'MATCH_FOLLOWING') && q.options && q.options.length > 0 && (
                                 <div className="mt-4 grid grid-cols-2 gap-2 text-sm text-gray-700 bg-gray-50 p-3 rounded border border-gray-100">
-                                    {q.options.map((opt, idx) => (
+                                    {(Array.isArray(q.options) ? q.options : []).map((opt, idx) => (
                                         <div key={idx} className="flex"><strong className="mr-1">{optionLabel(idx, q.classes)})</strong> <MathRenderer inline={true} text={opt} /></div>
                                     ))}
                                 </div>

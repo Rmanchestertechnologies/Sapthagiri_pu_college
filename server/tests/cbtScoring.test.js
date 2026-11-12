@@ -64,6 +64,26 @@ describe('isAnswerCorrect - option questions', () => {
     });
 });
 
+describe('isAnswerCorrect - question-bank shaped questions', () => {
+    // mapSupabaseToQuestion sets answer = the option TEXT and correct_option = the option LETTER
+    const bank = (over = {}) => ({ type: 'MCQ', options: ['10 m/s', '20 m/s', '20 m/s', '40 m/s'], answer: '20 m/s', correct_option: 'C', ...over });
+
+    test('REGRESSION: the letter decides, so a duplicated option text cannot be matched to the wrong option', () => {
+        expect(cbt.isAnswerCorrect(bank(), 'C')).toBe(true);
+        expect(cbt.isAnswerCorrect(bank(), 'B')).toBe(false); // same text as C, but the key says C
+    });
+    test('digit letters and missing correct_option fall back to answer', () => {
+        expect(cbt.isAnswerCorrect(bank({ correct_option: '4', answer: '40 m/s' }), 'D')).toBe(true);
+        expect(cbt.isAnswerCorrect(bank({ correct_option: '', answer: 'A' }), 'A')).toBe(true);
+        expect(cbt.isAnswerCorrect(bank({ correct_option: undefined, answer: '10 m/s' }), 'A')).toBe(true);
+    });
+    test('numerical bank questions use num_answer first', () => {
+        const n = { type: 'NUMERICAL', options: [], answer: '12', correct_option: '12', num_answer: '12' };
+        expect(cbt.isAnswerCorrect(n, '12')).toBe(true);
+        expect(cbt.isAnswerCorrect(n, '21')).toBe(false);
+    });
+});
+
 describe('isAnswerCorrect - numerical questions', () => {
     test('numeric equality including decimals and negative values', () => {
         expect(cbt.isAnswerCorrect(numerical('n', '12'), '12')).toBe(true);
@@ -131,6 +151,26 @@ describe('scoreExam', () => {
     test('questions without ids fall back to their position', () => {
         const e = { examType: 'CET', questions: [{ options: ['a', 'b'], answer: 'A' }, { options: ['a', 'b'], answer: 'B' }] };
         expect(cbt.scoreExam(e, [ans('0', 'A'), ans('1', 'B')]).score).toBe(2);
+    });
+});
+
+describe('scoreExam - section marking rules', () => {
+    const e = {
+        examType: 'NEET',
+        sections: [
+            { sectionName: 'Physics - Section A', markingRules: { correct: 4, incorrect: -1, unattempted: 0 } },
+            { sectionName: 'Maths - Section A', markingRules: { correct: 2, incorrect: 0, unattempted: 0 } },
+        ],
+        questions: [mcq('p1', 'A', { sectionName: 'Physics - Section A' }), mcq('m1', 'A', { sectionName: 'Maths - Section A' }), mcq('m2', 'A', { sectionName: 'Maths - Section A' }), mcq('x1', 'A')],
+    };
+    test('REGRESSION: a section rule overrides the exam-type rule (merged exams used to ignore it)', () => {
+        const r = cbt.scoreExam(e, [ans('p1', 'A'), ans('m1', 'A'), ans('m2', 'B'), ans('x1', 'B')]);
+        // p1 +4, m1 +2, m2 wrong 0 (maths has no negative marking), x1 has no section -> exam-type rule -1
+        expect(r.score).toBe(4 + 2 + 0 - 1);
+    });
+    test('malformed rules fall back to the exam-type rule', () => {
+        const bad = { ...e, sections: [{ sectionName: 'Physics - Section A', markingRules: { correct: 'x' } }] };
+        expect(cbt.scoreExam(bad, [ans('p1', 'A')]).score).toBe(4);
     });
 });
 

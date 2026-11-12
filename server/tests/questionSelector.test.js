@@ -233,6 +233,36 @@ describe('assembleByQuotas - determinism', () => {
     });
 });
 
+describe('assembleByQuotas - questions without options', () => {
+    const noOpts = (ch, n, over = {}) => pool(ch, n, { options: [], type: 'NUMERICAL', answer: 'hydrogen', correct_option: 'hydrogen', ...over });
+
+    test('REGRESSION: NEET/KCET papers never receive option-less questions (they printed as unanswerable items with a text key)', () => {
+        const r = assembleByQuotas({ chapterPools: { A: [...noOpts('A', 10), ...pool('A', 12)] }, chapterQuotas: { A: 10 }, isJee: false });
+        expect(r.total).toBe(10);
+        expect(r.questions.every(q => q.options.length === 4)).toBe(true);
+        expect(r.skippedWithoutOptions).toBe(10);
+        expect(r.warnings.some(w => /without answer options/.test(w))).toBe(true);
+    });
+
+    test('a chapter with only option-less questions is reported as a shortfall, not filled with them', () => {
+        const r = assembleByQuotas({ chapterPools: { A: noOpts('A', 10) }, chapterQuotas: { A: 5 }, isJee: false });
+        expect(r.total).toBe(0);
+        expect(r.complete).toBe(false);
+    });
+
+    test('JEE numerical questions without options are still allowed', () => {
+        const nums = pool('A', 6, { type: 'NUMERICAL', options: [], num_answer: '4' });
+        const r = assembleByQuotas({ chapterPools: { A: [...nums, ...pool('A', 10)] }, chapterQuotas: { A: 8 }, typeAllocations: { mcq: 5, numerical: 3 }, isJee: true });
+        expect(r.typeReport.numerical.delivered).toBe(3);
+        expect(r.skippedWithoutOptions).toBe(0);
+    });
+
+    test('options given as opt_a..opt_d fields count', () => {
+        const q = { _id: 'x1', chapter: 'A', opt_a: 'a', opt_b: 'b', opt_c: 'c', opt_d: 'd', options: [] };
+        expect(assembleByQuotas({ chapterPools: { A: [q] }, chapterQuotas: { A: 1 } }).total).toBe(1);
+    });
+});
+
 describe('getQuestionCategory', () => {
     test('classifies by type and by text pattern', () => {
         expect(getQuestionCategory({ type: 'MCQ', questionText: 'x', options: ['a'] })).toBe('mcq');

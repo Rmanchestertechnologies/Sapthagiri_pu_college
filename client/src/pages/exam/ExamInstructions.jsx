@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../../api';
 
@@ -8,7 +8,13 @@ export default function ExamInstructions() {
     const [exam, setExam] = useState(null);
     const [agreed, setAgreed] = useState(false);
     const [loading, setLoading] = useState(true);
-    const studentInfo = JSON.parse(localStorage.getItem('student_info') || '{}');
+    // Parsed once (see ExamEngine). It used to be parsed on every render, so `studentInfo` was a new object each time and the effect below
+    // (which depends on it) ran again on every render: with the countdown re-rendering every second, each terminal sent
+    // /take and /start about three times a second for the whole exam, reset its own state each time, and a lab quickly hit
+    // the rate limit ("Access Denied" and back to the portal).
+    const studentInfo = useMemo(() => {
+        try { return JSON.parse(localStorage.getItem('student_info') || '{}') || {}; } catch { return {}; }
+    }, []);
 
     const [timeLeftToStart, setTimeLeftToStart] = useState(null); // seconds until start
 

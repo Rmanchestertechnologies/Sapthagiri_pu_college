@@ -149,7 +149,8 @@ function sectionKeyOf(q) {
 function buildSeriesKey(paper, questions, series = 'P') {
     const set = String(series || 'P').toUpperCase();
     const list = Array.isArray(questions) ? questions : [];
-    const paperId = paper?._id || paper?.id || 'qp-default';
+    // same precedence as client/src/utils/pqrsGenerator.js
+    const paperId = paper?.pqrsSeed || paper?.metadata?.pqrsSeed || paper?._id || paper?.id || 'qp-default';
     const random = createSeededRandom(`${paperId}-${set}`);
 
     // group by section, keeping first-seen order

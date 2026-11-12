@@ -81,4 +81,11 @@ const requireLabNetworkIfConfigured = (req, res, next) => {
     return res.status(403).json({ msg: 'Exams can only be started from the lab network.', yourIp: req.clientIp });
 };
 
-module.exports = { issueSessionToken, requireSessionAccess, requireLabNetworkIfConfigured, TYPE };
+/** True when the request carries a valid admin/teacher login (they may open draft exams to preview them). */
+function isStaffRequest(req) {
+    const t = readStaffToken(req);
+    const p = t && verify(t);
+    return Boolean(p && ['admin', 'teacher'].includes(p.role));
+}
+
+module.exports = { isStaffRequest, issueSessionToken, requireSessionAccess, requireLabNetworkIfConfigured, TYPE };

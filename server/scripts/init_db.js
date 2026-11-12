@@ -1,5 +1,6 @@
 const path = require('path');
-require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
+// ENV_FILE selects another environment file (e.g. a throwaway local test database) instead of server/.env
+require('dotenv').config({ path: process.env.ENV_FILE || path.resolve(__dirname, '../.env') });
 const { Pool } = require('pg');
 const bcrypt = require('bcryptjs');
 const { buildSsl } = require('../config/dbSsl');
@@ -11,19 +12,18 @@ const directUrl = process.env.DIRECT_DATABASE_URL;
 
 async function init() {
     if (!poolerUrl && !directUrl) throw new Error('Set DATABASE_URL (and optionally DIRECT_DATABASE_URL) in server/.env first.');
-    console.log('Connecting to Supabase PostgreSQL...');
-    let pool;
-    try {
-        pool = new Pool({ connectionString: poolerUrl, ssl: buildSsl() });
-        await pool.query('SELECT 1');
-        console.log('✅ Connected via DATABASE_URL');
-    } catch (e) {
-        if (!directUrl) throw e;
-        console.log('DATABASE_URL attempt failed, trying DIRECT_DATABASE_URL...');
-        pool = new Pool({ connectionString: directUrl, ssl: buildSsl() });
-        await pool.query('SELECT 1');
-        console.log('✅ Connected via DIRECT_DATABASE_URL');
-    }
+    const target = (u) => { try { const x = new URL(u); return `${x.hostname}:${x.port || 5432}`; } catch { return '(unparseable)'; } };
+    const max = Number(process.env.DB_POOL_MAX) > 0 ? Number(process.env.DB_POOL_MAX) : 10;
+    // The script connects to DATABASE_URL, or to DIRECT_DATABASE_URL when run with --direct. It used to fall back to
+    // the other URL on ANY failure, so a failed connection to a test database silently ran the schema script against
+    // the production one.
+    const useDirect = process.argv.includes('--direct');
+    const url = useDirect ? directUrl : poolerUrl;
+    if (!url) throw new Error(useDirect ? 'DIRECT_DATABASE_URL is not set.' : 'DATABASE_URL is not set.');
+    console.log(`Connecting to ${target(url)} (${useDirect ? 'DIRECT_DATABASE_URL' : 'DATABASE_URL'})...`);
+    const pool = new Pool({ connectionString: url, ssl: buildSsl(), max });
+    await pool.query('SELECT 1');
+    console.log('✅ Connected');
 
     // 1. Users Table
     await pool.query(`
@@ -277,6 +277,19 @@ async function init() {
         ALTER TABLE public.papers ADD COLUMN IF NOT EXISTS classes JSONB DEFAULT '["12"]'::jsonb;
     `);
     console.log('✅ Ensured papers columns');
+
+    // Columns the application uses that the CREATE TABLE statements above did not include. They exist in the production
+    // database (checked against it, names and types) but a database built from this script lacked them, so saving a
+    // paper, toggling exam visibility and the lab student lookup all failed on a fresh install.
+    await pool.query(`
+        ALTER TABLE public.users ADD COLUMN IF NOT EXISTS omr_access BOOLEAN DEFAULT FALSE;
+        ALTER TABLE public.papers ADD COLUMN IF NOT EXISTS sections JSONB DEFAULT '[]'::jsonb;
+        ALTER TABLE public.online_exams ADD COLUMN IF NOT EXISTS is_online_visible BOOLEAN DEFAULT TRUE;
+        ALTER TABLE public.students ADD COLUMN IF NOT EXISTS enrollment_no VARCHAR(100);
+        ALTER TABLE public.students ADD COLUMN IF NOT EXISTS sats_no VARCHAR(100);
+        ALTER TABLE public.students ADD COLUMN IF NOT EXISTS class_level VARCHAR(50) DEFAULT 'II-PUC';
+    `);
+    console.log('✅ Ensured application columns (papers.sections, online_exams.is_online_visible, students.*)');
 
     // Seed accounts. Passwords come from the environment, and EXISTING accounts are never modified: this
     // script used to reset the admin and all five faculty passwords to a fixed default every time it ran.

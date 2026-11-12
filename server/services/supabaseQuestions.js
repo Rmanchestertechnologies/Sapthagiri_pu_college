@@ -691,31 +691,32 @@ function buildQueryFilters(filters) {
         if (filters.chapter) {
             const rawChapters = parseChapterList(filters.chapter);
             const canonicalList = rawChapters.map(canonicalizeChapter).filter(ch => allowedBotanyChapters.includes(ch));
-            const chaptersToUse = canonicalList.length > 0 ? canonicalList : allowedBotanyChapters;
-            whereClauses.push(`q.chapter = ANY($${paramIndex++}::text[])`);
-            values.push(chaptersToUse);
+            // none of the requested chapters is a Botany chapter: match nothing (it used to widen to the whole Botany syllabus)
+            const chaptersToUse = canonicalList.length > 0 ? canonicalList : ['__no_such_chapter__'];
+            whereClauses.push(`lower(q.chapter) = ANY($${paramIndex++}::text[])`); // spelling variants of one chapter differ only in case
+            values.push((chaptersToUse).map(c => String(c).toLowerCase()));
         } else {
-            whereClauses.push(`q.chapter = ANY($${paramIndex++}::text[])`);
-            values.push(allowedBotanyChapters);
+            whereClauses.push(`lower(q.chapter) = ANY($${paramIndex++}::text[])`); // spelling variants of one chapter differ only in case
+            values.push((allowedBotanyChapters).map(c => String(c).toLowerCase()));
         }
     } else if (normSub === 'Zoology') {
         if (filters.chapter) {
             const rawChapters = parseChapterList(filters.chapter);
             const canonicalList = rawChapters.map(canonicalizeChapter).filter(ch => allowedZoologyChapters.includes(ch));
-            const chaptersToUse = canonicalList.length > 0 ? canonicalList : allowedZoologyChapters;
-            whereClauses.push(`q.chapter = ANY($${paramIndex++}::text[])`);
-            values.push(chaptersToUse);
+            const chaptersToUse = canonicalList.length > 0 ? canonicalList : ['__no_such_chapter__'];
+            whereClauses.push(`lower(q.chapter) = ANY($${paramIndex++}::text[])`); // spelling variants of one chapter differ only in case
+            values.push((chaptersToUse).map(c => String(c).toLowerCase()));
         } else {
-            whereClauses.push(`q.chapter = ANY($${paramIndex++}::text[])`);
-            values.push(allowedZoologyChapters);
+            whereClauses.push(`lower(q.chapter) = ANY($${paramIndex++}::text[])`); // spelling variants of one chapter differ only in case
+            values.push((allowedZoologyChapters).map(c => String(c).toLowerCase()));
         }
     } else if (filters.chapter) {
         // Standard chapter filter for Physics, Chemistry, Maths, Biology
         const chapters = parseChapterList(filters.chapter);
         const canonicalList = chapters.map(canonicalizeChapter);
         if (canonicalList.length > 0) {
-            whereClauses.push(`q.chapter = ANY($${paramIndex++}::text[])`);
-            values.push(canonicalList);
+            whereClauses.push(`lower(q.chapter) = ANY($${paramIndex++}::text[])`); // spelling variants of one chapter differ only in case
+            values.push((canonicalList).map(c => String(c).toLowerCase()));
         }
     }
 
@@ -844,7 +845,9 @@ async function getQuestions(filters = {}, page = 1, limit = 50) {
     // If a chapter filter is provided, query all class pools for that subject so chapters from any class level are never missed
     // strictClass keeps the query inside the requested class database. Quota-based generation uses it
     // so a Class 12 paper can never draw from a Class 11 database, and vice versa.
-    const effectiveClasses = (filters.chapter && !filters.strictClass) ? 'Both' : filters.classes;
+    // A class that was asked for is honoured (the chapter filter used to widen every request to both class databases, so a
+    // Class 11 paper could receive Class 12 questions). Only a request with a chapter and NO class searches both.
+    const effectiveClasses = filters.classes ? filters.classes : (filters.chapter ? 'Both' : filters.classes);
     const targetPoolEntries = getPoolsForQuery(filters.subject, effectiveClasses);
     const { whereClauses, values } = buildQueryFilters(filters);
     const whereSql = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';

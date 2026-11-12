@@ -529,7 +529,17 @@ function canonicalizeChapter(name) {
             return ch;
         }
     }
-    return clean;
+    return tidyChapterName(clean);
+}
+
+// The question banks hold the same chapter under spellings that differ only in spacing or in the capital letter of a
+// connecting word ("Ray Optics And Optical Instruments" / "Ray Optics and Optical Instruments"), so teachers were
+// offered both as separate chapters. Connecting words are lower-cased (except at the start) so they collapse into one.
+const CHAPTER_SMALL_WORDS = new Set(['and', 'of', 'the', 'in', 'to', 'for', 'on', 'at', 'by', 'or', 'a', 'an']);
+function tidyChapterName(name) {
+    return String(name || '').replace(/\s+/g, ' ').trim().split(' ')
+        .map((w, i) => (i > 0 && CHAPTER_SMALL_WORDS.has(w.toLowerCase()) ? w.toLowerCase() : w))
+        .join(' ');
 }
 
 function normalizeSubject(sub) {
@@ -649,6 +659,7 @@ module.exports = {
     ZOOLOGY_CHAPTERS,
     BIOLOGY_SYLLABUS,
     canonicalizeChapter,
+    tidyChapterName,
     normalizeSubject,
     normalizeClass,
     getPoolForTarget,

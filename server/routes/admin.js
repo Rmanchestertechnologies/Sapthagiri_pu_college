@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const { OMR_ACCESS_SQL, UNDEFINED_COLUMN } = require('../config/userColumns');
 const bcrypt = require('bcryptjs');
 const mongoose = require('mongoose');
 const User = require('../models/User');
@@ -111,8 +112,8 @@ router.get('/teachers', [auth, checkRole(['admin'])], async (req, res) => {
         // 1. Fetch from PostgreSQL (Primary)
         try {
             const pgRes = await pool.query(`
-                SELECT id, name, email, role, subject, omr_access, created_at
-                FROM public.users
+                SELECT id, name, email, role, subject, ${OMR_ACCESS_SQL} AS omr_access, created_at
+                FROM public.users u
                 WHERE role = 'teacher'
                 ORDER BY created_at DESC
             `);
@@ -293,7 +294,7 @@ router.patch('/teachers/:id/omr-access', [auth, checkRole(['admin'])], async (re
         try {
             // If enabled wasn't provided, toggle existing state
             if (typeof enabled !== 'boolean') {
-                const cur = await pool.query('SELECT omr_access FROM public.users WHERE id::text = $1', [teacherId.toString()]);
+                const cur = await pool.query(`SELECT ${OMR_ACCESS_SQL} AS omr_access FROM public.users u WHERE id::text = $1`, [teacherId.toString()]);
                 if (cur.rows.length > 0) {
                     isEnabled = !cur.rows[0].omr_access;
                 }
@@ -311,6 +312,9 @@ router.patch('/teachers/:id/omr-access', [auth, checkRole(['admin'])], async (re
             }
         } catch (pgErr) {
             console.error('[ADMIN] PostgreSQL OMR access update error:', pgErr.message);
+            if (pgErr.code === UNDEFINED_COLUMN) {
+                return res.status(409).json({ msg: 'OMR access cannot be saved yet: the database needs migration 002 (adds users.omr_access). Run: node scripts/migrate.js --apply' });
+            }
         }
 
         // 2. Non-blocking MongoDB sync

@@ -45,16 +45,20 @@ export default function Scorecard() {
             .trim();
     };
 
+    // CET / KCET score +1 / 0, every other pattern +4 / -1 (same rule as the server, services/cbtScoring.js)
+    const isCetExam = /CET/i.test(String(data?.examType || ''));
+    const rightBadge = isCetExam ? 'CORRECT (+1)' : 'CORRECT (+4)';
+    const wrongBadge = isCetExam ? 'WRONG (0)' : 'WRONG (-1)';
     const evalQuestionStatus = (q, answerKeyHidden) => {
         const attempted = q.selectedOption !== null && q.selectedOption !== '' && q.selectedOption !== undefined;
         if (!attempted) return { status: 'Skipped', badge: 'SKIPPED (0)', color: [100, 116, 139] };
         if (answerKeyHidden) return { status: 'Attempted', badge: 'ATTEMPTED', color: [100, 116, 139] };
 
         if (q.isCorrect === true) {
-            return { status: 'Correct', badge: 'CORRECT (+4)', color: [16, 185, 129] };
+            return { status: 'Correct', badge: rightBadge, color: [16, 185, 129] };
         }
         if (q.isCorrect === false) {
-            return { status: 'Incorrect', badge: 'WRONG (-1)', color: [239, 68, 68] };
+            return { status: 'Incorrect', badge: wrongBadge, color: [239, 68, 68] };
         }
 
         let isCorrect = false;
@@ -86,9 +90,9 @@ export default function Scorecard() {
         }
 
         if (isCorrect) {
-            return { status: 'Correct', badge: 'CORRECT (+4)', color: [16, 185, 129] };
+            return { status: 'Correct', badge: rightBadge, color: [16, 185, 129] };
         }
-        return { status: 'Incorrect', badge: 'WRONG (-1)', color: [239, 68, 68] };
+        return { status: 'Incorrect', badge: wrongBadge, color: [239, 68, 68] };
     };
 
     useEffect(() => {
@@ -467,7 +471,7 @@ export default function Scorecard() {
                                     isWrong = !isCorrect;
                                 }
                                 return (
-                                    <div key={q._id} style={{ ...styles.reviewCard, borderLeft: `4px solid ${!attempted ? '#9ca3af' : (data.answerKeyHidden ? '#6b7280' : isCorrect ? '#10b981' : '#ef4444')}` }}>
+                                    <div key={q._id ?? q.questionId ?? i} style={{ ...styles.reviewCard, borderLeft: `4px solid ${!attempted ? '#9ca3af' : (data.answerKeyHidden ? '#6b7280' : isCorrect ? '#10b981' : '#ef4444')}` }}>
                                         <div style={styles.reviewQHeader}>
                                             <span style={styles.reviewQNum}>Q{i + 1}</span>
                                             <span style={styles.reviewSubject}>{q.subject} | {q.chapter}</span>

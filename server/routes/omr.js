@@ -9,6 +9,7 @@ const auth = require('../middleware/auth');
 const pool = require('../config/postgres');
 const Paper = require('../models/Paper');
 const supabaseQuestions = require('../services/supabaseQuestions');
+const { OMR_ACCESS_SQL } = require('../config/userColumns');
 const { buildSeriesKey, parseAnswerIndices, SERIES } = require('../services/pqrsKeys');
 const { canUseOmrPaper } = require('../services/accessRules');
 const { evaluateSheet, parseMarks } = require('../services/omrEvaluator');
@@ -58,7 +59,7 @@ async function requireOmrAccess(req, res, next) {
 
     try {
         const userId = req.user.id;
-        const pgRes = await pool.query('SELECT omr_access FROM public.users WHERE id::text = $1', [userId.toString()]);
+        const pgRes = await pool.query(`SELECT ${OMR_ACCESS_SQL} AS omr_access FROM public.users u WHERE id::text = $1`, [userId.toString()]);
         if (pgRes.rows.length > 0 && pgRes.rows[0].omr_access === true) {
             return next();
         }
@@ -271,7 +272,7 @@ router.get('/papers/:id/key', [auth, requireOmrAccess], async (req, res) => {
         const isJee = Array.isArray(paperClasses) && paperClasses.some(c => String(c).toUpperCase() === 'JEE');
 
         const questions = paperData.questions.map((q, idx) => {
-            const rawAns = q.answer || q.correctAnswer || '';
+            const rawAns = q.correct_option || q.answer || q.correctAnswer || ''; // the option letter is the authority (see cbtScoring)
             const options = Array.isArray(q.options) ? q.options : [];
             const cleanAns = resolveAnswerServer(rawAns, isJee, options);
             const indices = parseAnswerIndicesServer(rawAns, options);
@@ -350,7 +351,7 @@ router.post('/scan', [auth, requireOmrAccess, upload.array('sheets', 100)], asyn
         const isJee = Array.isArray(paperClasses) && paperClasses.some(c => String(c).toUpperCase() === 'JEE');
 
         const questions = paperData.questions.map((q, idx) => {
-            const rawAns = q.answer || q.correctAnswer || '';
+            const rawAns = q.correct_option || q.answer || q.correctAnswer || ''; // the option letter is the authority (see cbtScoring)
             const options = Array.isArray(q.options) ? q.options : [];
             const cleanAns = resolveAnswerServer(rawAns, isJee, options);
             const indices = parseAnswerIndicesServer(rawAns, options);

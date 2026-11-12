@@ -10,7 +10,8 @@
  */
 const fs = require('fs');
 const path = require('path');
-require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
+// ENV_FILE selects another environment file (e.g. a throwaway local test database) instead of server/.env
+require('dotenv').config({ path: process.env.ENV_FILE || path.resolve(__dirname, '../.env') });
 const pool = require('../config/postgres');
 
 const DIR = path.resolve(__dirname, '../migrations');
