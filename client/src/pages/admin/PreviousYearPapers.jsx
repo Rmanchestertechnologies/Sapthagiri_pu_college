@@ -110,7 +110,7 @@ const PreviousYearPapers = () => {
     };
 
     return (
-        <div className="bg-surface p-10 rounded-[2.5rem] shadow-sm border border-gray-100 animate-fade-in-up space-y-8">
+        <div className="bg-surface p-5 sm:p-10 rounded-[2.5rem] shadow-sm border border-gray-100 animate-fade-in-up space-y-8">
             <div className="flex justify-between items-center pb-6 border-b border-gray-100 flex-wrap gap-4">
                 <div>
                     <h2 className="text-3xl font-black text-navy uppercase tracking-tight mb-2">Previous Year Papers</h2>
@@ -125,7 +125,7 @@ const PreviousYearPapers = () => {
                     </button>
                     <button 
                         onClick={() => navigate(location.pathname.startsWith('/teacher') ? '/teacher/dashboard' : '/admin/dashboard')} 
-                        className="bg-white border-2 border-gray-100 text-slate/40 px-8 py-3 rounded-2xl font-black text-xs uppercase tracking-widest hover:border-navy hover:text-navy transition shadow-sm cursor-pointer"
+                        className="hidden sm:inline-block bg-white border-2 border-gray-100 text-slate/40 px-8 py-3 rounded-2xl font-black text-xs uppercase tracking-widest hover:border-navy hover:text-navy transition shadow-sm cursor-pointer"
                     >
                         ← Back
                     </button>

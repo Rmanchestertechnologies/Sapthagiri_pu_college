@@ -1798,13 +1798,13 @@ const AdminDashboard = () => {
             </div>
 
             {/* ── TOP APP BAR — SAPTHAGIRI NAVY & GOLD WITH LEFT-ALIGNED HAMBURGER MENU ── */}
-            <nav className="bg-[#081B3B] px-6 py-3.5 text-white flex justify-between items-center z-40 sticky top-0 shadow-2xl border-b-4 border-amber-500 backdrop-blur-md">
+            <nav className="bg-[#081B3B] px-3 sm:px-6 py-3 sm:py-3.5 text-white flex justify-between items-center gap-2 z-40 sticky top-0 shadow-2xl border-b-4 border-amber-500 backdrop-blur-md">
                 {/* Left Brand Area */}
-                <div className="flex items-center gap-3.5">
+                <div className="flex items-center gap-2 sm:gap-3.5 min-w-0">
                     {/* LEFT-SIDE HAMBURGER MENU BUTTON */}
                     <button
                         onClick={() => setIsSideboxOpen(true)}
-                        className="relative bg-amber-400 text-slate-950 hover:bg-amber-300 w-10 h-10 rounded-xl flex items-center justify-center font-black text-lg hover:scale-105 transition shadow-lg cursor-pointer"
+                        className="relative shrink-0 bg-amber-400 text-slate-950 hover:bg-amber-300 w-10 h-10 rounded-xl flex items-center justify-center font-black text-lg hover:scale-105 transition shadow-lg cursor-pointer"
                         title="Open Admin Dashboard Menu"
                     >
                         <span className="text-xl leading-none">☰</span>
@@ -1814,20 +1814,20 @@ const AdminDashboard = () => {
                     </button>
 
                     <div 
-                        className="flex items-center cursor-pointer hover:opacity-90 transition gap-3"
+                        className="flex items-center cursor-pointer hover:opacity-90 transition gap-2 sm:gap-3 min-w-0"
                         onClick={() => navigate('/admin/dashboard')}
                     >
-                        <div className="w-10 h-10 flex items-center justify-center shadow-lg bg-white rounded-xl p-1 border-2 border-amber-400">
+                        <div className="flex shrink-0 w-9 h-9 sm:w-10 sm:h-10 items-center justify-center shadow-lg bg-white rounded-xl p-1 border-2 border-amber-400">
                             <img src="/SapthagiriLogo.jpg" alt="Logo" className="w-full h-full object-contain rounded-lg" />
                         </div>
-                        <div>
-                            <h1 className="text-base font-black tracking-tight uppercase leading-tight text-white flex items-center gap-2">
+                        <div className="min-w-0">
+                            <h1 className="text-sm sm:text-base font-black tracking-tight uppercase leading-tight text-white flex items-center flex-wrap gap-x-2">
                                 <span>Sapthagiri PU College</span>
                                 <span className="bg-amber-500 text-slate-950 text-[9px] font-black px-2 py-0.5 rounded-md uppercase tracking-wider">
                                     Admin Portal
                                 </span>
                             </h1>
-                            <p className="text-[10px] font-bold text-amber-400 uppercase tracking-widest">
+                            <p className="text-[10px] font-bold text-amber-400 uppercase tracking-widest truncate">
                                 {getCurrentPageTitle()}
                             </p>
                         </div>
@@ -1835,25 +1835,27 @@ const AdminDashboard = () => {
                 </div>
 
                 {/* Right Navigation & Dashboard Menu Controls */}
-                <div className="flex items-center gap-2.5">
+                <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
                     {location.pathname !== '/admin/dashboard' && location.pathname !== '/admin/dashboard/' && (
                         <button
                             onClick={() => navigate('/admin/dashboard')}
-                            className="bg-white/5 border border-amber-400/30 text-amber-400 px-3.5 py-1.5 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-white/10 transition flex items-center gap-1.5 cursor-pointer mr-1"
+                            className="bg-white/5 border border-amber-400/30 text-amber-400 px-3 sm:px-3.5 py-1.5 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-white/10 transition flex items-center gap-1.5 cursor-pointer sm:mr-1"
+                            title="Back to Dashboard"
+                            aria-label="Back to Dashboard"
                         >
-                            <span>←</span> Back to Dashboard
+                            <span>←</span> <span className="hidden sm:inline">Back to Dashboard</span>
                         </button>
                     )}
 
                     {/* Admin Notification Bell */}
                     <AdminNotificationBell />
 
-                    <div className="w-px h-7 bg-amber-400/20 mx-1"></div>
+                    <div className="hidden sm:block w-px h-7 bg-amber-400/20 mx-1"></div>
 
                     {/* Logout Button */}
                     <button 
                         onClick={() => { logout(); navigate('/'); }} 
-                        className="bg-red-500/10 border border-red-500/30 text-red-500 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-red-500 hover:text-white transition-all shadow-sm cursor-pointer"
+                        className="bg-red-500/10 border border-red-500/30 text-red-500 px-2.5 sm:px-4 py-2 rounded-xl text-[11px] sm:text-xs font-black uppercase tracking-wider sm:tracking-widest hover:bg-red-500 hover:text-white transition-all shadow-sm cursor-pointer"
                         title="Sign Out"
                     >
                         Logout
@@ -1862,7 +1864,7 @@ const AdminDashboard = () => {
             </nav>
 
             {/* ── MAIN CONTENT OUTLET ── */}
-            <div className="flex-1 p-6 sm:p-10 max-w-7xl mx-auto w-full">
+            <div className="flex-1 p-4 sm:p-10 max-w-7xl mx-auto w-full min-w-0">
                 <Routes>
                     <Route path="/" element={<DashboardHome />} />
                     <Route path="create-paper" element={<CommissionedExam />} />

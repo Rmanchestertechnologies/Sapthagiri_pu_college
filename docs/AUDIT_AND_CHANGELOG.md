@@ -159,6 +159,10 @@ Question-bank data quality (read-only report, rows flagged for human review, not
 | Physics 11 | 5 320 | 327 (6.1 %) | 163 `[UNCLEAR]`, 89 duplicates, 70 duplicate options, 15 bad `correct_option` |
 | Physics 12 | 8 577 | 164 (1.9 %) | 78 duplicates, 67 duplicate options, 11 `[UNCLEAR]`, 8 without options |
 
+Fix plan (read-only, `scripts/question_bank_fix_plan.js`, list saved as `docs/data/question_bank_review_list.csv`): 6 401 proposed items, **none with an automatic fix**. For all 171 bad `correct_option` rows the `answer` text does not match exactly one option, so each needs a person. Nothing in any database was changed.
+
+Mobile layout pass (admin area, checked in a 375 px browser): the top bar overflowed (the Back-to-Dashboard button was cut off), page header cards squeezed their titles beside a second Back button, and the faculty form stayed two-column. → compact responsive top bar, icon-only Back below 640 px, responsive card padding, one-column forms, wrapping headers on Exam Management. The look (navy/gold) is unchanged. Not covered: the paper wizard and A4 preview (desktop-first by design) and the OMR screens.
+
 Rules are conservative (`services/questionQuality.js`); a flagged row is a candidate to look at, not proof of an error. The question selector already skips option-less questions for NEET/CET.
 
 Word export, checked on a generated file (16 questions: MCQ, assertion-reason, statement, match; unicode title): valid .docx, no raw LaTeX left, line breaks inside assertion/reason kept, three images embedded. Not checked: how the file looks in Microsoft Word itself (no Word on this machine), and match-the-following questions whose source text is a garbled markdown table still produce wrong column items (a data-format problem in the bank, e.g. a sub-heading read as a row).

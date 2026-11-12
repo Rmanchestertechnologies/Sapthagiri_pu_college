@@ -81,21 +81,21 @@ const CreateTeacher = () => {
     return (
         <div className="animate-fade-in-up max-w-4xl mx-auto space-y-10 px-4 py-8">
             {/* Header */}
-            <div className="bg-surface p-10 rounded-[2.5rem] shadow-sm border border-gray-100 border-l-8 border-navy flex justify-between items-center">
+            <div className="bg-surface p-5 sm:p-10 rounded-[2.5rem] shadow-sm border border-gray-100 border-l-8 border-navy flex justify-between items-center">
                 <div>
                     <h3 className="font-black text-2xl text-navy mb-2 uppercase tracking-tight">Faculty Onboarding</h3>
                     <p className="text-[10px] font-black text-slate/40 uppercase tracking-[0.2em] ml-1">Academic Staff Credential Management</p>
                 </div>
-                <button onClick={() => navigate('/admin/dashboard')} className="bg-white border-2 border-gray-100 text-slate/40 px-8 py-3 rounded-2xl font-black text-xs uppercase tracking-widest hover:border-navy hover:text-navy transition shadow-sm">← Back</button>
+                <button onClick={() => navigate('/admin/dashboard')} className="hidden sm:inline-block bg-white border-2 border-gray-100 text-slate/40 px-8 py-3 rounded-2xl font-black text-xs uppercase tracking-widest hover:border-navy hover:text-navy transition shadow-sm">← Back</button>
             </div>
 
             {/* Create Teacher Form */}
-            <div className="bg-white p-12 rounded-[3rem] shadow-xl border border-gray-100">
+            <div className="bg-white p-5 sm:p-12 rounded-[3rem] shadow-xl border border-gray-100">
                 <h3 className="text-sm font-black mb-10 text-navy uppercase tracking-[0.2em] flex items-center gap-4">
                     <span className="bg-gold text-navy w-10 h-10 rounded-2xl flex items-center justify-center text-xl shadow-lg rotate-3">+</span>
                     New Faculty Credentials
                 </h3>
-                <form onSubmit={handleCreateSubmit} className="grid grid-cols-2 gap-8">
+                <form onSubmit={handleCreateSubmit} className="grid grid-cols-1 sm:grid-cols-2 gap-5 sm:gap-8">
                     <div className="col-span-2 md:col-span-1">
                         <label className="block text-[10px] font-black text-navy/40 uppercase tracking-widest mb-3 ml-1">Full Identity</label>
                         <input type="text" placeholder="e.g. Prof. Arvind Kumar" required value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} className="w-full border-2 border-gray-100 p-4 rounded-2xl focus:border-navy bg-white font-bold text-navy outline-none transition-all shadow-sm" />

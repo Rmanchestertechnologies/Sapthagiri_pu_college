@@ -1269,7 +1269,7 @@ export default function ExamManagement() {
 
 const styles = {
     container: { padding: '24px', fontFamily: 'Inter, sans-serif', maxWidth: 1100, margin: '0 auto' },
-    header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 },
+    header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16, marginBottom: 24 },
     title: { fontSize: 24, fontWeight: 700, color: '#1e293b', margin: 0 },
     primaryBtn: { background: '#4f46e5', color: '#fff', border: 'none', borderRadius: 8, padding: '10px 20px', cursor: 'pointer', fontWeight: 600, fontSize: 14 },
     cancelBtn: { background: '#e5e7eb', color: '#374151', border: 'none', borderRadius: 8, padding: '10px 20px', cursor: 'pointer', fontWeight: 600 },

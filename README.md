@@ -259,7 +259,7 @@ used by OMR scanning) are written but **not applied to production**. Back up fir
 ## 10. Tests
 
 ```bash
-npm --prefix server run test:unit   # 136 tests: question selection, CBT scoring, OMR evaluation, access rules, login and lockout, session tokens, rate limiter, CORS, math rendering, exam merge, Word export, download headers, bank quality rules
+npm --prefix server run test:unit   # 140 tests: question selection, CBT scoring, OMR evaluation, access rules, login and lockout, session tokens, rate limiter, CORS, math rendering, exam merge, Word export, download headers, bank quality rules
 npm --prefix client test            # 26 tests: P/Q/R/S generator, answer key numbering, server/browser parity
 npm --prefix server test            # integration suite; connects to the databases in .env
 npm --prefix client run build       # production build check

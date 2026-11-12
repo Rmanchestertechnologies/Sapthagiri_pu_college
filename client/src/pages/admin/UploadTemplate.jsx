@@ -90,12 +90,12 @@ const UploadTemplate = () => {
     return (
         <div className="animate-fade-in-up max-w-5xl mx-auto space-y-10 px-4 py-8 font-sans">
             {/* Header */}
-            <div className="bg-surface p-10 rounded-[2.5rem] shadow-sm border border-gray-100 border-l-8 border-navy flex justify-between items-center">
+            <div className="bg-surface p-5 sm:p-10 rounded-[2.5rem] shadow-sm border border-gray-100 border-l-8 border-navy flex justify-between items-center">
                 <div>
                     <h3 className="font-black text-2xl text-navy mb-2 uppercase tracking-tight">Template Management</h3>
                     <p className="text-[10px] font-black text-slate/40 uppercase tracking-[0.2em] ml-1">Upload & Manage Institutional Templates</p>
                 </div>
-                <button onClick={() => navigate('/admin/dashboard')} className="bg-white border-2 border-gray-100 text-slate/40 px-8 py-3 rounded-2xl font-black text-xs uppercase tracking-widest hover:border-navy hover:text-navy transition shadow-sm">← Back</button>
+                <button onClick={() => navigate('/admin/dashboard')} className="hidden sm:inline-block bg-white border-2 border-gray-100 text-slate/40 px-8 py-3 rounded-2xl font-black text-xs uppercase tracking-widest hover:border-navy hover:text-navy transition shadow-sm">← Back</button>
             </div>
 
             {/* Upload Form */}
