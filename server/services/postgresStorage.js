@@ -727,6 +727,63 @@ async function saveGrandTest(data) {
     };
 }
 
+async function updateGrandTest(id, data) {
+    const cur = await pool.query('SELECT * FROM public.grand_test_papers WHERE id::text = $1', [String(id)]);
+    if (cur.rows.length === 0) return null;
+    const r0 = cur.rows[0];
+    const res = await pool.query(`
+        UPDATE public.grand_test_papers
+        SET title = $1, exam_type = $2, class_level = $3, pdf_path = $4, total_questions = $5
+        WHERE id = $6
+        RETURNING *
+    `, [
+        data.title ?? r0.title,
+        data.examType ?? data.exam_type ?? r0.exam_type,
+        data.classLevel ?? data.class_level ?? r0.class_level,
+        data.pdfPath ?? r0.pdf_path,
+        data.totalQuestions ?? r0.total_questions,
+        r0.id
+    ]);
+    const r = res.rows[0];
+    return { _id: String(r.id), id: r.id, title: r.title, examType: r.exam_type, classLevel: r.class_level, pdfPath: r.pdf_path, totalQuestions: r.total_questions || 180, createdAt: r.created_at };
+}
+
+async function deleteGrandTest(id) {
+    const res = await pool.query('DELETE FROM public.grand_test_papers WHERE id::text = $1', [String(id)]);
+    return res.rowCount > 0;
+}
+
+async function updatePreviousYearPaper(id, data) {
+    const cur = await pool.query('SELECT * FROM public.previous_year_papers WHERE id::text = $1', [String(id)]);
+    if (cur.rows.length === 0) return null;
+    const r0 = cur.rows[0];
+    const res = await pool.query(`
+        UPDATE public.previous_year_papers
+        SET title = $1, exam_type = $2, year = $3, subject = $4, pdf_path = $5
+        WHERE id = $6
+        RETURNING *
+    `, [
+        data.title ?? r0.title,
+        data.examType ?? data.exam_type ?? r0.exam_type,
+        data.year ?? r0.year,
+        data.subject ?? r0.subject,
+        data.pdfPath ?? r0.pdf_path,
+        r0.id
+    ]);
+    const r = res.rows[0];
+    return { _id: String(r.id), id: r.id, title: r.title, examType: r.exam_type, year: r.year, subject: r.subject, pdfPath: r.pdf_path, createdAt: r.created_at };
+}
+
+async function deletePreviousYearPaper(id) {
+    const res = await pool.query('DELETE FROM public.previous_year_papers WHERE id::text = $1', [String(id)]);
+    return res.rowCount > 0;
+}
+
+async function deleteTemplate(id) {
+    const res = await pool.query('DELETE FROM public.templates WHERE id::text = $1', [String(id)]);
+    return res.rowCount > 0;
+}
+
 async function getPreviousYearPapers() {
     const res = await pool.query('SELECT * FROM public.previous_year_papers ORDER BY year DESC, created_at DESC');
     return res.rows.map(r => ({
@@ -920,12 +977,12 @@ async function deleteSessionsByExam(examId) {
     await pool.query('DELETE FROM public.exam_sessions WHERE exam_id = $1', [String(examId)]);
 }
 
-async function createBridgeKey(key, examId, examTitle, generatedBy) {
+async function createBridgeKey(key, examId, examTitle, generatedBy, expiresAt = null) {
     const res = await pool.query(`
-        INSERT INTO public.bridge_keys (key, exam_id, exam_title, generated_by)
-        VALUES ($1, $2, $3, $4)
+        INSERT INTO public.bridge_keys (key, exam_id, exam_title, generated_by, expires_at)
+        VALUES ($1, $2, $3, $4, COALESCE($5::timestamptz, NOW() + INTERVAL '7 days'))
         RETURNING *
-    `, [key, String(examId), examTitle, String(generatedBy)]);
+    `, [key, String(examId), examTitle, String(generatedBy), expiresAt]);
     return res.rows[0];
 }
 
@@ -969,8 +1026,13 @@ module.exports = {
     // Grand Tests & PYQs & Templates
     getGrandTests,
     saveGrandTest,
+    updateGrandTest,
+    deleteGrandTest,
     getPreviousYearPapers,
     savePreviousYearPaper,
+    updatePreviousYearPaper,
+    deletePreviousYearPaper,
     getTemplates,
-    saveTemplate
+    saveTemplate,
+    deleteTemplate
 };

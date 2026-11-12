@@ -32,6 +32,10 @@ const AddQuestion = () => {
     const [editId, setEditId] = useState(null);
     const [showForm, setShowForm] = useState(false);
     const [expandedSolutions, setExpandedSolutions] = useState(new Set());
+    // Bulk Excel/CSV import state (handleBulkExcelImport below). The handler was declared without this state.
+    const [importFile, setImportFile] = useState(null);
+    const [importing, setImporting] = useState(false);
+    const [, setShowImportModal] = useState(false);
 
     const toggleSolution = (id) => {
         setExpandedSolutions(prev => {

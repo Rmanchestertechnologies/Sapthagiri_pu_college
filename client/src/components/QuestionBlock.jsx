@@ -2244,7 +2244,7 @@ function BodyNumerical({
     );
 }
 
-export default function QuestionBlock({
+function QuestionBlockInner({
     q,
     displayNum = 1,
     classes = [],
@@ -2270,8 +2270,6 @@ export default function QuestionBlock({
     questionSpacing = 'Default',
     onLayoutChange,
 }) {
-    if (!q) return null;
-
     const [showGearPopup, setShowGearPopup] = React.useState(false);
     const [localAlignment, setLocalAlignment] = React.useState(
         imageBelowQuestion ? 'Below' : (q.imageAlignment || null)
@@ -2647,4 +2645,10 @@ export default function QuestionBlock({
             </div>
         </div>
     );
+}
+
+// QuestionBlockInner uses hooks, so the missing-question guard lives in this wrapper (see EditQuestionModal).
+export default function QuestionBlock(props) {
+    if (!props.q) return null;
+    return <QuestionBlockInner {...props} />;
 }

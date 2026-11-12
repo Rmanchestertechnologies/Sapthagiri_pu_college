@@ -7,6 +7,7 @@
     "start": "node index.js",
     "dev": "nodemon index.js",
     "test": "cross-env NODE_ENV=test jest --runInBand --forceExit",
+    "test:unit": "jest tests/questionSelector.test.js tests/cbtScoring.test.js tests/securityAndOmr.test.js tests/authLogin.test.js --setupFilesAfterEnv ./tests/noop.setup.js",
     "test:verbose": "cross-env NODE_ENV=test jest --runInBand --forceExit --verbose",
     "test:coverage": "cross-env NODE_ENV=test jest --runInBand --forceExit --coverage"
   },

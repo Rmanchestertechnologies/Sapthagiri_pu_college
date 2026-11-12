@@ -87,6 +87,9 @@ export const DEFAULT_SETTINGS = {
     marginLeft: '8mm',
     marginRight: '8mm',
     diagramMaxHeight: '180px',
+    showWatermark: true,
+    watermarkOpacity: 8,   // percent, 0-40
+    watermarkScale: 100,   // percent of the default 380px emblem, 20-250
 };
 
 // ─── Settings / Alignment Panel ───────────────────────────────────────────────
@@ -332,6 +335,44 @@ export function SettingsPanel({
                     />
                 </SettingField>
 
+                <SettingField label="Watermark">
+                    <select
+                        style={selectStyle}
+                        value={settings.showWatermark === false ? 'off' : 'on'}
+                        onChange={e => update('showWatermark', e.target.value !== 'off')}
+                    >
+                        <option value="on">Show college emblem</option>
+                        <option value="off">No watermark</option>
+                    </select>
+                </SettingField>
+
+                {settings.showWatermark !== false && (
+                    <>
+                        <SettingField label="Watermark Opacity (%)">
+                            <input
+                                type="number" min="0" max="40" step="1"
+                                style={inputStyle}
+                                value={settings.watermarkOpacity ?? 8}
+                                onChange={e => {
+                                    const n = Number(e.target.value);
+                                    update('watermarkOpacity', Number.isFinite(n) ? Math.min(40, Math.max(0, n)) : 8);
+                                }}
+                            />
+                        </SettingField>
+                        <SettingField label="Watermark Size (%)">
+                            <input
+                                type="number" min="20" max="250" step="5"
+                                style={inputStyle}
+                                value={settings.watermarkScale ?? 100}
+                                onChange={e => {
+                                    const n = Number(e.target.value);
+                                    update('watermarkScale', Number.isFinite(n) ? Math.min(250, Math.max(20, n)) : 100);
+                                }}
+                            />
+                        </SettingField>
+                    </>
+                )}
+
                 <SettingField label="Duration (Minutes) *">
                     <input
                         type="number"
@@ -360,7 +401,7 @@ export function SettingsPanel({
                         type="number"
                         min="1"
                         style={inputStyle}
-                        value={settings.marksPerQuestion !== undefined ? settings.marksPerQuestion : (paper?.marksPerQuestion ?? 4)}
+                        value={settings.marksPerQuestion !== undefined ? settings.marksPerQuestion : 4}
                         onChange={e => {
                             const raw = e.target.value;
                             setSettings(s => ({

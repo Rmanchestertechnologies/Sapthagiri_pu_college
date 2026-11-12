@@ -612,6 +612,11 @@ function getPoolsForQuery(subject, klass) {
 
         if (matchedSubjects.size > 0) {
             filtered = filtered.filter(p => matchedSubjects.has(p.subject.toLowerCase()));
+        } else {
+            // A subject was requested but is not one of the eight databases (e.g. "General"). The old code
+            // fell through and queried ALL databases, silently returning another subject's questions.
+            console.warn(`[DB ROUTING] Unknown subject "${subject}": no question database matches, returning no pools.`);
+            return [];
         }
     }
 
@@ -620,7 +625,8 @@ function getPoolsForQuery(subject, klass) {
         filtered = filtered.filter(p => p.klass === normKlass);
     }
 
-    return filtered.length > 0 ? filtered : all;
+    // No fallback to "all pools": an empty list means "nothing matches" and callers report that.
+    return filtered;
 }
 
 function getAllPools() {

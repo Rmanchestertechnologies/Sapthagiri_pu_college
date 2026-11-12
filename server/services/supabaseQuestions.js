@@ -1,4 +1,5 @@
 const primaryPool = require('../config/postgres');
+const { assembleByQuotas } = require('./questionSelector');
 const {
     DB_CONFIGS,
     QBP_CONTROL_CONFIG,
@@ -648,6 +649,21 @@ async function fetchUsageMap(questionIds) {
 }
 
 /**
+ * Parse a chapter filter into a list of chapter names.
+ * Arrays are taken as-is. A string is treated BOTH as one whole chapter name and as a
+ * comma-separated list, because real chapter names contain commas
+ * (e.g. "Semiconductor Electronics: Materials, Devices and Simple Circuits").
+ * Splitting only on commas made such chapters match nothing.
+ */
+function parseChapterList(chapter) {
+    if (!chapter) return [];
+    if (Array.isArray(chapter)) return chapter.map(c => String(c).trim()).filter(Boolean);
+    const whole = String(chapter).trim();
+    const parts = whole.split(',').map(c => c.trim()).filter(Boolean);
+    return Array.from(new Set([whole, ...parts])).filter(Boolean);
+}
+
+/**
  * Build WHERE clauses and values for a question query.
  */
 function buildQueryFilters(filters) {
@@ -673,7 +689,7 @@ function buildQueryFilters(filters) {
 
     if (normSub === 'Botany') {
         if (filters.chapter) {
-            const rawChapters = Array.isArray(filters.chapter) ? filters.chapter : filters.chapter.split(',').map(c => c.trim()).filter(Boolean);
+            const rawChapters = parseChapterList(filters.chapter);
             const canonicalList = rawChapters.map(canonicalizeChapter).filter(ch => allowedBotanyChapters.includes(ch));
             const chaptersToUse = canonicalList.length > 0 ? canonicalList : allowedBotanyChapters;
             whereClauses.push(`q.chapter = ANY($${paramIndex++}::text[])`);
@@ -684,7 +700,7 @@ function buildQueryFilters(filters) {
         }
     } else if (normSub === 'Zoology') {
         if (filters.chapter) {
-            const rawChapters = Array.isArray(filters.chapter) ? filters.chapter : filters.chapter.split(',').map(c => c.trim()).filter(Boolean);
+            const rawChapters = parseChapterList(filters.chapter);
             const canonicalList = rawChapters.map(canonicalizeChapter).filter(ch => allowedZoologyChapters.includes(ch));
             const chaptersToUse = canonicalList.length > 0 ? canonicalList : allowedZoologyChapters;
             whereClauses.push(`q.chapter = ANY($${paramIndex++}::text[])`);
@@ -695,7 +711,7 @@ function buildQueryFilters(filters) {
         }
     } else if (filters.chapter) {
         // Standard chapter filter for Physics, Chemistry, Maths, Biology
-        const chapters = Array.isArray(filters.chapter) ? filters.chapter : filters.chapter.split(',').map(c => c.trim()).filter(Boolean);
+        const chapters = parseChapterList(filters.chapter);
         const canonicalList = chapters.map(canonicalizeChapter);
         if (canonicalList.length > 0) {
             whereClauses.push(`q.chapter = ANY($${paramIndex++}::text[])`);
@@ -826,13 +842,16 @@ async function getQuestions(filters = {}, page = 1, limit = 50) {
     const requestedPage = Math.max(1, Number(page) || 1);
     const offset = (requestedPage - 1) * requestedLimit;
     // If a chapter filter is provided, query all class pools for that subject so chapters from any class level are never missed
-    const effectiveClasses = filters.chapter ? 'Both' : filters.classes;
+    // strictClass keeps the query inside the requested class database. Quota-based generation uses it
+    // so a Class 12 paper can never draw from a Class 11 database, and vice versa.
+    const effectiveClasses = (filters.chapter && !filters.strictClass) ? 'Both' : filters.classes;
     const targetPoolEntries = getPoolsForQuery(filters.subject, effectiveClasses);
     const { whereClauses, values } = buildQueryFilters(filters);
     const whereSql = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
 
     try {
         // Query target pools in parallel
+        let poolFailures = 0;
         const poolResults = await Promise.all(
             targetPoolEntries.map(async (entry) => {
                 try {
@@ -861,7 +880,7 @@ async function getQuestions(filters = {}, page = 1, limit = 50) {
                             q.solution_text, q.created_by, q.created_by_name, q.created_at
                         FROM public.questions q
                         ${whereSql}
-                        ORDER BY q.created_at DESC
+                        ORDER BY ${filters.randomOrder ? 'random()' : 'q.created_at DESC'}
                         LIMIT ${limitParam} OFFSET ${offsetParam};
                     `;
 
@@ -879,6 +898,7 @@ async function getQuestions(filters = {}, page = 1, limit = 50) {
                     };
                 } catch (err) {
                     console.error(`[POOL ERROR - ${entry.name}]:`, err.message);
+                    poolFailures++;
                     return { total: 0, rows: [], dbKey: entry.key };
                 }
             })
@@ -895,7 +915,7 @@ async function getQuestions(filters = {}, page = 1, limit = 50) {
                     qbpQuery = qbpQuery.ilike('subject', `%${filters.subject}%`);
                 }
                 if (filters.chapter) {
-                    const chapters = Array.isArray(filters.chapter) ? filters.chapter : filters.chapter.split(',').map(c => c.trim()).filter(Boolean);
+                    const chapters = parseChapterList(filters.chapter);
                     if (chapters.length > 0) {
                         qbpQuery = qbpQuery.in('chapter', chapters);
                     }
@@ -946,7 +966,9 @@ async function getQuestions(filters = {}, page = 1, limit = 50) {
                 mergedRows.push(...pr.rows);
             }
             mergedRows.push(...qbpRows);
-            mergedRows.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+            if (!filters.randomOrder) {
+                mergedRows.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+            }
             mergedRows = mergedRows.slice(offset, offset + requestedLimit);
         }
 
@@ -973,13 +995,16 @@ async function getQuestions(filters = {}, page = 1, limit = 50) {
                 limit: requestedLimit,
                 total: grandTotal,
                 pages: Math.ceil(grandTotal / requestedLimit)
-            }
+            },
+            // true when every targeted subject database failed: "0 rows" then means "unknown", not "empty"
+            dbError: targetPoolEntries.length > 0 && poolFailures === targetPoolEntries.length
         };
     } catch (err) {
         console.error('[DATABASE] getQuestions error:', err.message);
         return {
             questions: [],
-            pagination: { page: requestedPage, limit: requestedLimit, total: 0, pages: 0 }
+            pagination: { page: requestedPage, limit: requestedLimit, total: 0, pages: 0 },
+            dbError: true
         };
     }
 }
@@ -1263,81 +1288,100 @@ async function getQuestionsByIds(ids) {
 }
 
 /**
- * Assemble questions strictly honoring chapter quotas & difficulty distribution.
+ * Assemble questions strictly honoring chapter quotas, then type allocations and
+ * difficulty distribution. Selection logic lives in ./questionSelector (pure, unit-tested);
+ * this function only fetches one candidate pool per chapter.
+ *
+ * Guarantees:
+ *  - a chapter's quota is only ever filled from that chapter (no cross-chapter backfill);
+ *  - queries stay inside the requested class database(s);
+ *  - shortfalls and database failures are reported in the result, never hidden.
  */
 async function getQuestionsWithChapterQuotas({
     subject = 'Physics',
     classes = '12',
     chapterQuotas = {},
-    difficultyDistribution = { easy: 40, medium: 40, hard: 20 },
+    typeAllocations = null,
+    difficultyDistribution = null,
     sources = ['subject', 'qbp_control'],
     concepts = [],
-    examType = 'CET'
+    examType = 'CET',
+    excludeIds = [],
+    seed
 }) {
-    const normSub = normalizeSubject(subject);
+    // A combined subject list ("Physics, Chemistry, ...") must be routed as a list, not collapsed to one subject.
+    const normSub = String(subject).includes(',') ? String(subject) : normalizeSubject(subject);
     const normKlass = normalizeClass(classes);
-    const resultQuestions = [];
-    const report = {};
-
-    const shuffle = arr => [...arr].sort(() => Math.random() - 0.5);
+    const reqExam = String(examType || 'CET').toUpperCase();
+    const isJee = reqExam === 'JEE';
 
     const sourceParam = sources.includes('all') || (sources.includes('subject') && sources.includes('qbp_control'))
         ? 'all'
         : (sources.includes('qbp_control') ? 'qbp_control' : 'subject');
 
-    for (const [chapterName, targetQty] of Object.entries(chapterQuotas)) {
-        const qty = parseInt(targetQty, 10);
-        if (isNaN(qty) || qty <= 0) continue;
+    const entries = Object.entries(chapterQuotas)
+        .map(([chapter, qty]) => [chapter, parseInt(qty, 10)])
+        .filter(([chapter, qty]) => chapter && Number.isFinite(qty) && qty > 0);
 
-        // Fetch pool of questions for this specific chapter
-        const chapterFilters = {
+    const chapterPools = {};
+    const chapterAvailable = {};
+    const failedChapters = [];
+
+    // Text-level CET guard, mirrors isCetQ on the client (SQL already excludes CET-tagged rows).
+    const looksCet = q => {
+        const src = String(q.sourceExam || '').toUpperCase();
+        const txt = String(q.questionText || '').toUpperCase();
+        return src.includes('CET') || txt.includes('[KCET') || txt.includes('(KCET') || txt.includes('[CET') || txt.includes('(CET');
+    };
+
+    const fetchChapter = async ([chapterName, qty]) => {
+        const filters = {
             subject: normSub,
-            classes: normKlass,
-            chapter: chapterName,
+            classes: normKlass === 'both' ? null : normKlass,
+            chapter: [chapterName],            // array => chapter names containing commas stay intact
+            strictClass: Boolean(normKlass && normKlass !== 'both'),
+            randomOrder: true,                 // sample the whole chapter, not just the newest rows
             source: sourceParam,
-            examType: examType || 'CET'
+            examType: reqExam
         };
-        if (Array.isArray(concepts) && concepts.length > 0) {
-            chapterFilters.concept = concepts;
-        }
+        if (Array.isArray(excludeIds) && excludeIds.length > 0) filters.excludeIds = excludeIds;
+        // Oversample so type and difficulty targets can be met without loading the whole chapter.
+        const sampleSize = Math.min(800, Math.max(150, qty * 8));
+        const res = await getQuestions(filters, 1, sampleSize);
+        if (res.dbError) failedChapters.push(chapterName);
+        // Chapter fidelity guard: the Botany/Zoology filter widens to the whole syllabus when a
+        // chapter name is not recognised, so verify every row really belongs to this chapter.
+        const wanted = canonicalizeChapter(chapterName).toLowerCase();
+        const fetched = res.questions || [];
+        let pool = fetched.filter(q => String(q.chapter || '').toLowerCase() === wanted);
+        const widened = pool.length < fetched.length;
+        if (reqExam !== 'CET') pool = pool.filter(q => !looksCet(q));
+        chapterPools[chapterName] = pool;
+        chapterAvailable[chapterName] = widened ? pool.length : Math.max(res.pagination?.total || 0, pool.length);
+    };
 
-        const fetchRes = await getQuestions(chapterFilters, 1, 2000);
-        const pool = fetchRes.questions || [];
-
-        const easyTarget = Math.round(qty * ((difficultyDistribution.easy || 40) / 100));
-        const medTarget = Math.round(qty * ((difficultyDistribution.medium || 40) / 100));
-        const hardTarget = Math.max(0, qty - easyTarget - medTarget);
-
-        const easyPool = pool.filter(q => (q.level || 'medium').toLowerCase() === 'easy');
-        const medPool = pool.filter(q => (q.level || 'medium').toLowerCase() === 'medium');
-        const hardPool = pool.filter(q => (q.level || 'medium').toLowerCase() === 'hard');
-
-        const pickedEasy = shuffle(easyPool).slice(0, easyTarget);
-        const pickedMed = shuffle(medPool).slice(0, medTarget);
-        const pickedHard = shuffle(hardPool).slice(0, hardTarget);
-
-        let combined = [...pickedEasy, ...pickedMed, ...pickedHard];
-        const usedIds = new Set(combined.map(q => q._id || q.id));
-
-        if (combined.length < qty) {
-            const remainder = pool.filter(q => !usedIds.has(q._id || q.id));
-            combined.push(...shuffle(remainder).slice(0, qty - combined.length));
-        }
-
-        report[chapterName] = {
-            requested: qty,
-            delivered: combined.length,
-            available: pool.length
-        };
-
-        resultQuestions.push(...combined);
+    // Bounded concurrency: each chapter costs 2 queries per target database.
+    const CONCURRENCY = 4;
+    for (let i = 0; i < entries.length; i += CONCURRENCY) {
+        await Promise.all(entries.slice(i, i + CONCURRENCY).map(fetchChapter));
     }
 
-    return {
-        questions: resultQuestions,
-        distributionReport: report,
-        total: resultQuestions.length
-    };
+    const result = assembleByQuotas({
+        chapterPools,
+        chapterQuotas: Object.fromEntries(entries),
+        typeAllocations,
+        difficultyDistribution,
+        chapterAvailable,
+        preferredConcepts: Array.isArray(concepts) ? concepts : [],
+        isJee,
+        seed
+    });
+
+    if (failedChapters.length > 0) {
+        result.warnings.unshift(`Could not reach the question database for: ${failedChapters.map(c => `"${c}"`).join(', ')}. Those chapters are incomplete - please retry.`);
+        result.databaseError = true;
+    }
+    return result;
 }
 
 /**

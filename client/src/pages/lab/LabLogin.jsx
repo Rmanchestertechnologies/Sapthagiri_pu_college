@@ -122,7 +122,7 @@ export default function LabLogin() {
                                     />
                                 </Field>
 
-                                <Field label="Terminal Access Password" hint="Default: lab@123">
+                                <Field label="Terminal Access Password">
                                     <div style={s.passWrap}>
                                         <input
                                             style={{ ...s.input, paddingRight: 44 }}
@@ -154,13 +154,6 @@ export default function LabLogin() {
                                     }
                                 </button>
                             </form>
-
-                            {/* Credentials Helper Box */}
-                            <div style={{ marginTop: '16px', padding: '10px 14px', borderRadius: '12px', background: 'rgba(197,160,89,0.12)', border: '1px solid rgba(197,160,89,0.3)', textAlign: 'center' }}>
-                                <p style={{ margin: 0, fontSize: '11px', color: '#001f6d', fontWeight: 600 }}>
-                                    Default Terminal: <strong style={{ color: '#b45309' }}>LAB-001</strong> · Password: <strong style={{ color: '#b45309' }}>lab@123</strong>
-                                </p>
-                            </div>
 
                             <button type="button" style={{ ...s.backBtn, marginTop: 14, width: '100%' }} onClick={() => navigate('/')}>
                                 ← Return to Faculty / Admin Portal

@@ -149,21 +149,35 @@ router.get('/', [auth, checkRole(['admin', 'teacher'])], async (req, res) => {
 // @access  Teacher / Admin
 router.post('/chapter-distribution', [auth, checkRole(['admin', 'teacher'])], async (req, res) => {
     try {
-        const { classes, chapterQuotas, difficultyDistribution, sources, concepts, subject: reqSub, examType, exam } = req.body;
-        const subject = reqSub || (req.user.role === 'teacher' ? req.user.subject : 'Physics');
+        const { classes, chapterQuotas, typeAllocations, difficultyDistribution, sources, concepts, subject: reqSub, examType, exam, excludeIds, seed } = req.body;
+        const subject = reqSub || (req.user.role === 'teacher' ? req.user.subject : '');
 
-        if (!chapterQuotas || typeof chapterQuotas !== 'object' || Object.keys(chapterQuotas).length === 0) {
+        if (!subject) {
+            return res.status(400).json({ msg: 'subject is required.' });
+        }
+        if (!chapterQuotas || typeof chapterQuotas !== 'object' || Array.isArray(chapterQuotas)) {
             return res.status(400).json({ msg: 'chapterQuotas object is required.' });
+        }
+        const validQuotas = {};
+        for (const [chapter, qty] of Object.entries(chapterQuotas)) {
+            const n = parseInt(qty, 10);
+            if (chapter && Number.isFinite(n) && n > 0) validQuotas[chapter] = Math.min(n, 500);
+        }
+        if (Object.keys(validQuotas).length === 0) {
+            return res.status(400).json({ msg: 'Select at least one chapter and request at least one question from it.' });
         }
 
         const result = await supabaseQuestions.getQuestionsWithChapterQuotas({
             subject,
-            classes: classes || req.body.class || '12',
-            chapterQuotas,
-            difficultyDistribution: difficultyDistribution || { easy: 40, medium: 40, hard: 20 },
+            classes: classes || req.body.class || 'Both',
+            chapterQuotas: validQuotas,
+            typeAllocations: typeAllocations && typeof typeAllocations === 'object' ? typeAllocations : null,
+            difficultyDistribution: difficultyDistribution && typeof difficultyDistribution === 'object' ? difficultyDistribution : null,
             sources: Array.isArray(sources) && sources.length > 0 ? sources : ['subject', 'qbp_control'],
-            concepts: concepts || [],
-            examType: examType || exam || 'CET'
+            concepts: Array.isArray(concepts) ? concepts : [],
+            examType: examType || exam || 'CET',
+            excludeIds: Array.isArray(excludeIds) ? excludeIds : [],
+            seed
         });
 
         res.json(result);

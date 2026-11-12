@@ -83,6 +83,9 @@ router.get('/', auth, async (req, res) => {
 // @access  Admin
 router.delete('/:id', [auth, checkRole(['admin'])], async (req, res) => {
     try {
+        // This route used to answer "deleted" without deleting anything.
+        const removed = await storage.deleteTemplate(req.params.id);
+        if (!removed) return res.status(404).json({ msg: 'Template not found' });
         res.json({ msg: 'Template deleted' });
     } catch (err) {
         console.error(err.message);

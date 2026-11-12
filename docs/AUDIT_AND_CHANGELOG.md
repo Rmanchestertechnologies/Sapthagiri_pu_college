@@ -1,0 +1,199 @@
+# Audit, Issue Register and Change Log
+
+Dates: 2026-11-11 and 2026-11-12. Areas audited: question generation (AutoFetch), PQRS sets, answer-key
+numbering, the online CBT portal, authentication and API permissions, the OMR route and evaluator, the
+assignment generator, Excel/answer-key export, database routing, and lint-level correctness of the whole
+client. **Not done:** the UI redesign, a visual check of PDF output, any measurement of OMR accuracy, performance
+profiling, and an end-to-end exam run. See section 5.
+
+## 1. How the audited parts connect
+
+```
+CommissionedExam.jsx (7-step wizard, teacher)
+  Step 2-5 state: selectedChapters, chapterQuotas, typeAllocations, difficultyDistribution
+  Auto Fetch  ──POST /api/questions/chapter-distribution──▶ routes/questions.js
+                                                             └▶ services/supabaseQuestions.getQuestionsWithChapterQuotas
+                                                                  ├▶ getQuestions()  (one random sample per chapter)
+                                                                  │     └▶ config/subjectDatabases.getPoolsForQuery → 8 subject pools (+ QBP control)
+                                                                  └▶ services/questionSelector.assembleByQuotas  (pure)
+  Manual mode ──GET /api/questions?chapter=…──▶ getQuestions()
+  Step 7: PaperRenderer ─┐
+          A4AnswerKey    ├─ each derives the active P/Q/R/S set with utils/pqrsGenerator.generatePaperSet(master, set, startQNo)
+          A4SolutionKey ─┘
+```
+
+Database topology (from `server/config/subjectDatabases.js`): one primary PostgreSQL database
+(papers, exams, `question_usage`), eight subject pools keyed `phy|chem|math|bio` × `11|12`, and a
+"QBP control" Supabase project for previous-year / grand-test questions. Botany and Zoology are
+chapter subsets of the Biology pools. There are no cross-database transactions.
+
+## 2. Issue register
+
+Severity: CRITICAL = wrong exam content/keys, data loss, security. HIGH = broken core feature.
+
+### Fixed in this pass
+
+| ID | Sev | File | Problem and root cause | Fix | Test |
+|----|-----|------|------------------------|-----|------|
+| QG-01 | CRITICAL | `client/.../CommissionedExam.jsx` `executeFetch` | A 10/10/10 request could return 30 questions from one chapter. The paper was assembled in the browser from one GET per chapter. A chapter whose GET failed or returned nothing was logged to the console and treated as empty, then "Phase 3 global backfill" filled the whole deficit from whichever chapters did return rows. | Assembly moved to the server (`POST /api/questions/chapter-distribution`). A chapter is only ever filled from its own pool; shortfalls and database failures are returned in a report and shown in Step 7. | `server/tests/questionSelector.test.js` (regression test + live probe) |
+| QG-02 | CRITICAL | `server/services/supabaseQuestions.js` `buildQueryFilters` | Chapter filter was split on commas. "Semiconductor Electronics: Materials, Devices and Simple Circuits" (Physics 12) therefore matched nothing, which triggered QG-01. | `parseChapterList`: arrays are taken as-is; a string is matched both whole and comma-split. | live probe |
+| QG-03 | HIGH | `CommissionedExam.jsx` | `totalChapterQuestions` summed quotas of chapters that had since been deselected, inflating the target and feeding the backfill. | Total is computed over currently selected chapters only. | build |
+| QG-04 | HIGH | `supabaseQuestions.js` `getQuestions` | Any query with a chapter filter was widened to both class databases, so class selection was not enforced. | `strictClass` option, used by quota generation. (GET path unchanged, see OPEN-02.) | live probe (Class 11 request for a Class 12 chapter returns 0 and says so) |
+| QG-05 | HIGH | `CommissionedExam.jsx` | Difficulty percentages were only used as a filter; the 30/50/20 split was never applied. Candidates were always the newest 40 rows per chapter, so papers repeated. | Selector steers picks toward each level's remaining target and reports any deviation; candidates are a random sample of the chapter. | unit tests + live probe (9/15/6 delivered) |
+| QG-06 | MEDIUM | `supabaseQuestions.js` | A failed subject database looked identical to an empty one. | `getQuestions` returns `dbError`; the quota endpoint turns it into a warning. | none (not exercised against a real outage) |
+| AK-01 | CRITICAL | `CommissionedExam.jsx` | Opening the Answer Key or Solution Guide from the wizard referenced an undefined variable (`paperSettings`), throwing at render. The custom starting number could never reach either key. | Uses `settings.startQNo`. | lint `no-undef` clean, build |
+| PQ-01 | CRITICAL | `CommissionedExam.jsx`, `pqrsGenerator.js` | The wizard permuted the paper for set Q/R/S, then PaperRenderer and both keys permuted that result again. Word export permuted once, so it disagreed with the preview; switching sets inside the key dialog produced a key for a paper that was never printed; edits made while a set was active overwrote the master order with a shuffled one. | Wizard passes the master paper; `generatePaperSet` restores the master before permuting, so calling it on a generated set is harmless (also covers `AdminPaperPreview.jsx`). | `client/tests/pqrsGenerator.test.mjs` regression test |
+| PQ-02 | HIGH | `pqrsGenerator.js` | Option shuffle read `answer` before `correct_option`; the key reads `correct_option` first. Options were shuffled even when the answer could not be resolved, or when options referred to each other ("Both 1 and 2", "All of the above"). | Same precedence in both; such questions keep their option order. | unit tests |
+| PQ-03 | MEDIUM | `pqrsGenerator.js`, `CommissionedExam.jsx` | Start number not passed to Word export or `generateAllPQRS`; stale `originalQNo` values were trusted. | Start number threaded through; `originalQNo` recomputed. | unit tests (start 1, 10, 25) |
+
+### Fixed in the CBT pass
+
+At the time of this audit `exam_sessions` held 0 rows: the CBT portal has not yet been used on
+the PostgreSQL store, which is consistent with the defects below going unnoticed.
+
+| ID | Sev | File | Problem and root cause | Fix | Test |
+|----|-----|------|------------------------|-----|------|
+| CBT-01 | CRITICAL | `server/routes/exams.js` `GET /:id` | Returned the full exam including answers to any valid token. Lab-terminal tokens (role `lab`) pass `auth`, so a student terminal could read the key. | Restricted to admin/teacher (the only client caller is the teacher wizard). | routes load |
+| CBT-02 | CRITICAL | `exams.js` scorecard, pdf-report | The scorecard, which lists every correct answer, was served for sessions that were still in progress. | 403 until the session is submitted; session must belong to the exam. | code review |
+| CBT-03 | CRITICAL | `client/.../ExamEngine.jsx`, `exams.js` `/start` | The countdown read `session.startTime`; the server sends `start_time`. Remaining time was `NaN`, so the clock showed NaN and auto-submit never fired. | Server returns `remainingSeconds` from its own clock; client uses it and resyncs on each autosave. | `cbtScoring.test.js` timing |
+| CBT-04 | CRITICAL | `exams.js` `/malpractice` | Called `storage.saveSession`, which does not exist. Every report failed with 500 and the session stayed open, so a disqualified student could resume. | Uses `updateSession`; never re-flags a closed session. | routes load |
+| CBT-05 | CRITICAL | `exams.js` `/submit` | Numerical answers were also compared as option labels: a typed "21" matched a key of "12". A key that was literally the option "Both A and B" accepted A or B. | `services/cbtScoring.js`: numerical compared as numbers only; option text checked before label parsing. | regression tests |
+| CBT-06 | CRITICAL | `exams.js` `/submit`, `/start` | Composite exams (questions held in subject papers; 20 of 26 exams have an empty `questions` array) were not hydrated, so they started with 0 questions and scored 0. | Hydrated in start, submit and scorecard; start refuses an exam with no questions. | not exercised end-to-end |
+| CBT-07 | HIGH | `exams.js` `/submit`, `/save-progress` | Submission used only the posted answers; an empty or partial payload discarded autosaved work. Autosave with an empty array erased the session. | Answers are merged per question; empty autosave is rejected. | regression tests |
+| CBT-08 | HIGH | `ExamEngine.jsx` | Auto-submit at time-up ran from a stale timer closure and sent the answers as they were when the student last changed question. A failed submit gave no message. | Submit reads the latest answers; failure is shown and auto-submit retries; offline indicator for failed autosave. | build |
+| CBT-09 | HIGH | `exams.js` `/submit`, `/save-progress` | No server-side time limit, and a session could be submitted against a different exam id. | Deadline = session start + duration, capped by scheduled end, plus 2 min grace. Late submissions are scored from answers saved in time. Session/exam match enforced. Start refused outside the scheduled window. | timing tests |
+| CBT-10 | HIGH | `exams.js` scorecard | Per-question "correct" used plain string equality, disagreeing with the stored score. | Same function as scoring. | unit test |
+| CBT-11 | HIGH | `exams.js` bridge routes | Referenced `OnlineExam`, `BridgeKey`, `ExamSession`, none imported: both endpoints always returned 500. | Rewritten on the PostgreSQL storage layer. | routes load only |
+| CBT-12 | MEDIUM | `exams.js` | `supabaseQuestions` used without import (ID-only papers silently fell back to cached copies); weak areas were never stored because `[] || x` kept the empty array. | Import added; correct key passed. | routes load |
+| CBT-13 | LOW | `ExamEngine.jsx` | `currentIdx` undefined (would throw for a diagram question without an id). | Uses `current`. | lint |
+
+| LAB-01 | CRITICAL | `server/routes/lab.js` `/login`, `client/src/pages/lab/LabLogin.jsx` | Lab login accepted built-in IDs and passwords alongside the configured ones, signed tokens with a built-in secret when `JWT_SECRET` was unset, and the login page printed the default password. | Only `LAB_ID` / `LAB_PASSWORD` from the environment are accepted (constant-time compare); 503 when they or `JWT_SECRET` are unset; hints removed from the page. **`LAB_ID` and `LAB_PASSWORD` are not set in `server/.env` or `render.yaml`, so lab login is refused until they are added.** | handler exercised with fake requests: 7 cases |
+
+### Fixed in the API / OMR / client pass
+
+| ID | Sev | File | Problem and root cause | Fix | Test |
+|----|-----|------|------------------------|-----|------|
+| API-01 | CRITICAL | `server/routes/auth.js` | Admin password fell back to a built-in default and tokens were signed with a built-in secret when the environment variables were unset; unknown e-mail and wrong password gave different messages (account enumeration); passwords compared with `===`. | No fallbacks (503 when unset), one message for both failures, constant-time compare. | `authLogin.test.js`, live request |
+| API-02 | CRITICAL | `server/routes/papers.js` `GET /proxy-image` | Public endpoint fetched any URL the caller supplied (internal addresses, cloud metadata, other hosts): server-side request forgery and an open relay. | Allow-list (https, Cloudinary, `*.supabase.co`, `IMAGE_PROXY_HOSTS`), no redirects, image content type only, 15 MB cap, 15 s timeout. | `securityAndOmr.test.js` (17 URLs), live request |
+| API-03 | CRITICAL | `server/routes/papers.js` | Any teacher could read, edit, export or delete any other teacher's paper by id. | Owner, admin or a teacher assigned to the linked exam may read/edit; only owner/admin may delete; ownership fields are ignored in update bodies. Others get 404. | `securityAndOmr.test.js` |
+| API-04 | CRITICAL | `server/routes/omr.js` | Sheets were graded against the **master** question order whatever series (P/Q/R/S) the student sat, so every Q/R/S sheet was marked against the wrong key. | `services/pqrsKeys.js` (server port of the generator) builds the key of the detected series. The browser and server generators are compared on random papers in `client/tests/pqrsServerParity.test.mjs`. Unknown/unreadable series is graded as P and flagged. | parity test, evaluator tests |
+| API-05 | HIGH | `server/routes/omr.js` | "MULTIPLE" (several bubbles filled) was treated as an ordinary answer; an invented roll number (`ROLL-…` or from the file name) was stored without any marker; non-numeric marks produced `NaN` scores; any OMR user could read the key of any paper and read or delete any submission; `::int` cast failed for fractional scores. | Per-sheet `needsReview` and `reviewReasons`; marks validated; paper access and submission ownership enforced; `::numeric`; `PYTHON_BIN` / `python3` on non-Windows. | `securityAndOmr.test.js` |
+| API-06 | HIGH | `server/routes/grandTests.js`, `previousYearPapers.js`, `templates.js` | DELETE of a grand test, previous-year paper and template answered "deleted" without deleting; PUT inserted a **new row** each time; import / replace / remove-question referenced models that were never imported and always failed with a generic 500. | Real deletes (admin only), in-place updates, and an explicit 501 for the question endpoints that need a migration. | route load, syntax |
+| API-07 | HIGH | `server/routes/exams.js` | Admin results returned snake_case rows, so names, roll numbers and dates were blank / "Invalid Date" in the results screen and Excel export; analytics used a different correctness rule than scoring and counted unfinished sittings; bridge keys were never checked for expiry and the rewritten key route silently shortened their life to 7 days. | Both naming styles returned; analytics uses `cbtScoring`; expiry enforced; key lifetime kept at the original 10 years. | cbt tests |
+| API-08 | HIGH | `server/routes/notifications.js` | Any user could mark any notification read. | Restricted to the recipient (admins also their role's broadcasts). | code review |
+| API-09 | HIGH | `server/routes/lab.js` | `GET /student/:rollNumber` was public and returned a student's name, SATS number and e-mail for any roll number. | Lab-IP restricted (needs `LAB_IP`), e-mail no longer returned. | live request |
+| API-10 | MEDIUM | `server/index.js` | CORS reflected every origin with credentials. | `ALLOWED_ORIGINS` is honoured; a start-up warning appears while it is unset. **Still open until you set it.** | `securityAndOmr.test.js`, live request |
+| DB-01 | HIGH | `server/config/subjectDatabases.js` | A subject that matched no database (e.g. "General") fell through and queried all eight, returning another subject's questions. | Returns no pools and logs; callers report "none available". | routing table checked |
+| CL-01 | HIGH | `AssignmentGenerator.jsx` | Opening the Answer Key or Solutions from an assignment threw (`selectedClass`, `setName` undefined). The assignment was hard-wired to class 12 and had no instructions, submission date, marks or student detail lines. | Fixed, and added: class (11/12, also filters the question bank), marks per question, submission date, instructions, printed Name / Class / Register No. lines; saved with the assignment. | build |
+| CL-02 | MEDIUM | `AddQuestion.jsx`, `PaperRenderer.jsx` | Bulk-import handler used state that was never declared; marks field referenced an undefined `paper`. | Declared / removed. The bulk-import handler is still not connected to any button. | lint `no-undef` = 0 |
+| CL-03 | MEDIUM | `A4PaperEngine.jsx`, `PaperRenderer.jsx` | Watermark opacity and size were hard-coded although the requirements ask for adjustable ones. | Settings: show/hide, opacity 0–40 %, size 20–250 %, also applied in print CSS. | build |
+| CL-04 | MEDIUM | `CommissionedExam.jsx` | Every "Save" created another copy of the paper; the paper had no id in the wizard, so sets Q/R/S shown there could never match the saved paper, the key or OMR. | Re-save updates one paper; id feeds the set seed; a banner warns that Q/R/S are a preview until saved. | client tests |
+| CL-05 | LOW | `PaperQuestionEditorModals.jsx`, `QuestionBlock.jsx` | Components returned before calling hooks (34 lint errors). React 19 does **not** crash on this (checked in a browser with a control case), so this is robustness, not a runtime fix. | Guard moved to a wrapper. | browser harness (removed) |
+| REPO-01 | LOW | `server/middleware/middleware/`, `server/models/models/` | 19 tracked duplicate files, referenced nowhere. | Deleted (recoverable from git). | app starts, tests pass |
+
+### Open (found, not fixed)
+
+| ID | Sev | File | Problem | Recommended correction |
+|----|-----|------|---------|------------------------|
+| OPEN-02 | MEDIUM | `supabaseQuestions.js` `getQuestions` | GET `/api/questions` with a chapter filter still ignores the class filter (manual mode, replacement modal). | Apply `strictClass` once those screens are verified. |
+| OPEN-03 | MEDIUM | `supabaseQuestions.js` `buildQueryFilters` | For Botany/Zoology an unrecognised chapter widens to the whole syllabus. Guarded in quota generation only. | Match nothing instead. |
+| OPEN-04 | MEDIUM | `supabaseQuestions.js` | QBP-control rows are not filtered by class or exam, and `type` is matched with a raw `ilike`. | Apply the same filters as subject pools. |
+| OPEN-05 | HIGH (suspected) | `client/src/components/PaperRenderer.jsx` `handleSelectSwappedQuestion` | The swap index comes from the displayed (permuted) list but is applied to the master list, so swapping while set Q/R/S is shown may replace the wrong question. From reading the code; not reproduced. | Map through `originalQNo`. |
+| OPEN-06 | HIGH | `client/src/pages/admin/AdminPaperPreview.jsx` | Word download puts the JWT in the URL query string. | Authenticated blob download, as the wizard does. |
+| OPEN-07 | HIGH | repo root | `IPU ENROLL & SATS NO.pdf` and `IIPU ENROLL & SATS NO.pdf` are committed; by name they hold student enrolment numbers. | Confirm contents, remove from the repo and history if so. |
+| OPEN-08 | MEDIUM | `server/tests/setup.js` | Fallback JWT secret and admin password are hard-coded. Whether the running server shares these fallbacks was not checked. | Fail fast when unset. |
+| OPEN-11 | HIGH | `server/middleware/labIp.js` | `LAB_IP` is not set, so the lab login is reachable from any address (the middleware defaults to `*`). | Set `LAB_IP` to the lab network's public address(es). |
+| OPEN-18 | CRITICAL | `render.yaml`, `server/.env.example`, `server/scripts/init_db.js` | The production database connection strings (with password), the JWT signing secret and the admin password are committed in plain text; the same password is the seeded default for admin and faculty accounts and the fallback in `server/routes/auth.js`. Anyone with the repository can read and write the database and forge any login. | Rotate the database password, JWT secret and admin/faculty passwords; move the values to Render's secret settings; replace the committed values with placeholders; purge them from git history. Not done: rotation must be carried out by the owner. |
+| OPEN-12 | CRITICAL | `server/routes/exams.js` student endpoints | `/start`, `/submit`, `/session/save-progress`, `/malpractice`, `/scorecard`, `/pdf-report` are unauthenticated and session ids are sequential integers. Anyone who can reach the API can overwrite, submit or disqualify another student's session, or read finished scorecards. A roll number alone resumes a session. | Issue a signed per-session token at `/start` and require it on these endpoints; needs a coordinated client change and browser testing. |
+| OPEN-13 | HIGH | `exams.js` `GET /:id/leaderboard` | Public; returns names, roll numbers and scores. | Require the lab token or admin. |
+| OPEN-14 | MEDIUM | `server/middleware/labIp.js` | Client IP is taken from `X-Forwarded-For`, which the caller controls unless a trusted proxy overwrites it. | Use Express `trust proxy` with the real proxy chain. |
+| OPEN-15 | MEDIUM | `exams.js` `/malpractice` | A disqualified session keeps score 0 and its answers are not scored. Whether disqualification should also record a score is a policy decision. | Decide and document. |
+| OPEN-16 | MEDIUM | `exams.js` `/take`, `/start` | Exams in `draft` status can be taken; marks per question and negative marking are fixed by exam type (+1/0 for CET, +4/-1 otherwise) and ignore any per-exam setting. `shuffleQuestions` with id-less questions would mis-key answers (no exam uses it today). | Decide intended rules. |
+| OPEN-17 | LOW | `client/src/pages/exam/Scorecard.jsx` | Recomputes correctness in the browser instead of using the server's `isCorrect`. Bridge keys are never expired. | Use server verdict; enforce `expires_at`. |
+| OPEN-19 | CRITICAL | `server/config/postgres.js`, `subjectDatabases.js`, `server/test_*.js`, `server/scripts/test_end_to_end.js`, `render.yaml` | Database passwords are hard-coded in source (the primary pool, every subject database's `defaultUrl`), and `config/postgres.js` **overrides** `DATABASE_URL` with its built-in URL whenever the variable contains the old project id, so changing the variable has no effect. `render.yaml` also contains a MongoDB Atlas connection string with its password, and several scripts contain the admin password. | Rotate every credential, move values to the host's secret settings, delete the fallbacks, purge history. Not changed: rotation must happen first or the app would lose its database. |
+| OPEN-20 | HIGH | `config/postgres.js`, `subjectDatabases.js` | TLS certificates are not verified (`rejectUnauthorized: false`) on every database connection. | Use the provider's CA certificate. |
+| OPEN-21 | HIGH | `middleware/rateLimiter.js` | The login rate limiter is a no-op ("disabled per requirement"), so passwords can be guessed without limit. | Re-enable (e.g. 10 attempts / 15 min / IP + account). Left as is because it was stated as a requirement. |
+| OPEN-22 | MEDIUM | `routes/auth.js` | Faculty accounts with unhashed passwords are still accepted. | Admin to reset those passwords; then remove the plain-text branch. |
+| OPEN-23 | MEDIUM | `omr_engine/scan_cli.py` | The CLI discards the engine's own confidence and quality data, so the evaluator can only flag multiple marks, series, roll number and duplicates. Accuracy has not been measured. The engine ran on the shipped blank reference sheet and correctly refused it ("series detection is ambiguous"), nothing more. | Return per-question confidence from the engine; validate on a labelled set of real sheets before quoting any accuracy. |
+| OPEN-24 | MEDIUM | `routes/omr.js` | A batch scans sheets one after another inside one HTTP request (up to 100 × up to 60 s); hosting timeouts will cut large batches off. | Queue the work and poll. |
+| OPEN-25 | MEDIUM | `AssignmentGenerator.jsx`, `routes/questions.js` | The assignment screen downloads up to 20 000 questions in one request and filters chapters in the browser. | Fetch per chapter (the quota endpoint already does). |
+| OPEN-26 | MEDIUM | `CommissionedExam.jsx`, `pqrsGenerator.js` | The P/Q/R/S seed is the paper id, so a set printed before the paper was saved differs from the saved paper's set. Changing the seed would change sets already printed, so it was left and a warning added. | Decide on a stable seed stored with the paper (needs a column or `metadata` field). |
+| OPEN-27 | MEDIUM | `routes/grandTests.js`, `previousYearPapers.js` | Grand Test / previous-year question storage does not exist in PostgreSQL (only paper metadata, no template, subject, code or question list). Proposed migration (not applied): a `grand_test_questions(grand_test_id, question_id, position)` table, `template_id`/`code`/`subject` columns on `grand_test_papers`, and the same for previous-year papers; import would then write questions to the QBP control project. | Approve the schema, then implement. |
+| OPEN-28 | LOW | repo root, `server/` | Ad-hoc scripts (`find_*.js`, `test_*.js`, `check_*.js`) and OMR debug images are committed; `MONGO_URI`'s host (`cluster0.rljdhjc…`) does not resolve from this machine, so the legacy store may be gone. | Delete what is no longer used. |
+| OPEN-10 | LOW | `server/tests/exam_commission_flow.test.js` | The integration suite connects to the databases in `.env` and was not run. | Point it at a test database. |
+
+## 3. Change log
+
+| File | Change |
+|------|--------|
+| `server/services/questionSelector.js` (new) | Pure selection engine: chapter quotas → duplicates → types → difficulty, seedable, with per-chapter/type/difficulty report. |
+| `server/services/supabaseQuestions.js` | `parseChapterList`; `strictClass`, `randomOrder`, `dbError` on `getQuestions`; `getQuestionsWithChapterQuotas` rewritten on top of the selector. |
+| `server/routes/questions.js` | `POST /chapter-distribution` validates input and accepts `typeAllocations`, `excludeIds`, `seed`. |
+| `client/src/pages/teacher/CommissionedExam.jsx` | Auto Fetch calls the endpoint; generation summary in Step 7; master paper passed to renderer and keys; `startQNo` fix. |
+| `client/src/utils/pqrsGenerator.js` | Idempotent set generation, safe option shuffle, start number in `generateAllPQRS`. |
+| `server/tests/questionSelector.test.js`, `server/tests/noop.setup.js`, `client/tests/pqrsGenerator.test.mjs` (new) | 20 + 18 tests. |
+| `client/package.json`, `server/package.json` | `npm test` (client), `npm run test:unit` (server). |
+| `server/services/cbtScoring.js` (new) | Pure CBT rules: answer comparison, marking, autosave merge, deadline and start window. |
+| `server/routes/exams.js` | CBT-01 to CBT-12: staff-only exam fetch, hydrated start/submit/scorecard, server timing, session/exam match, working malpractice and bridge routes, removed the route-local answer parser. |
+| `client/src/pages/exam/ExamEngine.jsx` | Server-driven countdown, latest answers on auto-submit, submit retry and error banner, offline indicator. |
+| `server/tests/cbtScoring.test.js` (new) | 25 tests. |
+
+| `server/services/accessRules.js`, `omrEvaluator.js`, `pqrsKeys.js` (new) | Ownership rules, image allow-list, CORS parsing; OMR scoring and review flags; server P/Q/R/S keys. |
+| `server/routes/auth.js`, `papers.js`, `omr.js`, `lab.js`, `notifications.js`, `templates.js`, `grandTests.js`, `previousYearPapers.js`, `exams.js` (results, analytics, bridge), `index.js`, `middleware/errorHandler.js` | API-01 to API-10. |
+| `server/services/postgresStorage.js` | `updateGrandTest`, `deleteGrandTest`, `updatePreviousYearPaper`, `deletePreviousYearPaper`, `deleteTemplate`; `createBridgeKey` takes an expiry. |
+| `server/config/subjectDatabases.js` | DB-01. |
+| `client/src/pages/teacher/AssignmentGenerator.jsx`, `AddQuestion.jsx`, `CommissionedExam.jsx` | CL-01, CL-02, CL-04. |
+| `client/src/components/A4PaperEngine.jsx`, `PaperRenderer.jsx`, `PaperQuestionEditorModals.jsx`, `QuestionBlock.jsx` | CL-03, CL-05, assignment details block. |
+| `server/middleware/middleware/`, `server/models/models/` | Deleted (REPO-01). |
+| `README.md` | Rewritten from the code (the old one described React 18, a `server.js` that does not exist and unmeasured claims). |
+| `server/tests/securityAndOmr.test.js`, `authLogin.test.js`, `client/tests/pqrsServerParity.test.mjs` (new) | 17 + 4 server tests, 7 parity tests. |
+
+### API change
+
+`POST /api/questions/chapter-distribution` (teacher/admin). No screen called it before this pass.
+
+Request: `{ subject, classes, examType, chapterQuotas: {chapter: n}, typeAllocations?, difficultyDistribution?, concepts?, excludeIds?, seed? }`
+
+Response: `{ questions, total, requestedTotal, complete, distributionReport: {chapter: {requested, delivered, available, shortfall}}, typeReport, difficultyReport, warnings[], databaseError? }`
+
+CBT responses gained fields (existing fields unchanged): `/start` returns `session.remainingSeconds`,
+`session.serverTime`, `session.startTime`; `/session/save-progress` returns `remainingSeconds`,
+`serverTime`; `/submit` returns `late`. New refusals: `/start` 403 outside the scheduled window and
+409 for an exam without questions; scorecard and pdf-report 403 before submission; save-progress
+403 after the deadline and 400 for an empty payload; `GET /api/exams/:id` 403 for non-staff.
+
+Other API changes: `POST /api/omr/scan` response gains `needsReviewCount` and, per sheet, `gradedAgainstSeries`,
+`needsReview`, `reviewReasons`; `GET /api/omr/papers/:id/key` gains `seriesKeys` (P/Q/R/S); `GET /api/exams/:id/results`
+returns camelCase fields as well; `GET /api/exams/bridge/:key` returns 410 for an expired key; `PUT /api/grand-tests/:id`
+returns 409 when `templateId` is sent; the grand-test / previous-year import, remove and replace endpoints return 501;
+`GET /api/lab/student/:rollNumber` no longer returns the e-mail; unknown/missing credentials for login return 503.
+
+Behaviour changes: `concepts` is now a preference, not a filter; difficulty is unconstrained when
+omitted (it used to default to 40/40/20); `subject` is required for admins. No database schema or
+data was changed.
+
+## 4. Verification performed
+
+Run on 2026-11-12:
+
+* `npm --prefix server run test:unit` → 4 suites, **66 passed** (selection 20, CBT 25, security / OMR / series keys 17, login 4).
+* `npm --prefix client test` → **25 passed** (generator, numbering, and 7 comparisons of the browser generator with the server port).
+* `npm --prefix client run build` → succeeds. ESLint: 0 undefined variables and 0 hook-order errors across `client/src` (it was 11 and 34); 397 style warnings remain (unused variables, escapes).
+* Server started against the real databases and exercised with curl: unknown and wrong-password logins give the same message; the image proxy refused an internal address, the metadata address, a foreign host and a look-alike host; routes return 401 without a token; lab login returns 503 until configured; a foreign `Origin` is still reflected (needs `ALLOWED_ORIGINS`).
+* Read-only probes of the question bank (see earlier sections) and of the exam tables.
+* The OMR engine was run once on the shipped blank sheet to confirm Python and OpenCV work: it returned "series detection is ambiguous", as it should.
+* A temporary browser page confirmed React 19 does not crash on the early-return-before-hooks pattern (removed afterwards).
+
+Not verified: no exam was sat end-to-end; the wizard and assignment screens were not driven in a browser
+with real data (that needs a login); no authenticated request was made against the live API; PDF output was not
+inspected; OMR accuracy was not measured; the integration suite was not run.
+
+## 5. Not done / not audited
+
+* **UI/UX redesign.** Not started. Only functional UI changes above were made. A redesign needs a visual review loop (login, real data) that was not available here.
+* **PDF fidelity** (page breaks, equations, diagrams in print) and **Word/PDF export services**: read at route level only.
+* **OMR accuracy** and the Python engine's internals (about 30 000 lines): only the Node integration was reviewed.
+* **Multi-subject merge** (`POST /api/exams/merge`) and **blueprint paper generation**: not reviewed beyond permissions (blueprint generation ignores class and chapter and reads only the newest 200 questions per subject).
+* **Performance**: no profiling; known heavy spots are listed in OPEN-24 and OPEN-25.
+* **Question bank screens** (`AdminQuestionBank`, `SubjectDetails`, `ExamManagement`, `BridgeApp`) and the question create/update/variant routes: permissions checked, logic not reviewed.
+* Student-endpoint authentication (OPEN-12) and the credential rotation (OPEN-18, OPEN-19) need decisions or actions outside the code.

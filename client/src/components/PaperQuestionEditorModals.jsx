@@ -57,7 +57,7 @@ function LatexToolbar({ onInsert }) {
  * EDIT QUESTION MODAL (Full LaTeX Editing + Real-Time Live Preview)
  * ─────────────────────────────────────────────────────────────────────────────
  */
-export function EditQuestionModal({
+function EditQuestionModalInner({
     isOpen,
     question,
     questionIndex,
@@ -66,8 +66,6 @@ export function EditQuestionModal({
     onSave,
     onDelete,
 }) {
-    if (!isOpen || !question) return null;
-
     const initialQText = question.questionText || question.question || '';
     const initialSolText = question.solutionText || question.solution_text || question.solution || '';
     const initialOptions = useMemo(() => {
@@ -453,7 +451,7 @@ export function EditQuestionModal({
  * SWAP QUESTION MODAL (Database Repository Search & Direct Replacement)
  * ─────────────────────────────────────────────────────────────────────────────
  */
-export function SwapQuestionModal({
+function SwapQuestionModalInner({
     isOpen,
     oldQuestion,
     questionIndex,
@@ -464,8 +462,6 @@ export function SwapQuestionModal({
     onSelectSwap,
     onSwap,
 }) {
-    if (!isOpen || !oldQuestion) return null;
-
     const subject = oldQuestion.subject || paperSubject || 'Physics';
     const initialChapter = oldQuestion.chapter || '';
 
@@ -917,4 +913,17 @@ export function SwapQuestionModal({
             </div>
         </div>
     );
+}
+
+// Hooks must run on every render of a component. The modals used to `return null` before their hooks
+// while closed, so opening one changed the hook count and React threw. The wrappers do the closed-state
+// check and only mount the stateful component while a question is actually being edited / swapped.
+export function EditQuestionModal(props) {
+    if (!props.isOpen || !props.question) return null;
+    return <EditQuestionModalInner {...props} />;
+}
+
+export function SwapQuestionModal(props) {
+    if (!props.isOpen || !props.oldQuestion) return null;
+    return <SwapQuestionModalInner {...props} />;
 }

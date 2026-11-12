@@ -76,6 +76,11 @@ export default function ExamEngine() {
     const [answers, setAnswers] = useState([]); // per-question local state
     const [current, setCurrent] = useState(0);
     const [timeLeft, setTimeLeft] = useState(null); // seconds
+    const [autosaveFailed, setAutosaveFailed] = useState(false); // last server autosave did not go through
+    const [submitError, setSubmitError] = useState('');
+    // Latest answers / submit handler for callbacks created earlier (the 1-second timer closure).
+    const answersRef = useRef([]);
+    const submitRef = useRef(null);
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
     const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
@@ -138,20 +143,22 @@ export default function ExamEngine() {
                 setSession(sessionData);
 
                 // Calculate remaining time relative to student's actual session start time
-                const elapsedSeconds = Math.floor((new Date().getTime() - new Date(sessionData.startTime).getTime()) / 1000);
-                let durationSeconds = e.duration_minutes * 60 - elapsedSeconds;
-                if (durationSeconds < 0) durationSeconds = 0;
-
-                // Late Entry Check: Capped remaining time based on end_time if it exists
-                if (e.end_time) {
-                    const end = new Date(e.end_time).getTime();
-                    const now = new Date().getTime();
-                    const scheduledRemaining = Math.floor((end - now) / 1000);
-                    if (scheduledRemaining >= 0 && scheduledRemaining < durationSeconds) {
-                        durationSeconds = scheduledRemaining;
+                // The server computes the remaining time from its own clock (session start + duration,
+                // capped by the scheduled end). The old code read `sessionData.startTime`, a field the
+                // server never sent, which made the countdown NaN: it displayed "NaN" and never auto-submitted.
+                let durationSeconds = Number(sessionRes.data.session?.remainingSeconds);
+                if (!Number.isFinite(durationSeconds)) {
+                    const startedAt = new Date(sessionData.startTime || sessionData.start_time || Date.now()).getTime();
+                    const elapsedSeconds = Number.isFinite(startedAt) ? Math.floor((Date.now() - startedAt) / 1000) : 0;
+                    durationSeconds = (Number(e.duration_minutes) || 180) * 60 - elapsedSeconds;
+                    if (e.end_time) {
+                        const scheduledRemaining = Math.floor((new Date(e.end_time).getTime() - Date.now()) / 1000);
+                        if (Number.isFinite(scheduledRemaining) && scheduledRemaining < durationSeconds) {
+                            durationSeconds = scheduledRemaining;
+                        }
                     }
                 }
-                setTimeLeft(durationSeconds);
+                setTimeLeft(Math.max(0, Math.floor(durationSeconds)));
 
                 // Initialize local answers state (restore saved state if session resumed)
                 const storageKey = `exam_answers_${examId}_${sessionData._id || sessionData.id}`;
@@ -270,7 +277,7 @@ export default function ExamEngine() {
             setTimeLeft(t => {
                 if (t <= 1) {
                     clearInterval(timerRef.current);
-                    if (!autoSubmitted.current) { autoSubmitted.current = true; handleSubmit(true); }
+                    if (!autoSubmitted.current) { autoSubmitted.current = true; submitRef.current && submitRef.current(true); }
                     return 0;
                 }
                 return t - 1;
@@ -291,12 +298,25 @@ export default function ExamEngine() {
         // 2. Debounced sync to database
         const timer = setTimeout(async () => {
             try {
-                await api.post(`/api/exams/${examId}/session/save-progress`, {
+                const res = await api.post(`/api/exams/${examId}/session/save-progress`, {
                     sessionId: session._id,
                     answers
                 });
+                setAutosaveFailed(false);
+                // Re-sync the countdown with the server clock; only ever correct it downwards
+                // or by a real drift, so the display does not jitter.
+                const serverLeft = Number(res.data?.remainingSeconds);
+                if (Number.isFinite(serverLeft)) {
+                    setTimeLeft(t => (t === null || Math.abs(t - serverLeft) > 5 ? serverLeft : t));
+                }
             } catch (err) {
                 console.error('Failed to autosave progress to server:', err);
+                if (err.response?.data?.timeOver) {
+                    setTimeLeft(0);
+                } else {
+                    // Answers are still kept in this browser and are sent again with the next change and on submit.
+                    setAutosaveFailed(true);
+                }
             }
         }, 3000); // debounce 3 seconds
 
@@ -354,9 +374,13 @@ export default function ExamEngine() {
         setSubmitting(true);
         clearInterval(timerRef.current);
         try {
+            setSubmitError('');
+            // answersRef, not the `answers` captured by this callback: the countdown timer holds an
+            // older copy of this function, and auto-submit used to send the answers as they were
+            // when the student last changed question.
             const res = await api.post(`/api/exams/${examId}/submit`, {
                 sessionId: session?._id,
-                answers
+                answers: answersRef.current
             });
             try {
                 const storageKey = `exam_answers_${examId}_${session?._id}`;
@@ -370,8 +394,16 @@ export default function ExamEngine() {
             console.error('Submit failed', err);
             isSubmittingOrFinished.current = false;
             setSubmitting(false);
+            setSubmitError(auto
+                ? 'Time is over, but the exam could not be submitted (network problem). Retrying automatically - your answers are saved on this computer. Do not close this window.'
+                : 'Submission failed (network problem). Your answers are still saved on this computer - please press Submit again.');
+            // Time is up: keep trying until the server accepts the paper.
+            if (auto) setTimeout(() => submitRef.current && submitRef.current(true), 5000);
         }
-    }, [submitting, session, answers, examId, navigate]);
+    }, [submitting, session, examId, navigate]);
+
+    answersRef.current = answers;
+    submitRef.current = handleSubmit;
 
     // ── Computed palette counts ─────────────────────────────────
     const counts = answers.reduce((acc, a) => {
@@ -388,6 +420,11 @@ export default function ExamEngine() {
 
     return (
         <div style={styles.page}>
+            {submitError && (
+                <div role="alert" style={{ background: '#fef2f2', color: '#991b1b', borderBottom: '2px solid #ef4444', padding: '0.6rem 1rem', fontWeight: 700, fontSize: '0.9rem', textAlign: 'center' }}>
+                    {submitError}
+                </div>
+            )}
             {/* Top Bar */}
             <div style={styles.topBar}>
                 <div style={styles.topLeft}>
@@ -399,6 +436,11 @@ export default function ExamEngine() {
                     <span style={{ ...styles.timer, color: isTimeCritical ? '#ef4444' : '#10b981' }}>
                         {timeLeft !== null ? formatTime(timeLeft) : '--:--:--'}
                     </span>
+                    {autosaveFailed && (
+                        <span role="status" style={{ fontSize: '0.7rem', fontWeight: 700, color: '#f59e0b' }}>
+                            Offline - answers saved on this computer
+                        </span>
+                    )}
                 </div>
                 <div style={styles.topRight}>
                     <span style={styles.candidateName}>👤 {studentInfo.studentName || 'Candidate'}</span>
@@ -471,7 +513,7 @@ export default function ExamEngine() {
                                             <ResizableDiagram
                                                 src={diagramUrl}
                                                 alt="Question Diagram"
-                                                questionId={currentQ._id || currentQ.id || currentIdx}
+                                                questionId={currentQ._id || currentQ.id || current}
                                                 maxWidth="450px"
                                             />
                                         </div>

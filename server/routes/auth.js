@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const mongoose = require('mongoose');
 const User = require('../models/User');
@@ -38,17 +39,33 @@ router.post('/login', loginLimiter, async (req, res) => {
         return res.status(400).json({ msg: 'Email and password are required.' });
     }
 
-    // ── Hardcoded Admin Account (Sapthagiri PU College) ────────────────────
-    if (email === 'sapthagiripucollegedvg@gmail.com') {
-        const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'Sapthagiri1';
+    // Signing secret and admin password come from the environment only. There are no built-in
+    // fallbacks: a value that is hard-coded here is readable by anyone who can see the source.
+    if (!process.env.JWT_SECRET) {
+        console.error('[AUTH] JWT_SECRET is not set; refusing to issue tokens.');
+        return res.status(503).json({ msg: 'Login is not configured on the server. Please contact the administrator.' });
+    }
+    const safeEqual = (a, b) => {
+        const d = v => crypto.createHash('sha256').update(String(v ?? '')).digest();
+        return crypto.timingSafeEqual(d(a), d(b));
+    };
+    const INVALID = 'Invalid email or password.'; // same text for unknown user and wrong password
 
-        if (password !== ADMIN_PASSWORD) {
-            return res.status(400).json({ msg: 'Invalid credentials.' });
+    // ── Built-in Admin Account (Sapthagiri PU College) ─────────────────────
+    if (email === 'sapthagiripucollegedvg@gmail.com') {
+        const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
+        if (!ADMIN_PASSWORD) {
+            console.error('[AUTH] ADMIN_PASSWORD is not set; admin login is disabled.');
+            return res.status(503).json({ msg: 'Admin login is not configured on the server. Please contact the administrator.' });
+        }
+
+        if (!safeEqual(password, ADMIN_PASSWORD)) {
+            return res.status(400).json({ msg: INVALID });
         }
 
         const adminId = '000000000000000000000000';
         const payload = { id: adminId, role: 'admin' };
-        const token = jwt.sign(payload, process.env.JWT_SECRET || 'sapthagiri_jwt_secret_2026', { expiresIn: '10h' });
+        const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '10h' });
 
         // Set HttpOnly cookie
         res.cookie(COOKIE_NAME, token, COOKIE_OPTIONS);
@@ -107,21 +124,23 @@ router.post('/login', loginLimiter, async (req, res) => {
         }
 
         if (!userRecord) {
-            console.warn(`[AUTH] Login failed: User not found <${email}>`);
-            return res.status(400).json({ msg: 'Invalid credentials. User not found.' });
+            console.warn('[AUTH] Login failed: unknown user');
+            return res.status(400).json({ msg: INVALID });
         }
 
         let isMatch = false;
         if (userRecord.password && (userRecord.password.startsWith('$2a$') || userRecord.password.startsWith('$2b$') || userRecord.password.startsWith('$2y$'))) {
             isMatch = await bcrypt.compare(password, userRecord.password);
         } else if (userRecord.password) {
-            // Plain text password compatibility
-            isMatch = (userRecord.password === password);
+            // Legacy accounts whose password was stored unhashed. They still work, but an admin should
+            // reset those passwords (Admin > Faculty) so they are stored hashed. See docs/AUDIT_AND_CHANGELOG.md.
+            isMatch = safeEqual(userRecord.password, password);
+            if (isMatch) console.warn(`[AUTH] Account <${email}> still has an unhashed password; reset it.`);
         }
 
         if (!isMatch) {
-            console.warn(`[AUTH] Login failed: Password mismatch for <${email}>`);
-            return res.status(400).json({ msg: 'Invalid credentials. Incorrect password.' });
+            console.warn('[AUTH] Login failed: password mismatch');
+            return res.status(400).json({ msg: INVALID });
         }
 
         const payload = {
@@ -131,7 +150,7 @@ router.post('/login', loginLimiter, async (req, res) => {
             omrAccess: Boolean(userRecord.omrAccess)
         };
 
-        const token = jwt.sign(payload, process.env.JWT_SECRET || 'sapthagiri_jwt_secret_2026', { expiresIn: '10h' });
+        const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '10h' });
 
         // Set HttpOnly cookie
         res.cookie(COOKIE_NAME, token, COOKIE_OPTIONS);

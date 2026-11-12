@@ -131,6 +131,12 @@ const AssignmentGenerator = () => {
     const [selectedConcepts, setSelectedConcepts] = useState([]);
     const [targetCount, setTargetCount] = useState(25);
     const [startQNo, setStartQNo] = useState(1);
+    // Assignment sheet details (printed on the sheet and saved with the assignment)
+    const [classLevel, setClassLevel] = useState('12');
+    const [marksPerQuestion, setMarksPerQuestion] = useState(1);
+    const [submissionDate, setSubmissionDate] = useState('');
+    const [instructionsText, setInstructionsText] = useState('Answer all the questions. Show the necessary working in the space provided or in your notebook.');
+    const [showStudentDetails, setShowStudentDetails] = useState(true);
     const [endQNo, setEndQNo] = useState(null);
 
     // Questions Pool & Selection
@@ -175,7 +181,8 @@ const AssignmentGenerator = () => {
     const fetchQuestions = async () => {
         setLoading(true);
         try {
-            const res = await api.get(`/api/questions?subject=${encodeURIComponent(subject)}&limit=20000`);
+            // Only the chosen class's question bank (a Class 11 assignment must not draw Class 12 questions).
+            const res = await api.get(`/api/questions?subject=${encodeURIComponent(subject)}&classes=${encodeURIComponent(classLevel)}&limit=20000`);
             const qs = Array.isArray(res.data) ? res.data : (res.data?.questions || []);
             setQuestionsPool(qs);
         } catch (err) {
@@ -187,7 +194,7 @@ const AssignmentGenerator = () => {
 
     useEffect(() => {
         if (subject) fetchQuestions();
-    }, [subject]);
+    }, [subject, classLevel]);
 
     // Chapters and concepts extraction
     const { distinctChapters, chapterConceptsMap } = useMemo(() => {
@@ -328,13 +335,18 @@ const AssignmentGenerator = () => {
         _id: 'new-assignment',
         title: title || `${subject.toUpperCase()} PRACTICE ASSIGNMENT`,
         subject,
-        classes: ['12'],
-        questions: visibleQs,
+        classes: [classLevel],
+        questions: visibleQs.map(q => ({ ...q, marks: Number(marksPerQuestion) || 1 })),
+        marksPerQuestion: Number(marksPerQuestion) || 1,
+        totalMarks: visibleQs.length * (Number(marksPerQuestion) || 1),
+        instructions: instructionsText,
+        submissionDate,
+        showStudentDetails,
         duration: null,
         isAssignment: true,
         startQNo,
         endQNo: endQNo || (startQNo + visibleQs.length - 1),
-    }), [title, subject, visibleQs, startQNo, endQNo]);
+    }), [title, subject, classLevel, visibleQs, marksPerQuestion, instructionsText, submissionDate, showStudentDetails, startQNo, endQNo]);
 
     // Save Assignment to MongoDB & Supabase
     const handleSaveAssignment = async () => {
@@ -344,13 +356,21 @@ const AssignmentGenerator = () => {
             const payload = {
                 title: title || `${subject.toUpperCase()} Practice Assignment`,
                 subject,
-                classes: ['12'],
+                classes: [classLevel],
+                class_level: classLevel,
+                instructions: instructionsText,
+                total_marks: visibleQs.length * (Number(marksPerQuestion) || 1),
+                metadata: {
+                    marksPerQuestion: Number(marksPerQuestion) || 1,
+                    submissionDate: submissionDate || null,
+                    showStudentDetails,
+                },
                 duration: null,
                 isAssignment: true,
                 startQNo: startQNo || 1,
                 endQNo: endQNo || (startQNo + visibleQs.length - 1),
                 questions: visibleQs.map(q => q._id || q.id),
-                questionObjects: visibleQs,
+                questionObjects: visibleQs.map(q => ({ ...q, marks: Number(marksPerQuestion) || 1 })),
                 status: user?.role === 'admin' ? 'Approved' : 'Pending Approval',
             };
 
@@ -551,6 +571,56 @@ const AssignmentGenerator = () => {
                                             setStartQNo(1);
                                         }
                                     }}
+                                    className="w-full border-2 border-gray-200 focus:border-navy rounded-2xl px-4 py-2.5 text-xs font-bold text-navy outline-none"
+                                />
+                            </div>
+                        </div>
+
+                        {/* Assignment sheet details */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 pt-4 border-t border-gray-100">
+                            <div>
+                                <label className="block text-xs font-black text-navy uppercase tracking-wider mb-2">Class</label>
+                                <select
+                                    value={classLevel}
+                                    onChange={e => { setClassLevel(e.target.value); setSelectedChapters([]); setSelectedConcepts([]); setSelectedQuestions([]); }}
+                                    className="w-full border-2 border-gray-200 focus:border-navy rounded-2xl px-4 py-2.5 text-xs font-bold text-navy outline-none bg-white"
+                                >
+                                    <option value="11">Class 11 (I PUC)</option>
+                                    <option value="12">Class 12 (II PUC)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-xs font-black text-navy uppercase tracking-wider mb-2">Marks per Question</label>
+                                <input
+                                    type="number"
+                                    min={1}
+                                    value={marksPerQuestion}
+                                    onChange={e => setMarksPerQuestion(e.target.value === '' ? '' : Math.max(0, parseInt(e.target.value, 10) || 0))}
+                                    onBlur={() => { if (!marksPerQuestion || Number(marksPerQuestion) < 1) setMarksPerQuestion(1); }}
+                                    className="w-full border-2 border-gray-200 focus:border-navy rounded-2xl px-4 py-2.5 text-xs font-bold text-navy outline-none"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-black text-navy uppercase tracking-wider mb-2">Submission Date</label>
+                                <input
+                                    type="date"
+                                    value={submissionDate}
+                                    onChange={e => setSubmissionDate(e.target.value)}
+                                    className="w-full border-2 border-gray-200 focus:border-navy rounded-2xl px-4 py-2.5 text-xs font-bold text-navy outline-none"
+                                />
+                            </div>
+                            <div className="flex items-end">
+                                <label className="flex items-center gap-2 text-xs font-black text-navy uppercase tracking-wider cursor-pointer pb-3">
+                                    <input type="checkbox" checked={showStudentDetails} onChange={e => setShowStudentDetails(e.target.checked)} />
+                                    Print student detail lines
+                                </label>
+                            </div>
+                            <div className="md:col-span-2 lg:col-span-4">
+                                <label className="block text-xs font-black text-navy uppercase tracking-wider mb-2">Instructions to Students</label>
+                                <textarea
+                                    rows={2}
+                                    value={instructionsText}
+                                    onChange={e => setInstructionsText(e.target.value)}
                                     className="w-full border-2 border-gray-200 focus:border-navy rounded-2xl px-4 py-2.5 text-xs font-bold text-navy outline-none"
                                 />
                             </div>
@@ -949,10 +1019,10 @@ const AssignmentGenerator = () => {
             {/* ── MODAL: ANSWER KEY (TRUE A4 VIEW, DYNAMIC LABELS, INDEPENDENT PRINT & DOWNLOAD) ── */}
             {showAnswerKeyModal && (
                 <A4AnswerKey
-                    paper={{ title: title || `${subject} Assignment`, subject, classes: [selectedClass] }}
+                    paper={{ title: title || `${subject} Assignment`, subject, classes: [classLevel] }}
                     questions={visibleQs}
                     startQNo={startQNo}
-                    setName={setName}
+                    setName="P"
                     onClose={() => setShowAnswerKeyModal(false)}
                 />
             )}
@@ -960,10 +1030,10 @@ const AssignmentGenerator = () => {
             {/* ── MODAL: SOLUTIONS GUIDE (TRUE A4 VIEW, KATEX MATH, INDEPENDENT PRINT & DOWNLOAD) ── */}
             {showSolutionsModal && (
                 <A4SolutionKey
-                    paper={{ title: title || `${subject} Assignment`, subject, classes: [selectedClass] }}
+                    paper={{ title: title || `${subject} Assignment`, subject, classes: [classLevel] }}
                     questions={visibleQs}
                     startQNo={startQNo}
-                    setName={setName}
+                    setName="P"
                     onClose={() => setShowSolutionsModal(false)}
                 />
             )}

@@ -1,315 +1,304 @@
-# 🏛️ Sapthagiri PU College — Enterprise Examination & Assessment Portal
-> **Davanagere • The Land of Opportunity**  
-> *Production-Grade Question Paper Generator, 4-Set PQRS Engine, OMR Scanner & Computer-Based Testing System*
+# Sapthagiri PU College — Examination Management Platform
+
+Question-paper generation, answer keys, OMR evaluation and online (CBT) examinations for
+Sapthagiri PU College, Davanagere, Karnataka.
+
+This README describes what is in the repository today. It was rewritten from the code, not from the
+previous README. Known defects and open decisions are tracked in
+[docs/AUDIT_AND_CHANGELOG.md](docs/AUDIT_AND_CHANGELOG.md); read that before a production rollout.
+
+## Contents
+
+1. [What the system does](#1-what-the-system-does)
+2. [Architecture](#2-architecture)
+3. [Database topology](#3-database-topology)
+4. [Tech stack](#4-tech-stack)
+5. [Directory structure](#5-directory-structure)
+6. [API reference](#6-api-reference)
+7. [Environment variables](#7-environment-variables)
+8. [Install and run](#8-install-and-run)
+9. [Database setup and migrations](#9-database-setup-and-migrations)
+10. [Tests](#10-tests)
+11. [Deployment](#11-deployment)
+12. [Security notes](#12-security-notes)
+13. [Troubleshooting](#13-troubleshooting)
+14. [Limitations](#14-limitations)
 
 ---
 
-## 📑 Table of Contents
-1. [Executive Overview](#-executive-overview)
-2. [Key Capabilities & Modules](#-key-capabilities--modules)
-   - [1. Question Paper Generator (QPG) Wizard](#1-question-paper-generator-qpg-wizard)
-   - [2. A4 High-Fidelity Paper Engine](#2-a4-high-fidelity-paper-engine)
-   - [3. Institutional Answer Key & Solution Guide](#3-institutional-answer-key--solution-guide)
-   - [4. Section-Aware 4-Set PQRS Permutation Engine](#4-section-aware-4-set-pqrs-permutation-engine)
-   - [5. Multi-Subject Exam Merge Engine](#5-multi-subject-exam-merge-engine)
-   - [6. Assignment Generation Suite](#6-assignment-generation-suite)
-   - [7. Computer Vision & ML OMR Engine](#7-computer-vision--ml-omr-engine)
-   - [8. Online CBT Lab Examination Portal](#8-online-cbt-lab-examination-portal)
-3. [System Architecture & Multi-Database Topology](#-system-architecture--multi-database-topology)
-4. [Tech Stack & Engineering Standards](#-tech-stack--engineering-standards)
-5. [Directory & Codebase Map](#-directory--codebase-map)
-6. [API Endpoints Reference](#-api-endpoints-reference)
-7. [Environment Configuration](#-environment-configuration)
-8. [Installation & Local Setup](#-installation--local-setup)
-9. [Production Deployment & Build](#-production-deployment--build)
-10. [Academic Integrity & Institution Branding](#-academic-integrity--institution-branding)
+## 1. What the system does
 
----
+| Module | Where | Notes |
+|---|---|---|
+| **Question paper wizard** | `client/src/pages/teacher/CommissionedExam.jsx` | 7 steps: exam pattern → chapters → per-chapter quotas → question types → difficulty → fetch → preview/save. Auto mode calls `POST /api/questions/chapter-distribution`; manual mode lets the teacher pick questions. The result screen shows requested vs delivered per chapter and says so when a quota could not be met. |
+| **Question selection** | `server/services/questionSelector.js` | Pure function. Fills each chapter's quota only from that chapter, never uses a question twice, applies type allocations and difficulty targets, and reports every shortfall. Seedable (`seed`). |
+| **A4 paper engine** | `client/src/components/A4PaperEngine.jsx`, `PaperRenderer.jsx`, `QuestionBlock.jsx` | One or two columns, adjustable margins, fonts, spacing, diagram size, watermark (on/off, opacity, size), custom starting question number. Printing uses the browser's print dialog (CSS `@media print`), so the PDF is whatever the browser produces from the preview. |
+| **Answer key and solutions** | `A4AnswerKey.jsx`, `A4SolutionKey.jsx` | 15-column key grid, numeric or alphabetic keys, print, PDF (jsPDF) and Excel (`xlsx`) export, numbering from the paper's starting number. |
+| **P/Q/R/S sets** | `client/src/utils/pqrsGenerator.js` | Seeded, section-aware shuffle of questions (Q, R, S) and options (R, S) with the correct answer recomputed. Questions whose options refer to each other ("Both 1 and 2", "All of the above") keep their option order. The seed is the paper id, so sets are only stable once a paper has been saved. |
+| **Assignments** | `client/src/pages/teacher/AssignmentGenerator.jsx` | Class, chapters, question count, starting number, marks per question, submission date, instructions and student detail lines (name, class/section, register number). |
+| **Paper export** | `server/services/wordExport.js`, `pdfPaperExport.js` | Word (`docx`) and server-side PDF (puppeteer) export of saved papers. |
+| **OMR** | `server/omr_engine/` (Python), `server/routes/omr.js`, `server/services/omrEvaluator.js`, `pqrsKeys.js` | OpenCV preprocessing plus a bubble classifier (`models/bubble_classifier.keras` / `.onnx`). Node runs `scan_cli.py` per sheet, then grades against the key of the series the student sat (P/Q/R/S). Sheets with multiple marks, an unreadable series or roll number, or duplicate roll numbers are flagged for manual review. **No accuracy figure is claimed**: none has been measured on a labelled set of real sheets. |
+| **Online CBT** | `client/src/pages/exam/`, `pages/lab/`, `server/routes/exams.js`, `lab.js`, `services/cbtScoring.js` | Lab terminal login, roll-number check against `public.students`, server-side timing, autosave, server-side scoring (+4/−1; CET/KCET +1/0), scorecard, leaderboard, full-screen and tab-switch detection that disqualifies a session. Browser-side monitoring can be bypassed; treat it as a deterrent. |
+| **Admin** | `client/src/pages/admin/` | Faculty accounts, exam commissioning and merging, blueprints, templates, results and analytics, Grand Tests / previous-year papers (metadata only, see [limitations](#14-limitations)). |
 
-## 🌟 Executive Overview
-The **Sapthagiri PU College Examination Platform** is an institutional assessment, curriculum management, and evaluation suite custom-built for **Sapthagiri Pre-University College, Davanagere**.
-
-Engineered to replace manual exam authoring and fragmented tools, it delivers an end-to-end digital pipeline for:
-- Formulating authentic **PUC Board, KCET, NEET, and JEE Main** question papers.
-- Auto-fetching questions strictly balanced by **chapter quotas, difficulty levels, and pedagogical question types**.
-- Rendering print-perfect A4 papers featuring the college's official circular emblem watermark, typography, and KaTeX mathematical typesetting.
-- Generating randomized 4-Set (`P, Q, R, S`) papers with recalculated answer keys and step-by-step solution guides.
-- Automated optical mark recognition (OMR) grading powered by computer vision and deep learning.
-
----
-
-## ⚡ Key Capabilities & Modules
-
-### 1. Question Paper Generator (QPG) Wizard
-A guided 7-step wizard (`CommissionedExam.jsx`) ensuring full curriculum coverage:
-* **Step 1: Subject Selection**: Physics, Chemistry, Mathematics, Biology, Botany, Zoology, or competitive combinations (NEET PCBZ, JEE PCM, CET PCMB).
-* **Step 2: Generation Mode**:
-  * **Auto-Fetch**: Algorithmic question retrieval and balancing.
-  * **Manual Selection**: Interactive browse-and-pick mode from live question pools.
-* **Step 3: Syllabus & Concept Filtering**: Class 11 (I PUC), Class 12 (II PUC), or Both; multi-chapter selection with granular concept tags.
-* **Step 4: Chapter Quotas**: Precise allocation of questions per chapter (e.g., Chapter 1: 15, Chapter 2: 15) with smooth non-snapping backspace input editing.
-* **Step 5: Question Type Allocations & Difficulty Balance**:
-  * Question Types: Standard MCQ, Assertion & Reasoning ($A/R$), Match the Following (2-column Roman/Numeric matrix), Statement-Based (Statement I, II, III), Diagrammatic, and JEE Numerical ($Integer$).
-  * Difficulty Sliders: Easy, Medium, and Hard balancing strictly to 100%.
-* **Step 6: Real-Time Assembly**: Dedicated multi-chapter parallel query execution guaranteeing that questions are strictly balanced across all selected chapters without bias toward any single chapter.
-* **Step 7: Final Paper Composition**: Real-time live preview with immediate access to swap, edit, reorder, or delete questions.
-
-### 2. A4 High-Fidelity Paper Engine
-Driven by `A4PaperEngine.jsx` and `PaperRenderer.jsx`:
-* **Continuous Layout**: True-to-scale A4 dimensions ($794\text{px} \times 1123\text{px}$ per page) with auto-overflow pagination.
-* **Layout Modes**: Seamless toggle between **1-Column** (Standard Board/NEET) and **2-Column** (KCET/JEE Magazine style) presentation.
-* **Institution Watermark**: Faint official Sapthagiri PU College campus crest centered on every page with reactive opacity ($0\text{--}30\%$) and scale controls.
-* **Interactive Diagram Resizing**: In-preview diagram scaling ($100\text{px}\text{--}500\text{px}$ or Auto) and alignment (`Center`, `Float Left`, `Float Right`, `Below Question`).
-* **Options Layout**: Configurable options per line (1 column stacked, 2-column $2\times 2$ grid, or inline 4 options).
-* **Question Swap Modal**: Cascading dropdown filter (`Chapter` $\to$ `Concept` $\to$ `Type` $\to$ `Difficulty Level`) allowing teachers to swap unwanted questions with instant notification.
-* **Rich LaTeX / KaTeX Typesetting**: Native rendering for complex mathematical integrals, chemical reaction arrows, matrices, and sub/superscripts.
-
-### 3. Institutional Answer Key & Solution Guide
-* **Official Institutional Grid (`A4AnswerKey.jsx`)**:
-  * Standard 15-column-per-row grid matching Karnataka State PU Board & CET office protocols.
-  * Left-hand subject identifier (`PHY`, `CHEM`, `MATH`, `BIO`, `BOT`, `ZOO`).
-  * Display toggle: Numeric (`1, 2, 3, 4`) or Alphabetical (`A, B, C, D`).
-  * Instant vector PDF export (`jspdf-autotable`) and Microsoft Excel export (`.xlsx` via SheetJS).
-  * Interactive inline key editor with database persistence.
-* **Comprehensive Solution Guide (`A4SolutionKey.jsx`)**:
-  * Full step-by-step explanations, intermediate formulas, and diagram references for every question in the paper.
-  * Formatted print and PDF output.
-* **Customized Question Numbering**:
-  * Supports custom starting question numbers (e.g., start numbering from `Q.10` $\to$ `10, 11, 12...`).
-  * The question paper preview, printed exam, Answer Key, and Solution Guide automatically synchronize to the custom start number.
-
-### 4. Section-Aware 4-Set PQRS Permutation Engine
-Implemented in `pqrsGenerator.js`:
-* **Set P**: Original master order.
-* **Set Q**: Deterministic question shuffling within each subject section.
-* **Set R**: Option shuffling with automatic recalculation of correct answer indices.
-* **Set S**: Double permutation (both questions and options permuted independently).
-* Strict preservation of custom `startQNo` across all 4 sets.
-
-### 5. Multi-Subject Exam Merge Engine
-* Allows academic directors to combine individual department papers (e.g., 45 Qs Physics + 45 Qs Chemistry + 45 Qs Botany + 45 Qs Zoology) into a single master **180-Question NEET Grand Assessment** or **CET Combined Paper** with unified headers, continuous numbering, and combined answer key.
-
-### 6. Assignment Generation Suite
-* Dedicated mode (`AssignmentGenerator.jsx`) for daily homework, weekly problem sheets, and vacation assignments.
-* Automatic student metadata block: Student Name, Roll Number, Section, Date, and Teacher's Signature line.
-
-### 7. Computer Vision & ML OMR Engine
-Located in `server/omr_engine/`:
-* **Multi-Format Processing**: Supports NEET (200 questions / 4 subjects), KCET (60 questions), and JEE Main (75 questions).
-* **Pre-Processing Pipeline**: Perspective warp, affine alignment, edge detection, and thresholding.
-* **Deep Learning Classifier**: Keras/ONNX convolutional neural network classifying filled, partially filled, and erased bubbles.
-* **Student Identity Detection**: Automatic extraction of student SAT/Enrollment numbers from bubble grids.
-* **Analytics**: Generates batch score summaries, subject-wise percentiles, and chapter-level weakness diagnostics.
-
-### 8. Online CBT Lab Examination Portal
-* Computer-Based Test engine (`ExamEngine.jsx` & `StudentLabPortal.jsx`) supporting real-time timed tests.
-* Full-screen lock, tab switch detection, auto-save timers, and immediate scorecard generation.
-
----
-
-## 🏛️ System Architecture & Multi-Database Topology
-
-To guarantee high availability and sub-second query speeds across tens of thousands of competitive exam questions, the platform implements a **distributed multi-database routing architecture**:
+## 2. Architecture
 
 ```mermaid
 graph TD
-    Client["React 18 + Vite Frontend"] -->|"REST API / JWT"| Server["Node.js / Express Server"]
-    Server --> MainDB[("Main PostgreSQL DB\n(Users, Papers, Templates, Blueprints)")]
-    Server --> RoutingService["supabaseQuestions Routing Engine"]
-    
-    RoutingService -->|"Physics Qs"| PhyPool[("DB_PHY_11 & DB_PHY_12")]
-    RoutingService -->|"Chemistry Qs"| ChemPool[("DB_CHEM_11 & DB_CHEM_12")]
-    RoutingService -->|"Maths Qs"| MathPool[("DB_MATH_11 & DB_MATH_12")]
-    RoutingService -->|"Biology Qs"| BioPool[("DB_BIO_11 & DB_BIO_12")]
-    
-    Server --> OMREngine["Python OpenCV/Keras OMR Engine"]
-    OMREngine --> Cloudinary["Cloudinary CDN (Diagrams & Scans)"]
+    Browser["React 19 SPA (Vite)"] -->|"REST + JWT (Bearer header or HttpOnly cookie)"| API["Express 5 API (server/index.js)"]
+    API --> Primary[("Primary PostgreSQL<br/>users, papers, exams, sessions,<br/>templates, OMR submissions")]
+    API --> Router["services/supabaseQuestions.js<br/>question routing"]
+    Router --> Pools[("8 subject databases<br/>Physics / Chemistry / Maths / Biology × Class 11 / 12")]
+    Router --> QBP[("QBP control (Supabase)<br/>previous-year / grand-test questions")]
+    API --> OMR["python scan_cli.py<br/>(OpenCV + classifier)"]
+    API --> Cloudinary["Cloudinary (uploaded images)"]
+    API -.->|"optional, legacy"| Mongo[("MongoDB Atlas")]
 ```
 
-### Database Responsibilities:
-1. **Primary Database (`DATABASE_URL`)**: Stores administrative users, faculty accounts, saved question papers (`public.papers`), layout settings, audit logs, and notification records.
-2. **8 Dedicated Subject Repositories**:
-   - `DB_PHY_11_URL` / `DB_PHY_12_URL`: Class 11 and Class 12 Physics question banks.
-   - `DB_CHEM_11_URL` / `DB_CHEM_12_URL`: Class 11 and Class 12 Chemistry question banks.
-   - `DB_MATH_11_URL` / `DB_MATH_12_URL`: Class 11 and Class 12 Mathematics question banks.
-   - `DB_BIO_11_URL` / `DB_BIO_12_URL`: Class 11 and Class 12 Biology (Botany & Zoology) question banks.
+Front-end ↔ back-end: all calls go through `client/src/api.js` (axios, `withCredentials`, token from
+`localStorage` sent as `Authorization: Bearer`). In production Vercel rewrites `/api/*` to the Render
+service (`client/vercel.json`, `vercel.json`).
 
----
+Question paper generation:
 
-## 💻 Tech Stack & Engineering Standards
+```
+CommissionedExam.jsx ──POST /api/questions/chapter-distribution──► routes/questions.js
+                                                                    └► supabaseQuestions.getQuestionsWithChapterQuotas
+                                                                         ├ getQuestions()  (one random sample per chapter, class-strict)
+                                                                         └ questionSelector.assembleByQuotas()  (pure, tested)
+Step 7: PaperRenderer / A4AnswerKey / A4SolutionKey each derive the active P/Q/R/S set from the master paper
+        with pqrsGenerator.generatePaperSet(master, set, startQNo)
+OMR:    routes/omr.js ─► pqrsKeys.buildSeriesKey (server port of the generator; parity-tested against the client)
+```
 
-| Layer | Technologies |
-| :--- | :--- |
-| **Frontend Framework** | React 18, Vite 6, Tailwind CSS |
-| **Mathematical Rendering** | KaTeX, custom LaTeX equation sanitizers |
-| **Document Generation** | jsPDF, `jspdf-autotable`, SheetJS (`xlsx`), `docx` (Word export), html2canvas |
-| **Icons & UI** | Lucide React |
-| **Backend Runtime** | Node.js (v18+ / v20+ / v24+), Express.js |
-| **Database Clients** | `pg` (Node-Postgres Connection Pooling), `@supabase/supabase-js` |
-| **OMR Engine** | Python 3.10+, OpenCV, Keras, ONNX Runtime, NumPy |
-| **Authentication** | Stateless JWT tokens, bcrypt password hashing |
-| **Cloud Storage** | Cloudinary CDN for diagram and scan storage |
+## 3. Database topology
 
----
+* **Primary database** (`DATABASE_URL`, `server/config/postgres.js`): users, papers, exams, exam sessions,
+  templates, blueprints, notifications, students, bridge keys, OMR submissions, question usage.
+  Tables are created by `server/scripts/init_db.js`.
+* **Eight subject databases** (`server/config/subjectDatabases.js`, env `DB_<SUBJECT>_<CLASS>_URL`):
+  `phy_11 phy_12 chem_11 chem_12 math_11 math_12 bio_11 bio_12`. Each holds `public.questions`. Botany and
+  Zoology are chapter subsets of Biology.
+* **QBP control** (`DB_QBP_CONTROL_URL` / `_KEY`): a Supabase project holding previous-year and grand-test questions.
+* **MongoDB** (`MONGO_URI`): optional legacy secondary store. The API runs without it.
 
-## 📁 Directory & Codebase Map
+Routing rules (`getPoolsForQuery`): a subject maps to its database(s); a class restricts to that class's
+database; `Both` or no class queries both classes; an unknown subject returns **no** pools (it used to
+query all databases). There are no cross-database transactions: a paper save writes only to the primary
+database; question ids are read from the subject databases and are not copied.
+
+## 4. Tech stack
+
+| Layer | Technology (from `package.json`) |
+|---|---|
+| Front-end | React 19, Vite 8, React Router 7, Tailwind CSS 4, axios, KaTeX, jsPDF + jspdf-autotable, SheetJS (`xlsx`), TanStack Query, react-hook-form, lucide-react |
+| Back-end | Node.js, Express 5, `pg`, mongoose 9 (optional), jsonwebtoken, bcryptjs, helmet, express-rate-limit, multer, Cloudinary, `docx`/`docxtemplater`, puppeteer, sanitize-html, `@supabase/supabase-js` |
+| OMR | Python 3 (3.11 used when checking), OpenCV, NumPy, Keras/ONNX bubble classifier files in `omr_engine/models/` |
+| Hosting (as configured) | Render (API, `render.yaml`), Vercel (SPA, `vercel.json`) |
+
+## 5. Directory structure
+
+Generated from the repository (images, OMR answer-key JSON and `node_modules` omitted).
 
 ```
 SAPTHAGIRI_PU_COLLEGE/
-├── client/                                 # Frontend React application
-│   ├── public/                             # Public static assets (crest, campus logos)
+├── api/index.js                 Vercel entry: re-exports server/index.js
+├── client/
 │   ├── src/
-│   │   ├── components/                     # Core reusable UI components
-│   │   │   ├── A4AnswerKey.jsx             # Institutional 15-col Answer Key table & exports
-│   │   │   ├── A4PaperEngine.jsx           # Continuous A4 paper preview & layout engine
-│   │   │   ├── A4SolutionKey.jsx           # Comprehensive solution explanations view
-│   │   │   ├── MathRenderer.jsx            # KaTeX LaTeX math typesetting wrapper
-│   │   │   ├── PaperQuestionEditorModals.jsx# Question edit & cascading swap modals
-│   │   │   ├── PaperRenderer.jsx           # Live interactive preview & toolbar controls
-│   │   │   ├── QuestionBlock.jsx           # Card renderer for MCQ, AR, Match, Stmt
-│   │   │   ├── QuestionImage.jsx           # Resilient image loader with error handling
-│   │   │   └── ResizableDiagram.jsx        # Interactive diagram resize & float control
+│   │   ├── App.jsx, api.js, main.jsx, index.css, App.css
+│   │   ├── components/          A4AnswerKey, A4PaperEngine, A4SolutionKey, AdminDailyQuestionsWidget,
+│   │   │                        ChapterBlueprintMatrix, ErrorBoundary, Loader, MathRenderer, PaperAnalysisModal,
+│   │   │                        PaperQuestionEditorModals, PaperRenderer, QuestionBlock, QuestionImage, ResizableDiagram
+│   │   ├── context/             AuthContext, LoadingContext
 │   │   ├── pages/
-│   │   │   ├── admin/                      # Admin dashboard, blueprints, paper preview
-│   │   │   ├── teacher/                    # Teacher dashboard, CommissionedExam, OMR
-│   │   │   ├── exam/                       # Online CBT exam engine & scorecards
-│   │   │   └── auth/                       # Unified login interface
-│   │   ├── utils/
-│   │   │   ├── pqrsGenerator.js            # 4-Set (P, Q, R, S) shuffling algorithm
-│   │   │   └── sanitize.js                 # HTML/LaTeX sanitization helpers
-│   │   ├── App.jsx                         # Application router & route guards
-│   │   └── main.jsx                        # React root entry point
-├── server/                                 # Backend Node.js / Express service
-│   ├── config/                             # Subject database pools & connection maps
-│   ├── middleware/                         # Authentication & RBAC role guards
-│   ├── models/                             # Data models & schemas
-│   ├── routes/                             # Express REST API controllers
-│   │   ├── admin.js                        # Admin stats & faculty management
-│   │   ├── auth.js                         # Login, token validation, user profile
-│   │   ├── exams.js                        # Exam creation & submission handling
-│   │   ├── omr.js                          # OMR scanning bridge & evaluation
-│   │   ├── papers.js                       # Question paper CRUD & persistence
-│   │   └── questions.js                    # Question search, filtering & auto-fetch
+│   │   │   ├── admin/           AdminDashboard, AdminLogin, AdminPaperPreview, AdminQuestionBank, AdminResults,
+│   │   │   │                    BridgeApp, CreateTeacher, ExamBlueprints, ExamManagement, GrandTestList,
+│   │   │   │                    PreviousYearPapers, SubjectDetails, UploadTemplate
+│   │   │   ├── auth/            UnifiedLogin
+│   │   │   ├── exam/            Disqualified, ExamEngine, ExamInstructions, Scorecard, StudentLabPortal
+│   │   │   ├── lab/             LabExamList, LabLogin
+│   │   │   └── teacher/         AddQuestion, AssignmentGenerator, CommissionedExam, SavedPapers,
+│   │   │                        TeacherDashboard, TeacherLogin, TemplateCart, omr/TeacherOmr
+│   │   └── utils/               exportWord, pqrsGenerator, questionValidator, sanitize
+│   ├── tests/                   pqrsGenerator.test.mjs, pqrsServerParity.test.mjs
+│   └── vercel.json, vite.config.js, eslint.config.js
+├── server/
+│   ├── index.js                 Express app, middleware, route mounting
+│   ├── config/                  cloudinary, db (mongoose), postgres (primary pool), subjectDatabases, supabase
+│   ├── middleware/              auth, role, permissions, labIp, rateLimiter, mongoSanitize, errorHandler
+│   ├── models/                  mongoose models (legacy secondary store)
+│   ├── routes/                  admin, auth, examBlueprints, exams, grandTests, lab, notifications, omr,
+│   │                            papers, previousYearPapers, questions, templates
 │   ├── services/
-│   │   ├── postgresStorage.js              # Primary database storage procedures
-│   │   ├── supabaseQuestions.js            # Multi-pool query router & question mapper
-│   │   ├── wordExport.js                   # High-fidelity Microsoft Word (.docx) export
-│   │   └── pdfPaperExport.js               # Direct server-side PDF generator
-│   ├── omr_engine/                         # Python CV / ML OMR scoring pipeline
-│   └── server.js                           # Express entry point & middleware setup
-└── README.md                               # Project documentation
+│   │   ├── accessRules.js       paper ownership, OMR paper access, image-proxy allow-list, CORS origin parsing
+│   │   ├── cbtScoring.js        CBT answer comparison, marking, autosave merge, deadlines
+│   │   ├── omrEvaluator.js      OMR sheet scoring and review flags
+│   │   ├── pqrsKeys.js          server port of the P/Q/R/S generator
+│   │   ├── questionSelector.js  chapter-quota question selection
+│   │   ├── postgresStorage.js   primary-database access
+│   │   ├── supabaseQuestions.js question routing across the subject databases
+│   │   └── pdfPaperExport.js, pdfReport.js, wordExport.js
+│   ├── omr_engine/              Python OMR pipeline (scanner.py, scan_cli.py, ml_omr/, omr_preprocess/,
+│   │                            models/, templates/, scripts/ for training and export)
+│   ├── scripts/init_db.js       creates the primary-database tables
+│   ├── tests/                   Jest tests (see §10)
+│   └── utils/                   latexPreRenderer, mathToImage, sanitize
+├── docs/AUDIT_AND_CHANGELOG.md  audit findings, change log, open issues
+├── render.yaml, vercel.json     deployment configuration
+└── package.json                 root scripts: dev, build, start, init:db
 ```
 
----
+Not part of the application (ad-hoc scripts, safe to delete once confirmed unneeded):
+`find_limit.js`, `find_step5.js`, `search_special_types.js`, `test_type_queries.js`, `test_types_in_db.js`,
+`test_types_real.js` at the root and `server/check_*.js`, `server/test_*.js`. Some of the `server/test_*.js`
+scripts contain a hard-coded password; see the audit document.
 
-## 🔌 API Endpoints Reference
+## 6. API reference
 
-### 1. Authentication (`/api/auth`)
-- `POST /api/auth/login`: Authenticate admin, teacher, or student credentials.
-- `GET /api/auth/me`: Retrieve currently authenticated user context from JWT.
+All routes are under `/api`. "Auth" means a valid JWT (Bearer header, `x-auth-token`, or the `auth_token`
+cookie). Roles: `admin`, `teacher`, `lab`.
 
-### 2. Question Paper Generation (`/api/papers`)
-- `GET /api/papers`: List all saved papers (with subject/exam type filters).
-- `GET /api/papers/:id`: Fetch complete question paper payload by ID.
-- `POST /api/papers`: Save newly generated or commissioned question paper.
-- `PUT /api/papers/:id`: Update question paper content, layout settings, or answer keys.
-- `DELETE /api/papers/:id`: Permanently delete a question paper.
-- `POST /api/papers/:id/export/word`: Download editable `.docx` document.
+**Health:** `GET /` and `GET /api/health` (public).
 
-### 3. Question Bank & Repository (`/api/questions`)
-- `GET /api/questions`: Query questions by subject, class, chapter, concept, type, and difficulty.
-- `GET /api/questions/metadata`: Get syllabus taxonomy (distinct chapters and concepts for selected subject).
-- `GET /api/questions/:id`: Fetch individual question details.
+**Authentication** (`/api/auth`)
+`POST /login` public · `POST /logout` auth · `GET /me` auth
 
-### 4. OMR Evaluation (`/api/omr`)
-- `POST /api/omr/scan`: Upload scanned answer sheet image for CV/ML evaluation.
-- `GET /api/omr/results/:examId`: Retrieve class result sheet and student scores.
+**Admin** (`/api/admin`, admin only)
+`GET /` · `GET|POST /teachers` · `DELETE /teachers/:id` · `PUT /teachers/:id/password` · `PATCH /teachers/:id/omr-access` · `GET /questions-daily-stats`
 
----
+**Questions** (`/api/questions`, admin/teacher)
+`GET /` filters: `subject classes chapter concept type level usage source examType search limit page` · `POST /chapter-distribution` · `GET /meta` · `GET /daily-stats` · `GET /:id` · `POST /` · `POST /update/:id` · `DELETE /:id` · `POST /convert-numerical/:id` · `POST /:id/generate-variant` · `POST /bulk-import`
 
-## ⚙️ Environment Configuration
+`POST /chapter-distribution` body: `{ subject, classes, examType, chapterQuotas: {chapter: n}, typeAllocations?, difficultyDistribution?, concepts?, excludeIds?, seed? }`
+→ `{ questions, total, requestedTotal, complete, distributionReport, typeReport, difficultyReport, warnings[] }`
 
-Create a `.env` file in the `server/` directory containing the following keys:
+**Papers** (`/api/papers`)
+`GET /proxy-image?url=` public, allow-listed hosts only · `POST /` · `GET /` (own papers; admin all) · `GET /:id` · `PUT /:id` · `PATCH /:id/section` · `DELETE /:id` (owner/admin) · `GET /admin/all`, `PUT /admin/:id/status` (admin) · `POST /export-word` · `GET /:id/export-word` · `GET /:id/export-pdf`. Teachers can only open papers they own or that belong to an exam they are assigned to.
 
-```env
-# ── Server Core ──
-PORT=5000
-NODE_ENV=production
-JWT_SECRET=your_jwt_secret_key_here
-JWT_EXPIRES_IN=7d
-ADMIN_PASSWORD=your_admin_master_password
-ALLOWED_ORIGINS=http://localhost:5173,https://your-production-domain.com
+**Templates** (`/api/templates`): `GET /` auth · `POST /`, `DELETE /:id` admin
 
-# ── Primary Database (PostgreSQL / Supabase) ──
-DATABASE_URL=postgresql://user:password@host:5432/postgres?sslmode=require
-DIRECT_DATABASE_URL=postgresql://user:password@host:5432/postgres?sslmode=require
-SUPABASE_URL=https://your-project.supabase.co
+**Exam blueprints** (`/api/exam-blueprints`): `GET /`, `GET /:id` auth · `POST /`, `PUT /:id`, `DELETE /:id` admin · `POST /:id/generate-paper` admin/teacher
 
-# ── Dedicated Subject Question Databases ──
-DB_PHY_11_URL=postgresql://user:password@host:5432/physics_11?sslmode=require
-DB_PHY_12_URL=postgresql://user:password@host:5432/physics_12?sslmode=require
-DB_CHEM_11_URL=postgresql://user:password@host:5432/chemistry_11?sslmode=require
-DB_CHEM_12_URL=postgresql://user:password@host:5432/chemistry_12?sslmode=require
-DB_MATH_11_URL=postgresql://user:password@host:5432/maths_11?sslmode=require
-DB_MATH_12_URL=postgresql://user:password@host:5432/maths_12?sslmode=require
-DB_BIO_11_URL=postgresql://user:password@host:5432/biology_11?sslmode=require
-DB_BIO_12_URL=postgresql://user:password@host:5432/biology_12?sslmode=require
-```
+**Grand tests** (`/api/grand-tests`): `GET /`, `GET /:id`, `POST /`, `POST /parse-text` admin/teacher · `PUT /:id`, `DELETE /:id` admin · `POST /:id/import`, `DELETE /:id/questions/:qid`, `POST /:id/questions/:oid/replace` return **501** (not available, see §14)
 
----
+**Previous-year papers** (`/api/previous-year-papers`, admin): `GET /`, `GET /:id`, `POST /`, `PUT /:id`, `DELETE /:id` · `POST /:id/import` returns **501**
 
-## 🚀 Installation & Local Setup
+**Exams** (`/api/exams`)
+Admin: `POST /commission` · `GET /commissioned` · `POST /merge` · `POST /from-grand-test` · `POST /from-paper` · `GET /` · `GET /admin/:id` · `PUT /:id/config` · `PUT /:id/toggle-online-visibility` · `DELETE /:id` · `GET /:id/results` · `GET /:id/analytics` · `POST /:id/bridge-key` · `GET /:id/export-word` · `GET /:id/download-all-reports`
+Admin/teacher: `GET /:id` (includes answers) · `PUT /:id` · `GET /my-assignments` (auth)
+Student/lab (no JWT, see §12): `GET /lab-active` · `GET /:id/take` · `POST /:id/start` · `POST /:id/session/save-progress` · `POST /:id/submit` · `POST /:id/malpractice` · `GET /:id/scorecard/:sessionId` · `GET /:id/pdf-report/:sessionId` · `GET /:id/leaderboard`
+Bridge app: `GET /bridge/:key` (the key is the credential)
 
-### Prerequisites
-- **Node.js**: v18.0.0 or higher
-- **npm**: v9.0.0 or higher
-- **Python**: v3.10+ (required only if running the OMR OpenCV service locally)
+**Lab** (`/api/lab`): `POST /login`, `GET /exams`, `GET /student/:rollNumber` (restricted to `LAB_IP`)
 
-### Setup Steps
-```bash
-# 1. Clone repository
-git clone https://github.com/Rmanchestertechnologies/Sapthagiri_pu_college.git
-cd Sapthagiri_pu_college
+**OMR** (`/api/omr`, admin or teacher with OMR access): `GET /papers` · `GET /papers/:id/key` · `POST /scan` (multipart `sheets`, `paperId`, `examType`, optional marks) · `GET /results/:paperId` · `GET /results/:paperId/student/:rollNumber` · `DELETE /submissions/:id`
 
-# 2. Install Server Dependencies
-cd server
-npm install
-cd ..
+**Notifications** (`/api/notifications`, auth): `GET /` · `PUT /:id/read` · `PUT /read-all`
 
-# 3. Install Client Dependencies
-cd client
-npm install
-cd ..
+## 7. Environment variables
 
-# 4. Start Development Servers
-# Terminal 1: Backend Server
-cd server
-npm run dev
+Read by the server (`process.env.*`). Values are never committed; use `server/.env` locally and the hosting
+dashboard in production. `server/.env.example` is the template.
 
-# Terminal 2: Frontend Client
-cd client
-npm run dev
-```
+| Variable | Required | Purpose |
+|---|---|---|
+| `JWT_SECRET` | yes | Signs and verifies tokens. Login and lab login return 503 if unset. |
+| `ADMIN_PASSWORD` | yes | Password of the built-in admin account. Admin login returns 503 if unset. |
+| `DATABASE_URL` | yes | Primary PostgreSQL. (See §13: `config/postgres.js` has a hard-coded override.) |
+| `DB_PHY_11_URL`, `DB_PHY_12_URL`, `DB_CHEM_11_URL`, `DB_CHEM_12_URL`, `DB_MATH_11_URL`, `DB_MATH_12_URL`, `DB_BIO_11_URL`, `DB_BIO_12_URL` | yes | Subject question databases. |
+| `DB_QBP_CONTROL_URL`, `DB_QBP_CONTROL_KEY` | optional | QBP control Supabase project. |
+| `SUPABASE_URL`, `SUPABASE_SECRET_KEY` | optional | Supabase client. |
+| `LAB_ID`, `LAB_PASSWORD` | for CBT | Lab terminal credentials. Lab login returns 503 if unset. |
+| `LAB_IP` | recommended | Comma-separated public IP(s) of the lab network. Unset means the lab endpoints accept any address. |
+| `ALLOWED_ORIGINS` | recommended | Comma-separated front-end origins. Unset or `*` reflects every origin with credentials (any website could act as a logged-in user). |
+| `IMAGE_PROXY_HOSTS` | optional | Extra hosts the image proxy may fetch (Cloudinary and `*.supabase.co` are built in). |
+| `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` | optional | Image upload; falls back to local disk when missing. |
+| `MONGO_URI` | optional | Legacy MongoDB. |
+| `GEMINI_API_KEY` | optional | Grand-test text parsing and question variants. |
+| `PYTHON_BIN` | optional | Python executable for OMR (`python` on Windows, `python3` elsewhere by default). |
+| `PORT`, `NODE_ENV` | optional | |
 
-- **Frontend Client**: `http://localhost:5173`
-- **Backend API**: `http://localhost:5000`
+Client: `VITE_API_URL` (`client/.env.production`).
 
----
+## 8. Install and run
 
-## 📦 Production Deployment & Build
-
-To compile the React client for production hosting:
+Prerequisites: Node.js 18 or newer (24 was used while auditing), Python 3.10+ with `opencv-python`, `numpy` and the classifier's runtime
+(only for OMR), access to the PostgreSQL databases above.
 
 ```bash
-# Build frontend
-npm --prefix client run build
+npm --prefix server install
+npm --prefix client install
+cp server/.env.example server/.env      # then fill in the values
+npm run dev                             # API on :5000 and Vite dev server together
 ```
-The compiled bundle will be output to `client/dist`, ready for static hosting or deployment via Vercel / Nginx.
 
----
+Production build: `npm run build` (client → `client/dist`), `npm start` (API).
 
-## 🎓 Academic Integrity & Institution Branding
-* **Institution**: Sapthagiri Pre-University College
-* **Location**: Davanagere, Karnataka, India
-* **Tagline**: *The Land of Opportunity*
-* **Copyright**: © 2026 Sapthagiri PU College. All Rights Reserved.
+## 9. Database setup and migrations
+
+`npm run init:db` runs `server/scripts/init_db.js`, which creates the primary-database tables with
+`CREATE TABLE IF NOT EXISTS`. There is no migration framework: schema changes are made by hand.
+Back up before any change. The audit document lists the migrations that the Grand Test / previous-year
+question features would need; none has been applied.
+
+## 10. Tests
+
+```bash
+npm --prefix server run test:unit   # 66 tests: question selection, CBT scoring, OMR evaluation, access rules, login
+npm --prefix client test            # 25 tests: P/Q/R/S generator, answer key numbering, server/browser parity
+npm --prefix server test            # integration suite; connects to the databases in .env
+npm --prefix client run build       # production build check
+```
+
+The OMR image engine itself has no automated accuracy test. `server/omr_engine/scripts/test_model.py` exists
+but was not run or reviewed.
+
+## 11. Deployment
+
+* API: Render web service, `rootDir: server`, `node index.js` (`render.yaml`). Set every variable in §7 in
+  the Render dashboard; do not keep secrets in `render.yaml`.
+* SPA: Vercel, build `npm --prefix client run build`, output `client/dist`; `/api/*` and `/uploads/*` are
+  rewritten to the Render service.
+* OMR needs Python with OpenCV on the API host; the default Render Node runtime does not provide it.
+
+## 12. Security notes
+
+* Roles are enforced per route with `auth` + `checkRole`. Teachers can only access papers they own (or are
+  assigned through an exam), and only their own OMR submissions.
+* The student CBT endpoints (`/start`, `/submit`, `/session/save-progress`, `/scorecard`, …) are identified
+  only by a session number and are **not authenticated**. Do not expose them beyond the lab network
+  (`LAB_IP`). Fixing this needs a per-session token and client changes (see the audit document).
+* `GET /api/exams/:id` returns answers and is limited to admin/teacher. `GET /api/exams/:id/take` strips answers.
+  Scorecards are served only after submission.
+* Passwords are bcrypt hashes; legacy plain-text passwords are still accepted and logged. Reset those accounts.
+* **Secrets are currently committed** in `render.yaml`, `server/.env.example`, `server/config/*.js` and several
+  scripts (database URLs with passwords, JWT secret, admin password). Rotate them and remove them from the
+  repository and its history.
+* The login rate limiter is disabled in `middleware/rateLimiter.js`.
+
+## 13. Troubleshooting
+
+| Symptom | Cause / fix |
+|---|---|
+| "Login is not configured on the server" (503) | `JWT_SECRET` / `ADMIN_PASSWORD` missing. |
+| "Lab login is not configured" (503) | `LAB_ID`, `LAB_PASSWORD` or `JWT_SECRET` missing. |
+| Lab terminal refused | `LAB_IP` set and the terminal's public IP is not listed (the 403 response shows the address seen). |
+| OMR scan fails with "python not found" | Install Python or set `PYTHON_BIN`. |
+| "NEET series detection is ambiguous" | The scanner could not read the series bubble; rescan a clearer image. |
+| Fewer questions than requested | Read the summary on the preview screen: it lists each chapter's requested/delivered/available counts. |
+| Empty question list for a subject | The subject must be Physics, Chemistry, Mathematics, Biology, Botany or Zoology (or PCM/PCB/PCMB). |
+| `MongoDB connection notice` at start-up | Harmless; MongoDB is optional. |
+| `DATABASE_URL` seems ignored | `config/postgres.js` replaces any URL containing the old project id with a built-in one. |
+
+## 14. Limitations
+
+* Grand Test and previous-year question import/replace/remove are unavailable (HTTP 501): they depended on
+  MongoDB models that were never wired in, and the PostgreSQL tables hold only paper metadata.
+* Grand Tests cannot be linked to a template (no column).
+* Sets Q/R/S depend on the saved paper's id; unsaved papers use a temporary seed.
+* PDF output is produced by the browser from the on-screen preview; page breaks follow CSS rules and were
+  not verified against a physical printer.
+* OMR confidence scores are not exposed by the engine CLI, so only the review flags listed in §1 exist.
+* No multi-subject PDF merge tool exists; merged exams are merged as question lists (`POST /api/exams/merge`).
+
+Institution: Sapthagiri PU College, Davanagere, Karnataka.

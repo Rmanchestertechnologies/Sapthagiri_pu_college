@@ -9,6 +9,9 @@ const auth = require('../middleware/auth');
 const pool = require('../config/postgres');
 const Paper = require('../models/Paper');
 const supabaseQuestions = require('../services/supabaseQuestions');
+const { buildSeriesKey, parseAnswerIndices, SERIES } = require('../services/pqrsKeys');
+const { canUseOmrPaper } = require('../services/accessRules');
+const { evaluateSheet, parseMarks } = require('../services/omrEvaluator');
 
 // Configure Multer for temporary file uploads
 const uploadDir = path.resolve(__dirname, '../uploads/omr');
@@ -80,7 +83,9 @@ function runOmrScannerCli(imagePath, examType) {
             '--exam', (examType || 'neet').toLowerCase()
         ];
 
-        execFile('python', args, { maxBuffer: 10 * 1024 * 1024, timeout: 60000 }, (error, stdout, stderr) => {
+        // `python` does not exist on most Linux hosts (Render); override with PYTHON_BIN when needed.
+        const pythonBin = process.env.PYTHON_BIN || (process.platform === 'win32' ? 'python' : 'python3');
+        execFile(pythonBin, args, { maxBuffer: 10 * 1024 * 1024, timeout: 60000 }, (error, stdout, stderr) => {
             if (error) {
                 console.error('[OMR CLI ERROR]', error.message, stderr);
                 return reject(new Error(stderr || error.message || 'OMR scanner engine process failed.'));
@@ -231,106 +236,8 @@ router.get('/papers', [auth, requireOmrAccess], async (req, res) => {
     }
 });
 
-/**
- * Multi-Option Answer Parsing & Normalization (Server-Side)
- * Handles: single ('A', '1'), multi ('1, 2', 'A, B', '12', 'AB'), and phrases ('Both A and B', 'Both 1 and 2')
- */
-function parseAnswerIndicesServer(rawAns, options = []) {
-    if (rawAns === null || rawAns === undefined) return [];
-    if (Array.isArray(rawAns)) {
-        const set = new Set();
-        rawAns.forEach(item => {
-            parseAnswerIndicesServer(item, options).forEach(idx => set.add(idx));
-        });
-        return Array.from(set).sort((a, b) => a - b);
-    }
-    if (typeof rawAns === 'number') {
-        if (rawAns >= 1 && rawAns <= 4) return [rawAns - 1];
-        rawAns = String(rawAns);
-    }
-    const str = String(rawAns).trim();
-    if (!str) return [];
-
-    const indicesSet = new Set();
-
-    // 1. "Both A and B", "Both 1 and 2", "Both (A) and (B)", "Both (1) and (2)"
-    const bothMatch = str.match(/both\s*(?:\()?\s*([A-D1-4])\s*(?:\))?\s*(?:and|&|\/|,)\s*(?:\()?\s*([A-D1-4])\s*(?:\))?/i);
-    if (bothMatch) {
-        const toIdx = (char) => {
-            const c = char.toUpperCase();
-            if (/[1-4]/.test(c)) return parseInt(c, 10) - 1;
-            return c.charCodeAt(0) - 65;
-        };
-        indicesSet.add(toIdx(bothMatch[1]));
-        indicesSet.add(toIdx(bothMatch[2]));
-        return Array.from(indicesSet).sort((a, b) => a - b);
-    }
-
-    // 2. Concatenated digits: "12", "23", "34", "13", "123", "1234", "14"
-    if (/^[1-4]{2,4}$/.test(str)) {
-        str.split('').forEach(d => indicesSet.add(parseInt(d, 10) - 1));
-        return Array.from(indicesSet).sort((a, b) => a - b);
-    }
-
-    // 3. Concatenated letters: "AB", "BC", "CD", "AC", "BD", "ABC", "ABCD"
-    if (/^[A-Da-d]{2,4}$/.test(str)) {
-        str.toUpperCase().split('').forEach(ch => indicesSet.add(ch.charCodeAt(0) - 65));
-        return Array.from(indicesSet).sort((a, b) => a - b);
-    }
-
-    // 4. Delimited tokens: "1, 2", "A, B", "1 & 2", "A and B", "1 / 2", "A or B"
-    const splitTokens = str
-        .split(/[,;&/|\s]+|\band\b|\bor\b/i)
-        .map(t => t.trim().replace(/[\(\)\[\]\.]/g, ''))
-        .filter(Boolean);
-
-    if (splitTokens.length > 1) {
-        let allRecognized = true;
-        const tempIndices = [];
-        for (const token of splitTokens) {
-            if (/^[1-4]$/.test(token)) {
-                tempIndices.push(parseInt(token, 10) - 1);
-            } else if (/^[A-Da-d]$/.test(token)) {
-                tempIndices.push(token.toUpperCase().charCodeAt(0) - 65);
-            } else {
-                allRecognized = false;
-                break;
-            }
-        }
-        if (allRecognized && tempIndices.length > 0) {
-            tempIndices.forEach(idx => indicesSet.add(idx));
-            return Array.from(indicesSet).sort((a, b) => a - b);
-        }
-    }
-
-    // 5. Single digit 1-4
-    if (/^[1-4]$/.test(str)) {
-        return [parseInt(str, 10) - 1];
-    }
-
-    // 6. Single letter A-D
-    const singleLetter = str.match(/^[\(]?([A-Da-d])[\)\.]?$/);
-    if (singleLetter) {
-        return [singleLetter[1].toUpperCase().charCodeAt(0) - 65];
-    }
-
-    // 7. Match against option text
-    const cleanStr = (s) => String(s || '').replace(/<[^>]+>/g, '').replace(/[\$\s\\{}]/g, '').toLowerCase();
-    const targetStr = cleanStr(str);
-    if (targetStr && options.length > 0) {
-        const matchedIdx = options.findIndex((opt) => {
-            const optText = typeof opt === 'object' && opt ? (opt.text || opt.optionText || '') : String(opt || '');
-            const candidate = cleanStr(optText);
-            if (!candidate) return false;
-            if (candidate === targetStr) return true;
-            if (targetStr.length > 4 && (candidate.includes(targetStr) || targetStr.includes(candidate))) return true;
-            return false;
-        });
-        if (matchedIdx !== -1) return [matchedIdx];
-    }
-
-    return [];
-}
+// Answer parsing lives in services/pqrsKeys.js so the OMR evaluator and the PQRS key builder cannot drift apart.
+const parseAnswerIndicesServer = parseAnswerIndices;
 
 function resolveAnswerServer(rawAns, isJee, options = []) {
     const indices = parseAnswerIndicesServer(rawAns, options);
@@ -356,7 +263,7 @@ function resolveAnswerServer(rawAns, isJee, options = []) {
 router.get('/papers/:id/key', [auth, requireOmrAccess], async (req, res) => {
     try {
         const paperData = await getPaperWithQuestions(req.params.id);
-        if (!paperData || !paperData.paper) {
+        if (!paperData || !paperData.paper || !canUseOmrPaper(req.user, paperData.paper)) {
             return res.status(404).json({ msg: 'Question paper not found.' });
         }
 
@@ -385,6 +292,18 @@ router.get('/papers/:id/key', [auth, requireOmrAccess], async (req, res) => {
         const subjects = [...new Set(questions.map(q => q.subject).filter(Boolean))];
         const concepts = [...new Set(questions.map(q => q.concept).filter(Boolean))];
 
+        // Key of each printed series, by question number. Sheets are graded against the series the
+        // student sat, so this is what a teacher should check a series against.
+        const seriesKeys = {};
+        SERIES.forEach(series => {
+            seriesKeys[series] = buildSeriesKey(paperData.paper, paperData.questions, series).map(k => ({
+                questionNumber: k.position,
+                masterQuestionNumber: k.masterIndex + 1,
+                correctIndices: k.correctIndices,
+                correctAnswer: k.correctIndices.map(i => isJee ? String.fromCharCode(65 + i) : String(i + 1)).join(', ')
+            }));
+        });
+
         return res.json({
             paperId: String(paperData.paper.id || paperData.paper._id),
             title: paperData.paper.title,
@@ -392,7 +311,8 @@ router.get('/papers/:id/key', [auth, requireOmrAccess], async (req, res) => {
             totalQuestions: questions.length,
             subjects,
             concepts,
-            questions
+            questions,
+            seriesKeys
         });
     } catch (err) {
         console.error('[OMR] Error fetching answer key:', err.message);
@@ -420,7 +340,8 @@ router.post('/scan', [auth, requireOmrAccess, upload.array('sheets', 100)], asyn
 
     try {
         const paperData = await getPaperWithQuestions(paperId);
-        if (!paperData || !paperData.paper || !paperData.questions || paperData.questions.length === 0) {
+        if (!paperData || !paperData.paper || !paperData.questions || paperData.questions.length === 0
+            || !canUseOmrPaper(req.user, paperData.paper)) {
             files.forEach(f => { try { fs.unlinkSync(f.path); } catch(e){} });
             return res.status(404).json({ msg: 'Selected QPG paper not found or has no questions.' });
         }
@@ -447,15 +368,37 @@ router.post('/scan', [auth, requireOmrAccess, upload.array('sheets', 100)], asyn
         // KCET has +1 for correct and 0 (NO negative marking) for wrong.
         // JEE and NEET have +4 for correct and -1 for wrong.
         const isKcet = (examType || '').toUpperCase() === 'KCET';
-        const correctM = (req.body.correctMarks !== undefined && req.body.correctMarks !== '')
-            ? Number(req.body.correctMarks)
-            : (isKcet ? 1 : 4);
-        const wrongM = (req.body.wrongMarks !== undefined && req.body.wrongMarks !== '')
-            ? Number(req.body.wrongMarks)
-            : (isKcet ? 0 : -1);
-        const blankM = (req.body.blankMarks !== undefined && req.body.blankMarks !== '')
-            ? Number(req.body.blankMarks)
-            : 0;
+        const marks = parseMarks(req.body, isKcet);
+        if (marks.error) {
+            files.forEach(f => { try { fs.unlinkSync(f.path); } catch(e){} });
+            return res.status(400).json({ msg: marks.error });
+        }
+        const { correctM, wrongM, blankM } = marks;
+
+        // Series keys are built once per request, lazily: P is the master order, Q/R/S are the
+        // seeded permutations printed for that paper (see services/pqrsKeys.js).
+        const seriesKeyCache = {};
+        const keyForSeries = (series) => {
+            if (!seriesKeyCache[series]) {
+                const rows = buildSeriesKey(paperData.paper, paperData.questions, series);
+                seriesKeyCache[series] = rows.map(r => {
+                    const base = questions[r.masterIndex];
+                    const idx = r.correctIndices;
+                    return {
+                        number: r.position,
+                        id: base.id,
+                        subject: base.subject,
+                        concept: base.concept,
+                        correctIndices: idx,
+                        correctAnswer: idx.length > 0
+                            ? idx.map(i => isJee ? String.fromCharCode(65 + i) : String(i + 1)).join(', ')
+                            : base.correctAnswer
+                    };
+                });
+            }
+            return seriesKeyCache[series];
+        };
+        const rollsSeenInBatch = new Map();
 
         const results = [];
         const errors = [];
@@ -468,96 +411,40 @@ router.post('/scan', [auth, requireOmrAccess, upload.array('sheets', 100)], asyn
                 const scanRes = await runOmrScannerCli(file.path, examType);
                 const detectedAnswers = scanRes.answers || {};
 
-                // Use detected roll number or fallback to clean filename
+                // Roll number: the engine's reading, or (flagged) a number taken from the file name.
                 let rollNumber = (scanRes.roll_number || '').trim();
+                let rollInferred = false;
                 if (!rollNumber) {
+                    rollInferred = true;
                     const match = originalName.match(/\d{4,}/);
                     rollNumber = match ? match[0] : `ROLL-${Date.now().toString().slice(-5)}-${i + 1}`;
                 }
+                const duplicateRollInBatch = rollsSeenInBatch.has(rollNumber);
+                rollsSeenInBatch.set(rollNumber, originalName);
 
-                let studentName = scanRes.student_name || `Student ${rollNumber}`;
-                const detectedSeries = scanRes.series || 'P';
+                const studentName = scanRes.student_name || `Student ${rollNumber}`;
+                const rawSeries = String(scanRes.series || '').trim().toUpperCase();
+                const seriesKnown = SERIES.includes(rawSeries);
+                // An unreadable or unknown series is graded against the master order (P) and flagged.
+                const gradedSeries = seriesKnown ? rawSeries : 'P';
+                const detectedSeries = rawSeries || 'P';
 
-                let totalScore = 0;
-                let correctCount = 0;
-                let wrongCount = 0;
-                let blankCount = 0;
-
-                const subjectStats = {};
-                const conceptStats = {};
-                const questionEvaluations = [];
-
-                for (const q of questions) {
-                    const qNum = String(q.number);
-                    const detected = (detectedAnswers[qNum] || 'BLANK').trim().toUpperCase();
-                    const correct = q.correctAnswer;
-                    const correctIndices = q.correctIndices || [];
-
-                    let status = 'not_attempted';
-                    let marks = blankM;
-
-                    if (detected === 'BLANK' || detected === 'UNATTEMPTED' || !detected) {
-                        status = 'not_attempted';
-                        marks = blankM;
-                        blankCount++;
-                    } else {
-                        const studentIndices = parseAnswerIndicesServer(detected);
-                        const isIndexMatch = studentIndices.length > 0 && correctIndices.length > 0 &&
-                            studentIndices.some(idx => correctIndices.includes(idx));
-                        const isDirectMatch = detected === correct ||
-                            detected.replace(/[\s,]/g, '') === String(correct).replace(/[\s,]/g, '');
-
-                        if (isIndexMatch || isDirectMatch) {
-                            status = 'correct';
-                            marks = correctM;
-                            correctCount++;
-                        } else {
-                            status = 'wrong';
-                            marks = wrongM;
-                            wrongCount++;
-                        }
+                const evaluation = evaluateSheet({
+                    key: keyForSeries(gradedSeries),
+                    detectedAnswers,
+                    marks: { correctM, wrongM, blankM },
+                    flags: {
+                        rollInferred,
+                        duplicateRollInBatch,
+                        seriesKnown,
+                        rawSeries,
+                        gradedSeries
                     }
-
-                    totalScore += marks;
-
-                    // Subject stats
-                    const subj = q.subject || 'General';
-                    if (!subjectStats[subj]) {
-                        subjectStats[subj] = { correct: 0, wrong: 0, notAttempted: 0, total: 0, score: 0 };
-                    }
-                    subjectStats[subj].total++;
-                    if (status === 'correct') {
-                        subjectStats[subj].correct++;
-                        subjectStats[subj].score += correctM;
-                    } else if (status === 'wrong') {
-                        subjectStats[subj].wrong++;
-                        subjectStats[subj].score += wrongM;
-                    } else {
-                        subjectStats[subj].notAttempted++;
-                        subjectStats[subj].score += blankM;
-                    }
-
-                    // Concept stats
-                    const conc = q.concept || 'General';
-                    if (!conceptStats[conc]) {
-                        conceptStats[conc] = { concept: conc, subject: subj, correct: 0, wrong: 0, notAttempted: 0, total: 0 };
-                    }
-                    conceptStats[conc].total++;
-                    if (status === 'correct') conceptStats[conc].correct++;
-                    else if (status === 'wrong') conceptStats[conc].wrong++;
-                    else conceptStats[conc].notAttempted++;
-
-                    questionEvaluations.push({
-                        questionNumber: q.number,
-                        questionId: q.id,
-                        subject: subj,
-                        concept: conc,
-                        detectedAnswer: detected,
-                        correctAnswer: correct,
-                        status,
-                        marks
-                    });
-                }
+                });
+                const {
+                    totalScore, correctCount, wrongCount, blankCount,
+                    subjectStats, conceptStats, questionEvaluations, reviewReasons, multipleCount
+                } = evaluation;
 
                 const scoreData = {
                     totalScore,
@@ -565,8 +452,12 @@ router.post('/scan', [auth, requireOmrAccess, upload.array('sheets', 100)], asyn
                     correctCount,
                     wrongCount,
                     blankCount,
+                    multipleMarkedCount: multipleCount,
                     totalQuestions: questions.length,
-                    accuracyPercent: questions.length > 0 ? Math.round((correctCount / questions.length) * 100) : 0
+                    accuracyPercent: questions.length > 0 ? Math.round((correctCount / questions.length) * 100) : 0,
+                    gradedAgainstSeries: gradedSeries,
+                    needsReview: reviewReasons.length > 0,
+                    reviewReasons
                 };
 
                 // Save to PostgreSQL public.omr_submissions
@@ -598,6 +489,9 @@ router.post('/scan', [auth, requireOmrAccess, upload.array('sheets', 100)], asyn
                     rollNumber,
                     studentName,
                     detectedSeries,
+                    gradedAgainstSeries: gradedSeries,
+                    needsReview: reviewReasons.length > 0,
+                    reviewReasons,
                     scoreData,
                     subjectScores: subjectStats,
                     conceptAnalysis: Object.values(conceptStats),
@@ -621,6 +515,7 @@ router.post('/scan', [auth, requireOmrAccess, upload.array('sheets', 100)], asyn
             totalUploaded: files.length,
             processedCount: results.length,
             failedCount: errors.length,
+            needsReviewCount: results.filter(r => r.needsReview).length,
             results,
             errors
         });
@@ -644,9 +539,9 @@ router.get('/results/:paperId', [auth, requireOmrAccess], async (req, res) => {
                    detected_series, score_data, subject_scores, concept_analysis,
                    scan_status, created_at
             FROM public.omr_submissions
-            WHERE paper_id = $1
-            ORDER BY (score_data->>'totalScore')::int DESC, roll_number ASC;
-        `, [req.params.paperId.toString()]);
+            WHERE paper_id = $1 AND ($2::boolean OR teacher_id = $3)
+            ORDER BY (score_data->>'totalScore')::numeric DESC, roll_number ASC;
+        `, [req.params.paperId.toString(), req.user.role === 'admin', String(req.user.id)]);
 
         const submissions = pgRes.rows.map((r, idx) => ({
             rank: idx + 1,
@@ -654,6 +549,8 @@ router.get('/results/:paperId', [auth, requireOmrAccess], async (req, res) => {
             rollNumber: r.roll_number,
             studentName: r.student_name || `Student ${r.roll_number}`,
             series: r.detected_series || 'P',
+            needsReview: Boolean(r.score_data && r.score_data.needsReview),
+            reviewReasons: (r.score_data && r.score_data.reviewReasons) || [],
             scoreData: r.score_data || {},
             subjectScores: r.subject_scores || {},
             conceptAnalysis: r.concept_analysis || [],
@@ -707,9 +604,9 @@ router.get('/results/:paperId/student/:rollNumber', [auth, requireOmrAccess], as
     try {
         const pgRes = await pool.query(`
             SELECT * FROM public.omr_submissions
-            WHERE paper_id = $1 AND roll_number = $2
+            WHERE paper_id = $1 AND roll_number = $2 AND ($3::boolean OR teacher_id = $4)
             ORDER BY created_at DESC LIMIT 1;
-        `, [req.params.paperId.toString(), req.params.rollNumber.toString()]);
+        `, [req.params.paperId.toString(), req.params.rollNumber.toString(), req.user.role === 'admin', String(req.user.id)]);
 
         if (pgRes.rows.length === 0) {
             return res.status(404).json({ msg: 'Student submission not found.' });
@@ -740,7 +637,12 @@ router.get('/results/:paperId/student/:rollNumber', [auth, requireOmrAccess], as
 // ─────────────────────────────────────────────────────────────────────────────
 router.delete('/submissions/:id', [auth, requireOmrAccess], async (req, res) => {
     try {
-        await pool.query('DELETE FROM public.omr_submissions WHERE id = $1;', [req.params.id]);
+        // A faculty member may only delete submissions they scanned themselves.
+        const del = await pool.query(
+            'DELETE FROM public.omr_submissions WHERE id = $1 AND ($2::boolean OR teacher_id = $3);',
+            [req.params.id, req.user.role === 'admin', String(req.user.id)]
+        );
+        if (del.rowCount === 0) return res.status(404).json({ msg: 'Submission not found.' });
         return res.json({ msg: 'OMR submission deleted successfully.' });
     } catch (err) {
         console.error('[OMR DELETE ERROR]:', err.message);

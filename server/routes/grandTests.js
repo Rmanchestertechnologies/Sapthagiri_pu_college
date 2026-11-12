@@ -58,9 +58,15 @@ router.get('/:id', [auth, checkRole(['admin', 'teacher'])], async (req, res) => 
 // @route   PUT /api/grand-tests/:id
 // @desc    Update Grand Test paper metadata
 // @access  Admin
-router.put('/:id', [auth, checkRole(['admin', 'teacher'])], async (req, res) => {
+router.put('/:id', [auth, checkRole(['admin'])], async (req, res) => {
     try {
-        const paper = await storage.saveGrandTest({ ...req.body, id: req.params.id });
+        // Used to INSERT a new row on every update; now updates the row in place.
+        // The table has no column for a linked template, so that field cannot be stored yet.
+        if (req.body && req.body.templateId) {
+            return res.status(409).json({ msg: 'Linking a template to a Grand Test needs a database migration that has not been applied yet (see docs/AUDIT_AND_CHANGELOG.md).' });
+        }
+        const paper = await storage.updateGrandTest(req.params.id, req.body || {});
+        if (!paper) return res.status(404).json({ msg: 'Grand Test not found' });
         res.json(paper);
     } catch (err) {
         console.error(err.message);
@@ -71,8 +77,11 @@ router.put('/:id', [auth, checkRole(['admin', 'teacher'])], async (req, res) => 
 // @route   DELETE /api/grand-tests/:id
 // @desc    Delete a Grand Test paper
 // @access  Admin
-router.delete('/:id', [auth, checkRole(['admin', 'teacher'])], async (req, res) => {
+router.delete('/:id', [auth, checkRole(['admin'])], async (req, res) => {
     try {
+        // This route used to answer "deleted" without deleting anything.
+        const removed = await storage.deleteGrandTest(req.params.id);
+        if (!removed) return res.status(404).json({ msg: 'Grand Test not found' });
         res.json({ msg: 'Grand Test paper deleted.' });
     } catch (err) {
         console.error(err.message);
@@ -151,6 +160,10 @@ ${text}`;
 // @desc    Import confirmed questions list and link them to the GT paper
 // @access  Admin
 router.post('/:id/import', [auth, checkRole(['admin', 'teacher'])], async (req, res) => {
+    // Grand Test questions were stored through MongoDB models (GrandTestPaper, Question) that this route
+    // never imported, so it always failed with a ReferenceError, and the PostgreSQL tables have no place
+    // to keep a Grand Test's questions. Say so instead of returning an opaque 500.
+    return res.status(501).json({ msg: 'This feature is not available: Grand Test questions need a database migration that has not been applied yet (see docs/AUDIT_AND_CHANGELOG.md).' });
     try {
         const { questions } = req.body;
         if (!Array.isArray(questions)) return res.status(400).json({ msg: 'Questions array is required.' });
@@ -241,6 +254,10 @@ router.post('/:id/import', [auth, checkRole(['admin', 'teacher'])], async (req, 
 // @desc    Remove a question from a Grand Test
 // @access  Admin
 router.delete('/:id/questions/:questionId', [auth, checkRole(['admin', 'teacher'])], async (req, res) => {
+    // Grand Test questions were stored through MongoDB models (GrandTestPaper, Question) that this route
+    // never imported, so it always failed with a ReferenceError, and the PostgreSQL tables have no place
+    // to keep a Grand Test's questions. Say so instead of returning an opaque 500.
+    return res.status(501).json({ msg: 'This feature is not available: Grand Test questions need a database migration that has not been applied yet (see docs/AUDIT_AND_CHANGELOG.md).' });
     try {
         const gtPaper = await GrandTestPaper.findById(req.params.id);
         if (!gtPaper) return res.status(404).json({ msg: 'Grand Test paper not found.' });
@@ -263,6 +280,10 @@ router.delete('/:id/questions/:questionId', [auth, checkRole(['admin', 'teacher'
 // @desc    Replace a question in a Grand Test with a question from the DB
 // @access  Admin / Teacher
 router.post('/:id/questions/:oldQuestionId/replace', [auth, checkRole(['admin', 'teacher'])], async (req, res) => {
+    // Grand Test questions were stored through MongoDB models (GrandTestPaper, Question) that this route
+    // never imported, so it always failed with a ReferenceError, and the PostgreSQL tables have no place
+    // to keep a Grand Test's questions. Say so instead of returning an opaque 500.
+    return res.status(501).json({ msg: 'This feature is not available: Grand Test questions need a database migration that has not been applied yet (see docs/AUDIT_AND_CHANGELOG.md).' });
     try {
         const { dbQuestionId, source } = req.body;
         if (!dbQuestionId) return res.status(400).json({ msg: 'Database question ID is required.' });

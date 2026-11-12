@@ -3,6 +3,7 @@ const router = express.Router();
 const Paper = require('../models/Paper');
 const auth = require('../middleware/auth');
 const checkRole = require('../middleware/role');
+const { canAccessPaper, canDeletePaper, isAllowedImageUrl } = require('../services/accessRules');
 const supabaseQuestions = require('../services/supabaseQuestions');
 const { createNotification } = require('./notifications');
 
@@ -78,6 +79,26 @@ async function populatePaperQuestions(paper) {
     return pObj;
 }
 
+// Load a paper and check that the caller may use it. Sends the 404/403 itself and returns null on refusal.
+// (A teacher asking for somebody else's paper gets 404, so paper ids cannot be probed.)
+async function loadPaperFor(req, res, { forDelete = false } = {}) {
+    const paper = await storage.getPaperById(req.params.id);
+    if (!paper) { res.status(404).json({ msg: 'Paper not found' }); return null; }
+    let ok;
+    if (forDelete) {
+        ok = canDeletePaper(req.user, paper);
+    } else {
+        const examId = paper.examId || paper.exam_id;
+        let exam = null;
+        if (req.user.role !== 'admin' && examId) {
+            try { exam = await storage.getExamById(examId); } catch (e) { exam = null; }
+        }
+        ok = canAccessPaper(req.user, paper, exam);
+    }
+    if (!ok) { res.status(404).json({ msg: 'Paper not found' }); return null; }
+    return paper;
+}
+
 // In-memory cache for proxied diagram buffers to eliminate duplicate upstream fetches and ECONNRESET drops
 const imageBufferCache = new Map();
 
@@ -90,9 +111,9 @@ router.get('/proxy-image', async (req, res) => {
         if (!targetUrl || typeof targetUrl !== 'string') {
             return res.status(400).send('Missing url parameter');
         }
-        const parsed = new URL(targetUrl);
-        if (!['http:', 'https:'].includes(parsed.protocol)) {
-            return res.status(400).send('Invalid protocol');
+        // Open-relay guard: only https image hosts we use (Cloudinary, Supabase storage, IMAGE_PROXY_HOSTS).
+        if (!isAllowedImageUrl(targetUrl, String(process.env.IMAGE_PROXY_HOSTS || '').split(','))) {
+            return res.status(400).send('This image host is not allowed.');
         }
 
         // Return from memory cache if already fetched
@@ -114,11 +135,17 @@ router.get('/proxy-image', async (req, res) => {
                 const upstream = await fetch(targetUrl, {
                     headers: {
                         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-                    }
+                    },
+                    redirect: 'error',                       // a redirect could leave the allow-list
+                    signal: AbortSignal.timeout(15000)
                 });
                 if (upstream.ok) {
                     contentType = upstream.headers.get('content-type') || 'image/jpeg';
+                    if (!/^image\//i.test(contentType)) { lastErr = new Error('Not an image'); break; }
+                    const declared = Number(upstream.headers.get('content-length'));
+                    if (declared > 15 * 1024 * 1024) { lastErr = new Error('Image too large'); break; }
                     buffer = Buffer.from(await upstream.arrayBuffer());
+                    if (buffer.length > 15 * 1024 * 1024) { buffer = null; lastErr = new Error('Image too large'); }
                     break;
                 }
             } catch (fetchErr) {
@@ -147,7 +174,7 @@ router.get('/proxy-image', async (req, res) => {
         res.send(buffer);
     } catch (err) {
         console.error('Image proxy error:', err.message);
-        res.status(502).send('Failed to proxy image: ' + err.message);
+        res.status(502).send('Failed to proxy image.');
     }
 });
 
@@ -263,8 +290,8 @@ router.get('/', [auth, checkRole(['teacher', 'admin'])], async (req, res) => {
 // @access  Teacher, Admin
 router.get('/:id', [auth, checkRole(['teacher', 'admin'])], async (req, res) => {
     try {
-        const paper = await storage.getPaperById(req.params.id);
-        if (!paper) return res.status(404).json({ msg: 'Paper not found' });
+        const paper = await loadPaperFor(req, res);
+        if (!paper) return;
 
         const populated = await populatePaperQuestions(paper);
         res.json(populated);
@@ -279,10 +306,12 @@ router.get('/:id', [auth, checkRole(['teacher', 'admin'])], async (req, res) => 
 // @access  Teacher, Admin
 router.put('/:id', [auth, checkRole(['teacher', 'admin'])], async (req, res) => {
     try {
-        let paper = await storage.getPaperById(req.params.id);
-        if (!paper) return res.status(404).json({ msg: 'Paper not found' });
+        const paper = await loadPaperFor(req, res);
+        if (!paper) return;
 
         const updateData = { ...req.body };
+        // Ownership and linkage are never taken from the request body.
+        delete updateData.teacherId; delete updateData.teacher_id; delete updateData.created_by; delete updateData.author_id;
         const updated = await storage.updatePaper(req.params.id, updateData);
 
         // Sync with parent OnlineExam if linked
@@ -329,8 +358,8 @@ router.patch('/:id/section', [auth, checkRole(['teacher', 'admin'])], async (req
             return res.status(400).json({ msg: 'Subject name is required to update section.' });
         }
 
-        const paper = await storage.getPaperById(req.params.id);
-        if (!paper) return res.status(404).json({ msg: 'Paper not found' });
+        const paper = await loadPaperFor(req, res);
+        if (!paper) return;
 
         const updated = await storage.updatePaperSection(req.params.id, subject, {
             questions,
@@ -372,8 +401,8 @@ router.post('/export-word', [auth, checkRole(['teacher', 'admin'])], async (req,
 // @access  Teacher, Admin
 router.get('/:id/export-word', [auth, checkRole(['teacher', 'admin'])], async (req, res) => {
     try {
-        const paper = await storage.getPaperById(req.params.id);
-        if (!paper) return res.status(404).json({ msg: 'Paper not found.' });
+        const paper = await loadPaperFor(req, res);
+        if (!paper) return;
 
         const populatedPaper = await populatePaperQuestions(paper);
 
@@ -400,8 +429,8 @@ router.get('/:id/export-word', [auth, checkRole(['teacher', 'admin'])], async (r
 // @access  Teacher, Admin
 router.get('/:id/export-pdf', [auth, checkRole(['teacher', 'admin'])], async (req, res) => {
     try {
-        const paper = await storage.getPaperById(req.params.id);
-        if (!paper) return res.status(404).json({ msg: 'Paper not found.' });
+        const paper = await loadPaperFor(req, res);
+        if (!paper) return;
 
         const populatedPaper = await populatePaperQuestions(paper);
         const { generatePaperPdf } = require('../services/pdfPaperExport');
@@ -421,6 +450,8 @@ router.get('/:id/export-pdf', [auth, checkRole(['teacher', 'admin'])], async (re
 // @access  Teacher, Admin
 router.delete('/:id', [auth, checkRole(['teacher', 'admin'])], async (req, res) => {
     try {
+        const paper = await loadPaperFor(req, res, { forDelete: true });
+        if (!paper) return;
         await storage.deletePaper(req.params.id);
         res.json({ msg: 'Paper removed' });
     } catch (err) {

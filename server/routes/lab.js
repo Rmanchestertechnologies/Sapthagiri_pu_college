@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const { labIpOnly } = require('../middleware/labIp');
 const storage = require('../services/postgresStorage');
 const { Pool } = require('pg');
@@ -14,7 +15,10 @@ const pool = new Pool({
 // STUDENT: Look up student by roll number
 // GET /api/lab/student/:rollNumber
 // ─────────────────────────────────────────────────────────────────
-router.get('/student/:rollNumber', async (req, res) => {
+// Lab terminals only (set LAB_IP): the lookup returns a student's name and SATS number for any roll number,
+// so it must not be open to the whole internet. The student's e-mail address is no longer returned; the
+// lab pages already fall back to a generated address.
+router.get('/student/:rollNumber', labIpOnly, async (req, res) => {
     try {
         const roll = String(req.params.rollNumber || '').trim().replace(/[\s\-_]/g, '');
         if (!roll) {
@@ -38,7 +42,7 @@ router.get('/student/:rollNumber', async (req, res) => {
                 satsNo: s.sats_no || '',
                 section: s.section || '',
                 classLevel: s.class_level || (s.section?.includes('II') ? 'II-PUC' : 'I-PUC'),
-                email: s.email || ''
+                email: ''
             });
         }
 
@@ -60,28 +64,36 @@ router.post('/login', labIpOnly, async (req, res) => {
     try {
         const { labId, password } = req.body;
 
-        const envLabId = process.env.LAB_ID || 'lab001';
-        const envLabPassword = process.env.LAB_PASSWORD || 'lab@123';
+        // Credentials come from the environment only. There are no built-in IDs, passwords or
+        // signing secrets: anything hard-coded here is readable by everyone with the source code.
+        const envLabId = process.env.LAB_ID;
+        const envLabPassword = process.env.LAB_PASSWORD;
+        if (!envLabId || !envLabPassword || !process.env.JWT_SECRET) {
+            console.error('[LAB LOGIN] LAB_ID, LAB_PASSWORD and JWT_SECRET must be set in the server environment.');
+            return res.status(503).json({ msg: 'Lab login is not configured on the server. Please contact the administrator.' });
+        }
 
         const cleanId = String(labId || '').replace(/[\s\-_]/g, '').toLowerCase();
         const cleanEnvId = String(envLabId).replace(/[\s\-_]/g, '').toLowerCase();
 
-        const isValidId = cleanId === cleanEnvId || cleanId === 'lab001' || cleanId === 'lab1' || cleanId === 'lab';
-        const isValidPassword = password === envLabPassword || password === 'lab@123' || password === 'Sapthagiri1';
+        // Constant-time comparison of fixed-length digests (does not leak length or prefix).
+        const digest = v => crypto.createHash('sha256').update(String(v ?? '')).digest();
+        const isValidId = crypto.timingSafeEqual(digest(cleanId), digest(cleanEnvId));
+        const isValidPassword = crypto.timingSafeEqual(digest(password), digest(envLabPassword));
 
         if (!isValidId || !isValidPassword) {
             return res.status(401).json({ msg: 'Invalid Lab ID or Password' });
         }
 
         const token = jwt.sign(
-            { role: 'lab', labId: labId || 'LAB-001', ip: req.clientIp },
-            process.env.JWT_SECRET || 'sapthagiri_secret_key_2026',
+            { role: 'lab', labId: envLabId, ip: req.clientIp },
+            process.env.JWT_SECRET,
             { expiresIn: '8h' }
         );
 
         res.json({
             token,
-            user: { role: 'lab', labId: labId || 'LAB-001', name: 'Lab Terminal 001', ip: req.clientIp }
+            user: { role: 'lab', labId: envLabId, name: `Lab Terminal ${envLabId}`, ip: req.clientIp }
         });
     } catch (err) {
         console.error(err.message);

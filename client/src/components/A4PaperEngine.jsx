@@ -142,6 +142,12 @@ export default function A4PaperEngine({
     const visibleCount = (isJEEPaper && questions.length === 75) ? Math.min(75, rawVisibleCount) : rawVisibleCount;
     const visibleQuestions = useMemo(() => questions.slice(0, visibleCount), [questions, visibleCount]);
 
+    // Watermark: shown by default; opacity (0-40 %) and size (20-250 % of 380px) are adjustable in the settings panel.
+    const clampNum = (v, lo, hi, dflt) => { const n = Number(v); return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : dflt; };
+    const showWatermark = settings.showWatermark !== false;
+    const watermarkOpacity = clampNum(settings.watermarkOpacity, 0, 40, 8) / 100;
+    const watermarkWidthPx = Math.round(380 * clampNum(settings.watermarkScale, 20, 250, 100) / 100);
+
     const zoomScale = (zoom || 100) / 100;
     const isTwoCol = settings.columns === 2 || Boolean(settings.paper2Column);
 
@@ -163,9 +169,12 @@ export default function A4PaperEngine({
                 {/* ── Single Unified Question Paper Sheet ── */}
                 <div className="a4-sheet-page a4-questions-page" style={{ position: 'relative' }}>
                     {/* Official Sapthagiri PU College Circular Emblem Watermark - Fixed across all pages */}
+                    {showWatermark && (
                     <div 
                         className="a4-watermark-wrapper"
                         style={{
+                            '--wm-opacity': watermarkOpacity,
+                            '--wm-width': `${watermarkWidthPx}px`,
                             position: 'fixed',
                             top: 0,
                             left: 0,
@@ -183,17 +192,18 @@ export default function A4PaperEngine({
                             alt="Sapthagiri PU College Crest Watermark" 
                             className="a4-watermark-logo"
                             style={{
-                                width: '380px',
+                                width: `${watermarkWidthPx}px`,
                                 height: 'auto',
-                                maxHeight: '380px',
+                                maxHeight: `${watermarkWidthPx}px`,
                                 objectFit: 'contain',
-                                opacity: 0.08,
+                                opacity: watermarkOpacity,
                                 filter: 'grayscale(100%)',
                                 display: 'block',
                                 pointerEvents: 'none',
                             }}
                         />
                     </div>
+                    )}
                     <div
                         className="a4-page-content"
                         style={{
@@ -217,6 +227,30 @@ export default function A4PaperEngine({
                                 setName={paper?.setName || 'P'}
                                 headerConfig={paper?.headerConfig}
                             />
+                            {isAssignmentPaper && (paper?.showStudentDetails !== false || paper?.submissionDate || paper?.instructions) && (
+                                <div className="a4-assignment-details" style={{ margin: '6px 0 4px', fontSize: '11.5px', color: '#0f172a' }}>
+                                    {paper?.showStudentDetails !== false && (
+                                        <div style={{ display: 'flex', gap: '14px', alignItems: 'flex-end', marginBottom: '5px' }}>
+                                            {['Name', 'Class / Section', 'Register No.'].map((label, i) => (
+                                                <div key={label} style={{ flex: i === 0 ? 2 : 1, display: 'flex', alignItems: 'flex-end', gap: '4px' }}>
+                                                    <span style={{ fontWeight: 800, whiteSpace: 'nowrap' }}>{label}:</span>
+                                                    <span style={{ flex: 1, borderBottom: '1px solid #475569', height: '14px' }} />
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                    {paper?.submissionDate && (
+                                        <div style={{ fontWeight: 800, marginBottom: '3px' }}>
+                                            Date of Submission: {(() => { const d = new Date(paper.submissionDate); return Number.isNaN(d.getTime()) ? paper.submissionDate : d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }); })()}
+                                        </div>
+                                    )}
+                                    {paper?.instructions && (
+                                        <div style={{ fontStyle: 'italic', color: '#334155' }}>
+                                            <strong style={{ fontStyle: 'normal' }}>Instructions: </strong>{paper.instructions}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
                         </div>
 
                         {/* ── Questions Flow Immediately On Page 1 (1 Column or 2 Columns) ── */}
@@ -768,11 +802,11 @@ export default function A4PaperEngine({
                         print-color-adjust: exact !important;
                     }
                     body:not(.printing-answer-key):not(.printing-solution-key) .a4-watermark-logo {
-                        width: 360px !important;
+                        width: var(--wm-width, 360px) !important;
                         height: auto !important;
-                        max-height: 360px !important;
+                        max-height: var(--wm-width, 360px) !important;
                         object-fit: contain !important;
-                        opacity: 0.075 !important;
+                        opacity: var(--wm-opacity, 0.075) !important;
                         filter: grayscale(100%) !important;
                         display: block !important;
                         visibility: visible !important;

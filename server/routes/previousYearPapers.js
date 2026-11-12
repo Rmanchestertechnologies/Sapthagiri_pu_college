@@ -58,7 +58,9 @@ router.get('/:id', [auth, checkRole(['admin'])], async (req, res) => {
 // @access  Admin
 router.put('/:id', [auth, checkRole(['admin'])], async (req, res) => {
     try {
-        const paper = await storage.savePreviousYearPaper({ ...req.body, id: req.params.id });
+        // Used to INSERT a new row on every update; now updates in place.
+        const paper = await storage.updatePreviousYearPaper(req.params.id, req.body || {});
+        if (!paper) return res.status(404).json({ msg: 'PYQ paper not found' });
         res.json(paper);
     } catch (err) {
         console.error(err.message);
@@ -71,6 +73,8 @@ router.put('/:id', [auth, checkRole(['admin'])], async (req, res) => {
 // @access  Admin
 router.delete('/:id', [auth, checkRole(['admin'])], async (req, res) => {
     try {
+        const removed = await storage.deletePreviousYearPaper(req.params.id);
+        if (!removed) return res.status(404).json({ msg: 'PYQ paper not found' });
         res.json({ msg: 'PYQ paper deleted.' });
     } catch (err) {
         console.error(err.message);
@@ -82,6 +86,10 @@ router.delete('/:id', [auth, checkRole(['admin'])], async (req, res) => {
 // @desc    Import confirmed questions list and link them to the PYQ paper
 // @access  Admin
 router.post('/:id/import', [auth, checkRole(['admin'])], async (req, res) => {
+    // Previous-year paper questions were stored through MongoDB models (PreviousYearPaper, Question) that this route
+    // never imported, so it always failed with a ReferenceError, and the PostgreSQL tables have no place
+    // to keep a Previous-year paper's questions. Say so instead of returning an opaque 500.
+    return res.status(501).json({ msg: 'This feature is not available: Previous-year paper questions need a database migration that has not been applied yet (see docs/AUDIT_AND_CHANGELOG.md).' });
     try {
         const { questions } = req.body;
         if (!Array.isArray(questions)) return res.status(400).json({ msg: 'Questions array is required.' });

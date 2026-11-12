@@ -7,6 +7,13 @@ const checkRole = require('../middleware/role');
 const { detectLabIp } = require('../middleware/labIp');
 const pool = require('../config/postgres');
 const { createNotification } = require('./notifications');
+const cbt = require('../services/cbtScoring');
+// Was used below without being imported, so every ID-only paper silently fell back to its cached copy.
+const supabaseQuestions = require('../services/supabaseQuestions');
+
+// A session row must belong to the exam named in the URL; otherwise one exam's answers could be
+// scored against another exam's key.
+const sessionBelongsToExam = (session, examId) => String(session?.exam_id ?? session?.examId ?? '') === String(examId);
 
 // ─────────────────────────────────────────────────────────────────
 // ADMIN: Commission a new Exam Assignment to Faculty
@@ -433,7 +440,9 @@ router.get('/lab-active', async (req, res) => {
 // GET /api/exams/:id
 // Get a single exam by ID
 // ─────────────────────────────────────────────────────────────────
-router.get('/:id', auth, async (req, res) => {
+// Staff only: the response contains every question's answer. A lab-terminal token (role 'lab')
+// passes `auth`, so without the role check a student terminal could read the answer key.
+router.get('/:id', [auth, checkRole(['admin', 'teacher'])], async (req, res) => {
     try {
         const exam = await storage.getExamById(req.params.id);
         if (!exam) return res.status(404).json({ msg: 'Exam not found' });
@@ -722,8 +731,18 @@ router.get('/:id/take', detectLabIp, async (req, res) => {
 // ─────────────────────────────────────────────────────────────────
 router.post('/:id/start', detectLabIp, async (req, res) => {
     try {
-        const exam = await storage.getExamById(req.params.id);
-        if (!exam) return res.status(404).json({ msg: 'Exam not found' });
+        const rawExam = await storage.getExamById(req.params.id);
+        if (!rawExam) return res.status(404).json({ msg: 'Exam not found' });
+        // Hydrate so composite exams (questions held in subject papers) get a real answer sheet.
+        const exam = await hydrateExamQuestions(rawExam);
+
+        // Timing is decided by the server clock, not the student's computer.
+        const withTiming = (session) => ({
+            ...session,
+            startTime: session.start_time || session.startTime,
+            serverTime: new Date().toISOString(),
+            remainingSeconds: cbt.remainingSeconds(exam, session)
+        });
 
         let { studentName, studentEmail, rollNumber } = req.body;
         let verifiedName = studentName;
@@ -754,7 +773,13 @@ router.post('/:id/start', detectLabIp, async (req, res) => {
 
         // Check for existing active session
         const existing = await storage.findActiveSession(req.params.id, studentEmail, rollNumber);
-        if (existing) return res.json({ msg: 'Session resumed', session: existing });
+        if (existing) return res.json({ msg: 'Session resumed', session: withTiming(existing) });
+
+        const windowError = cbt.startWindowError(exam);
+        if (windowError) return res.status(403).json({ msg: windowError });
+        if ((exam.questions || []).length === 0) {
+            return res.status(409).json({ msg: 'This exam has no questions yet. Please inform the invigilator.' });
+        }
 
         const studentId = rollNumber || studentEmail || 'anonymous';
         let examQuestions = exam.questions || [];
@@ -771,7 +796,7 @@ router.post('/:id/start', detectLabIp, async (req, res) => {
             fromLabIp: req.isLabIp,
             clientIp: req.clientIp,
             answers: examQuestions.map((q, idx) => ({
-                questionId: String(q._id || q.id || q.questionId || idx),
+                questionId: cbt.questionKey(q, idx),
                 selectedOption: null,
                 markedForReview: false,
                 visited: false
@@ -779,73 +804,12 @@ router.post('/:id/start', detectLabIp, async (req, res) => {
             totalQuestions: examQuestions.length
         });
 
-        res.status(201).json({ msg: 'Session started', session });
+        res.status(201).json({ msg: 'Session started', session: withTiming(session) });
     } catch (err) {
         console.error(err.message);
         res.status(500).json({ msg: 'Server Error: ' + err.message });
     }
 });
-
-function parseAnswerIndicesExam(rawAns, options = []) {
-    if (rawAns === null || rawAns === undefined) return [];
-    if (Array.isArray(rawAns)) {
-        const set = new Set();
-        rawAns.forEach(item => {
-            parseAnswerIndicesExam(item, options).forEach(idx => set.add(idx));
-        });
-        return Array.from(set).sort((a, b) => a - b);
-    }
-    if (typeof rawAns === 'number') {
-        if (rawAns >= 1 && rawAns <= 4) return [rawAns - 1];
-        rawAns = String(rawAns);
-    }
-    const str = String(rawAns).trim();
-    if (!str) return [];
-
-    const indicesSet = new Set();
-    const bothMatch = str.match(/both\s*(?:\()?\s*([A-D1-4])\s*(?:\))?\s*(?:and|&|\/|,)\s*(?:\()?\s*([A-D1-4])\s*(?:\))?/i);
-    if (bothMatch) {
-        const toIdx = (char) => {
-            const c = char.toUpperCase();
-            if (/[1-4]/.test(c)) return parseInt(c, 10) - 1;
-            return c.charCodeAt(0) - 65;
-        };
-        indicesSet.add(toIdx(bothMatch[1]));
-        indicesSet.add(toIdx(bothMatch[2]));
-        return Array.from(indicesSet).sort((a, b) => a - b);
-    }
-
-    if (/^[1-4]{2,4}$/.test(str)) {
-        str.split('').forEach(d => indicesSet.add(parseInt(d, 10) - 1));
-        return Array.from(indicesSet).sort((a, b) => a - b);
-    }
-
-    if (/^[A-Da-d]{2,4}$/.test(str)) {
-        str.toUpperCase().split('').forEach(ch => indicesSet.add(ch.charCodeAt(0) - 65));
-        return Array.from(indicesSet).sort((a, b) => a - b);
-    }
-
-    const splitTokens = str.split(/[,;&/|\s]+|\band\b|\bor\b/i).map(t => t.trim().replace(/[\(\)\[\]\.]/g, '')).filter(Boolean);
-    if (splitTokens.length > 1) {
-        let allRecognized = true;
-        const tempIndices = [];
-        for (const token of splitTokens) {
-            if (/^[1-4]$/.test(token)) tempIndices.push(parseInt(token, 10) - 1);
-            else if (/^[A-Da-d]$/.test(token)) tempIndices.push(token.toUpperCase().charCodeAt(0) - 65);
-            else { allRecognized = false; break; }
-        }
-        if (allRecognized && tempIndices.length > 0) {
-            tempIndices.forEach(idx => indicesSet.add(idx));
-            return Array.from(indicesSet).sort((a, b) => a - b);
-        }
-    }
-
-    if (/^[1-4]$/.test(str)) return [parseInt(str, 10) - 1];
-    const singleLetter = str.match(/^[\(]?([A-Da-d])[\)\.]?$/);
-    if (singleLetter) return [singleLetter[1].toUpperCase().charCodeAt(0) - 65];
-
-    return [];
-}
 
 // ─────────────────────────────────────────────────────────────────
 // STUDENT: Submit exam
@@ -857,83 +821,39 @@ router.post('/:id/submit', detectLabIp, async (req, res) => {
 
         const session = await storage.getSessionById(sessionId);
         if (!session) return res.status(404).json({ msg: 'Session not found' });
+        if (!sessionBelongsToExam(session, req.params.id)) {
+            return res.status(400).json({ msg: 'This session does not belong to this exam.' });
+        }
         if (session.submitted) return res.json({ msg: 'Already submitted', session, sessionId: session._id });
 
-        const exam = await storage.getExamById(req.params.id);
-        if (!exam) return res.status(404).json({ msg: 'Exam not found' });
+        const rawExam = await storage.getExamById(req.params.id);
+        if (!rawExam) return res.status(404).json({ msg: 'Exam not found' });
+        const exam = await hydrateExamQuestions(rawExam);
 
-        const answerMap = {};
-        if (answers && Array.isArray(answers)) {
-            answers.forEach(a => { answerMap[String(a.questionId)] = a; });
-        }
-
-        let score = 0, correct = 0, incorrect = 0, unattempted = 0;
-        const weakMap = {};
-
-        const processedAnswers = (exam.questions || []).map((q, idx) => {
-            const sid = String(q._id || q.id || q.questionId || idx);
-            const submitted = answerMap[sid];
-            let selected = submitted?.selectedOption || null;
-            const markedForReview = submitted?.markedForReview || false;
-            const timeTaken = submitted?.timeTaken || 0;
-
-            let isAttempted = selected !== null && selected !== '';
-            const isKcetExam = (exam.examType === 'CET' || exam.examType === 'KCET');
-            let correctMarks = isKcetExam ? 1 : 4;
-            let incorrectMarks = isKcetExam ? 0 : -1;
-            let unattemptedMarks = 0;
-
-            if (isAttempted) {
-                let isCorrect = false;
-                const parsedSelected = parseFloat(selected);
-                const parsedAnswer = parseFloat(q.answer);
-                if (!isNaN(parsedSelected) && !isNaN(parsedAnswer)) {
-                    if (Math.abs(parsedSelected - parsedAnswer) <= 1e-9) isCorrect = true;
-                }
-                if (!isCorrect && String(selected).trim().toLowerCase() === String(q.answer).trim().toLowerCase()) {
-                    isCorrect = true;
-                }
-                if (!isCorrect) {
-                    const selIndices = parseAnswerIndicesExam(selected, q.options || []);
-                    const ansIndices = parseAnswerIndicesExam(q.answer, q.options || []);
-                    if (selIndices.length > 0 && ansIndices.length > 0 && selIndices.some(idx => ansIndices.includes(idx))) {
-                        isCorrect = true;
-                    }
-                }
-
-                if (isCorrect) {
-                    score += correctMarks;
-                    correct++;
-                } else {
-                    score += incorrectMarks;
-                    incorrect++;
-                    const key = `${q.subject || 'Subject'}::${q.chapter || 'Chapter'}`;
-                    if (!weakMap[key]) weakMap[key] = { subject: q.subject, chapter: q.chapter, incorrect: 0 };
-                    weakMap[key].incorrect++;
-                }
-            } else {
-                score += unattemptedMarks;
-                unattempted++;
-            }
-
-            return { questionId: sid, selectedOption: selected, markedForReview, visited: submitted ? true : false, timeTaken };
-        });
-
-        const weakAreas = Object.values(weakMap).sort((a, b) => b.incorrect - a.incorrect);
+        // Server-side timing is authoritative. A submission arriving after the deadline (plus a
+        // short network grace) is scored from the answers autosaved before the deadline; answers
+        // first sent after it are not accepted. Nothing the student saved in time is lost.
+        const late = cbt.isPastDeadline(exam, session);
+        const answerMap = cbt.mergeAnswers(session.answers, late ? [] : answers);
+        const result = cbt.scoreExam(exam, answerMap);
 
         const updatedSession = await storage.updateSession(sessionId, {
-            answers: processedAnswers,
-            score,
-            correct,
-            incorrect,
-            unattempted,
-            attempted: correct + incorrect,
+            answers: result.answers.map(({ isCorrect, ...a }) => a),
+            score: result.score,
+            correct: result.correct,
+            incorrect: result.incorrect,
+            unattempted: result.unattempted,
+            attempted: result.attempted,
             submitted: true,
             end_time: new Date(),
-            weakAreas
+            weak_areas: result.weakAreas
         });
 
-        res.json({ msg: 'Exam submitted successfully', sessionId: updatedSession._id });
+        res.json({
+            msg: late ? 'Time was over: the exam was submitted with your last saved answers.' : 'Exam submitted successfully',
+            late,
+            sessionId: updatedSession._id
+        });
     } catch (err) {
         console.error(err.message);
         res.status(500).json({ msg: 'Server Error: ' + err.message });
@@ -948,12 +868,21 @@ router.get('/:id/scorecard/:sessionId', detectLabIp, async (req, res) => {
     try {
         const session = await storage.getSessionById(req.params.sessionId);
         if (!session) return res.status(404).json({ msg: 'Session not found' });
+        if (!sessionBelongsToExam(session, req.params.id)) {
+            return res.status(404).json({ msg: 'Session not found' });
+        }
+        // The breakdown contains every correct answer, so it must not be readable while the
+        // paper is still being written.
+        if (!session.submitted) {
+            return res.status(403).json({ msg: 'The scorecard is available after the exam is submitted.' });
+        }
 
-        const exam = await storage.getExamById(req.params.id);
-        if (!exam) return res.status(404).json({ msg: 'Exam not found' });
+        const rawExam = await storage.getExamById(req.params.id);
+        if (!rawExam) return res.status(404).json({ msg: 'Exam not found' });
+        const exam = await hydrateExamQuestions(rawExam);
 
         const breakdown = (exam.questions || []).map((q, idx) => {
-            const sid = String(q._id || q.id || q.questionId || idx);
+            const sid = cbt.questionKey(q, idx);
             const ans = (session.answers || []).find(a => String(a.questionId) === sid);
             return {
                 questionId: sid,
@@ -962,7 +891,8 @@ router.get('/:id/scorecard/:sessionId', detectLabIp, async (req, res) => {
                 chapter: q.chapter,
                 selectedOption: ans?.selectedOption || null,
                 correctAnswer: q.answer,
-                isCorrect: ans && ans.selectedOption && String(ans.selectedOption).trim().toLowerCase() === String(q.answer).trim().toLowerCase()
+                // same rule that produced the stored score
+                isCorrect: cbt.isAnswerCorrect(q, ans?.selectedOption)
             };
         });
 
@@ -995,7 +925,23 @@ router.get('/:id/scorecard/:sessionId', detectLabIp, async (req, res) => {
 router.get('/:id/results', [auth, checkRole(['admin'])], async (req, res) => {
     try {
         const sessions = await storage.getSessionsByExam(req.params.id);
-        res.json(sessions);
+        // The admin screens read camelCase fields, but the rows are snake_case, so names, roll numbers and
+        // dates showed as blank / "Invalid Date" (also in the Excel export). Numbers also arrive as strings
+        // from the NUMERIC column. Both naming styles are returned.
+        res.json(sessions.map(s => ({
+            ...s,
+            studentName: s.student_name ?? s.studentName,
+            studentEmail: s.student_email ?? s.studentEmail,
+            rollNumber: s.roll_number ?? s.rollNumber,
+            totalQuestions: s.total_questions ?? s.totalQuestions,
+            score: Number(s.score) || 0,
+            createdAt: s.created_at ?? s.createdAt,
+            startTime: s.start_time ?? s.startTime,
+            endTime: s.end_time ?? s.endTime,
+            weakAreas: s.weak_areas ?? s.weakAreas,
+            malpracticeFlag: Boolean(s.malpractice_flag ?? s.malpracticeFlag),
+            malpracticeReason: s.malpractice_reason ?? s.malpracticeReason ?? ''
+        })));
     } catch (err) {
         res.status(500).json({ msg: 'Server Error: ' + err.message });
     }
@@ -1007,22 +953,24 @@ router.get('/:id/results', [auth, checkRole(['admin'])], async (req, res) => {
 // ─────────────────────────────────────────────────────────────────
 router.get('/:id/analytics', [auth, checkRole(['admin'])], async (req, res) => {
     try {
-        const exam = await storage.getExamById(req.params.id);
-        if (!exam) return res.status(404).json({ msg: 'Exam not found' });
+        const rawExam = await storage.getExamById(req.params.id);
+        if (!rawExam) return res.status(404).json({ msg: 'Exam not found' });
+        const exam = await hydrateExamQuestions(rawExam);
 
-        const sessions = await storage.getSessionsByExam(req.params.id);
+        // Only finished sittings count, and "correct" uses the same rule as scoring (services/cbtScoring.js);
+        // the old plain string comparison disagreed with the scores shown next to it.
+        const sessions = (await storage.getSessionsByExam(req.params.id)).filter(s => s.submitted);
 
         const analytics = (exam.questions || []).map((q, i) => {
             let correct = 0, incorrect = 0, unattempted = 0;
-            const sid = String(q._id || q.id || q.questionId || i);
+            const sid = cbt.questionKey(q, i);
 
             sessions.forEach(session => {
                 const ans = (session.answers || []).find(a => String(a.questionId) === sid);
-                const selected = ans?.selectedOption || null;
+                const selected = ans?.selectedOption ?? null;
 
-                if (selected !== null && selected !== '') {
-                    const isExactMatch = String(selected).trim().toLowerCase() === String(q.answer).trim().toLowerCase();
-                    if (isExactMatch) correct++;
+                if (selected !== null && String(selected).trim() !== '') {
+                    if (cbt.isAnswerCorrect(q, selected)) correct++;
                     else incorrect++;
                 } else {
                     unattempted++;
@@ -1051,26 +999,26 @@ router.get('/:id/analytics', [auth, checkRole(['admin'])], async (req, res) => {
 // ─────────────────────────────────────────────────────────────────
 router.post('/:id/bridge-key', [auth, checkRole(['admin'])], async (req, res) => {
     try {
-        const exam = await OnlineExam.findById(req.params.id);
+        const exam = await storage.getExamById(req.params.id);
         if (!exam) return res.status(404).json({ msg: 'Exam not found' });
+        const examId = String(exam._id || exam.id);
 
-        // Generate only once: check if a bridge key already exists for this exam
-        let bridgeKey = await BridgeKey.findOne({ examId: exam._id });
-        if (bridgeKey) {
-            return res.json({ msg: 'Bridge key retrieved', key: bridgeKey.key, expiresAt: bridgeKey.expiresAt });
+        // Generate only once: reuse the key that already exists for this exam
+        const existing = await pool.query(
+            'SELECT key, expires_at FROM public.bridge_keys WHERE exam_id = $1 ORDER BY created_at ASC LIMIT 1',
+            [examId]
+        );
+        if (existing.rows[0]) {
+            return res.json({ msg: 'Bridge key retrieved', key: existing.rows[0].key, expiresAt: existing.rows[0].expires_at });
         }
 
         const key = crypto.randomBytes(24).toString('hex');
-        bridgeKey = new BridgeKey({
-            key,
-            examId: exam._id,
-            examTitle: exam.title,
-            generatedBy: req.user.id,
-            expiresAt: new Date(Date.now() + 3650 * 24 * 60 * 60 * 1000) // 10 years (static)
-        });
-        await bridgeKey.save();
-        res.json({ msg: 'Bridge key generated', key, expiresAt: bridgeKey.expiresAt });
+        // Same lifetime the original implementation chose (10 years, effectively static). Anyone holding the key can
+        // read the exam with its answers and all results, so treat it like a password.
+        const created = await storage.createBridgeKey(key, examId, exam.title, req.user.id, new Date(Date.now() + 3650 * 24 * 60 * 60 * 1000));
+        res.json({ msg: 'Bridge key generated', key, expiresAt: created?.expires_at || created?.expiresAt || null });
     } catch (err) {
+        console.error('Bridge key error:', err.message);
         res.status(500).json({ msg: 'Server Error' });
     }
 });
@@ -1081,39 +1029,44 @@ router.post('/:id/bridge-key', [auth, checkRole(['admin'])], async (req, res) =>
 // ─────────────────────────────────────────────────────────────────
 router.get('/bridge/:key', async (req, res) => {
     try {
-        const bridgeKey = await BridgeKey.findOne({ key: req.params.key });
+        const bridgeKey = await storage.getBridgeKey(req.params.key);
         if (!bridgeKey) return res.status(404).json({ msg: 'Invalid bridge key.' });
+        if (bridgeKey.expires_at && new Date(bridgeKey.expires_at).getTime() < Date.now()) {
+            return res.status(410).json({ msg: 'This bridge key has expired. Ask the administrator to generate a new one.' });
+        }
+        const examId = bridgeKey.exam_id || bridgeKey.examId;
 
-        const sessions = await ExamSession.find({ examId: bridgeKey.examId, submitted: true })
-            .sort({ score: -1 });
+        const sessions = (await storage.getSessionsByExam(examId)).filter(s => s.submitted);
 
         // Retrieve full exam data including questions and answers
-        const exam = await OnlineExam.findById(bridgeKey.examId);
+        const rawExam = await storage.getExamById(examId);
+        const exam = rawExam ? await hydrateExamQuestions(rawExam) : null;
 
         res.json({
-            examTitle: bridgeKey.examTitle,
+            examTitle: bridgeKey.exam_title || bridgeKey.examTitle,
             exam,
             results: sessions.map(s => ({
-                studentId: s.studentId,
-                studentName: s.studentName,
-                rollNumber: s.rollNumber,
-                studentEmail: s.studentEmail,
-                score: s.score,
-                totalQuestions: s.totalQuestions,
+                studentId: s.student_id,
+                studentName: s.student_name,
+                rollNumber: s.roll_number,
+                studentEmail: s.student_email,
+                score: Number(s.score),
+                totalQuestions: s.total_questions,
                 attempted: s.attempted,
                 correct: s.correct,
                 incorrect: s.incorrect,
                 unattempted: s.unattempted,
-                weakAreas: s.weakAreas,
-                fromLabIp: s.fromLabIp,
-                clientIp: s.clientIp,
-                submittedAt: s.endTime,
-                malpracticeFlag: s.malpracticeFlag || false,
-                malpracticeReason: s.malpracticeReason || '',
+                weakAreas: s.weak_areas,
+                fromLabIp: s.from_lab_ip,
+                clientIp: s.client_ip,
+                submittedAt: s.end_time,
+                malpracticeFlag: s.malpractice_flag || false,
+                malpracticeReason: s.malpractice_reason || '',
                 answers: s.answers
             }))
         });
     } catch (err) {
+        console.error('Bridge fetch error:', err.message);
         res.status(500).json({ msg: 'Server Error' });
     }
 });
@@ -1135,15 +1088,23 @@ router.post('/:id/malpractice', detectLabIp, async (req, res) => {
             session = sessions.find(s => String(s._id || s.id) === String(sessionId));
         }
 
+        if (session && !sessionBelongsToExam(session, req.params.id)) {
+            return res.status(400).json({ msg: 'This session does not belong to this exam.' });
+        }
+        if (session && session.submitted) {
+            // Never re-open or re-flag a finished sitting.
+            return res.json({ msg: 'Session already closed', session });
+        }
+
         if (session) {
-            session.submitted = true;
-            session.endTime = new Date();
-            session.end_time = session.endTime;
-            session.malpracticeFlag = true;
-            session.malpractice_flag = true;
-            session.malpracticeReason = reason || 'Window blurred or switched tab';
-            session.malpractice_reason = reason || 'Window blurred or switched tab';
-            await storage.saveSession(session);
+            // storage.saveSession never existed, so this route used to fail with a 500 and the
+            // session stayed open: a disqualified student could simply resume the exam.
+            session = await storage.updateSession(session._id, {
+                submitted: true,
+                end_time: new Date(),
+                malpractice_flag: true,
+                malpractice_reason: reason || 'Window blurred or switched tab'
+            });
         }
 
         const exam = await storage.getExamById(req.params.id);
@@ -1213,10 +1174,29 @@ router.post('/:id/session/save-progress', async (req, res) => {
 
         const session = await storage.getSessionById(sessionId);
         if (!session) return res.status(404).json({ msg: 'Session not found' });
+        if (!sessionBelongsToExam(session, req.params.id)) {
+            return res.status(400).json({ msg: 'This session does not belong to this exam.' });
+        }
         if (session.submitted) return res.status(400).json({ msg: 'Cannot save progress for submitted exam' });
+        // An empty payload would erase everything saved so far; treat it as a client fault.
+        if (!Array.isArray(answers) || answers.length === 0) {
+            return res.status(400).json({ msg: 'No answers supplied; previously saved answers were kept.' });
+        }
 
-        const updated = await storage.updateSession(sessionId, { answers: answers || [] });
-        res.json({ msg: 'Progress autosaved successfully', session: updated });
+        const exam = await storage.getExamById(req.params.id);
+        if (exam && cbt.isPastDeadline(exam, session)) {
+            return res.status(403).json({ msg: 'Time is over. Answers can no longer be changed.', timeOver: true });
+        }
+
+        // Merge per question so a partial payload never drops answers saved earlier.
+        const merged = [...cbt.mergeAnswers(session.answers, answers).values()];
+        const updated = await storage.updateSession(sessionId, { answers: merged });
+        res.json({
+            msg: 'Progress autosaved successfully',
+            serverTime: new Date().toISOString(),
+            remainingSeconds: exam ? cbt.remainingSeconds(exam, session) : null,
+            session: updated
+        });
     } catch (err) {
         console.error('Autosave error:', err);
         res.status(500).json({ msg: 'Server Error during autosave: ' + err.message });
@@ -1263,7 +1243,8 @@ router.get('/:id/export-word', [auth, checkRole(['admin'])], async (req, res) =>
 router.get('/:id/pdf-report/:sessionId', detectLabIp, async (req, res) => {
     try {
         const session = await storage.getSessionById(req.params.sessionId);
-        if (!session) return res.status(404).json({ msg: 'Session not found' });
+        if (!session || !sessionBelongsToExam(session, req.params.id)) return res.status(404).json({ msg: 'Session not found' });
+        if (!session.submitted) return res.status(403).json({ msg: 'The report is available after the exam is submitted.' });
 
         const exam = await storage.getExamById(req.params.id);
         if (!exam) return res.status(404).json({ msg: 'Exam not found' });

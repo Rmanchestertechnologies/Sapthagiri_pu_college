@@ -22,6 +22,7 @@ const helmet = require('helmet');
 const mongoSanitize = require('./middleware/mongoSanitize');
 const { apiLimiter } = require('./middleware/rateLimiter');
 const errorHandler = require('./middleware/errorHandler');
+const { parseAllowedOrigins, isOriginAllowed } = require('./services/accessRules');
 
 // ── Routes
 const authRoutes = require('./routes/auth.js');
@@ -53,10 +54,16 @@ app.use(helmet({
 // ─────────────────────────────────────────────────────────────────────────────
 // CORS — Permit all origins (Vercel deployments, custom domains, localhost)
 // ─────────────────────────────────────────────────────────────────────────────
+// ALLOWED_ORIGINS="https://app.example.com,https://other.example.com" restricts cross-origin access.
+// While it is unset or "*", every origin is reflected back WITH credentials, which lets any website
+// make authenticated requests as a logged-in user. Set it in production.
+const allowedOrigins = parseAllowedOrigins(process.env.ALLOWED_ORIGINS);
+if (!allowedOrigins && process.env.NODE_ENV === 'production') {
+    console.warn('⚠️ ALLOWED_ORIGINS is not restricted: any website can call this API with the user\'s cookies. Set ALLOWED_ORIGINS.');
+}
 app.use(cors({
     origin: (origin, callback) => {
-        // Always allow origin so Vercel preview/production URLs and custom domains connect smoothly
-        callback(null, true);
+        callback(null, isOriginAllowed(origin, allowedOrigins));
     },
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'x-auth-token', 'Origin', 'Accept'],

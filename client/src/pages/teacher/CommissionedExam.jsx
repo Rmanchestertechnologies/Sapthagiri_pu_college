@@ -9,7 +9,6 @@ import A4AnswerKey from '../../components/A4AnswerKey';
 import A4SolutionKey from '../../components/A4SolutionKey';
 import Loader from '../../components/Loader';
 import { getQuestionOptionLabels, optionLabel, cleanOptionText, extractOptionsIfMissing } from '../../utils/sanitize';
-import { generatePaperSet } from '../../utils/pqrsGenerator';
 
 const EXAM_PATTERNS = {
     NEET: {
@@ -142,6 +141,8 @@ export default function CommissionedExam() {
     const [isMetadataLoading, setIsMetadataLoading] = useState(false);
     const [loadingMessage, setLoadingMessage] = useState('');
     const [fetchError, setFetchError] = useState(null); // in-page error state for fetch failures
+    // Server report of the last Auto Fetch: requested vs delivered per chapter / type / difficulty
+    const [generationReport, setGenerationReport] = useState(null);
 
     // Step 2: Chapter Selection
     const [availableChapters, setAvailableChapters] = useState([]);
@@ -232,6 +233,10 @@ export default function CommissionedExam() {
     const [showAnswerKey, setShowAnswerKey] = useState(false);
     const [showSolutionGuide, setShowSolutionGuide] = useState(false);
     const [savingPaper, setSavingPaper] = useState(false);
+    // Id of the paper once saved. Sets Q/R/S are permuted with a seed taken from the paper id, so the
+    // sets shown (and the keys printed) match the saved paper, the OMR key and the saved-papers screen
+    // only after the first save. Saving again updates this paper instead of creating a duplicate.
+    const [savedPaperId, setSavedPaperId] = useState(null);
 
     // Step 7: PQRS 4-Sets & Zoom & Word state (lifted up so bottom toolbar controls them)
     const [setsActive, setSetsActive] = useState(false);
@@ -253,9 +258,11 @@ export default function CommissionedExam() {
     }, [selectedExamPattern]);
 
     // Sum of questions from all chapters (UNLIMITED CAPACITY)
+    // Only chapters that are still selected count: a deselected chapter keeps its old entry in
+    // chapterQuotas, and counting it inflated the target beyond what the chapters could supply.
     const totalChapterQuestions = useMemo(() => {
-        return Object.values(chapterQuotas).reduce((sum, count) => sum + (parseInt(count) || 0), 0);
-    }, [chapterQuotas]);
+        return selectedChapters.reduce((sum, ch) => sum + (parseInt(chapterQuotas[ch]) || 0), 0);
+    }, [chapterQuotas, selectedChapters]);
 
     // Sum of questions from all types
     const totalTypeQuestions = useMemo(() => {
@@ -734,223 +741,49 @@ export default function CommissionedExam() {
                 baseParams.append('level', levels.join(','));
             }
 
-            // Target total questions to assemble
-            const targetTotal = totalChapterQuestions > 0 ? totalChapterQuestions : (patternConfig.defaultTotal || 45);
-
-            // Chapters to fetch
-            const chaptersToFetch = selectedChapters.length > 0 ? selectedChapters : [''];
-            const chapterPools = {};
-
-            setLoadingMessage(`Fetching questions for ${chaptersToFetch.length} selected chapter${chaptersToFetch.length > 1 ? 's' : ''}...`);
-
-            // Fetch dedicated pool for each selected chapter in parallel
-            await Promise.all(
-                chaptersToFetch.map(async (ch) => {
-                    const rawQuota = chapterQuotas[ch];
-                    const chQuota = (rawQuota !== undefined && rawQuota !== '') ? Number(rawQuota) : Math.ceil(targetTotal / chaptersToFetch.length);
-                    const chParams = new URLSearchParams(baseParams);
-                    if (ch) chParams.set('chapter', ch);
-                    // Fetch a healthy pool for this chapter: 3x quota, min 40, max 100
-                    const chLimit = Math.min(Math.max(chQuota * 3, 40), 100);
-                    chParams.set('limit', String(chLimit));
-
-                    try {
-                        const res = await api.get(`/api/questions?${chParams.toString()}`, { timeout: 35000 });
-                        const rows = Array.isArray(res.data?.questions) ? res.data.questions : (Array.isArray(res.data) ? res.data : []);
-                        chapterPools[ch] = (selectedExamPattern === 'CET') ? rows : rows.filter(q => !isCetQ(q));
-                    } catch (err) {
-                        console.warn(`[FETCH] Chapter fetch fallback for "${ch}":`, err.message);
-                        chapterPools[ch] = [];
-                    }
-                })
-            );
-
-            // Flatten for manual mode and global backfill
-            const allRows = Object.values(chapterPools).flat();
-            // Client-side CET guard (never filter out CET questions when creating CET exam)
-            const filteredRows = (selectedExamPattern === 'CET') ? allRows : allRows.filter(q => !isCetQ(q));
-
-            // Populate candidate pool for manual mode
-            setManualPool(filteredRows);
-
-            if (filteredRows.length === 0) {
-                setFetchError('No questions found matching your selected chapter/class filters. Please broaden your selection.');
-                return;
-            }
-
+            // ── AUTO MODE ────────────────────────────────────────────────────────────
+            // Selection runs on the server (POST /api/questions/chapter-distribution) so that
+            // every chapter quota is filled from that chapter only. The previous client-side
+            // assembly backfilled a short or failed chapter from the other chapters' pools,
+            // which is how a 10/10/10 request could come back as 30 questions from one chapter.
             if (fetchMode === 'auto') {
-                setLoadingMessage('Assembling balanced question paper honoring chapter & type quotas...');
-
-                // Helper to check concept match
-                const matchesConcept = (q) => {
-                    if (selectedConcepts.length === 0) return true;
-                    const qCpt = (q.concept || '').toLowerCase();
-                    return selectedConcepts.some(c => c.toLowerCase() === qCpt);
-                };
-
-                // Classify each chapter's questions into category buckets
-                const chBuckets = {};
-                for (const ch of chaptersToFetch) {
-                    chBuckets[ch] = {
-                        mcq: [],
-                        ar: [],
-                        match: [],
-                        diag: [],
-                        stmt: [],
-                        numerical: []
-                    };
-                    (chapterPools[ch] || []).forEach(q => {
-                        const cat = getQCategory(q, isJee);
-                        if (chBuckets[ch][cat]) chBuckets[ch][cat].push(q);
-                        else chBuckets[ch].mcq.push(q);
-                    });
-                    // Prioritize each bucket by concept match first, then shuffle
-                    Object.keys(chBuckets[ch]).forEach(cat => {
-                        chBuckets[ch][cat].sort((a, b) => {
-                            const matchDiff = (matchesConcept(b) ? 1 : 0) - (matchesConcept(a) ? 1 : 0);
-                            if (matchDiff !== 0) return matchDiff;
-                            return Math.random() - 0.5;
-                        });
-                    });
+                const activeQuotas = {};
+                selectedChapters.forEach(ch => {
+                    const n = parseInt(chapterQuotas[ch], 10);
+                    if (n > 0) activeQuotas[ch] = n;
+                });
+                if (Object.keys(activeQuotas).length === 0) {
+                    setFetchError('Select at least one chapter and enter how many questions you need from it (Step 4).');
+                    return;
                 }
 
-                // If specific type allocations (e.g. diagram, match) need more than what's available globally,
-                // do a targeted fetch for that type
-                const targetTypes = [
-                    { key: 'diag', typeParam: 'diagram' },
-                    { key: 'match', typeParam: 'match' },
-                    { key: 'ar', typeParam: 'assertion' },
-                    { key: 'stmt', typeParam: 'statement' },
-                    ...(isJee ? [{ key: 'numerical', typeParam: 'numerical' }] : [])
-                ];
+                setLoadingMessage('Assembling question paper honoring chapter, type and difficulty quotas...');
+                const res = await api.post('/api/questions/chapter-distribution', {
+                    subject: selectedSubject,
+                    classes: selectedClass,
+                    examType: selectedExamPattern,
+                    chapterQuotas: activeQuotas,
+                    typeAllocations,
+                    difficultyDistribution,
+                    concepts: selectedConcepts,
+                }, { timeout: 90000 });
 
-                for (const target of targetTypes) {
-                    const desired = typeAllocations[target.key] || 0;
-                    if (desired <= 0) continue;
-                    let totalAvailable = 0;
-                    for (const ch of chaptersToFetch) {
-                        totalAvailable += (chBuckets[ch][target.key] || []).length;
-                    }
-                    if (desired > totalAvailable) {
-                        const needed = desired - totalAvailable;
-                        try {
-                            const extraParams = new URLSearchParams(baseParams);
-                            extraParams.set('type', target.typeParam);
-                            extraParams.set('limit', String(Math.max(needed * 3, 25)));
-                            const extraRes = await api.get(`/api/questions?${extraParams.toString()}`);
-                            const extraList = Array.isArray(extraRes.data?.questions) ? extraRes.data.questions : (Array.isArray(extraRes.data) ? extraRes.data : []);
-                            extraList.forEach(q => {
-                                const id = String(q._id || q.id);
-                                if (!filteredRows.some(e => String(e._id || e.id) === id)) {
-                                    filteredRows.push(q);
-                                    const ch = q.chapter && chaptersToFetch.includes(q.chapter) ? q.chapter : chaptersToFetch[0];
-                                    if (!chapterPools[ch]) chapterPools[ch] = [];
-                                    chapterPools[ch].push(q);
-                                    const cat = getQCategory(q, isJee);
-                                    if (chBuckets[ch] && chBuckets[ch][cat]) chBuckets[ch][cat].push(q);
-                                }
-                            });
-                        } catch (e) {
-                            console.warn(`Targeted fetch for ${target.key} warning:`, e.message);
-                        }
-                    }
-                }
-
-                const pickedIds = new Set();
-                const pickedByChapter = {};
-                chaptersToFetch.forEach(ch => { pickedByChapter[ch] = []; });
-
-                // Target quota per chapter strictly honoring user input from Step 4
-                const targetChapterQuotas = {};
-                chaptersToFetch.forEach(ch => {
-                    const userQ = chapterQuotas[ch];
-                    targetChapterQuotas[ch] = (userQ !== undefined && userQ !== '')
-                        ? Math.max(0, Number(userQ))
-                        : Math.ceil(targetTotal / chaptersToFetch.length);
+                const report = res.data || {};
+                const picked = Array.isArray(report.questions) ? report.questions : [];
+                setGenerationReport({
+                    requestedTotal: report.requestedTotal ?? 0,
+                    total: picked.length,
+                    complete: Boolean(report.complete),
+                    chapters: report.distributionReport || {},
+                    types: report.typeReport || {},
+                    difficulty: report.difficultyReport || {},
+                    warnings: Array.isArray(report.warnings) ? report.warnings : [],
                 });
 
-                // Phase 1: Allocate requested special types across chapters in round-robin fashion
-                const specialTypes = [
-                    ...(isJee && patternConfig.supportsNumerical && typeAllocations.numerical > 0 ? [{ key: 'numerical', count: typeAllocations.numerical }] : []),
-                    ...(typeAllocations.diag > 0 ? [{ key: 'diag', count: typeAllocations.diag }] : []),
-                    ...(typeAllocations.ar > 0 ? [{ key: 'ar', count: typeAllocations.ar }] : []),
-                    ...(typeAllocations.match > 0 ? [{ key: 'match', count: typeAllocations.match }] : []),
-                    ...(typeAllocations.stmt > 0 ? [{ key: 'stmt', count: typeAllocations.stmt }] : []),
-                ];
-
-                for (const { key, count } of specialTypes) {
-                    let needed = count;
-                    let rounds = 0;
-                    while (needed > 0 && rounds < chaptersToFetch.length * 5) {
-                        rounds++;
-                        let pickedInRound = false;
-                        for (const ch of chaptersToFetch) {
-                            if (needed <= 0) break;
-                            const chQuota = targetChapterQuotas[ch] || 0;
-                            if (pickedByChapter[ch].length >= chQuota) continue;
-
-                            const candidate = (chBuckets[ch][key] || []).find(q => !pickedIds.has(q._id || q.id));
-                            if (candidate) {
-                                pickedIds.add(candidate._id || candidate.id);
-                                pickedByChapter[ch].push(candidate);
-                                needed--;
-                                pickedInRound = true;
-                            }
-                        }
-                        if (!pickedInRound) break;
-                    }
-
-                    // If any special questions still needed, pick from any chapter that has remaining quota
-                    if (needed > 0) {
-                        for (const ch of chaptersToFetch) {
-                            if (needed <= 0) break;
-                            const chQuota = targetChapterQuotas[ch] || 0;
-                            if (pickedByChapter[ch].length >= chQuota) continue;
-
-                            const candidate = (chBuckets[ch][key] || []).find(q => !pickedIds.has(q._id || q.id));
-                            if (candidate) {
-                                pickedIds.add(candidate._id || candidate.id);
-                                pickedByChapter[ch].push(candidate);
-                                needed--;
-                            }
-                        }
-                    }
-                }
-
-                // Phase 2: Fill remaining chapter quota for each chapter using MCQs first, then any available question
-                for (const ch of chaptersToFetch) {
-                    const chQuota = targetChapterQuotas[ch] || 0;
-                    const neededForCh = chQuota - pickedByChapter[ch].length;
-                    if (neededForCh <= 0) continue;
-
-                    // Try MCQs from this chapter
-                    const availableMcq = (chBuckets[ch].mcq || []).filter(q => !pickedIds.has(q._id || q.id));
-                    const toTakeMcq = availableMcq.slice(0, neededForCh);
-                    toTakeMcq.forEach(q => {
-                        pickedIds.add(q._id || q.id);
-                        pickedByChapter[ch].push(q);
-                    });
-
-                    // If still short, pick ANY unpicked question from this chapter
-                    const stillNeeded = chQuota - pickedByChapter[ch].length;
-                    if (stillNeeded > 0) {
-                        const anyFromCh = (chapterPools[ch] || []).filter(q => !pickedIds.has(q._id || q.id));
-                        const toTakeAny = anyFromCh.slice(0, stillNeeded);
-                        toTakeAny.forEach(q => {
-                            pickedIds.add(q._id || q.id);
-                            pickedByChapter[ch].push(q);
-                        });
-                    }
-                }
-
-                // Phase 3: Global backfill if any chapter had insufficient questions in DB
-                let picked = Object.values(pickedByChapter).flat();
-                if (picked.length < targetTotal) {
-                    const remainingGlobal = filteredRows.filter(q => !pickedIds.has(q._id || q.id));
-                    const deficit = targetTotal - picked.length;
-                    const backfill = remainingGlobal.slice(0, deficit);
-                    backfill.forEach(q => pickedIds.add(q._id || q.id));
-                    picked.push(...backfill);
+                if (picked.length === 0) {
+                    const why = (report.warnings || []).slice(0, 3).join(' ');
+                    setFetchError(`No questions could be generated. ${why}`.trim());
+                    return;
                 }
 
                 // Clean and ensure options for 100% of questions
@@ -1038,12 +871,41 @@ export default function CommissionedExam() {
                     questionNumber: idx + 1
                 }));
 
-                if (finalOrdered.length === 0) {
-                    setFetchError('No questions found for the selected filters. Please select more chapters.');
-                } else {
-                    setSelectedQuestions(finalOrdered);
-                    setCurrentStep(7); // Jump straight to Step 7 Preview & Alignment!
-                }
+                setSelectedQuestions(finalOrdered);
+                setCurrentStep(7); // Jump straight to Step 7 Preview & Alignment!
+                return;
+            }
+
+            // ── MANUAL MODE: load a candidate pool per selected chapter ─────────────────
+            const chaptersToFetch = selectedChapters.length > 0 ? selectedChapters : [''];
+            const chapterPools = {};
+            const failedChapters = [];
+            setLoadingMessage(`Fetching questions for ${chaptersToFetch.length} selected chapter${chaptersToFetch.length > 1 ? 's' : ''}...`);
+
+            await Promise.all(
+                chaptersToFetch.map(async (ch) => {
+                    const chParams = new URLSearchParams(baseParams);
+                    if (ch) chParams.set('chapter', ch);
+                    chParams.set('limit', '100');
+                    try {
+                        const res = await api.get(`/api/questions?${chParams.toString()}`, { timeout: 35000 });
+                        const rows = Array.isArray(res.data?.questions) ? res.data.questions : (Array.isArray(res.data) ? res.data : []);
+                        chapterPools[ch] = (selectedExamPattern === 'CET') ? rows : rows.filter(q => !isCetQ(q));
+                    } catch (err) {
+                        console.warn(`[FETCH] Chapter fetch failed for "${ch}":`, err.message);
+                        chapterPools[ch] = [];
+                        failedChapters.push(ch || 'all chapters');
+                    }
+                })
+            );
+
+            const filteredRows = Object.values(chapterPools).flat();
+            setManualPool(filteredRows);
+
+            if (failedChapters.length > 0) {
+                setFetchError(`Could not load questions for: ${failedChapters.join(', ')}. Please retry.`);
+            } else if (filteredRows.length === 0) {
+                setFetchError('No questions found matching your selected chapter/class filters. Please broaden your selection.');
             }
         } catch (err) {
             console.error('Error fetching questions:', err);
@@ -1127,8 +989,12 @@ export default function CommissionedExam() {
                 settings,
             };
 
-            const res = await api.post('/api/papers', paperData);
-            alert(`Paper saved successfully! Document ID: ${res.data?._id || 'Saved'}`);
+            const res = savedPaperId
+                ? await api.put(`/api/papers/${savedPaperId}`, paperData)
+                : await api.post('/api/papers', paperData);
+            const newId = res.data?._id || res.data?.id || savedPaperId;
+            if (newId) setSavedPaperId(String(newId));
+            alert(`Paper saved successfully! Document ID: ${newId || 'Saved'}`);
         } catch (err) {
             console.error('Error saving paper:', err);
             alert('Failed to save paper. Please verify details and try again.');
@@ -1213,7 +1079,7 @@ export default function CommissionedExam() {
                 questions: baseQs,
                 setName: setsActive ? activeSet : 'P',
             };
-            const activePaper = setsActive && activeSet !== 'P' ? generatePaperSet(basePaper, activeSet) : basePaper;
+            const activePaper = setsActive && activeSet !== 'P' ? generatePaperSet(basePaper, activeSet, Number(settings?.startQNo) || 1) : basePaper;
             const rawActiveQs = activePaper?.questions || baseQs;
             const paperData = {
                 ...activePaper,
@@ -1256,6 +1122,7 @@ export default function CommissionedExam() {
         const effectiveDuration = settings?.duration || (settings?.durationMinutes ? `${settings.durationMinutes} Minutes` : defaultDuration);
 
         return {
+            ...(savedPaperId ? { _id: savedPaperId } : {}),
             title: examTitle || `${selectedExamPattern} Examination`,
             subject: selectedSubject || 'General',
             examType: selectedExamPattern,
@@ -1267,12 +1134,12 @@ export default function CommissionedExam() {
             institutionName: 'SAPTHAGIRI PU COLLEGE',
             subHeader: 'DEPARTMENT OF PRE-UNIVERSITY EDUCATION, KARNATAKA',
         };
-    }, [examTitle, selectedSubject, selectedExamPattern, selectedClass, selectedQuestions, settings?.duration, settings?.durationMinutes, settings?.marksPerQuestion, patternConfig]);
+    }, [savedPaperId, examTitle, selectedSubject, selectedExamPattern, selectedClass, selectedQuestions, settings?.duration, settings?.durationMinutes, settings?.marksPerQuestion, patternConfig]);
 
-    const effectiveActivePaper = useMemo(() => {
-        if (!setsActive || activeSet === 'P') return { ...currentPaperObject, setName: setsActive ? 'P' : '' };
-        return generatePaperSet(currentPaperObject, activeSet);
-    }, [currentPaperObject, setsActive, activeSet]);
+    // The MASTER paper is what gets passed down. PaperRenderer, A4AnswerKey and A4SolutionKey each
+    // derive the active P/Q/R/S set from it themselves; handing them an already-permuted paper made
+    // them permute it a second time and let edits overwrite the master order with a shuffled one.
+    const keySetName = setsActive ? activeSet : 'P';
 
     return (
         <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
@@ -2443,10 +2310,45 @@ export default function CommissionedExam() {
                 {currentStep === 7 && (
                     <div className="space-y-6 animate-fade-in relative pb-12">
 
+                        {setsActive && activeSet !== 'P' && !savedPaperId && (
+                            <div role="note" className="max-w-4xl mx-auto rounded-2xl border border-amber-300 bg-amber-50 p-3 text-xs font-semibold text-amber-900">
+                                Set {activeSet} is a preview. Sets Q, R and S are shuffled with a seed taken from the saved paper's id, so save the paper first:
+                                the order you see now will change once it is saved, and only the saved version matches the answer key, the saved-papers screen and OMR grading.
+                            </div>
+                        )}
+
+                        {/* Auto Fetch result: requested vs delivered, so partial generation is never silent */}
+                        {fetchMode === 'auto' && generationReport && (
+                            <div className={`max-w-4xl mx-auto rounded-2xl border p-4 text-xs ${generationReport.complete && generationReport.warnings.length === 0 ? 'bg-emerald-50 border-emerald-200 text-emerald-900' : 'bg-amber-50 border-amber-300 text-amber-900'}`}>
+                                <div className="flex items-start justify-between gap-3">
+                                    <p className="font-black">
+                                        {generationReport.complete
+                                            ? `Generated ${generationReport.total} of ${generationReport.requestedTotal} requested questions.`
+                                            : `Partial paper: ${generationReport.total} of ${generationReport.requestedTotal} requested questions were available.`}
+                                    </p>
+                                    <button type="button" onClick={() => setGenerationReport(null)} className="opacity-60 hover:opacity-100 cursor-pointer flex-shrink-0" aria-label="Dismiss generation summary">
+                                        <X className="w-4 h-4" />
+                                    </button>
+                                </div>
+                                <div className="mt-2 flex flex-wrap gap-1.5">
+                                    {Object.entries(generationReport.chapters).map(([ch, r]) => (
+                                        <span key={ch} className={`px-2 py-1 rounded-lg border font-semibold ${r.delivered < r.requested ? 'bg-white border-amber-400 text-amber-900' : 'bg-white/70 border-emerald-200'}`}>
+                                            {ch}: {r.delivered}/{r.requested}
+                                        </span>
+                                    ))}
+                                </div>
+                                {generationReport.warnings.length > 0 && (
+                                    <ul className="mt-2 list-disc pl-4 space-y-0.5 font-medium">
+                                        {generationReport.warnings.map((w, i) => <li key={i}>{w}</li>)}
+                                    </ul>
+                                )}
+                            </div>
+                        )}
+
                         {/* Paginated Paper Renderer with unified SettingsPanel containing all layout controls & actions */}
                         <div className="w-full flex justify-center">
                             <PaperRenderer
-                                paper={effectiveActivePaper}
+                                paper={currentPaperObject}
                                 activeTemplate={activeTemplate}
                                 settings={settings}
                                 setSettings={setSettings}
@@ -2479,10 +2381,10 @@ export default function CommissionedExam() {
             {/* ---------------------------------------------------------------- MODAL: ANSWER KEY ---------------------------------------------------------------- */}
             {showAnswerKey && (
                 <A4AnswerKey
-                    paper={effectiveActivePaper}
-                    questions={effectiveActivePaper.questions}
-                    startQNo={Number(paperSettings?.startQNo) || 1}
-                    setName={activeSet}
+                    paper={currentPaperObject}
+                    questions={currentPaperObject.questions}
+                    startQNo={Number(settings?.startQNo) || 1}
+                    setName={keySetName}
                     onClose={() => setShowAnswerKey(false)}
                 />
             )}
@@ -2490,10 +2392,10 @@ export default function CommissionedExam() {
             {/* ---------------------------------------------------------------- MODAL: SOLUTION GUIDE ---------------------------------------------------------------- */}
             {showSolutionGuide && (
                 <A4SolutionKey
-                    paper={effectiveActivePaper}
-                    questions={effectiveActivePaper.questions}
-                    startQNo={Number(paperSettings?.startQNo) || 1}
-                    setName={activeSet}
+                    paper={currentPaperObject}
+                    questions={currentPaperObject.questions}
+                    startQNo={Number(settings?.startQNo) || 1}
+                    setName={keySetName}
                     onClose={() => setShowSolutionGuide(false)}
                 />
             )}

@@ -53,12 +53,14 @@ router.get('/', auth, async (req, res) => {
 router.put('/:id/read', auth, async (req, res) => {
   try {
     const notifId = req.params.id;
+    // A user may only mark their own notifications (admins also their role's broadcast ones).
+    const isAdmin = (req.user.role || '') === 'admin';
     const result = await pool.query(`
       UPDATE public.notifications
       SET is_read = TRUE, read_at = NOW()
-      WHERE id = $1
+      WHERE id = $1 AND (recipient_id = $2 OR ($3 AND recipient_role = 'admin'))
       RETURNING *
-    `, [notifId]);
+    `, [notifId, req.user.id, isAdmin]);
 
     if (result.rowCount === 0) {
       return res.status(404).json({ msg: 'Notification not found' });

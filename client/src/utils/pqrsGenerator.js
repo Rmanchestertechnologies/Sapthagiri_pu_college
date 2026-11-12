@@ -56,28 +56,42 @@ export function getAnswerIndex(answer, options = []) {
 /**
  * Shuffle options of a single question and compute the new correct answer letter
  */
+// Options whose wording refers to other options by position ("Both 1 and 2", "All of the above",
+// "None of these") stop making sense once the options move, so such questions keep their order.
+const optionText = (opt) => (typeof opt === 'object' && opt ? (opt.text || opt.optionText || opt.value || '') : String(opt ?? ''));
+const POSITIONAL_OPTION_RE = /\b(all|none|both|either|neither)\b[^.]{0,40}\b(above|these|those|the\s+following|[A-Da-d1-4]\s*(?:\)|and|&|or|,))|\b(?:\(?[A-Da-d1-4]\)?)\s*(?:and|&)\s*(?:\(?[A-Da-d1-4]\)?)\s*(?:only|both|are|is)?\s*$/i;
+export function hasPositionalOptions(options = []) {
+    return options.some(o => POSITIONAL_OPTION_RE.test(optionText(o).replace(/<[^>]+>/g, ' ').trim()));
+}
+
 function shuffleQuestionOptions(question, randomFn) {
     const originalOptions = Array.isArray(question.options) ? question.options : [];
-    if (originalOptions.length <= 1) {
-        return {
-            ...question,
-            options: originalOptions,
-            originalAnswer: question.answer ?? question.correct_option ?? question.correctAnswer,
-            answer: question.answer ?? question.correct_option ?? question.correctAnswer,
-        };
-    }
-
-    const rawAns = question.answer ?? question.correct_option ?? question.correctAnswer;
+    // Same precedence as getResolvedAnswerLabel, so the key printed for a set is derived
+    // from the same field the option shuffle used.
+    const rawAns = question.correct_option ?? question.answer ?? question.correctAnswer;
     const origAnsIndices = parseAnswerIndices(rawAns, originalOptions);
-    const origAnsContent = origAnsIndices.length > 0 ? originalOptions[origAnsIndices[0]] : null;
+
+    // Leave options untouched when shuffling could silently change the correct answer:
+    //  - fewer than two options (numerical / subjective),
+    //  - the stored answer cannot be resolved to an option position,
+    //  - options reference each other by position.
+    if (originalOptions.length <= 1 || origAnsIndices.length === 0 || hasPositionalOptions(originalOptions)) {
+        return { ...question, options: originalOptions, optionsShuffled: false };
+    }
+    const origAnsContent = originalOptions[origAnsIndices[0]];
 
     // Create array of indexed options to track original positions
     const indexed = originalOptions.map((opt, i) => ({ opt, origIdx: i }));
     const shuffledIndexed = shuffleArray(indexed, randomFn);
 
+    // Options that carry their own label ({ label: '1', text }) are relabelled by new position,
+    // otherwise the paper would print labels in scrambled order.
+    const positionalLabels = originalOptions.map(o => (typeof o === 'object' && o && o.label !== undefined ? o.label : undefined));
     const newOptions = shuffledIndexed
         .filter(item => item && item.opt !== undefined)
-        .map(item => item.opt);
+        .map((item, pos) => (typeof item.opt === 'object' && item.opt && positionalLabels[pos] !== undefined
+            ? { ...item.opt, label: positionalLabels[pos] }
+            : item.opt));
 
     // Map the old indices to their new positions in shuffledIndexed
     const newAnsIndices = origAnsIndices
@@ -86,7 +100,7 @@ function shuffleQuestionOptions(question, randomFn) {
         .sort((a, b) => a - b);
 
     // Get current option labels for this question (e.g. ['A', 'B', 'C', 'D'] or ['1', '2', '3', '4'])
-    const labels = getQuestionOptionLabels(question);
+    const labels = getQuestionOptionLabels({ ...question, options: newOptions });
     let newAnsLetter = rawAns;
 
     if (newAnsIndices.length > 0) {
@@ -97,6 +111,13 @@ function shuffleQuestionOptions(question, randomFn) {
     return {
         ...question,
         options: newOptions,
+        // Everything needed to undo this shuffle (see restoreBaseQuestions)
+        pqrsBase: {
+            options: originalOptions,
+            answer: question.answer,
+            correctAnswer: question.correctAnswer,
+            correct_option: question.correct_option,
+        },
         originalAnswer: rawAns,
         originalAnswerContent: origAnsContent,
         answer: newAnsLetter,
@@ -122,7 +143,7 @@ function applySectionAwareTransform(baseQuestions, transformFn, startQNo = 1) {
         }
         sectionMap.get(key).push({
             ...q,
-            originalQNo: q.originalQNo || (offset + idx)
+            originalQNo: offset + idx
         });
     });
 
@@ -130,7 +151,7 @@ function applySectionAwareTransform(baseQuestions, transformFn, startQNo = 1) {
     if (sectionMap.size <= 1) {
         const transformed = transformFn(baseQuestions.map((q, idx) => ({
             ...q,
-            originalQNo: q.originalQNo || (offset + idx)
+            originalQNo: offset + idx
         })));
         return transformed.map((q, idx) => ({
             ...q,
@@ -157,11 +178,37 @@ function applySectionAwareTransform(baseQuestions, transformFn, startQNo = 1) {
 }
 
 /**
- * Generate a specific set ('P', 'Q', 'R', 'S') from a base paper
+ * Undo a previous generatePaperSet: restore master question order and original options/answers.
+ * Only meaningful for questions produced by generatePaperSet (paper.pqrsApplied === true).
+ */
+export function restoreBaseQuestions(questions = []) {
+    return [...questions]
+        .map((q, idx) => ({ q, idx }))
+        .sort((a, b) => ((a.q.originalQNo ?? a.idx) - (b.q.originalQNo ?? b.idx)) || (a.idx - b.idx))
+        .map(({ q }) => {
+            const { pqrsBase, setQNo, originalQNo, optionsShuffled, originalAnswer, originalAnswerContent, ...rest } = q;
+            if (!pqrsBase) return rest;
+            const restored = { ...rest, options: pqrsBase.options };
+            ['answer', 'correctAnswer', 'correct_option'].forEach(k => {
+                if (pqrsBase[k] === undefined) delete restored[k];
+                else restored[k] = pqrsBase[k];
+            });
+            return restored;
+        });
+}
+
+/**
+ * Generate a specific set ('P', 'Q', 'R', 'S') from a base paper.
+ *
+ * Safe to call on a paper that is already a generated set: the master order is restored
+ * first, so the result always equals generatePaperSet(masterPaper, setName). Previously a
+ * second call re-shuffled the shuffled paper, so the preview, the Word export and the
+ * answer key could each show a different order for the same set.
  */
 export function generatePaperSet(paper, setName = 'P', startQNo = 1) {
     if (!paper) return null;
-    const baseQuestions = Array.isArray(paper.questions) ? paper.questions : [];
+    const rawQuestions = Array.isArray(paper.questions) ? paper.questions : [];
+    const baseQuestions = paper.pqrsApplied ? restoreBaseQuestions(rawQuestions) : rawQuestions;
     const paperId = paper._id || paper.id || 'qp-default';
     const cleanSet = String(setName || 'P').toUpperCase();
     const seed = `${paperId}-${cleanSet}`;
@@ -201,10 +248,14 @@ export function generatePaperSet(paper, setName = 'P', startQNo = 1) {
             break;
     }
 
+    const baseTitle = paper.pqrsApplied && paper.pqrsBaseTitle !== undefined ? paper.pqrsBaseTitle : paper.title;
+
     return {
         ...paper,
         setName: cleanSet,
-        title: `${paper.title || 'Question Paper'} - SET ${cleanSet}`,
+        pqrsApplied: true,
+        pqrsBaseTitle: baseTitle,
+        title: `${baseTitle || 'Question Paper'} - SET ${cleanSet}`,
         questions: processedQuestions,
         answerKey: generateAnswerKey(processedQuestions, cleanSet),
     };
@@ -232,12 +283,12 @@ export function generateAnswerKey(questions = [], setName = 'P') {
 /**
  * Generate all 4 sets (P, Q, R, S) simultaneously
  */
-export function generateAllPQRS(paper) {
+export function generateAllPQRS(paper, startQNo = 1) {
     if (!paper) return {};
     return {
-        P: generatePaperSet(paper, 'P'),
-        Q: generatePaperSet(paper, 'Q'),
-        R: generatePaperSet(paper, 'R'),
-        S: generatePaperSet(paper, 'S'),
+        P: generatePaperSet(paper, 'P', startQNo),
+        Q: generatePaperSet(paper, 'Q', startQNo),
+        R: generatePaperSet(paper, 'R', startQNo),
+        S: generatePaperSet(paper, 'S', startQNo),
     };
 }
