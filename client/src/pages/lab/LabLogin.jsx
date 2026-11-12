@@ -109,12 +109,12 @@ export default function LabLogin() {
                             </div>
 
                             <form onSubmit={handleLabLogin} style={s.form}>
-                                <Field label="Lab Terminal ID" hint="Default: LAB-001">
+                                <Field label="Lab Terminal ID">
                                     <input
                                         style={s.input}
                                         className="pace-input"
                                         type="text"
-                                        placeholder="LAB-001"
+                                        placeholder="Terminal ID"
                                         required
                                         value={form.labId}
                                         onChange={e => setForm(f => ({ ...f, labId: e.target.value }))}

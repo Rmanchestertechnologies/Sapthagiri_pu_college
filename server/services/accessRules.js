@@ -68,4 +68,19 @@ function isOriginAllowed(origin, allowedList) {
     return allowedList.includes(String(origin).replace(/\/+$/, ''));
 }
 
-module.exports = { sameId, paperOwnerIds, canAccessPaper, canDeletePaper, canUseOmrPaper, isAllowedImageUrl, parseAllowedOrigins, isOriginAllowed };
+/**
+ * Does a teacher's subject cover a question's subject? Names are compared by area, so "Maths" matches "Mathematics"
+ * and a Biology teacher covers Botany and Zoology questions. (Plain string comparison locked the seeded "Maths"
+ * account out of every Mathematics question.)
+ */
+const subjectArea = (s) => {
+    const t = String(s || '').trim().toLowerCase();
+    if (t.includes('math')) return 'mathematics';
+    if (t.includes('physic')) return 'physics';
+    if (t.includes('chem')) return 'chemistry';
+    if (t.includes('bio') || t.includes('botan') || t.includes('zoolog')) return 'biology';
+    return t;
+};
+const sameSubjectArea = (a, b) => subjectArea(a) !== '' && subjectArea(a) === subjectArea(b);
+
+module.exports = { sameSubjectArea, sameId, paperOwnerIds, canAccessPaper, canDeletePaper, canUseOmrPaper, isAllowedImageUrl, parseAllowedOrigins, isOriginAllowed };

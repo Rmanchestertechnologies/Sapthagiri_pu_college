@@ -33,3 +33,7 @@ Thumbs.db
 __pycache__/
 *.py[cod]
 server/omr_engine/alignment_debug/
+
+# Student enrolment / SATS lists are personal data and must not be committed
+*ENROLL*SATS*.pdf
+*enroll*sats*.pdf

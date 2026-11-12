@@ -6,6 +6,7 @@ const jwt = require('jsonwebtoken');
 const mongoose = require('mongoose');
 const User = require('../models/User');
 const { loginLimiter } = require('../middleware/rateLimiter');
+const { loginThrottle } = require('../middleware/loginThrottle');
 const auth = require('../middleware/auth');
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -51,6 +52,14 @@ router.post('/login', loginLimiter, async (req, res) => {
     };
     const INVALID = 'Invalid email or password.'; // same text for unknown user and wrong password
 
+    // Failed attempts are counted per account+address and per address (see middleware/loginThrottle.js).
+    const ip = req.ip || req.socket?.remoteAddress || 'unknown';
+    const gate = loginThrottle.check(ip, email);
+    if (gate.blocked) {
+        res.setHeader('Retry-After', String(gate.retryAfterSeconds));
+        return res.status(429).json({ msg: `Too many failed login attempts. Try again in ${Math.ceil(gate.retryAfterSeconds / 60)} minute(s).` });
+    }
+
     // ── Built-in Admin Account (Sapthagiri PU College) ─────────────────────
     if (email === 'sapthagiripucollegedvg@gmail.com') {
         const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
@@ -60,8 +69,10 @@ router.post('/login', loginLimiter, async (req, res) => {
         }
 
         if (!safeEqual(password, ADMIN_PASSWORD)) {
+            loginThrottle.fail(ip, email);
             return res.status(400).json({ msg: INVALID });
         }
+        loginThrottle.succeed(ip, email);
 
         const adminId = '000000000000000000000000';
         const payload = { id: adminId, role: 'admin' };
@@ -125,23 +136,23 @@ router.post('/login', loginLimiter, async (req, res) => {
 
         if (!userRecord) {
             console.warn('[AUTH] Login failed: unknown user');
+            loginThrottle.fail(ip, email);
             return res.status(400).json({ msg: INVALID });
         }
 
         let isMatch = false;
         if (userRecord.password && (userRecord.password.startsWith('$2a$') || userRecord.password.startsWith('$2b$') || userRecord.password.startsWith('$2y$'))) {
             isMatch = await bcrypt.compare(password, userRecord.password);
-        } else if (userRecord.password) {
-            // Legacy accounts whose password was stored unhashed. They still work, but an admin should
-            // reset those passwords (Admin > Faculty) so they are stored hashed. See docs/AUDIT_AND_CHANGELOG.md.
-            isMatch = safeEqual(userRecord.password, password);
-            if (isMatch) console.warn(`[AUTH] Account <${email}> still has an unhashed password; reset it.`);
         }
+        // Passwords that are not bcrypt hashes are no longer accepted. A check of the users table found no unhashed
+        // accounts (server/scripts/hash_plaintext_passwords.js reports them), so nothing legitimate is locked out.
 
         if (!isMatch) {
             console.warn('[AUTH] Login failed: password mismatch');
+            loginThrottle.fail(ip, email);
             return res.status(400).json({ msg: INVALID });
         }
+        loginThrottle.succeed(ip, email);
 
         const payload = {
             id: userRecord.id,

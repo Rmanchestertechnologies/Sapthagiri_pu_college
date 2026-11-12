@@ -815,7 +815,27 @@ export default function PaperRenderer({
     const [editingQuestion, setEditingQuestion] = useState(null); // { question, index, displayNum }
     const [swappingQuestion, setSwappingQuestion] = useState(null); // { question, index, displayNum }
 
+    // The preview shows the ACTIVE set (P/Q/R/S) but edits are stored in the master paper. In sets Q, R and S the order
+    // and the options are shuffled, so a displayed position is not a master position and an edit made there cannot be
+    // mapped back to the master option order. Editing, swapping and deleting are therefore done on Set P; these used
+    // to apply the displayed index to the master list and change the wrong question.
+    const editingBlockedInSet = () => {
+        if (setsActive && activeSet !== 'P') {
+            alert('Questions are edited, swapped and deleted on Set P (the master paper). Switch to Set P, make the change, then view this set again.');
+            return true;
+        }
+        return false;
+    };
+    // Position in the master list of the question shown at `displayIndex` (matched by id, so layout changes stay on the right question)
+    const masterIndexOf = (displayIndex) => {
+        const shown = (activePaper?.questions || [])[displayIndex];
+        const id = shown && (shown._id || shown.id);
+        const found = id ? localQuestions.findIndex(q => (q._id || q.id) === id) : -1;
+        return found >= 0 ? found : displayIndex;
+    };
+
     const handleSaveEditedQuestion = async (updatedQ, index) => {
+        if (editingBlockedInSet()) return;
         const nextQuestions = [...localQuestions];
         nextQuestions[index] = updatedQ;
         setLocalQuestions(nextQuestions);
@@ -839,6 +859,7 @@ export default function PaperRenderer({
     };
 
     const handleSelectSwappedQuestion = async (index, chosenQ) => {
+        if (editingBlockedInSet()) return;
         const nextQuestions = [...localQuestions];
         nextQuestions[index] = chosenQ;
         setLocalQuestions(nextQuestions);
@@ -875,7 +896,8 @@ export default function PaperRenderer({
     const questions = useMemo(() => activePaper?.questions || [], [activePaper]);
 
     // Layout change handler (persists alignment, sizing, and optionsPerLine in real time)
-    const handleUpdateQuestionLayout = (qIndex, layoutChanges) => {
+    const handleUpdateQuestionLayout = (displayIndex, layoutChanges) => {
+        const qIndex = masterIndexOf(displayIndex);
         const nextQuestions = [...localQuestions];
         nextQuestions[qIndex] = {
             ...nextQuestions[qIndex],
@@ -901,6 +923,7 @@ export default function PaperRenderer({
 
     // Question delete handler
     const handleDeleteQuestion = async (index) => {
+        if (editingBlockedInSet()) return;
         const nextQuestions = localQuestions.filter((_, i) => i !== index);
         setLocalQuestions(nextQuestions);
         const updatedPaper = { ...paper, questions: nextQuestions };
@@ -957,8 +980,8 @@ export default function PaperRenderer({
                 settings={settings}
                 zoom={zoom}
                 onDiagramResize={onDiagramResize}
-                onEditQuestion={(q, idx, displayNum) => setEditingQuestion({ question: q, index: idx, displayNum })}
-                onSwapQuestion={(q, idx, displayNum) => setSwappingQuestion({ question: q, index: idx, displayNum })}
+                onEditQuestion={(q, idx, displayNum) => { if (!editingBlockedInSet()) setEditingQuestion({ question: q, index: idx, displayNum }); }}
+                onSwapQuestion={(q, idx, displayNum) => { if (!editingBlockedInSet()) setSwappingQuestion({ question: q, index: idx, displayNum }); }}
                 onQuestionLayoutChange={handleUpdateQuestionLayout}
             />
 

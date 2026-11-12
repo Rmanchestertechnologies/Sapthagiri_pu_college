@@ -71,11 +71,22 @@ def main():
         raw_answers = result.get("answers") or {}
         # Normalize answers to simple key-value: {"1": "A", "2": "C"}
         clean_answers = {}
+        # Per-question confidence from the engine (gap between the best and second-best bubble score).
+        # Previously discarded, so the Node side could not tell a clear mark from a borderline one.
+        answer_details = {}
+
+        def keep_details(q_num, val):
+            if isinstance(val, dict):
+                d = {k: val.get(k) for k in ("confidence_gap", "highest_score") if val.get(k) is not None}
+                if d:
+                    answer_details[str(q_num)] = d
+
         if isinstance(raw_answers, dict):
             if "mcq" in raw_answers or "numerical" in raw_answers:
                 mcq = raw_answers.get("mcq") or {}
                 numerical = raw_answers.get("numerical") or {}
                 for q_num, val in mcq.items():
+                    keep_details(q_num, val)
                     if isinstance(val, dict):
                         clean_answers[str(q_num)] = val.get("answer") or None
                     else:
@@ -87,6 +98,7 @@ def main():
                         clean_answers[str(q_num)] = str(val) if val is not None else None
             else:
                 for q_num, val in raw_answers.items():
+                    keep_details(q_num, val)
                     if isinstance(val, dict):
                         clean_answers[str(q_num)] = val.get("answer") or val.get("value") or None
                     elif isinstance(val, str):
@@ -101,6 +113,7 @@ def main():
             "detected_exam": identity.get("exam") or exam_type.upper(),
             "series": detected_series,
             "answers": clean_answers,
+            "answer_details": answer_details,
             "quality": result.get("quality") or {}
         }
         print(json.dumps(output, cls=SafeJsonEncoder))

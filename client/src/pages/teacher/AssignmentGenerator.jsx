@@ -140,7 +140,13 @@ const AssignmentGenerator = () => {
     const [endQNo, setEndQNo] = useState(null);
 
     // Questions Pool & Selection
-    const [questionsPool, setQuestionsPool] = useState([]);
+    // Chapter and concept lists come from /api/questions/meta; questions are loaded per chapter, only for the chapters
+    // that are ticked. The screen used to download up to 20 000 questions in one request on every visit.
+    const [metaChapters, setMetaChapters] = useState([]);
+    const [metaConcepts, setMetaConcepts] = useState([]);
+    const [chapterPools, setChapterPools] = useState({}); // chapter -> questions
+    const [loadError, setLoadError] = useState('');
+    const questionsPool = useMemo(() => Object.values(chapterPools).flat(), [chapterPools]);
     const [selectedQuestions, setSelectedQuestions] = useState([]);
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
@@ -177,48 +183,75 @@ const AssignmentGenerator = () => {
         }
     }, [subject]);
 
-    // Fetch Questions
-    const fetchQuestions = async () => {
+    // Chapter / concept lists for the chosen subject and class
+    const fetchMeta = async () => {
         setLoading(true);
+        setLoadError('');
         try {
-            // Only the chosen class's question bank (a Class 11 assignment must not draw Class 12 questions).
-            const res = await api.get(`/api/questions?subject=${encodeURIComponent(subject)}&classes=${encodeURIComponent(classLevel)}&limit=20000`);
-            const qs = Array.isArray(res.data) ? res.data : (res.data?.questions || []);
-            setQuestionsPool(qs);
+            const res = await api.get(`/api/questions/meta?subject=${encodeURIComponent(subject)}&classes=${encodeURIComponent(classLevel)}`, { timeout: 20000 });
+            setMetaChapters(Array.isArray(res.data?.chapters) ? res.data.chapters : []);
+            setMetaConcepts(Array.isArray(res.data?.concepts) ? res.data.concepts : []);
         } catch (err) {
-            console.error('Error fetching questions:', err);
+            console.error('Error fetching chapters:', err);
+            setLoadError('Could not load the chapter list. Please check your connection and reload.');
         } finally {
             setLoading(false);
         }
     };
 
     useEffect(() => {
-        if (subject) fetchQuestions();
+        if (!subject) return;
+        setChapterPools({});
+        setMetaChapters([]);
+        setMetaConcepts([]);
+        fetchMeta();
     }, [subject, classLevel]);
 
-    // Chapters and concepts extraction
-    const { distinctChapters, chapterConceptsMap } = useMemo(() => {
-        const chaptersSet = new Set();
-        const map = {};
-
-        questionsPool.forEach(q => {
-            const ch = q.chapter || 'General';
-            chaptersSet.add(ch);
-            if (!map[ch]) map[ch] = new Set();
-            const cpt = q.concept || q.topic;
-            if (cpt && cpt !== 'General' && cpt !== ch) {
-                map[ch].add(cpt);
+    // Load the questions of newly ticked chapters (already loaded chapters are kept)
+    useEffect(() => {
+        const missing = selectedChapters.filter(ch => !(ch in chapterPools));
+        if (missing.length === 0) return;
+        let cancelled = false;
+        setLoading(true);
+        setLoadError('');
+        Promise.all(missing.map(async (ch) => {
+            try {
+                const res = await api.get(
+                    `/api/questions?subject=${encodeURIComponent(subject)}&classes=${encodeURIComponent(classLevel)}&chapter=${encodeURIComponent(ch)}&limit=400`,
+                    { timeout: 35000 }
+                );
+                const qs = Array.isArray(res.data) ? res.data : (res.data?.questions || []);
+                return [ch, qs, null];
+            } catch (err) {
+                console.error(`Error fetching questions for ${ch}:`, err);
+                return [ch, null, ch];
             }
-        });
+        })).then(results => {
+            if (cancelled) return;
+            const failed = results.filter(r => r[2]).map(r => r[2]);
+            setChapterPools(prev => {
+                const next = { ...prev };
+                results.forEach(([ch, qs]) => { if (qs) next[ch] = qs; });
+                return next;
+            });
+            if (failed.length) setLoadError(`Could not load questions for: ${failed.join(', ')}. Untick and tick the chapter again to retry.`);
+        }).finally(() => { if (!cancelled) setLoading(false); });
+        return () => { cancelled = true; };
+    }, [selectedChapters, subject, classLevel]);
 
-        const sorted = Array.from(chaptersSet).sort();
-        const cleanMap = {};
-        sorted.forEach(ch => {
-            cleanMap[ch] = Array.from(map[ch] || []).sort();
+    // Chapters and concepts
+    const { distinctChapters, chapterConceptsMap } = useMemo(() => {
+        const sorted = [...metaChapters].sort();
+        const map = {};
+        sorted.forEach(ch => { map[ch] = []; });
+        metaConcepts.forEach(c => {
+            const ch = c.chapter;
+            const name = c.name || c.concept;
+            if (ch && name && name !== 'General' && name !== ch && map[ch] && !map[ch].includes(name)) map[ch].push(name);
         });
-
-        return { distinctChapters: sorted, chapterConceptsMap: cleanMap };
-    }, [questionsPool]);
+        Object.keys(map).forEach(ch => map[ch].sort());
+        return { distinctChapters: sorted, chapterConceptsMap: map };
+    }, [metaChapters, metaConcepts]);
 
     // Available concepts for checked chapters
     const availableConceptsForSelectedChapters = useMemo(() => {
@@ -317,10 +350,32 @@ const AssignmentGenerator = () => {
 
     // Auto Pick Questions
     const handleAutoPick = () => {
+        if (selectedChapters.length === 0) return alert('Tick at least one chapter first.');
         if (scopedPool.length === 0) return alert('No questions match the selected chapters/concepts.');
-        const count = Math.min(targetCount, scopedPool.length);
-        const shuffled = [...scopedPool].sort(() => 0.5 - Math.random());
-        setSelectedQuestions(shuffled.slice(0, count));
+        const want = Math.min(Number(targetCount) || 0, scopedPool.length);
+
+        // Spread the questions evenly over the ticked chapters (largest-remainder split), each chapter capped by what it
+        // has; leftovers go to chapters that still have questions. A plain shuffle of the whole pool let one big chapter
+        // supply most of the assignment.
+        const shuffle = (arr) => { const a = [...arr]; for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+        const byChapter = {};
+        selectedChapters.forEach(ch => { byChapter[ch] = shuffle(scopedPool.filter(q => q.chapter === ch)); });
+        const chapters = selectedChapters.filter(ch => byChapter[ch].length > 0);
+        const take = {};
+        chapters.forEach(ch => { take[ch] = 0; });
+        let left = want;
+        while (left > 0) {
+            const open = chapters.filter(ch => take[ch] < byChapter[ch].length);
+            if (open.length === 0) break;
+            const share = Math.max(1, Math.floor(left / open.length));
+            for (const ch of open) {
+                if (left <= 0) break;
+                const add = Math.min(share, byChapter[ch].length - take[ch], left);
+                take[ch] += add;
+                left -= add;
+            }
+        }
+        setSelectedQuestions(shuffle(chapters.flatMap(ch => byChapter[ch].slice(0, take[ch]))));
     };
 
     // Effective visible questions
@@ -806,7 +861,15 @@ const AssignmentGenerator = () => {
 
                         {/* Questions List */}
                         {loading ? (
-                            <div className="p-12 text-center text-xs font-bold text-gray-400">Loading questions repository...</div>
+                            <div className="p-12 text-center text-xs font-bold text-gray-400">Loading questions...</div>
+                        ) : loadError ? (
+                            <div role="alert" className="p-6 text-center text-xs font-bold text-red-700 bg-red-50 border border-red-200 rounded-2xl">
+                                {loadError}
+                            </div>
+                        ) : selectedChapters.length === 0 ? (
+                            <div className="p-12 text-center text-xs font-bold text-gray-400 border-2 border-dashed border-gray-200 rounded-2xl">
+                                Tick one or more chapters above to load their questions.
+                            </div>
                         ) : filteredQuestions.length === 0 ? (
                             <div className="p-12 text-center text-xs font-bold text-gray-400 border-2 border-dashed border-gray-200 rounded-2xl">
                                 No questions found in this filtered pool.

@@ -314,6 +314,7 @@ export default function Scorecard() {
                     </button>
                     <button style={styles.homeBtn} onClick={() => {
                         localStorage.removeItem('student_info');
+                        localStorage.removeItem('exam_session_token');
                         navigate('/lab');
                     }}>← Back to Portal</button>
                 </div>

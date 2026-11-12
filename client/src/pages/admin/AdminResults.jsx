@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import api from '../../api';
+import { downloadFile } from '../../utils/downloadFile';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -57,17 +58,21 @@ export default function AdminResults() {
         setMsg('✅ Bridge key copied to clipboard!');
     };
 
-    const downloadIndividualPDF = (student) => {
-        const token = localStorage.getItem('token');
-        const downloadUrl = `${api.defaults.baseURL || ''}/api/exams/${selectedExam}/pdf-report/${student._id}?token=${token}`;
-        window.open(downloadUrl, '_blank');
+    const downloadIndividualPDF = async (student) => {
+        try {
+            await downloadFile(`/api/exams/${selectedExam}/pdf-report/${student._id}`, `${(student.studentName || 'Scorecard').replace(/\s+/g, '_')}.pdf`);
+        } catch (err) {
+            setMsg(`Could not download the scorecard: ${err.message}`);
+        }
     };
 
-    const downloadAllScorecardsZip = () => {
+    const downloadAllScorecardsZip = async () => {
         if (!selectedExam) return;
-        const token = localStorage.getItem('token');
-        const downloadUrl = `${api.defaults.baseURL || ''}/api/exams/${selectedExam}/download-all-reports?token=${token}`;
-        window.open(downloadUrl, '_blank');
+        try {
+            await downloadFile(`/api/exams/${selectedExam}/download-all-reports`, 'Scorecards.zip');
+        } catch (err) {
+            setMsg(`Could not download the scorecards: ${err.message}`);
+        }
     };
 
     const getScoreColor = (score) => {

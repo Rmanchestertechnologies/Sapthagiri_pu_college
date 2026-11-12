@@ -21,6 +21,7 @@ import React, { useState, useEffect, useContext, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { AuthContext } from '../../context/AuthContext';
 import api from '../../api';
+import { downloadFile } from '../../utils/downloadFile';
 import PaperRenderer, { DEFAULT_SETTINGS } from '../../components/PaperRenderer';
 import PaperAnalysisModal from '../../components/PaperAnalysisModal';
 import A4AnswerKey from '../../components/A4AnswerKey';
@@ -182,10 +183,12 @@ const AdminPaperPreview = () => {
         window.print();
     };
 
-    const handleDownloadWord = () => {
-        const token = localStorage.getItem('token');
-        const downloadUrl = `${api.defaults.baseURL || ''}/api/papers/${selectedPaper._id}/export-word?token=${token}`;
-        window.open(downloadUrl, '_blank');
+    const handleDownloadWord = async () => {
+        try {
+            await downloadFile(`/api/papers/${selectedPaper._id}/export-word`, `${(selectedPaper.title || 'Question_Paper').replace(/\s+/g, '_')}.docx`);
+        } catch (err) {
+            alert(`Word download failed: ${err.message}`);
+        }
     };
 
     const handleDownloadAllSets = () => {

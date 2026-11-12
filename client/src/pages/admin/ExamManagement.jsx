@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../api';
+import { downloadFile } from '../../utils/downloadFile';
 import { sanitize, optionLabel } from '../../utils/sanitize';
 import MathRenderer from '../../components/MathRenderer';
 import ResizableDiagram from '../../components/ResizableDiagram';
@@ -153,10 +154,12 @@ function ExamPrintView({ exam, templates, settings, setSettings, onBack }) {
         return type;
     };
 
-    const handleWordExport = () => {
-        const token = localStorage.getItem('token');
-        const downloadUrl = `${api.defaults.baseURL || ''}/api/exams/${exam._id}/export-word?token=${token}`;
-        window.open(downloadUrl, '_blank');
+    const handleWordExport = async () => {
+        try {
+            await downloadFile(`/api/exams/${exam._id}/export-word`, `${(exam.title || 'Exam').replace(/\s+/g, '_')}.docx`);
+        } catch (err) {
+            alert(`Word export failed: ${err.message}`);
+        }
     };
 
     const seededShuffle = (arr, seed) => {

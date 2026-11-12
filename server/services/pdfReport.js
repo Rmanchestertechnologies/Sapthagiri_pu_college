@@ -1,4 +1,5 @@
 const puppeteer = require('puppeteer');
+const { hardenPage, escapeHtml } = require('./pdfSafety');
 
 let browser = null;
 
@@ -22,6 +23,8 @@ async function getBrowser() {
 async function generateReportPdf(session, exam) {
     const b = await getBrowser();
     const page = await b.newPage();
+    try {
+    await hardenPage(page); // no scripts, no requests except allow-listed https images
     
     // Process weak areas
     let weakAreasRows = '';
@@ -29,7 +32,7 @@ async function generateReportPdf(session, exam) {
         session.weakAreas.forEach(w => {
             weakAreasRows += `
                 <tr>
-                    <td style="padding: 10px; border: 1px solid #e2e8f0; font-size: 12px;">${w.chapter || 'N/A'}</td>
+                    <td style="padding: 10px; border: 1px solid #e2e8f0; font-size: 12px;">${escapeHtml(w.chapter || 'N/A')}</td>
                     <td style="padding: 10px; border: 1px solid #e2e8f0; font-size: 12px; color: #ef4444; font-weight: bold;">${w.incorrect} Incorrect Answers</td>
                 </tr>
             `;
@@ -172,7 +175,7 @@ async function generateReportPdf(session, exam) {
       </head>
       <body>
           <div class="header">
-              <h1>${exam.title}</h1>
+              <h1>${escapeHtml(exam.title)}</h1>
               <p>EXAM SCORECARD | DURATION: ${exam.duration_minutes || 180} MINS</p>
           </div>
           
@@ -180,15 +183,15 @@ async function generateReportPdf(session, exam) {
           <table class="info-table">
               <tr>
                   <td class="label">Student Name:</td>
-                  <td class="value">${session.studentName || 'N/A'}</td>
+                  <td class="value">${escapeHtml(session.studentName || 'N/A')}</td>
                   <td class="label">Exam Type:</td>
-                  <td class="value">${exam.examType || 'N/A'}</td>
+                  <td class="value">${escapeHtml(exam.examType || 'N/A')}</td>
               </tr>
               <tr>
                   <td class="label">Email:</td>
-                  <td class="value">${session.studentEmail || 'N/A'}</td>
+                  <td class="value">${escapeHtml(session.studentEmail || 'N/A')}</td>
                   <td class="label">Submission:</td>
-                  <td class="value">${submittedAt}</td>
+                  <td class="value">${escapeHtml(submittedAt)}</td>
               </tr>
           </table>
           
@@ -229,15 +232,19 @@ async function generateReportPdf(session, exam) {
       </html>
     `;
     
-    await page.setContent(htmlContent);
+    await page.setContent(htmlContent, { timeout: 60000 });
     const pdfBuffer = await page.pdf({
         format: 'A4',
         printBackground: true,
-        margin: { top: '15mm', right: '15mm', bottom: '15mm', left: '15mm' }
+        margin: { top: '15mm', right: '15mm', bottom: '15mm', left: '15mm' },
+        timeout: 90000
     });
-    
-    await page.close();
+
     return pdfBuffer;
+    } finally {
+        // used to stay open when anything above threw
+        await page.close().catch(() => {});
+    }
 }
 
 module.exports = {

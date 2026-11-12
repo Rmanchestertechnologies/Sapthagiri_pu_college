@@ -1,21 +1,28 @@
+const path = require('path');
+require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
 const { Pool } = require('pg');
 const bcrypt = require('bcryptjs');
+const { buildSsl } = require('../config/dbSsl');
 
-const poolerUrl = 'postgresql://postgres.vukxgqkrersxcasdklda:Sapthagiri1@aws-0-ap-south-1.pooler.supabase.com:5432/postgres';
-const directUrl = 'postgresql://postgres:Sapthagiri1@db.vukxgqkrersxcasdklda.supabase.co:5432/postgres';
+// Connection strings come from the environment (DATABASE_URL, optionally DIRECT_DATABASE_URL). They used to be
+// written into this file together with the password.
+const poolerUrl = process.env.DATABASE_URL;
+const directUrl = process.env.DIRECT_DATABASE_URL;
 
 async function init() {
+    if (!poolerUrl && !directUrl) throw new Error('Set DATABASE_URL (and optionally DIRECT_DATABASE_URL) in server/.env first.');
     console.log('Connecting to Supabase PostgreSQL...');
     let pool;
     try {
-        pool = new Pool({ connectionString: poolerUrl, ssl: { rejectUnauthorized: false } });
+        pool = new Pool({ connectionString: poolerUrl, ssl: buildSsl() });
         await pool.query('SELECT 1');
-        console.log('✅ Connected via Supabase pooler!');
+        console.log('✅ Connected via DATABASE_URL');
     } catch (e) {
-        console.log('Pooler attempt failed, trying direct connection...');
-        pool = new Pool({ connectionString: directUrl, ssl: { rejectUnauthorized: false } });
+        if (!directUrl) throw e;
+        console.log('DATABASE_URL attempt failed, trying DIRECT_DATABASE_URL...');
+        pool = new Pool({ connectionString: directUrl, ssl: buildSsl() });
         await pool.query('SELECT 1');
-        console.log('✅ Connected via direct URL!');
+        console.log('✅ Connected via DIRECT_DATABASE_URL');
     }
 
     // 1. Users Table
@@ -271,48 +278,50 @@ async function init() {
     `);
     console.log('✅ Ensured papers columns');
 
-    // Seed Admin Account
+    // Seed accounts. Passwords come from the environment, and EXISTING accounts are never modified: this
+    // script used to reset the admin and all five faculty passwords to a fixed default every time it ran.
     const adminEmail = 'sapthagiripucollegedvg@gmail.com';
-    const adminPassword = 'Sapthagiri1';
-    const hashedPassword = await bcrypt.hash(adminPassword, 10);
-
-    const existingAdmin = await pool.query('SELECT * FROM public.users WHERE email = $1', [adminEmail]);
-    if (existingAdmin.rows.length === 0) {
-        await pool.query(`
-            INSERT INTO public.users (name, email, password, role, subject)
-            VALUES ($1, $2, $3, $4, $5)
-        `, ['Sapthagiri Admin', adminEmail, hashedPassword, 'admin', 'Administration']);
-        console.log('✅ Seeded Admin user: ' + adminEmail);
-    } else {
-        await pool.query(`
-            UPDATE public.users SET password = $1 WHERE email = $2
-        `, [hashedPassword, adminEmail]);
-        console.log('✅ Updated Admin user password: ' + adminEmail);
-    }
-
-    // Seed Faculty Accounts with Sapthagiri1
-    const faculty = [
-        { name: 'Physics Faculty', email: 'physics@gmail.com', subject: 'Physics' },
-        { name: 'Chemistry Faculty', email: 'chemistry@gmail.com', subject: 'Chemistry' },
-        { name: 'Biology Faculty', email: 'biology@gmail.com', subject: 'Biology' },
-        { name: 'Maths Faculty', email: 'maths@gmail.com', subject: 'Maths' },
-        { name: 'Mathematics Faculty', email: 'mathematics@gmail.com', subject: 'Mathematics' }
-    ];
-
-    for (const f of faculty) {
-        const existing = await pool.query('SELECT * FROM public.users WHERE email = $1', [f.email]);
-        if (existing.rows.length === 0) {
+    const adminPassword = process.env.ADMIN_PASSWORD;
+    if (adminPassword) {
+        const existingAdmin = await pool.query('SELECT 1 FROM public.users WHERE email = $1', [adminEmail]);
+        if (existingAdmin.rows.length === 0) {
             await pool.query(`
                 INSERT INTO public.users (name, email, password, role, subject)
-                VALUES ($1, $2, $3, 'teacher', $4)
-            `, [f.name, f.email, hashedPassword, f.subject]);
-            console.log('✅ Seeded Faculty user: ' + f.email);
+                VALUES ($1, $2, $3, $4, $5)
+            `, ['Sapthagiri Admin', adminEmail, await bcrypt.hash(adminPassword, 10), 'admin', 'Administration']);
+            console.log('✅ Seeded Admin user: ' + adminEmail);
         } else {
-            await pool.query(`
-                UPDATE public.users SET password = $1, subject = $2 WHERE email = $3
-            `, [hashedPassword, f.subject, f.email]);
-            console.log('✅ Updated Faculty user password: ' + f.email);
+            console.log('ℹ️ Admin user already exists; left unchanged.');
         }
+    } else {
+        console.log('ℹ️ ADMIN_PASSWORD is not set; admin user not seeded.');
+    }
+
+    // Optional starter faculty accounts, only when SEED_FACULTY_PASSWORD is provided.
+    const facultyPassword = process.env.SEED_FACULTY_PASSWORD;
+    if (facultyPassword) {
+        const hashedFaculty = await bcrypt.hash(facultyPassword, 10);
+        const faculty = [
+            { name: 'Physics Faculty', email: 'physics@gmail.com', subject: 'Physics' },
+            { name: 'Chemistry Faculty', email: 'chemistry@gmail.com', subject: 'Chemistry' },
+            { name: 'Biology Faculty', email: 'biology@gmail.com', subject: 'Biology' },
+            { name: 'Maths Faculty', email: 'maths@gmail.com', subject: 'Maths' },
+            { name: 'Mathematics Faculty', email: 'mathematics@gmail.com', subject: 'Mathematics' }
+        ];
+        for (const f of faculty) {
+            const existing = await pool.query('SELECT 1 FROM public.users WHERE email = $1', [f.email]);
+            if (existing.rows.length === 0) {
+                await pool.query(`
+                    INSERT INTO public.users (name, email, password, role, subject)
+                    VALUES ($1, $2, $3, 'teacher', $4)
+                `, [f.name, f.email, hashedFaculty, f.subject]);
+                console.log('✅ Seeded Faculty user: ' + f.email);
+            } else {
+                console.log('ℹ️ Faculty user already exists; left unchanged: ' + f.email);
+            }
+        }
+    } else {
+        console.log('ℹ️ SEED_FACULTY_PASSWORD is not set; starter faculty accounts not seeded.');
     }
 
     // Seed Welcome Notification

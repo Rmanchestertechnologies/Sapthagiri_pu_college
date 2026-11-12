@@ -4,12 +4,7 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const { labIpOnly } = require('../middleware/labIp');
 const storage = require('../services/postgresStorage');
-const { Pool } = require('pg');
-
-const pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
-    ssl: { rejectUnauthorized: false }
-});
+const pool = require('../config/postgres'); // shared pool (this file used to open a second one)
 
 // ─────────────────────────────────────────────────────────────────
 // STUDENT: Look up student by roll number

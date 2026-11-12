@@ -124,6 +124,7 @@ export default function LabExamList() {
                                 localStorage.removeItem('lab_token');
                                 localStorage.removeItem('lab_user');
                                 localStorage.removeItem('student_info');
+                        localStorage.removeItem('exam_session_token');
                                 navigate('/lab');
                             }}
                         >

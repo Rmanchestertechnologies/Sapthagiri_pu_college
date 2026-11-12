@@ -124,8 +124,8 @@ SAPTHAGIRI_PU_COLLEGE/
 │   └── vercel.json, vite.config.js, eslint.config.js
 ├── server/
 │   ├── index.js                 Express app, middleware, route mounting
-│   ├── config/                  cloudinary, db (mongoose), postgres (primary pool), subjectDatabases, supabase
-│   ├── middleware/              auth, role, permissions, labIp, rateLimiter, mongoSanitize, errorHandler
+│   ├── config/                  cloudinary, db (mongoose), dbSsl, postgres (primary pool), subjectDatabases, supabase
+│   ├── middleware/              auth, role, permissions, labIp, rateLimiter, loginThrottle, sessionToken, mongoSanitize, errorHandler
 │   ├── models/                  mongoose models (legacy secondary store)
 │   ├── routes/                  admin, auth, examBlueprints, exams, grandTests, lab, notifications, omr,
 │   │                            papers, previousYearPapers, questions, templates
@@ -137,10 +137,12 @@ SAPTHAGIRI_PU_COLLEGE/
 │   │   ├── questionSelector.js  chapter-quota question selection
 │   │   ├── postgresStorage.js   primary-database access
 │   │   ├── supabaseQuestions.js question routing across the subject databases
+│   │   ├── pdfSafety.js         escaping and request filtering for the PDF generators
 │   │   └── pdfPaperExport.js, pdfReport.js, wordExport.js
 │   ├── omr_engine/              Python OMR pipeline (scanner.py, scan_cli.py, ml_omr/, omr_preprocess/,
 │   │                            models/, templates/, scripts/ for training and export)
-│   ├── scripts/init_db.js       creates the primary-database tables
+│   ├── migrations/              numbered SQL migrations (001 not applied)
+│   ├── scripts/                 init_db.js, migrate.js, hash_plaintext_passwords.js
 │   ├── tests/                   Jest tests (see §10)
 │   └── utils/                   latexPreRenderer, mathToImage, sanitize
 ├── docs/AUDIT_AND_CHANGELOG.md  audit findings, change log, open issues
@@ -148,10 +150,9 @@ SAPTHAGIRI_PU_COLLEGE/
 └── package.json                 root scripts: dev, build, start, init:db
 ```
 
-Not part of the application (ad-hoc scripts, safe to delete once confirmed unneeded):
+Not part of the application (ad-hoc debugging scripts, safe to delete once confirmed unneeded):
 `find_limit.js`, `find_step5.js`, `search_special_types.js`, `test_type_queries.js`, `test_types_in_db.js`,
-`test_types_real.js` at the root and `server/check_*.js`, `server/test_*.js`. Some of the `server/test_*.js`
-scripts contain a hard-coded password; see the audit document.
+`test_types_real.js` at the root and `server/check_*.js`, `server/test_*.js`.
 
 ## 6. API reference
 
@@ -204,9 +205,10 @@ dashboard in production. `server/.env.example` is the template.
 |---|---|---|
 | `JWT_SECRET` | yes | Signs and verifies tokens. Login and lab login return 503 if unset. |
 | `ADMIN_PASSWORD` | yes | Password of the built-in admin account. Admin login returns 503 if unset. |
-| `DATABASE_URL` | yes | Primary PostgreSQL. (See §13: `config/postgres.js` has a hard-coded override.) |
+| `DATABASE_URL` | yes | Primary PostgreSQL. There is no built-in fallback: if it is unset the primary database is unavailable. |
 | `DB_PHY_11_URL`, `DB_PHY_12_URL`, `DB_CHEM_11_URL`, `DB_CHEM_12_URL`, `DB_MATH_11_URL`, `DB_MATH_12_URL`, `DB_BIO_11_URL`, `DB_BIO_12_URL` | yes | Subject question databases. |
-| `DB_QBP_CONTROL_URL`, `DB_QBP_CONTROL_KEY` | optional | QBP control Supabase project. |
+| `DB_QBP_CONTROL_URL`, `DB_QBP_CONTROL_KEY` | for previous-year / grand-test questions | QBP control Supabase project. Without the key those questions are unavailable. |
+| `DB_SSL_CA` | recommended | PEM text (`\n` for line breaks) or file path of the database provider's CA certificate. Enables certificate verification; without it connections are encrypted but the server is not authenticated. |
 | `SUPABASE_URL`, `SUPABASE_SECRET_KEY` | optional | Supabase client. |
 | `LAB_ID`, `LAB_PASSWORD` | for CBT | Lab terminal credentials. Lab login returns 503 if unset. |
 | `LAB_IP` | recommended | Comma-separated public IP(s) of the lab network. Unset means the lab endpoints accept any address. |
@@ -216,6 +218,8 @@ dashboard in production. `server/.env.example` is the template.
 | `MONGO_URI` | optional | Legacy MongoDB. |
 | `GEMINI_API_KEY` | optional | Grand-test text parsing and question variants. |
 | `PYTHON_BIN` | optional | Python executable for OMR (`python` on Windows, `python3` elsewhere by default). |
+| `OMR_REVIEW_GAP` | optional | An OMR answer whose best bubble beats the runner-up by less than this (default 0.15) is flagged for review. Not validated on real sheets. |
+| `SEED_FACULTY_PASSWORD` | optional | Only for `npm run init:db`: password for starter faculty accounts (omit to skip them). |
 | `PORT`, `NODE_ENV` | optional | |
 
 Client: `VITE_API_URL` (`client/.env.production`).
@@ -236,15 +240,21 @@ Production build: `npm run build` (client → `client/dist`), `npm start` (API).
 
 ## 9. Database setup and migrations
 
-`npm run init:db` runs `server/scripts/init_db.js`, which creates the primary-database tables with
-`CREATE TABLE IF NOT EXISTS`. There is no migration framework: schema changes are made by hand.
-Back up before any change. The audit document lists the migrations that the Grand Test / previous-year
-question features would need; none has been applied.
+`npm run init:db` runs `server/scripts/init_db.js`: it creates the primary-database tables with
+`CREATE TABLE IF NOT EXISTS`, seeds the admin account from `ADMIN_PASSWORD` only if it does not exist, and never
+changes an existing account.
+
+Schema changes go in `server/migrations/NNN_name.sql` (only the part above the `-- ── DOWN` marker runs).
+`node server/scripts/migrate.js` lists pending migrations without changing anything; `--apply` runs them, each in a
+transaction, and records them in `public.schema_migrations`. **Migration 001** (Grand Test and previous-year
+question storage) is written but **not applied**. Back up first; the rollback SQL is at the bottom of the file.
+
+`node server/scripts/hash_plaintext_passwords.js` reports user accounts with unhashed passwords (dry run; `--apply` hashes them).
 
 ## 10. Tests
 
 ```bash
-npm --prefix server run test:unit   # 66 tests: question selection, CBT scoring, OMR evaluation, access rules, login
+npm --prefix server run test:unit   # 102 tests: question selection, CBT scoring, OMR evaluation, access rules, login and lockout, session tokens, math rendering, exam merge
 npm --prefix client test            # 25 tests: P/Q/R/S generator, answer key numbering, server/browser parity
 npm --prefix server test            # integration suite; connects to the databases in .env
 npm --prefix client run build       # production build check
@@ -265,16 +275,20 @@ but was not run or reviewed.
 
 * Roles are enforced per route with `auth` + `checkRole`. Teachers can only access papers they own (or are
   assigned through an exam), and only their own OMR submissions.
-* The student CBT endpoints (`/start`, `/submit`, `/session/save-progress`, `/scorecard`, …) are identified
-  only by a session number and are **not authenticated**. Do not expose them beyond the lab network
-  (`LAB_IP`). Fixing this needs a per-session token and client changes (see the audit document).
+* Student CBT endpoints: `/start` issues a signed token bound to one session and exam; `submit`, `save-progress`,
+  `malpractice`, `scorecard`, `pdf-report` and `leaderboard` require it (header `x-session-token`). A roll number is
+  still the only student identity, so set `LAB_IP` to accept `/start` only from the lab network.
+* Login tokens are accepted only in the `Authorization` header or the HttpOnly cookie, never in a URL or body;
+  admin downloads are made as authenticated requests.
+* Failed logins are throttled (10 per account and address, 100 per address, per 15 minutes; in memory, per instance).
 * `GET /api/exams/:id` returns answers and is limited to admin/teacher. `GET /api/exams/:id/take` strips answers.
   Scorecards are served only after submission.
-* Passwords are bcrypt hashes; legacy plain-text passwords are still accepted and logged. Reset those accounts.
-* **Secrets are currently committed** in `render.yaml`, `server/.env.example`, `server/config/*.js` and several
-  scripts (database URLs with passwords, JWT secret, admin password). Rotate them and remove them from the
-  repository and its history.
-* The login rate limiter is disabled in `middleware/rateLimiter.js`.
+* Passwords are bcrypt hashes; unhashed passwords are refused.
+* No secret is in the source any more (`render.yaml` uses `sync: false`; `.env.example` has placeholders), **but
+  every credential that was ever committed is still in git history and must be treated as exposed: rotate them and
+  purge the history.** The two student enrolment PDFs are untracked but also remain in history.
+* The server-side PDF generators escape their input, disable JavaScript and allow only data: URLs and allow-listed
+  https images (`services/pdfSafety.js`).
 
 ## 13. Troubleshooting
 
@@ -288,17 +302,23 @@ but was not run or reviewed.
 | Fewer questions than requested | Read the summary on the preview screen: it lists each chapter's requested/delivered/available counts. |
 | Empty question list for a subject | The subject must be Physics, Chemistry, Mathematics, Biology, Botany or Zoology (or PCM/PCB/PCMB). |
 | `MongoDB connection notice` at start-up | Harmless; MongoDB is optional. |
-| `DATABASE_URL` seems ignored | `config/postgres.js` replaces any URL containing the old project id with a built-in one. |
+| `DATABASE_URL is not set` / a subject database is unavailable at start-up | The variable is missing: there are no built-in fallbacks. Set it (Render dashboard or `server/.env`). |
+| Previous-year / grand-test questions missing | `DB_QBP_CONTROL_KEY` is not set. |
+| 429 "Too many failed login attempts" | 10 wrong passwords for one account from one address; wait 15 minutes. |
+| Exam screen shows "A valid exam session is required" | The session token is missing or expired; restart the exam from the lab portal. |
 
 ## 14. Limitations
 
 * Grand Test and previous-year question import/replace/remove are unavailable (HTTP 501): they depended on
   MongoDB models that were never wired in, and the PostgreSQL tables hold only paper metadata.
 * Grand Tests cannot be linked to a template (no column).
-* Sets Q/R/S depend on the saved paper's id; unsaved papers use a temporary seed.
+* Sets Q/R/S depend on the saved paper's id; unsaved papers use a temporary seed (the preview says so).
+* Questions are edited, swapped and deleted on Set P only; the other sets are derived views.
 * PDF output is produced by the browser from the on-screen preview; page breaks follow CSS rules and were
   not verified against a physical printer.
 * OMR confidence scores are not exposed by the engine CLI, so only the review flags listed in §1 exist.
-* No multi-subject PDF merge tool exists; merged exams are merged as question lists (`POST /api/exams/merge`).
+* No multi-subject PDF merge tool exists; merged exams are merged as question lists (`POST /api/exams/merge`), with marks
+  following the exam type.
+* The Word export converts LaTeX to Unicode text; it does not embed typeset equations.
 
 Institution: Sapthagiri PU College, Davanagere, Karnataka.

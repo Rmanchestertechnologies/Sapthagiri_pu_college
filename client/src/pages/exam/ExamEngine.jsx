@@ -140,6 +140,7 @@ export default function ExamEngine() {
                     rollNumber: studentInfo.rollNumber || ''
                 });
                 const sessionData = sessionRes.data.session;
+                if (sessionData?.sessionToken) localStorage.setItem('exam_session_token', sessionData.sessionToken);
                 setSession(sessionData);
 
                 // Calculate remaining time relative to student's actual session start time

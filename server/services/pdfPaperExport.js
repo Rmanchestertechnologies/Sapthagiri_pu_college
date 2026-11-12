@@ -1,5 +1,6 @@
 const puppeteer = require('puppeteer');
 const { preRenderMath, getCss } = require('../utils/latexPreRenderer');
+const { hardenPage, escapeHtml } = require('./pdfSafety');
 
 let browserInstance = null;
 
@@ -25,6 +26,8 @@ async function getBrowser() {
 async function generatePaperPdf(paper, options = {}) {
     const browser = await getBrowser();
     const page = await browser.newPage();
+    try {
+    await hardenPage(page); // no scripts, no requests except allow-listed https images
 
     const questions = paper.questions || [];
     const title = paper.title || 'Question Paper';
@@ -372,13 +375,13 @@ async function generatePaperPdf(paper, options = {}) {
                 <table class="meta-table">
                     <tr>
                         <td style="text-align: left;">Class: PUC ${classes.join(' & ')}</td>
-                        <td style="text-align: center;">Time: ${duration}</td>
-                        <td style="text-align: right;">Max. Marks: ${totalMarks}</td>
+                        <td style="text-align: center;">Time: ${escapeHtml(duration)}</td>
+                        <td style="text-align: right;">Max. Marks: ${escapeHtml(totalMarks)}</td>
                     </tr>
                 </table>
             </div>
 
-            ${instructions ? `<div class="instructions-box"><strong>General Instructions:</strong> ${instructions}</div>` : ''}
+            ${instructions ? `<div class="instructions-box"><strong>General Instructions:</strong> ${escapeHtml(instructions)}</div>` : ''}
 
             <div class="paper-content">
                 ${renderedSectionsHtml}
@@ -387,17 +390,21 @@ async function generatePaperPdf(paper, options = {}) {
         </html>
     `;
 
-    await page.setContent(htmlContent, { waitUntil: 'load' });
+    await page.setContent(htmlContent, { waitUntil: 'load', timeout: 60000 });
 
     const pdfBuffer = await page.pdf({
         format: 'A4',
         printBackground: true,
         preferCSSPageSize: true,
-        margin: { top: '10mm', right: '10mm', bottom: '12mm', left: '10mm' }
+        margin: { top: '10mm', right: '10mm', bottom: '12mm', left: '10mm' },
+        timeout: 90000
     });
 
-    await page.close();
     return pdfBuffer;
+    } finally {
+        // The page used to stay open when anything above threw, leaking a browser tab per failed export.
+        await page.close().catch(() => {});
+    }
 }
 
 module.exports = {

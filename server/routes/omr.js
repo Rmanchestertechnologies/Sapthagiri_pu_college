@@ -433,6 +433,7 @@ router.post('/scan', [auth, requireOmrAccess, upload.array('sheets', 100)], asyn
                     key: keyForSeries(gradedSeries),
                     detectedAnswers,
                     marks: { correctM, wrongM, blankM },
+                    details: scanRes.answer_details || {},
                     flags: {
                         rollInferred,
                         duplicateRollInBatch,
@@ -443,7 +444,8 @@ router.post('/scan', [auth, requireOmrAccess, upload.array('sheets', 100)], asyn
                 });
                 const {
                     totalScore, correctCount, wrongCount, blankCount,
-                    subjectStats, conceptStats, questionEvaluations, reviewReasons, multipleCount
+                    subjectStats, conceptStats, questionEvaluations, reviewReasons, multipleCount,
+                    uncertainCount, lowConfidenceCount
                 } = evaluation;
 
                 const scoreData = {
@@ -453,6 +455,8 @@ router.post('/scan', [auth, requireOmrAccess, upload.array('sheets', 100)], asyn
                     wrongCount,
                     blankCount,
                     multipleMarkedCount: multipleCount,
+                    uncertainCount,
+                    lowConfidenceCount,
                     totalQuestions: questions.length,
                     accuracyPercent: questions.length > 0 ? Math.round((correctCount / questions.length) * 100) : 0,
                     gradedAgainstSeries: gradedSeries,

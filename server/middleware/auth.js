@@ -25,15 +25,8 @@ const auth = (req, res, next) => {
         token = cleanToken(req.header('x-auth-token'));
     }
 
-    // 4. Fall back to query parameter (e.g. for file downloads)
-    if (!token) {
-        token = cleanToken(req.query?.token);
-    }
-
-    // 5. Fall back to request body parameter
-    if (!token) {
-        token = cleanToken(req.body?.token);
-    }
+    // Tokens are no longer accepted in the URL or the request body: a token in a URL ends up in browser history,
+    // server and proxy logs and Referer headers. The admin screens download files through authenticated requests.
 
     if (!token) {
         return res.status(401).json({ msg: 'No token, authorization denied.' });

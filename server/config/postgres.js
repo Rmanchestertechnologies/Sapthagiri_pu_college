@@ -1,20 +1,20 @@
 const { Pool } = require('pg');
 const dotenv = require('dotenv');
+const { buildSsl } = require('./dbSsl');
 
 dotenv.config();
 
-// Primary Active Supabase Pooler URL (Physics 11 Database with support tables)
-const PRIMARY_ACTIVE_URL = 'postgresql://postgres.pfnlbyjsjxttdachegne:SubClass11Physics@aws-0-ap-northeast-2.pooler.supabase.com:5432/postgres';
-
-let DATABASE_URL = process.env.DATABASE_URL;
-
-if (!DATABASE_URL || DATABASE_URL.includes('vukxgqkrersxcasdklda')) {
-    DATABASE_URL = PRIMARY_ACTIVE_URL;
+// The primary database comes from DATABASE_URL only. The previous version contained a built-in connection
+// string (with its password) and silently replaced DATABASE_URL with it when the variable named an older
+// project, so the environment could not be changed without editing the source.
+const DATABASE_URL = process.env.DATABASE_URL;
+if (!DATABASE_URL) {
+    console.error('❌ DATABASE_URL is not set. The primary database is unavailable.');
 }
 
 const pool = new Pool({
     connectionString: DATABASE_URL,
-    ssl: { rejectUnauthorized: false },
+    ssl: buildSsl(),
     max: 20,
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 10000,

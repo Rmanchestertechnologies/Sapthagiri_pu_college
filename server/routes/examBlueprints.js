@@ -87,9 +87,14 @@ router.post('/:id/generate-paper', [auth, checkRole(['admin', 'teacher'])], asyn
 
         const selectedQuestions = [];
         const paperPattern = [];
+        const warnings = [];
+        const used = new Set(); // a question is used once per paper, across every section
 
         for (const sub of (blueprint.subjects || [])) {
-            const result = await supabaseQuestions.getQuestions({ subject: sub.subjectName }, 1, 200);
+            // A random sample of the subject's bank. It used to read only the 200 NEWEST questions, so every
+            // generated paper drew from the same small slice.
+            const result = await supabaseQuestions.getQuestions({ subject: sub.subjectName, examType: blueprint.examType, randomOrder: true }, 1, 800);
+            if (result.dbError) warnings.push(`Could not reach the question database for ${sub.subjectName}.`);
             const pool = result.questions || [];
 
             for (const sec of (sub.sections || [])) {
@@ -100,10 +105,15 @@ router.post('/:id/generate-paper', [auth, checkRole(['admin', 'teacher'])], asyn
                 });
 
                 const num = sec.numQuestions || 10;
-                const shuffled = matchingQuestions.sort(() => 0.5 - Math.random());
-                const picked = shuffled.slice(0, num);
+                // each section only sees questions no earlier section took (it used to repeat questions across sections)
+                const available = matchingQuestions.filter(q => !used.has(String(q.id || q._id)));
+                const picked = available.slice(0, num); // the pool is already in random order
+                if (picked.length < num) {
+                    warnings.push(`${sub.subjectName} - ${sec.sectionName || 'Main'}: only ${picked.length} of ${num} questions were available.`);
+                }
 
                 picked.forEach(q => {
+                    used.add(String(q.id || q._id));
                     selectedQuestions.push(q.id || q._id);
                 });
 
@@ -128,7 +138,7 @@ router.post('/:id/generate-paper', [auth, checkRole(['admin', 'teacher'])], asyn
             status: req.user.role === 'admin' ? 'Approved' : 'Pending Approval'
         });
 
-        res.json(newPaper);
+        res.json({ ...newPaper, warnings });
     } catch (err) {
         console.error('Failed to generate paper from blueprint:', err.message);
         res.status(500).json({ msg: 'Server Error: ' + err.message });

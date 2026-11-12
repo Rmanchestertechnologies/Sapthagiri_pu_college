@@ -8,6 +8,7 @@ const { detectLabIp } = require('../middleware/labIp');
 const pool = require('../config/postgres');
 const { createNotification } = require('./notifications');
 const cbt = require('../services/cbtScoring');
+const { issueSessionToken, requireSessionAccess, requireLabNetworkIfConfigured } = require('../middleware/sessionToken');
 // Was used below without being imported, so every ID-only paper silently fell back to its cached copy.
 const supabaseQuestions = require('../services/supabaseQuestions');
 
@@ -220,7 +221,11 @@ router.post('/merge', [auth, checkRole(['admin'])], async (req, res) => {
                     } catch (e) {}
                 }
             }
+            // Subject order is the order the admin selected, not the order the papers happened to be found in.
+            const rank = new Map(paperIds.map((id, i) => [String(id), i]));
+            papers.sort((a, b) => (rank.get(String(a._id || a.id)) ?? 1e9) - (rank.get(String(b._id || b.id)) ?? 1e9));
         }
+        const missingPapers = paperIds.filter(id => !papers.some(p => String(p._id || p.id) === String(id)));
 
         if (papers.length === 0) {
             return res.status(404).json({ msg: `None of the requested subject papers were found to merge.` });
@@ -230,6 +235,11 @@ router.post('/merge', [auth, checkRole(['admin'])], async (req, res) => {
         const seen = new Set();
         const mergedQuestions = [];
         const sectionsMap = {};
+        let duplicatesSkipped = 0;
+        // Marks follow the exam type, the same rule the CBT scoring uses (CET/KCET +1/0, others +4/-1). The merge used
+        // to hard-code 4 marks and -1 for every exam, so a merged CET paper printed 4 marks per question while the
+        // online exam scored 1.
+        const scheme = cbt.markingScheme({ examType: examType || 'CET' });
 
         for (const paper of papers) {
             let availableQuestions = [...(paper.questionObjects && paper.questionObjects.length > 0 ? paper.questionObjects : (paper.questions || []))];
@@ -243,18 +253,22 @@ router.post('/merge', [auth, checkRole(['admin'])], async (req, res) => {
 
             const defSecName = `${paper.subject || 'Subject'} - Section A`;
             if (!sectionsMap[defSecName]) {
+                // counts are filled in after duplicates are removed (they used to be taken before, so they were wrong)
                 sectionsMap[defSecName] = {
                     sectionName: defSecName,
-                    numQuestions: availableQuestions.length,
-                    allowedToAnswer: availableQuestions.length,
-                    markingRules: { correct: 4, incorrect: -1, unattempted: 0 }
+                    numQuestions: 0,
+                    allowedToAnswer: 0,
+                    markingRules: { correct: scheme.correct, incorrect: scheme.incorrect, unattempted: scheme.unattempted }
                 };
             }
 
             for (const q of availableQuestions) {
                 const qid = String(q._id || q.id || Math.random());
-                if (!seen.has(qid)) {
+                if (seen.has(qid)) { duplicatesSkipped++; continue; }
+                {
                     seen.add(qid);
+                    sectionsMap[defSecName].numQuestions++;
+                    sectionsMap[defSecName].allowedToAnswer++;
                     mergedQuestions.push({
                         ...q,
                         questionId: qid,
@@ -267,7 +281,7 @@ router.post('/merge', [auth, checkRole(['admin'])], async (req, res) => {
                         answer: q.answer || '',
                         solution: q.solution || q.explanation || '',
                         imageUrl: q.imageUrl || q.diagramUrl || null,
-                        marks: q.marks || 4,
+                        marks: scheme.correct,
                         type: q.type || 'MCQ',
                         sectionName: defSecName,
                         questionTextTranslation: q.questionTextTranslation || '',
@@ -305,10 +319,11 @@ router.post('/merge', [auth, checkRole(['admin'])], async (req, res) => {
             subject: mergedSubjectTitle,
             examType: effectiveExamType,
             classLevel: papers[0]?.classLevel || papers[0]?.class_level || '12',
-            classes: papers[0]?.classes || ['12'],
+            // every class that any source paper belongs to (it used to take only the first paper's)
+            classes: [...new Set(papers.flatMap(p => (Array.isArray(p.classes) && p.classes.length ? p.classes : [p.classLevel || p.class_level || '12']).map(String)))],
             durationMinutes: duration_minutes || 180,
             duration: `${duration_minutes || 180} Minutes`,
-            totalMarks: mergedQuestions.length * 4,
+            totalMarks: mergedQuestions.length * scheme.correct,
             questions: mergedQuestions,
             questionObjects: mergedQuestions,
             instructions: instructions || getDefaultInstructions(effectiveExamType),
@@ -320,10 +335,15 @@ router.post('/merge', [auth, checkRole(['admin'])], async (req, res) => {
             createdBy: req.user.id
         });
 
-        res.status(201).json({ 
-            msg: 'Exam and Merged Question Paper created successfully!', 
-            exam, 
-            paper: mergedPaper 
+        res.status(201).json({
+            msg: 'Exam and Merged Question Paper created successfully!',
+            exam,
+            paper: mergedPaper,
+            // what the merge did not include, so it is never silent
+            warnings: [
+                ...(missingPapers.length ? [`${missingPapers.length} selected paper(s) were not found and were skipped.`] : []),
+                ...(duplicatesSkipped ? [`${duplicatesSkipped} duplicate question(s) appeared in more than one paper and were included once.`] : [])
+            ]
         });
     } catch (err) {
         console.error('Merge error:', err.message);
@@ -729,7 +749,7 @@ router.get('/:id/take', detectLabIp, async (req, res) => {
 // STUDENT: Start session
 // POST /api/exams/:id/start
 // ─────────────────────────────────────────────────────────────────
-router.post('/:id/start', detectLabIp, async (req, res) => {
+router.post('/:id/start', detectLabIp, requireLabNetworkIfConfigured, async (req, res) => {
     try {
         const rawExam = await storage.getExamById(req.params.id);
         if (!rawExam) return res.status(404).json({ msg: 'Exam not found' });
@@ -741,7 +761,9 @@ router.post('/:id/start', detectLabIp, async (req, res) => {
             ...session,
             startTime: session.start_time || session.startTime,
             serverTime: new Date().toISOString(),
-            remainingSeconds: cbt.remainingSeconds(exam, session)
+            remainingSeconds: cbt.remainingSeconds(exam, session),
+            // Required (header x-session-token) by submit, autosave, malpractice, scorecard and leaderboard.
+            sessionToken: issueSessionToken(session, req.params.id)
         });
 
         let { studentName, studentEmail, rollNumber } = req.body;
@@ -815,7 +837,7 @@ router.post('/:id/start', detectLabIp, async (req, res) => {
 // STUDENT: Submit exam
 // POST /api/exams/:id/submit
 // ─────────────────────────────────────────────────────────────────
-router.post('/:id/submit', detectLabIp, async (req, res) => {
+router.post('/:id/submit', detectLabIp, requireSessionAccess({ sessionFrom: 'body', allowStaff: false }), async (req, res) => {
     try {
         const { sessionId, answers } = req.body;
 
@@ -864,7 +886,7 @@ router.post('/:id/submit', detectLabIp, async (req, res) => {
 // STUDENT: Get scorecard
 // GET /api/exams/:id/scorecard/:sessionId
 // ─────────────────────────────────────────────────────────────────
-router.get('/:id/scorecard/:sessionId', detectLabIp, async (req, res) => {
+router.get('/:id/scorecard/:sessionId', detectLabIp, requireSessionAccess({ sessionFrom: 'params' }), async (req, res) => {
     try {
         const session = await storage.getSessionById(req.params.sessionId);
         if (!session) return res.status(404).json({ msg: 'Session not found' });
@@ -1075,7 +1097,7 @@ router.get('/bridge/:key', async (req, res) => {
 // STUDENT: Report malpractice
 // POST /api/exams/:id/malpractice
 // ─────────────────────────────────────────────────────────────────
-router.post('/:id/malpractice', detectLabIp, async (req, res) => {
+router.post('/:id/malpractice', detectLabIp, requireSessionAccess({ sessionFrom: 'body', allowStaff: false }), async (req, res) => {
     try {
         const { sessionId, reason } = req.body;
         let session = null;
@@ -1144,7 +1166,7 @@ router.post('/:id/malpractice', detectLabIp, async (req, res) => {
 // STUDENT & ADMIN: Get leaderboard / results list for an exam
 // GET /api/exams/:id/leaderboard
 // ─────────────────────────────────────────────────────────────────
-router.get('/:id/leaderboard', async (req, res) => {
+router.get('/:id/leaderboard', requireSessionAccess(), async (req, res) => {
     try {
         const sessions = await storage.getSessionsByExam(req.params.id);
         const filtered = sessions.filter(s => s.submitted).map(s => ({
@@ -1167,7 +1189,7 @@ router.get('/:id/leaderboard', async (req, res) => {
 // STUDENT: Save intermediate progress (Autosave / Recover)
 // POST /api/exams/:id/session/save-progress
 // ─────────────────────────────────────────────────────────────────
-router.post('/:id/session/save-progress', async (req, res) => {
+router.post('/:id/session/save-progress', requireSessionAccess({ sessionFrom: 'body', allowStaff: false }), async (req, res) => {
     try {
         const { sessionId, answers } = req.body;
         if (!sessionId) return res.status(400).json({ msg: 'Session ID is required' });
@@ -1240,7 +1262,7 @@ router.get('/:id/export-word', [auth, checkRole(['admin'])], async (req, res) =>
 // @route   GET /api/exams/:id/pdf-report/:sessionId
 // @desc    Download PDF scorecard for an exam session
 // @access  Student (own), Teacher, Admin, Lab
-router.get('/:id/pdf-report/:sessionId', detectLabIp, async (req, res) => {
+router.get('/:id/pdf-report/:sessionId', detectLabIp, requireSessionAccess({ sessionFrom: 'params' }), async (req, res) => {
     try {
         const session = await storage.getSessionById(req.params.sessionId);
         if (!session || !sessionBelongsToExam(session, req.params.id)) return res.status(404).json({ msg: 'Session not found' });

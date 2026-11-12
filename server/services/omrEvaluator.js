@@ -11,6 +11,15 @@ const { parseAnswerIndices } = require('./pqrsKeys');
 
 const BLANKS = new Set(['', 'BLANK', 'UNATTEMPTED', 'NONE', 'NULL']);
 
+/**
+ * A definite answer whose best bubble beat the runner-up by less than this gap is flagged for a second look.
+ * The gap scale comes from the image engine and this value is a starting point that has NOT been validated on
+ * a labelled set of real sheets; tune it with OMR_REVIEW_GAP once such a set exists. Flags never change marks.
+ */
+const REVIEW_GAP = Number.isFinite(Number(process.env.OMR_REVIEW_GAP)) && process.env.OMR_REVIEW_GAP !== undefined && process.env.OMR_REVIEW_GAP !== ''
+    ? Number(process.env.OMR_REVIEW_GAP)
+    : 0.15;
+
 /** Marks per outcome from the request body, or an error message. */
 function parseMarks(body = {}, isKcet = false) {
     const read = (value, fallback, label) => {
@@ -34,10 +43,12 @@ function parseMarks(body = {}, isKcet = false) {
  * @param {Object<string,string>} args.detectedAnswers  question number -> "A".."D", "1".."4", "BLANK", "MULTIPLE"
  * @param {{correctM:number,wrongM:number,blankM:number}} args.marks
  * @param {Object} args.flags  rollInferred, duplicateRollInBatch, seriesKnown, rawSeries, gradedSeries
+ * @param {Object<string,{confidence_gap?:number}>} [args.details]  engine confidence per question number
  */
-function evaluateSheet({ key, detectedAnswers = {}, marks, flags = {} }) {
+function evaluateSheet({ key, detectedAnswers = {}, marks, flags = {}, details = {}, reviewGap = REVIEW_GAP }) {
     const { correctM, wrongM, blankM } = marks;
-    let totalScore = 0, correctCount = 0, wrongCount = 0, blankCount = 0, multipleCount = 0;
+    let totalScore = 0, correctCount = 0, wrongCount = 0, blankCount = 0, multipleCount = 0, uncertainCount = 0;
+    let lowConfidenceCount = 0;
     const subjectStats = {};
     const conceptStats = {};
     const questionEvaluations = [];
@@ -54,6 +65,14 @@ function evaluateSheet({ key, detectedAnswers = {}, marks, flags = {} }) {
             status = 'not_attempted';
             earned = blankM;
             blankCount++;
+        } else if (detected === 'UNCERTAIN') {
+            // The engine could not decide between filled and blank (a faint or partial mark). Scoring it as a wrong
+            // answer would penalise a reading nobody trusts, so it is left unscored until a person checks the sheet.
+            status = 'not_attempted';
+            earned = blankM;
+            blankCount++;
+            uncertainCount++;
+            review = 'uncertain_mark';
         } else if (detected === 'MULTIPLE') {
             // More than one bubble is filled. Scored as a wrong answer (existing rule) but surfaced for checking.
             status = 'wrong';
@@ -76,6 +95,13 @@ function evaluateSheet({ key, detectedAnswers = {}, marks, flags = {} }) {
                 wrongCount++;
                 if (studentIdx.length === 0) review = 'unrecognised_mark';
             }
+        }
+
+        // A clear-looking answer whose runner-up bubble scored almost as high: flag, do not change marks.
+        const gap = Number(details?.[String(q.number)]?.confidence_gap);
+        if (!review && status !== 'not_attempted' && Number.isFinite(gap) && gap < reviewGap) {
+            review = 'low_confidence';
+            lowConfidenceCount++;
         }
 
         totalScore += earned;
@@ -116,15 +142,17 @@ function evaluateSheet({ key, detectedAnswers = {}, marks, flags = {} }) {
             ? `Series "${flags.rawSeries}" is not one of P/Q/R/S; the sheet was graded against series ${flags.gradedSeries}. Confirm the series.`
             : `The series could not be read; the sheet was graded against series ${flags.gradedSeries}. Confirm the series.`);
     }
+    if (uncertainCount > 0) reviewReasons.push(`${uncertainCount} question(s) have a faint or partial mark the engine could not classify; they were left unscored. Check the sheet.`);
+    if (lowConfidenceCount > 0) reviewReasons.push(`${lowConfidenceCount} answer(s) were read with low confidence (the second-best bubble scored almost as high). Check the sheet.`);
     if (multipleCount > 0) reviewReasons.push(`${multipleCount} question(s) have more than one bubble filled and were scored as wrong. Check the sheet.`);
     const unrecognised = questionEvaluations.filter(e => e.review === 'unrecognised_mark').length;
     if (unrecognised > 0) reviewReasons.push(`${unrecognised} answer(s) could not be interpreted and were scored as wrong.`);
     if (key.length > 0 && blankCount === key.length) reviewReasons.push('Every question was read as blank. The sheet may be unreadable or empty.');
 
     return {
-        totalScore, correctCount, wrongCount, blankCount, multipleCount,
+        totalScore, correctCount, wrongCount, blankCount, multipleCount, uncertainCount, lowConfidenceCount,
         subjectStats, conceptStats, questionEvaluations, reviewReasons
     };
 }
 
-module.exports = { parseMarks, evaluateSheet };
+module.exports = { parseMarks, evaluateSheet, REVIEW_GAP };

@@ -14,35 +14,46 @@ services:
         value: 10000
       # ── MongoDB Atlas — primary database for users/faculty ──────────────────
       - key: MONGO_URI
-        value: mongodb+srv://hrmanchestertechnologies_db_user:MfYSJqm2dYCWnFMn@cluster0.rljdhjc.mongodb.net/sapthagiri?retryWrites=true&w=majority&appName=Cluster0
+        sync: false   # set in the Render dashboard
       # ── Supabase PostgreSQL — subject question databases ────────────────────
       - key: DATABASE_URL
-        value: postgresql://postgres.vukxgqkrersxcasdklda:Sapthagiri1@aws-0-ap-south-1.pooler.supabase.com:5432/postgres
+        sync: false   # set in the Render dashboard
       - key: DIRECT_DATABASE_URL
-        value: postgresql://postgres:Sapthagiri1@db.vukxgqkrersxcasdklda.supabase.co:5432/postgres
+        sync: false   # set in the Render dashboard
       - key: SUPABASE_URL
         value: https://vukxgqkrersxcasdklda.supabase.co
       - key: JWT_SECRET
-        value: sapthagiri_pu_college_secret_key_davanagere_2026
+        sync: false   # set in the Render dashboard
       - key: JWT_EXPIRES_IN
         value: 10h
       - key: ADMIN_PASSWORD
-        value: Sapthagiri1
+        sync: false   # set in the Render dashboard
       - key: ALLOWED_ORIGINS
-        value: "*"
+        sync: false   # set in the Render dashboard
       - key: DB_MATH_11_URL
-        value: postgresql://postgres.lhnwhbhnexxifuuqnzho:SubClass11Maths@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres
+        sync: false   # set in the Render dashboard
       - key: DB_MATH_12_URL
-        value: postgresql://postgres.lukbqotnuxoznnrsdqvz:SubClass12Maths@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres
+        sync: false   # set in the Render dashboard
       - key: DB_CHEM_11_URL
-        value: postgresql://postgres.tloqcflffxrrlbxyphtb:SubClass11Chemistry@aws-0-ap-northeast-1.pooler.supabase.com:5432/postgres
+        sync: false   # set in the Render dashboard
       - key: DB_CHEM_12_URL
-        value: postgresql://postgres.dptruxcqfapmcmbxyobx:SubClass12Chemistry@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres
+        sync: false   # set in the Render dashboard
       - key: DB_BIO_11_URL
-        value: postgresql://postgres.tcoaxdpzvzssnkclpvkt:SubClass11Biology@aws-0-ap-southeast-2.pooler.supabase.com:5432/postgres
+        sync: false   # set in the Render dashboard
       - key: DB_BIO_12_URL
-        value: postgresql://postgres.zxxvxddkncoluvidbtpf:SubClass12Biology@aws-0-ap-southeast-2.pooler.supabase.com:5432/postgres
+        sync: false   # set in the Render dashboard
       - key: DB_PHY_11_URL
-        value: postgresql://postgres.pfnlbyjsjxttdachegne:SubClass11Physics@aws-0-ap-northeast-2.pooler.supabase.com:5432/postgres
+        sync: false   # set in the Render dashboard
       - key: DB_PHY_12_URL
-        value: postgresql://postgres.fnbgbtvnqmccpvgpphua:SubClass12Physics@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres
+        sync: false   # set in the Render dashboard
+      # ── Added with the security fixes; all are set in the Render dashboard ──────────────
+      - key: LAB_ID
+        sync: false
+      - key: LAB_PASSWORD
+        sync: false
+      - key: LAB_IP
+        sync: false
+      - key: DB_QBP_CONTROL_KEY
+        sync: false
+      - key: DB_SSL_CA
+        sync: false

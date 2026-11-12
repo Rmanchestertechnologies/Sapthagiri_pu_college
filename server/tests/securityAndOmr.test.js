@@ -112,6 +112,30 @@ describe('OMR evaluation', () => {
         expect(r.reviewReasons).toHaveLength(3);
     });
 
+    test('UNCERTAIN (faint / partial mark) is left unscored and flagged, not penalised', () => {
+        const r = run({ 1: 'UNCERTAIN', 2: 'C', 3: 'B', 4: 'D' });
+        expect(r.questionEvaluations[0]).toMatchObject({ status: 'not_attempted', marks: 0, review: 'uncertain_mark' });
+        expect(r.uncertainCount).toBe(1);
+        expect(r.totalScore).toBe(12); // three correct, the uncertain one costs nothing
+        expect(r.reviewReasons.some(x => /faint or partial/.test(x))).toBe(true);
+    });
+
+    test('low engine confidence flags an answer but never changes its marks', () => {
+        const details = { 1: { confidence_gap: 0.04 }, 2: { confidence_gap: 0.6 }, 3: { confidence_gap: 0.14 }, 4: {} };
+        const r = evaluateSheet({ key, detectedAnswers: { 1: 'A', 2: 'C', 3: 'B', 4: 'D' }, marks, flags: { seriesKnown: true, gradedSeries: 'P' }, details });
+        expect(r.totalScore).toBe(16);
+        expect(r.lowConfidenceCount).toBe(2); // questions 1 and 3 (< 0.15); 2 is clear; 4 has no data
+        expect(r.questionEvaluations.map(e => e.review)).toEqual(['low_confidence', undefined, 'low_confidence', undefined]);
+        // a configurable threshold
+        const strict = evaluateSheet({ key, detectedAnswers: { 1: 'A', 2: 'C' }, marks, details, reviewGap: 0.9 });
+        expect(strict.lowConfidenceCount).toBe(2);
+    });
+
+    test('blank answers never get a low-confidence flag', () => {
+        const r = evaluateSheet({ key, detectedAnswers: { 1: 'BLANK' }, marks, details: { 1: { confidence_gap: 0 } } });
+        expect(r.lowConfidenceCount).toBe(0);
+    });
+
     test('garbled marks are wrong and flagged', () => {
         const r = run({ 1: '??', 2: 'C', 3: 'B', 4: 'D' });
         expect(r.questionEvaluations[0]).toMatchObject({ status: 'wrong', review: 'unrecognised_mark' });
@@ -167,5 +191,18 @@ describe('series keys used for OMR grading', () => {
             const subjects = buildSeriesKey(paper, questions, s).map(k => questions[k.masterIndex].subject);
             expect(subjects).toEqual([...Array(12).fill('Physics'), ...Array(12).fill('Chemistry')]);
         }
+    });
+});
+
+describe('subject areas (question edit permissions)', () => {
+    test('REGRESSION: "Maths" covers Mathematics; Biology covers Botany and Zoology; other subjects stay separate', () => {
+        expect(rules.sameSubjectArea('Maths', 'Mathematics')).toBe(true);
+        expect(rules.sameSubjectArea('mathematics', 'Maths')).toBe(true);
+        expect(rules.sameSubjectArea('Biology', 'Botany')).toBe(true);
+        expect(rules.sameSubjectArea('Zoology', 'Biology')).toBe(true);
+        expect(rules.sameSubjectArea('Physics', 'Chemistry')).toBe(false);
+        expect(rules.sameSubjectArea('Physics', 'Mathematics')).toBe(false);
+        expect(rules.sameSubjectArea('', '')).toBe(false);
+        expect(rules.sameSubjectArea(undefined, 'Physics')).toBe(false);
     });
 });

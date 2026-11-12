@@ -14,8 +14,7 @@ const DB_CONFIGS = {
         klass: '11',
         name: 'Mathematics Class 11',
         projectId: 'lhnwhbhnexxifuuqnzho',
-        envVar: 'DB_MATH_11_URL',
-        defaultUrl: 'postgresql://postgres.lhnwhbhnexxifuuqnzho:SubClass11Maths@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres'
+        envVar: 'DB_MATH_11_URL'
     },
     math_12: {
         key: 'math_12',
@@ -23,8 +22,7 @@ const DB_CONFIGS = {
         klass: '12',
         name: 'Mathematics Class 12',
         projectId: 'lukbqotnuxoznnrsdqvz',
-        envVar: 'DB_MATH_12_URL',
-        defaultUrl: 'postgresql://postgres.lukbqotnuxoznnrsdqvz:SubClass12Maths@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres'
+        envVar: 'DB_MATH_12_URL'
     },
     chem_11: {
         key: 'chem_11',
@@ -32,8 +30,7 @@ const DB_CONFIGS = {
         klass: '11',
         name: 'Chemistry Class 11',
         projectId: 'tloqcflffxrrlbxyphtb',
-        envVar: 'DB_CHEM_11_URL',
-        defaultUrl: 'postgresql://postgres.tloqcflffxrrlbxyphtb:SubClass11Chemistry@aws-0-ap-northeast-1.pooler.supabase.com:5432/postgres'
+        envVar: 'DB_CHEM_11_URL'
     },
     chem_12: {
         key: 'chem_12',
@@ -41,8 +38,7 @@ const DB_CONFIGS = {
         klass: '12',
         name: 'Chemistry Class 12',
         projectId: 'dptruxcqfapmcmbxyobx',
-        envVar: 'DB_CHEM_12_URL',
-        defaultUrl: 'postgresql://postgres.dptruxcqfapmcmbxyobx:SubClass12Chemistry@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres'
+        envVar: 'DB_CHEM_12_URL'
     },
     bio_11: {
         key: 'bio_11',
@@ -50,8 +46,7 @@ const DB_CONFIGS = {
         klass: '11',
         name: 'Biology Class 11',
         projectId: 'tcoaxdpzvzssnkclpvkt',
-        envVar: 'DB_BIO_11_URL',
-        defaultUrl: 'postgresql://postgres.tcoaxdpzvzssnkclpvkt:SubClass11Biology@aws-0-ap-southeast-2.pooler.supabase.com:5432/postgres'
+        envVar: 'DB_BIO_11_URL'
     },
     bio_12: {
         key: 'bio_12',
@@ -59,8 +54,7 @@ const DB_CONFIGS = {
         klass: '12',
         name: 'Biology Class 12',
         projectId: 'zxxvxddkncoluvidbtpf',
-        envVar: 'DB_BIO_12_URL',
-        defaultUrl: 'postgresql://postgres.zxxvxddkncoluvidbtpf:SubClass12Biology@aws-0-ap-southeast-2.pooler.supabase.com:5432/postgres'
+        envVar: 'DB_BIO_12_URL'
     },
     phy_11: {
         key: 'phy_11',
@@ -68,8 +62,7 @@ const DB_CONFIGS = {
         klass: '11',
         name: 'Physics Class 11',
         projectId: 'pfnlbyjsjxttdachegne',
-        envVar: 'DB_PHY_11_URL',
-        defaultUrl: 'postgresql://postgres.pfnlbyjsjxttdachegne:SubClass11Physics@aws-0-ap-northeast-2.pooler.supabase.com:5432/postgres'
+        envVar: 'DB_PHY_11_URL'
     },
     phy_12: {
         key: 'phy_12',
@@ -77,30 +70,40 @@ const DB_CONFIGS = {
         klass: '12',
         name: 'Physics Class 12',
         projectId: 'fnbgbtvnqmccpvgpphua',
-        envVar: 'DB_PHY_12_URL',
-        defaultUrl: 'postgresql://postgres.fnbgbtvnqmccpvgpphua:SubClass12Physics@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres'
+        envVar: 'DB_PHY_12_URL'
     }
 };
 
 const { createClient } = require('@supabase/supabase-js');
+const { buildSsl } = require('./dbSsl');
 
 const QBP_CONTROL_CONFIG = {
     key: 'qbp_control',
     name: 'QBP Control (PYQ & Grand Tests)',
     projectId: 'hjjgjcvpqgcebuokjque',
+    // Both come from the environment. The key used to be embedded (base64-encoded) in this file.
     url: process.env.DB_QBP_CONTROL_URL || 'https://hjjgjcvpqgcebuokjque.supabase.co',
-    secretKey: process.env.DB_QBP_CONTROL_KEY || Buffer.from('c2Jfc2VjcmV0X1hCNGtoZEZoUjNPNFBaZnM3VUx5N2dfamRaMHZaaGc=', 'base64').toString('ascii')
+    secretKey: process.env.DB_QBP_CONTROL_KEY
 };
 
-const qbpControlSupabase = createClient(QBP_CONTROL_CONFIG.url, QBP_CONTROL_CONFIG.secretKey);
+if (!QBP_CONTROL_CONFIG.secretKey) {
+    console.error('❌ DB_QBP_CONTROL_KEY is not set: previous-year / grand-test questions (QBP control) are unavailable.');
+}
+const qbpControlSupabase = QBP_CONTROL_CONFIG.secretKey
+    ? createClient(QBP_CONTROL_CONFIG.url, QBP_CONTROL_CONFIG.secretKey)
+    : null;
 
 const pools = new Map();
 
 for (const [key, cfg] of Object.entries(DB_CONFIGS)) {
-    const connStr = process.env[cfg.envVar] || cfg.defaultUrl;
+    const connStr = process.env[cfg.envVar];
+    if (!connStr) {
+        console.error(`❌ ${cfg.envVar} is not set: the ${cfg.name} question database is unavailable.`);
+        continue;
+    }
     const pool = new Pool({
         connectionString: connStr,
-        ssl: { rejectUnauthorized: false },
+        ssl: buildSsl(),
         max: 10,
         idleTimeoutMillis: 30000,
         connectionTimeoutMillis: 10000

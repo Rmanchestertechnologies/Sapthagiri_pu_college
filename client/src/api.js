@@ -21,6 +21,11 @@ api.interceptors.request.use((config) => {
     if (config.showGlobalLoader) {
         loadingCallback(true);
     }
+    // Student exam endpoints are authorised by the per-session token issued by /start.
+    const sessionToken = localStorage.getItem('exam_session_token');
+    if (sessionToken && /\/api\/exams\/[^/?]+\/(start|submit|session|malpractice|scorecard|pdf-report|leaderboard)/.test(String(config.url || ''))) {
+        config.headers['x-session-token'] = sessionToken;
+    }
     const token = localStorage.getItem('token');
     if (token) {
         config.headers['Authorization'] = `Bearer ${token}`;
@@ -69,7 +74,9 @@ api.interceptors.response.use(
     },
     (error) => {
         loadingCallback(false);
-        if (error.response && error.response.status === 401) {
+        // A rejected exam-session token must not log a student out or bounce them to the staff login page.
+        const isStudentCall = Boolean(error.config?.headers?.['x-session-token']);
+        if (error.response && error.response.status === 401 && !isStudentCall) {
             // Clear local credentials on 401
             localStorage.removeItem('token');
             localStorage.removeItem('user');

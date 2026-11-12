@@ -38,7 +38,13 @@ function normalizeLatex(raw) {
 
     // 4. Auto-wrap naked/unwrapped LaTeX commands not already surrounded by $
     const nakedLatexRegex = /(?<!\$)\\(?:dfrac|cfrac|frac|sqrt|pm|times|div|leq|geq|neq|approx|rightarrow|infty|sum|int|partial|theta|alpha|beta|gamma|lambda|omega|Delta|mu|sigma|epsilon|varepsilon|rho|phi|pi|tau|psi|eta|nu|xi|cdot|circ|text|mathrm|mathbf)\b[^{$\n]*(?:\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\})*(?!\$)/g;
-    str = str.replace(nakedLatexRegex, (match) => `$${match}$`);
+    // Only touch text OUTSIDE existing $...$ / $$...$$ segments. The old code wrapped every command that was not
+    // immediately preceded by "$", so inside "$x=\dfrac{-b\pm\sqrt{D}}{2a}$" the \dfrac, \pm and \sqrt were wrapped
+    // again, which broke the equation and printed raw LaTeX in the PDF.
+    str = str
+        .split(/(\$\$[\s\S]*?\$\$|\$[^$\n]*?\$)/g)
+        .map((part, i) => (i % 2 === 1 ? part : part.replace(nakedLatexRegex, (match) => `$${match}$`)))
+        .join('');
 
     return str.trim();
 }

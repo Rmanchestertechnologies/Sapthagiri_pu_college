@@ -5,8 +5,8 @@ const path = require('path');
 dotenv.config({ path: path.resolve(__dirname, '../.env') });
 
 beforeAll(async () => {
-    process.env.JWT_SECRET = process.env.JWT_SECRET || 'sapthagiri_pu_college_secret_key_davanagere_2026';
-    process.env.ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'Sapthagiri1';
+    process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-only-jwt-secret';
+    process.env.ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'test-only-admin-password';
     process.env.NODE_ENV = 'test';
 
     if (process.env.MONGO_URI && mongoose.connection.readyState === 0) {

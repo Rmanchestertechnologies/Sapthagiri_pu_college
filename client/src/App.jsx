@@ -1,20 +1,23 @@
-import React, { useEffect, useContext } from 'react';
+import React, { useEffect, useContext, Suspense, lazy } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, AuthContext } from './context/AuthContext';
 import { LoadingProvider, useLoading } from './context/LoadingContext';
 import { setLoadingCallback } from './api';
-import UnifiedLogin from './pages/auth/UnifiedLogin';
-import AdminDashboard from './pages/admin/AdminDashboard';
-import TeacherDashboard from './pages/teacher/TeacherDashboard';
-import CommissionedExam from './pages/teacher/CommissionedExam';
-import ExamInstructions from './pages/exam/ExamInstructions';
-import ExamEngine from './pages/exam/ExamEngine';
-import Scorecard from './pages/exam/Scorecard';
-import Disqualified from './pages/exam/Disqualified';
-import LabLogin from './pages/lab/LabLogin';
-import LabExamList from './pages/lab/LabExamList';
-import StudentLabPortal from './pages/exam/StudentLabPortal';
-import BridgeApp from './pages/admin/BridgeApp';
+
+// Each page is its own chunk: the app used to ship as one ~2 MB script that every lab terminal had to download
+// before the first screen could appear.
+const UnifiedLogin = lazy(() => import('./pages/auth/UnifiedLogin'));
+const AdminDashboard = lazy(() => import('./pages/admin/AdminDashboard'));
+const TeacherDashboard = lazy(() => import('./pages/teacher/TeacherDashboard'));
+const CommissionedExam = lazy(() => import('./pages/teacher/CommissionedExam'));
+const ExamInstructions = lazy(() => import('./pages/exam/ExamInstructions'));
+const ExamEngine = lazy(() => import('./pages/exam/ExamEngine'));
+const Scorecard = lazy(() => import('./pages/exam/Scorecard'));
+const Disqualified = lazy(() => import('./pages/exam/Disqualified'));
+const LabLogin = lazy(() => import('./pages/lab/LabLogin'));
+const LabExamList = lazy(() => import('./pages/lab/LabExamList'));
+const StudentLabPortal = lazy(() => import('./pages/exam/StudentLabPortal'));
+const BridgeApp = lazy(() => import('./pages/admin/BridgeApp'));
 
 // ── App Loader Linker ────────────────────────────────────────────────────────
 const ApiLoaderLinker = ({ children }) => {
@@ -60,6 +63,7 @@ function App() {
         <AuthProvider>
             <ApiLoaderLinker>
                 <Router>
+                    <Suspense fallback={<AppLoadingSpinner />}>
                     <Routes>
                         {/* Unified Public Login */}
                         <Route path="/" element={<UnifiedLogin />} />
@@ -123,6 +127,7 @@ function App() {
                         {/* Fallback */}
                         <Route path="*" element={<Navigate to="/" />} />
                     </Routes>
+                    </Suspense>
                 </Router>
             </ApiLoaderLinker>
         </AuthProvider>

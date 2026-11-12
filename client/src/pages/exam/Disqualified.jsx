@@ -56,6 +56,7 @@ export default function Disqualified() {
                     <button
                         onClick={() => {
                             localStorage.removeItem('student_info');
+                        localStorage.removeItem('exam_session_token');
                             window.location.href = '/lab';
                         }}
                         style={{

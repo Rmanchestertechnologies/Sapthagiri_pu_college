@@ -6,7 +6,7 @@ const app = require('../index');
 const User = require('../models/User');
 const OnlineExam = require('../models/OnlineExam');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'sapthagiri_pu_college_secret_key_davanagere_2026';
+const JWT_SECRET = process.env.JWT_SECRET || 'test-only-jwt-secret';
 
 const generateToken = (payload) => {
     return jwt.sign(payload, JWT_SECRET, { expiresIn: '1h' });
@@ -295,7 +295,7 @@ describe('Exam Commission & Faculty Assignment Integration Test Suite', () => {
             .post('/api/auth/login')
             .send({
                 email: 'sapthagiripucollegedvg@gmail.com',
-                password: process.env.ADMIN_PASSWORD || 'Sapthagiri1'
+                password: process.env.ADMIN_PASSWORD || 'test-only-admin-password'
             });
         expect(adminLoginRes.status).toBe(200);
         expect(adminLoginRes.body.user.role).toBe('admin');

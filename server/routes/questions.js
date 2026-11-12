@@ -7,6 +7,7 @@ const auth = require('../middleware/auth');
 const checkRole = require('../middleware/role');
 const { sanitizeHtml, sanitizeArray } = require('../utils/sanitize');
 const supabaseQuestions = require('../services/supabaseQuestions');
+const { sameSubjectArea } = require('../services/accessRules');
 
 const { storage } = require('../config/cloudinary');
 
@@ -227,7 +228,7 @@ router.get('/:id', [auth, checkRole(['admin', 'teacher'])], async (req, res) => 
         if (mongoose.Types.ObjectId.isValid(req.params.id)) {
             const question = await Question.findById(req.params.id);
             if (!question) return res.status(404).json({ msg: 'Question not found in MongoDB.' });
-            if (req.user.role !== 'admin' && question.subject !== req.user.subject) {
+            if (req.user.role !== 'admin' && !sameSubjectArea(question.subject, req.user.subject)) {
                 return res.status(403).json({ msg: 'Access denied: this question belongs to a different subject.' });
             }
             return res.json(question);
@@ -236,7 +237,7 @@ router.get('/:id', [auth, checkRole(['admin', 'teacher'])], async (req, res) => 
         const question = await supabaseQuestions.getQuestionById(req.params.id);
         if (!question) return res.status(404).json({ msg: 'Question not found.' });
 
-        if (req.user.role !== 'admin' && question.subject !== req.user.subject) {
+        if (req.user.role !== 'admin' && !sameSubjectArea(question.subject, req.user.subject)) {
             return res.status(403).json({ msg: 'Access denied: this question belongs to a different subject.' });
         }
 
@@ -255,7 +256,7 @@ router.delete('/:id', [auth, checkRole(['admin', 'teacher'])], async (req, res) 
         if (mongoose.Types.ObjectId.isValid(req.params.id)) {
             const question = await Question.findById(req.params.id);
             if (!question) return res.status(404).json({ msg: 'Question not found in MongoDB.' });
-            if (req.user.role !== 'admin' && question.subject !== req.user.subject) {
+            if (req.user.role !== 'admin' && !sameSubjectArea(question.subject, req.user.subject)) {
                 return res.status(403).json({ msg: 'Access denied: this question belongs to a different subject.' });
             }
             await Question.findByIdAndDelete(req.params.id);
@@ -265,7 +266,7 @@ router.delete('/:id', [auth, checkRole(['admin', 'teacher'])], async (req, res) 
         const question = await supabaseQuestions.getQuestionById(req.params.id);
         if (!question) return res.status(404).json({ msg: 'Question not found.' });
 
-        if (req.user.role !== 'admin' && question.subject !== req.user.subject) {
+        if (req.user.role !== 'admin' && !sameSubjectArea(question.subject, req.user.subject)) {
             return res.status(403).json({ msg: 'Access denied: this question belongs to a different subject.' });
         }
 
@@ -286,7 +287,7 @@ router.post('/update/:id', [auth, checkRole(['admin', 'teacher']), upload.fields
             let question = await Question.findById(req.params.id);
             if (!question) return res.status(404).json({ msg: 'Question not found in MongoDB.' });
 
-            if (req.user.role !== 'admin' && question.subject !== req.user.subject) {
+            if (req.user.role !== 'admin' && !sameSubjectArea(question.subject, req.user.subject)) {
                 return res.status(403).json({ msg: 'Access denied: not authorized to edit this subject question.' });
             }
 
@@ -345,7 +346,7 @@ router.post('/update/:id', [auth, checkRole(['admin', 'teacher']), upload.fields
         let question = await supabaseQuestions.getQuestionById(req.params.id);
         if (!question) return res.status(404).json({ msg: 'Question not found.' });
 
-        if (req.user.role !== 'admin' && question.subject !== req.user.subject) {
+        if (req.user.role !== 'admin' && !sameSubjectArea(question.subject, req.user.subject)) {
             return res.status(403).json({ msg: 'Access denied: not authorized to edit this subject question.' });
         }
 
@@ -369,7 +370,7 @@ router.post('/convert-numerical/:id', [auth, checkRole(['admin', 'teacher'])], a
             const question = await Question.findById(req.params.id);
             if (!question) return res.status(404).json({ msg: 'Question not found in MongoDB.' });
 
-            if (req.user.role !== 'admin' && question.subject !== req.user.subject) {
+            if (req.user.role !== 'admin' && !sameSubjectArea(question.subject, req.user.subject)) {
                 return res.status(403).json({ msg: 'Access denied: not authorized to edit this subject question.' });
             }
 
@@ -383,7 +384,7 @@ router.post('/convert-numerical/:id', [auth, checkRole(['admin', 'teacher'])], a
             const question = await supabaseQuestions.getQuestionById(req.params.id);
             if (!question) return res.status(404).json({ msg: 'Question not found in Supabase.' });
 
-            if (req.user.role !== 'admin' && question.subject !== req.user.subject) {
+            if (req.user.role !== 'admin' && !sameSubjectArea(question.subject, req.user.subject)) {
                 return res.status(403).json({ msg: 'Access denied: not authorized to edit this subject question.' });
             }
 
@@ -419,6 +420,9 @@ router.post('/:id/generate-variant', [auth, checkRole(['admin', 'teacher'])], as
         }
 
         if (!question) return res.status(404).json({ msg: 'Question not found.' });
+        if (req.user.role !== 'admin' && !sameSubjectArea(question.subject, req.user.subject)) {
+            return res.status(403).json({ msg: 'Access denied: this question belongs to a different subject.' });
+        }
 
         const apiKey = process.env.GEMINI_API_KEY;
         if (!apiKey) {
