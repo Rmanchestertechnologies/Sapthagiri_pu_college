@@ -1,5 +1,4 @@
 const pool = require('../config/postgres');
-const mongoose = require('mongoose');
 
 // Helper: map a Postgres online_exams row to standard JS object
 function mapExamRow(r) {
@@ -144,20 +143,6 @@ async function createExam(examData) {
     ]);
 
     const exam = mapExamRow(res.rows[0]);
-
-    // Secondary sync to MongoDB if connected
-    if (mongoose.connection.readyState === 1) {
-        try {
-            const OnlineExam = require('../models/OnlineExam');
-            const mExam = new OnlineExam({
-                ...examData,
-                _id: new mongoose.Types.ObjectId()
-            });
-            await mExam.save();
-        } catch (mErr) {
-            console.warn('[STORAGE] MongoDB exam sync notice:', mErr.message);
-        }
-    }
 
     return exam;
 }
@@ -380,21 +365,6 @@ async function savePaper(paperData) {
 
     const paper = mapPaperRow(res.rows[0]);
 
-    // Secondary sync to MongoDB if connected
-    if (mongoose.connection.readyState === 1) {
-        try {
-            const Paper = require('../models/Paper');
-            const mPaper = new Paper({
-                ...paperData,
-                sections: initialSections,
-                teacherId: String(tId)
-            });
-            await mPaper.save();
-        } catch (mErr) {
-            console.warn('[STORAGE] MongoDB paper sync notice:', mErr.message);
-        }
-    }
-
     return paper;
 }
 
@@ -570,22 +540,6 @@ async function updatePaperSection(id, subjectName, sectionData = {}) {
         paperStatus,
         current.id
     ]);
-
-    // MongoDB sync if connected
-    if (mongoose.connection.readyState === 1) {
-        try {
-            const Paper = require('../models/Paper');
-            await Paper.findByIdAndUpdate(current._id || current.id, {
-                sections,
-                questions: mergedIds,
-                questionObjects: mergedObjs,
-                status: paperStatus,
-                updatedAt: new Date()
-            });
-        } catch (mErr) {
-            console.warn('[STORAGE] Mongo section sync notice:', mErr.message);
-        }
-    }
 
     return mapPaperRow(res.rows[0]);
 }

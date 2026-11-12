@@ -1,4 +1,4 @@
-# Review findings (nothing in this list has been changed yet)
+# Review findings and their resolution
 
 Scope of this pass: every client screen and component (lint plus reading the ones not tested before), all server leftovers,
 the Python OMR engine (static checks, secrets, deployment), dependency audit, and a route-by-route match of client calls to
@@ -7,6 +7,38 @@ server routes. Items marked **(owner)** need an action outside the code.
 Verified clean: no undefined variables anywhere in the client; all Python files compile; **127 of 128 client API calls match a
 server route (the 128th is a false alarm of the checker)**; all `dangerouslySetInnerHTML` uses go through DOMPurify; no secrets in
 the Python engine; no hard-coded passwords in the client.
+
+## Resolution (all items below were worked on in the follow-up commit)
+
+| ID | Result |
+|----|--------|
+| RV-01, RV-02, RV-03 | **Fixed.** Server dependencies: 0 critical, 0 high (was 2 and 20). `proxy-addr`, `multer`, `cloudinary` 2.x, `puppeteer` 25 upgraded; PDF export re-verified. Remaining: 3 moderate (`archiver` via `readdir-glob`, only used for globbing which the app does not do) and 1 low (`katex` trust setting, not used). |
+| RV-04 | **Fixed.** All MongoDB code, models, `mongoose`, `express-mongo-sanitize` (it silently deleted any JSON key containing a dot, e.g. an Excel column "Q. No"), the DNS override and the integration suite that needed it were removed. Login no longer has a second user store; a database outage now answers 503 "service unavailable" instead of "wrong password". |
+| RV-05 | **Fixed in code, needs one deploy.** `omr_engine/requirements.txt` added (verified by following every import from `scan_cli.py`); `render.yaml` build installs the libraries into `omr_engine/pylibs`; `GET /api/omr/health` and the scan route tell the user plainly when Python or a library is missing; the scan screen shows a banner. The install mechanism was verified locally; it has not been run on Render itself. |
+| RV-06 | **Fixed.** Client: 0 critical, 0 high (was 1 and 10). `xlsx` (no fix available) replaced by `exceljs`, lazy-loaded, with formula-injection protection on exports and size/row limits on imports. 1 low (`katex`) remains. |
+| RV-07 | **Fixed in config, owner must confirm.** `render.yaml` now lists every variable the server reads and sets `TRUST_PROXY_HOPS=2` for the Vercel → Render path. Caveat that cannot be removed by code: if the API is also used directly at its onrender.com address, a forged `X-Forwarded-For` can bypass the lab-network check. |
+| RV-08 | **Fixed.** Stale Vercel function entry and `server/vercel.json` removed; the root `vercel.json` (SPA + rewrite to Render) is kept. |
+| RV-09, RV-13 | **Fixed.** Neutral login placeholder; faculty e-mail hint removed. |
+| RV-10 | **Fixed.** Exam commissioning uses the signed-in user's name/e-mail; the misleading "assigned to faculty" message corrected. |
+| RV-11 | **Fixed.** Throw-away debug scripts removed (root `find_*`, `test_*`, `check_*`, `server/check_*`, `server/test_*`). |
+| RV-12 | **Accepted.** `sanitize.js` `sanitize()` is not used to render HTML; the renderer (`MathRenderer`) already passes through DOMPurify. An image-host allow-list there would risk hiding legitimate question images, so it was not applied. |
+| RV-14 | **Fixed.** Admin paper preview has Approve / Reject buttons (server route existed). |
+| RV-15 | **Fixed.** Bridge score colour uses the share of correct answers, valid for every marking scheme. |
+| RV-16 | **Fixed.** `/lab` exam list has a live clock, guarded storage parsing; unused state removed. |
+| RV-17 | **Fixed.** The MongoDB-based suite was replaced by `npm run test:e2e` (self-contained: in-memory PostgreSQL + the real server, ~100 checks). |
+| RV-18 | **Fixed.** A failed PDF export shows the error instead of printing the page. |
+| RV-19, RV-20 | **Fixed.** Duration parsed to a number; dead code removed from `SubjectDetails`. |
+| RV-21 | **Fixed (the useful ones).** OMR result delete button added; bulk Excel/CSV import now has its screen (it existed in code with no way to open it). Remaining unused server routes (`PATCH papers/:id/section`, `PUT exams/:id`, blueprint/PYQ updates) are kept as harmless API. |
+| RV-22 | **Not changed - needs your decision.** Students are identified by roll number only. A second factor needs data the system does not hold (e.g. date of birth). The invented e-mail address remains only as a fallback label. |
+| RV-23 | **Fixed** for the three real violations (pie chart, refs in render, impure `Date.now()`); the rest are React-Compiler advisories shown as warnings. |
+| RV-24 | **Fixed.** All 103 `alert()` calls now show a non-blocking toast; error boundary sends each user type to the right home. |
+| RV-25 | **Fixed.** `npm run lint`: 0 errors (was 20+), 70 unused imports removed; 301 advisory warnings remain (style / compiler hints). |
+| RV-26 | **Tooling done, data not changed.** `question_bank_apply_fixes.js` (dry run, backup table, rollback) tested on a throw-away database; the plan contains no safe automatic fix, so faculty must review `docs/data/question_bank_review_list.csv`. Bulk import now rejects the same kinds of rows (no options, no answer, no subject). |
+| RV-27 | **Partly fixed.** Markdown markers removed in Word output; garbled source tables are a data problem. |
+| RV-28 | **Not possible without your sheets.** OMR accuracy still unmeasured. |
+| RV-29 | **Partly.** Requirements moved into `omr_engine`; the untracked `scratch/` folder (98 MB) was left alone because it is your data. |
+
+Also fixed while doing this: Chrome for PDF export is stored inside the project (`.puppeteerrc.cjs`) so it survives the build on Render; one shared, bounded browser for all PDFs (no double launch, replaced after a crash); `/api/health` really checks the database and answers 503 when it is down; graceful shutdown, keep-alive timeouts and process-level error handlers; all 500 responses use a generic message (details stay in the server log) and always JSON; faculty create/delete/password-reset validate input and no longer report success when nothing happened (the administrator account cannot be deleted from that screen); Gemini key moved from the URL to a header; empty-while-loading state on the faculty question list; bulk import reports skipped rows; scripts that target a throw-away database (`ENV_FILE`) can no longer pick up the real `.env`.
 
 ## A. Security and deployment (fix first)
 

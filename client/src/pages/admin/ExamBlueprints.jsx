@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../api';
 
@@ -53,7 +53,7 @@ const ExamBlueprints = () => {
                 await api.delete(`/api/exam-blueprints/${id}`);
                 fetchBlueprints();
                 if (selectedBP?._id === id) setSelectedBP(null);
-            } catch (err) {
+            } catch {
                 alert('Delete failed');
             }
         }

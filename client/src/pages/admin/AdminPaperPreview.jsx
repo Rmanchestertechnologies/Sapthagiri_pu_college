@@ -17,7 +17,7 @@
  *     Solutions P / Q / R / S / All
  *     Analysis View & Download
  */
-import React, { useState, useEffect, useContext, useMemo } from 'react';
+import { useState, useEffect, useContext, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { AuthContext } from '../../context/AuthContext';
 import api from '../../api';
@@ -26,7 +26,7 @@ import PaperRenderer, { DEFAULT_SETTINGS } from '../../components/PaperRenderer'
 import PaperAnalysisModal from '../../components/PaperAnalysisModal';
 import A4AnswerKey from '../../components/A4AnswerKey';
 import A4SolutionKey from '../../components/A4SolutionKey';
-import { generatePaperSet, generateAllPQRS, generateAnswerKey } from '../../utils/pqrsGenerator';
+import { generateAllPQRS } from '../../utils/pqrsGenerator';
 
 const AdminPaperPreview = () => {
     const { paperId } = useParams();
@@ -110,6 +110,23 @@ const AdminPaperPreview = () => {
             setEditableMarks(String(m));
         }
     }, [selectedPaper]);
+
+    // Approve / reject a faculty paper (status is shown to the faculty member in "Saved Papers")
+    const [savingStatus, setSavingStatus] = useState(false);
+    const handleSetStatus = async (status) => {
+        if (!selectedPaper) return;
+        const pId = selectedPaper._id || selectedPaper.id;
+        if (!pId) return;
+        setSavingStatus(true);
+        try {
+            await api.put(`/api/papers/admin/${pId}/status`, { status });
+            setSelectedPaper(prev => ({ ...prev, status }));
+        } catch (err) {
+            alert('Could not change the status: ' + (err.response?.data?.msg || err.message));
+        } finally {
+            setSavingStatus(false);
+        }
+    };
 
     // Save customized duration and marks to paper
     const handleSaveHeaderDetails = async () => {
@@ -259,8 +276,26 @@ const AdminPaperPreview = () => {
                                 {selectedPaper.questions?.length || 0} Questions
                             </span>
                             <span className="text-[10px] font-bold text-gray-500 bg-gray-100 px-2.5 py-1 rounded-md">
-                                Status: {selectedPaper.status || 'Approved'}
+                                Status: {selectedPaper.status || 'Pending Approval'}
                             </span>
+                            {(selectedPaper.status || 'Pending Approval') !== 'Approved' && (
+                                <button
+                                    onClick={() => handleSetStatus('Approved')}
+                                    disabled={savingStatus}
+                                    className="text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 cursor-pointer"
+                                >
+                                    Approve
+                                </button>
+                            )}
+                            {selectedPaper.status !== 'Rejected' && (
+                                <button
+                                    onClick={() => handleSetStatus('Rejected')}
+                                    disabled={savingStatus}
+                                    className="text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 cursor-pointer"
+                                >
+                                    Reject
+                                </button>
+                            )}
                         </div>
                         <h2 className="text-2xl font-black text-navy uppercase tracking-tight">
                             {selectedPaper.title || 'Question Paper Preview'}

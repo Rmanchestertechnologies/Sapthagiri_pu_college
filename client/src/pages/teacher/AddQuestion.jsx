@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../api';
-import { sanitize, optionLabel, stripQBPTags } from '../../utils/sanitize';
+import { optionLabel, stripQBPTags } from '../../utils/sanitize';
 import MathRenderer from '../../components/MathRenderer';
-import * as XLSX from 'xlsx';
+import { readSheetAsObjects } from '../../utils/xlsxImport';
 
 const AddQuestion = () => {
     const navigate = useNavigate();
@@ -35,7 +35,8 @@ const AddQuestion = () => {
     // Bulk Excel/CSV import state (handleBulkExcelImport below). The handler was declared without this state.
     const [importFile, setImportFile] = useState(null);
     const [importing, setImporting] = useState(false);
-    const [, setShowImportModal] = useState(false);
+    const [showImportModal, setShowImportModal] = useState(false);
+    const [importResult, setImportResult] = useState(null);
 
     const toggleSolution = (id) => {
         setExpandedSolutions(prev => {
@@ -51,35 +52,25 @@ const AddQuestion = () => {
         if (!importFile) return alert('Please select an Excel or CSV file first.');
         
         setImporting(true);
-        const reader = new FileReader();
-        reader.onload = async (event) => {
-            try {
-                const data = new Uint8Array(event.target.result);
-                const workbook = XLSX.read(data, { type: 'array' });
-                const firstSheetName = workbook.SheetNames[0];
-                const worksheet = workbook.Sheets[firstSheetName];
-                const json = XLSX.utils.sheet_to_json(worksheet);
+        try {
+            const json = await readSheetAsObjects(importFile);
 
-                if (json.length === 0) {
-                    alert('The selected sheet is empty.');
-                    setImporting(false);
-                    return;
-                }
-
-                // POST parsed JSON to bulk import API
-                const res = await api.post('/api/questions/bulk-import', { questions: json });
-                alert(`Successfully imported ${res.data.count} questions!`);
-                setShowImportModal(false);
-                setImportFile(null);
-                fetchQuestions(1);
-            } catch (err) {
-                console.error(err);
-                alert('Import failed: ' + (err.response?.data?.msg || err.message));
-            } finally {
-                setImporting(false);
+            if (json.length === 0) {
+                alert('The selected sheet is empty.');
+                return;
             }
-        };
-        reader.readAsArrayBuffer(importFile);
+
+            // POST parsed JSON to bulk import API
+            const res = await api.post('/api/questions/bulk-import', { questions: json });
+            setImportResult(res.data);
+            setImportFile(null);
+            fetchQuestions(1);
+        } catch (err) {
+            console.error(err);
+            alert('Import failed: ' + (err.response?.data?.msg || err.message));
+        } finally {
+            setImporting(false);
+        }
     };
 
     // Pagination & Search Filters
@@ -91,7 +82,11 @@ const AddQuestion = () => {
     const [classFilter, setClassFilter] = useState('');
     const [pagination, setPagination] = useState({ page: 1, limit: 50, total: 0, pages: 1 });
 
+    // true until the first answer arrives, so the page does not claim "Your Question Bank is Empty" while still loading
+    const [loadingList, setLoadingList] = useState(true);
+    const [listError, setListError] = useState('');
     const fetchQuestions = async (targetPage = page) => {
+        setListError('');
         try {
             const params = new URLSearchParams({
                 paginated: 'true',
@@ -123,6 +118,9 @@ const AddQuestion = () => {
             }
         } catch (err) {
             console.error(err);
+            setListError(err.response?.data?.msg || 'The question list could not be loaded. Please try again.');
+        } finally {
+            setLoadingList(false);
         }
     };
 
@@ -252,7 +250,7 @@ const AddQuestion = () => {
             try {
                 await api.delete(`/api/questions/${id}`);
                 fetchQuestions();
-            } catch (err) {
+            } catch {
                 alert('Failed to delete question');
             }
         }
@@ -279,6 +277,12 @@ const AddQuestion = () => {
                     <p className="text-[10px] font-black text-slate/40 uppercase tracking-[0.2em] ml-1">Academic Question Bank Management</p>
                 </div>
                 <div className="flex gap-3 items-center">
+                    <button
+                        onClick={() => { setImportResult(null); setImportFile(null); setShowImportModal(true); }}
+                        className="bg-white border-2 border-gray-100 text-navy px-5 py-3 rounded-2xl font-black text-xs uppercase tracking-widest hover:border-navy transition shadow-sm cursor-pointer"
+                    >
+                        ⬆ Import Excel / CSV
+                    </button>
                     <button 
                         onClick={() => {
                             if (showForm) {
@@ -673,7 +677,7 @@ const AddQuestion = () => {
                     <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm space-y-4 mb-4">
                         <div className="flex flex-wrap items-center justify-between gap-4">
                             <div className="flex items-center gap-3">
-                                <span className="font-black text-navy text-lg">Total Questions: <span className="text-green-600">{pagination.total || questions.length}</span></span>
+                                <span className="font-black text-navy text-lg">Total Questions: <span className="text-green-600">{loadingList ? '…' : (pagination.total || questions.length)}</span></span>
                                 <span className="text-xs text-gray-400 font-medium">Page {pagination.page} of {pagination.pages}</span>
                             </div>
                             <div className="flex items-center gap-2">
@@ -868,7 +872,9 @@ const AddQuestion = () => {
                             </div>
                         </div>
                     )}
-                    {questions.length === 0 && (
+                    {loadingList && <p className="text-sm font-bold text-slate-400 py-10 text-center">Loading questions…</p>}
+                    {listError && !loadingList && <p role="alert" className="text-sm font-bold text-red-600 py-10 text-center">{listError}</p>}
+                    {!loadingList && !listError && questions.length === 0 && (
                         <div className="text-center p-12 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
                             <div className="text-gray-400 text-5xl mb-4">📚</div>
                             <h3 className="text-xl font-bold text-gray-700 mb-2">Your Question Bank is Empty</h3>
@@ -878,6 +884,43 @@ const AddQuestion = () => {
                             </button>
                         </div>
                     )}
+                </div>
+            )}
+
+            {showImportModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60" role="dialog" aria-modal="true" aria-label="Import questions">
+                    <form onSubmit={handleBulkExcelImport} className="bg-white rounded-3xl shadow-2xl w-full max-w-lg p-6 sm:p-8 space-y-5 max-h-[90vh] overflow-y-auto">
+                        <h3 className="text-lg font-black text-navy uppercase tracking-tight">Import questions from a sheet</h3>
+                        <p className="text-xs text-slate-600 leading-relaxed">
+                            Use an .xlsx or .csv file (first sheet, first row = column names). Recognised columns: question, type, options or
+                            option A–D, answer, chapter, concept, level, solution, classes{' '}(admin files also need a subject).
+                            Rows without question text, answer, or at least two options (multiple choice) are skipped and listed here.
+                        </p>
+                        <input
+                            type="file"
+                            accept=".xlsx,.csv,text/csv"
+                            onChange={e => { setImportFile(e.target.files?.[0] || null); setImportResult(null); }}
+                            className="block w-full text-sm"
+                        />
+                        {importResult && (
+                            <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4 text-xs text-slate-700 space-y-2">
+                                <p className="font-black text-navy">{importResult.msg}</p>
+                                {importResult.skipped?.length > 0 && (
+                                    <ul className="list-disc pl-5 space-y-0.5 max-h-40 overflow-y-auto">
+                                        {importResult.skipped.map((r, i) => <li key={i}>Row {r.row}: {r.reason}</li>)}
+                                    </ul>
+                                )}
+                            </div>
+                        )}
+                        <div className="flex justify-end gap-3">
+                            <button type="button" onClick={() => setShowImportModal(false)} className="px-5 py-2.5 rounded-xl border border-gray-200 text-xs font-black uppercase tracking-widest cursor-pointer">
+                                Close
+                            </button>
+                            <button type="submit" disabled={importing || !importFile} className="px-5 py-2.5 rounded-xl bg-navy text-gold text-xs font-black uppercase tracking-widest disabled:opacity-40 cursor-pointer">
+                                {importing ? 'Importing…' : 'Import'}
+                            </button>
+                        </div>
+                    </form>
                 </div>
             )}
         </div>

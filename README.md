@@ -52,7 +52,6 @@ graph TD
     Router --> QBP[("QBP control (Supabase)<br/>previous-year / grand-test questions")]
     API --> OMR["python scan_cli.py<br/>(OpenCV + classifier)"]
     API --> Cloudinary["Cloudinary (uploaded images)"]
-    API -.->|"optional, legacy"| Mongo[("MongoDB Atlas")]
 ```
 
 Front-end ↔ back-end: all calls go through `client/src/api.js` (axios, `withCredentials`, token from
@@ -80,7 +79,7 @@ OMR:    routes/omr.js ─► pqrsKeys.buildSeriesKey (server port of the generat
   `phy_11 phy_12 chem_11 chem_12 math_11 math_12 bio_11 bio_12`. Each holds `public.questions`. Botany and
   Zoology are chapter subsets of Biology.
 * **QBP control** (`DB_QBP_CONTROL_URL` / `_KEY`): a Supabase project holding previous-year and grand-test questions.
-* **MongoDB** (`MONGO_URI`): optional legacy secondary store. The API runs without it.
+* MongoDB is no longer used (its code, models and dependency were removed; `MONGO_URI` is ignored).
 
 Routing rules (`getPoolsForQuery`): a subject maps to its database(s); a class restricts to that class's
 database; `Both` or no class queries both classes; an unknown subject returns **no** pools (it used to
@@ -91,8 +90,8 @@ database; question ids are read from the subject databases and are not copied.
 
 | Layer | Technology (from `package.json`) |
 |---|---|
-| Front-end | React 19, Vite 8, React Router 7, Tailwind CSS 4, axios, KaTeX, jsPDF + jspdf-autotable, SheetJS (`xlsx`), TanStack Query, react-hook-form, lucide-react |
-| Back-end | Node.js, Express 5, `pg`, mongoose 9 (optional), jsonwebtoken, bcryptjs, helmet, express-rate-limit, multer, Cloudinary, `docx`/`docxtemplater`, puppeteer, sanitize-html, `@supabase/supabase-js` |
+| Front-end | React 19, Vite 8, React Router 7, Tailwind CSS 4, axios, KaTeX, jsPDF + jspdf-autotable, ExcelJS (`exceljs`, loaded only when exporting/importing a sheet), TanStack Query, react-hook-form, lucide-react |
+| Back-end | Node.js, Express 5, `pg`, jsonwebtoken, bcryptjs, helmet, express-rate-limit, multer, Cloudinary, `docx`/`docxtemplater`, puppeteer, sanitize-html, `@supabase/supabase-js` |
 | OMR | Python 3 (3.11 used when checking), OpenCV, NumPy, Keras/ONNX bubble classifier files in `omr_engine/models/` |
 | Hosting (as configured) | Render (API, `render.yaml`), Vercel (SPA, `vercel.json`) |
 
@@ -124,9 +123,8 @@ SAPTHAGIRI_PU_COLLEGE/
 │   └── vercel.json, vite.config.js, eslint.config.js
 ├── server/
 │   ├── index.js                 Express app, middleware, route mounting
-│   ├── config/                  cloudinary, db (mongoose), dbSsl, postgres (primary pool), subjectDatabases, supabase
-│   ├── middleware/              auth, role, permissions, labIp, rateLimiter, loginThrottle, sessionToken, mongoSanitize, errorHandler
-│   ├── models/                  mongoose models (legacy secondary store)
+│   ├── config/                  cloudinary, dbSsl, postgres (primary pool), subjectDatabases, supabase
+│   ├── middleware/              auth, role, permissions, labIp, rateLimiter, loginThrottle, sessionToken, errorHandler
 │   ├── routes/                  admin, auth, examBlueprints, exams, grandTests, lab, notifications, omr,
 │   │                            papers, previousYearPapers, questions, templates
 │   ├── services/
@@ -215,7 +213,9 @@ dashboard in production. `server/.env.example` is the template.
 | `ALLOWED_ORIGINS` | recommended | Comma-separated front-end origins. Unset or `*` reflects every origin with credentials (any website could act as a logged-in user). |
 | `IMAGE_PROXY_HOSTS` | optional | Extra hosts the image proxy may fetch (Cloudinary and `*.supabase.co` are built in). |
 | `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` | optional | Image upload; falls back to local disk when missing. |
-| `MONGO_URI` | optional | Legacy MongoDB. |
+| `TRUST_PROXY_HOPS` | recommended | Number of proxies in front of the API. Browser → Vercel → Render is **2** (set in `render.yaml`). It decides which address is the client's (lab-network check, rate limits). |
+| `DB_POOL_MAX`, `DB_POOL_IDLE_MS` | optional | Connection pool size / idle timeout for the primary database. |
+| `PDF_MAX_PAGES` | optional | How many PDF pages may render at once (default 3). |
 | `GEMINI_API_KEY` | optional | Grand-test text parsing and question variants. |
 | `PYTHON_BIN` | optional | Python executable for OMR (`python` on Windows, `python3` elsewhere by default). |
 | `OMR_REVIEW_GAP` | optional | An OMR answer whose best bubble beats the runner-up by less than this (default 0.15) is flagged for review. Not validated on real sheets. |
@@ -252,6 +252,11 @@ used by OMR scanning) are written but **not applied to production**. Back up fir
 
 `node server/scripts/hash_plaintext_passwords.js` reports user accounts with unhashed passwords (dry run; `--apply` hashes them).
 
+`node server/scripts/question_bank_fix_plan.js --csv plan.csv` writes the proposed corrections (read-only), and
+`node server/scripts/question_bank_apply_fixes.js --plan reviewed.csv [--apply]` applies a reviewed plan: dry run by
+default, only `SET correct_option` items, only on rows unchanged since the plan, with the old values saved in a backup
+table and `--rollback` to undo (take a database backup first). Reviewed on a throw-away database only.
+
 `node server/scripts/question_bank_quality_report.js` is a **read-only** report of suspect rows in the eight subject question banks
 (empty or duplicate options, bad `correct_option`, `[UNCLEAR]` placeholders, unbalanced math, duplicate questions). It changes nothing;
 `--csv file.csv` writes one row per flagged question, `--db phy_12` limits it to one database.
@@ -259,9 +264,9 @@ used by OMR scanning) are written but **not applied to production**. Back up fir
 ## 10. Tests
 
 ```bash
-npm --prefix server run test:unit   # 140 tests: question selection, CBT scoring, OMR evaluation, access rules, login and lockout, session tokens, rate limiter, CORS, math rendering, exam merge, Word export, download headers, bank quality rules
-npm --prefix client test            # 26 tests: P/Q/R/S generator, answer key numbering, server/browser parity
-npm --prefix server test            # integration suite; connects to the databases in .env
+npm --prefix server run test:unit   # 152 tests: question selection, CBT scoring, OMR evaluation, access rules, login and lockout, session tokens, rate limiter, CORS, math rendering, exam merge, Word export, download headers, bank quality rules
+npm --prefix client test            # 29 tests: P/Q/R/S generator, answer key numbering, server/browser parity
+npm --prefix server run test:e2e    # ~100 end-to-end checks against a throw-away in-memory PostgreSQL + the real server (needs the 8 read-only question DB URLs in server/.env)
 npm --prefix client run build       # production build check
 ```
 
@@ -302,11 +307,12 @@ but was not run or reviewed.
 | "Login is not configured on the server" (503) | `JWT_SECRET` / `ADMIN_PASSWORD` missing. |
 | "Lab login is not configured" (503) | `LAB_ID`, `LAB_PASSWORD` or `JWT_SECRET` missing. |
 | Lab terminal refused | `LAB_IP` set and the terminal's public IP is not listed (the 403 response shows the address seen). |
-| OMR scan fails with "python not found" | Install Python or set `PYTHON_BIN`. |
+| The OMR screen says scanning is not available | The server has no Python or no OpenCV/ONNX libraries. `GET /api/omr/health` says which. On Render the build installs them into `server/omr_engine/pylibs` (see `render.yaml`); locally run `pip install -r server/omr_engine/requirements.txt`. |
 | "NEET series detection is ambiguous" | The scanner could not read the series bubble; rescan a clearer image. |
 | Fewer questions than requested | Read the summary on the preview screen: it lists each chapter's requested/delivered/available counts. |
 | Empty question list for a subject | The subject must be Physics, Chemistry, Mathematics, Biology, Botany or Zoology (or PCM/PCB/PCMB). |
-| `MongoDB connection notice` at start-up | Harmless; MongoDB is optional. |
+| `/api/health` answers 503 | The primary database cannot be reached (the response says `db: unreachable`). |
+| PDF export fails with "Could not find Chrome" | Run `npm install` again in `server/`; Chrome is stored in `server/.cache/puppeteer` (`.puppeteerrc.cjs`). |
 | `DATABASE_URL is not set` / a subject database is unavailable at start-up | The variable is missing: there are no built-in fallbacks. Set it (Render dashboard or `server/.env`). |
 | Previous-year / grand-test questions missing | `DB_QBP_CONTROL_KEY` is not set. |
 | 429 "Too many failed login attempts" | 10 wrong passwords for one account from one address; wait 15 minutes. |
@@ -314,8 +320,8 @@ but was not run or reviewed.
 
 ## 14. Limitations
 
-* Grand Test and previous-year question import/replace/remove are unavailable (HTTP 501): they depended on
-  MongoDB models that were never wired in, and the PostgreSQL tables hold only paper metadata.
+* Grand Test and previous-year question import/replace/remove are unavailable (HTTP 501) until migration 001 is applied
+  and the endpoints are written; the PostgreSQL tables hold only paper metadata.
 * Grand Tests cannot be linked to a template (no column).
 * Sets Q/R/S depend on the saved paper's id; unsaved papers use a temporary seed (the preview says so).
 * Questions are edited, swapped and deleted on Set P only; the other sets are derived views.

@@ -19,7 +19,7 @@ router.get('/', auth, async (req, res) => {
         res.json(blueprints);
     } catch (err) {
         console.error('Fetch blueprints error:', err.message);
-        res.status(500).json({ msg: 'Server Error: ' + err.message });
+        res.status(500).json({ msg: 'Server Error. Please try again; if it keeps happening, tell the administrator.' });
     }
 });
 
@@ -34,7 +34,7 @@ router.get('/:id', auth, async (req, res) => {
         res.json(blueprint);
     } catch (err) {
         console.error('Fetch blueprint error:', err.message);
-        res.status(500).json({ msg: 'Server Error: ' + err.message });
+        res.status(500).json({ msg: 'Server Error. Please try again; if it keeps happening, tell the administrator.' });
     }
 });
 
@@ -47,7 +47,7 @@ router.post('/', [auth, checkRole(['admin'])], async (req, res) => {
         res.json(blueprint);
     } catch (err) {
         console.error('Create blueprint error:', err.message);
-        res.status(500).json({ msg: 'Server Error: ' + err.message });
+        res.status(500).json({ msg: 'Server Error. Please try again; if it keeps happening, tell the administrator.' });
     }
 });
 
@@ -60,7 +60,7 @@ router.put('/:id', [auth, checkRole(['admin'])], async (req, res) => {
         res.json(blueprint);
     } catch (err) {
         console.error('Update blueprint error:', err.message);
-        res.status(500).json({ msg: 'Server Error: ' + err.message });
+        res.status(500).json({ msg: 'Server Error. Please try again; if it keeps happening, tell the administrator.' });
     }
 });
 
@@ -72,7 +72,7 @@ router.delete('/:id', [auth, checkRole(['admin'])], async (req, res) => {
         res.json({ msg: 'Blueprint removed' });
     } catch (err) {
         console.error('Delete blueprint error:', err.message);
-        res.status(500).json({ msg: 'Server Error: ' + err.message });
+        res.status(500).json({ msg: 'Server Error. Please try again; if it keeps happening, tell the administrator.' });
     }
 });
 
@@ -141,7 +141,7 @@ router.post('/:id/generate-paper', [auth, checkRole(['admin', 'teacher'])], asyn
         res.json({ ...newPaper, warnings });
     } catch (err) {
         console.error('Failed to generate paper from blueprint:', err.message);
-        res.status(500).json({ msg: 'Server Error: ' + err.message });
+        res.status(500).json({ msg: 'Server Error. Please try again; if it keeps happening, tell the administrator.' });
     }
 });
 

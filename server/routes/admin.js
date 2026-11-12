@@ -2,8 +2,6 @@ const express = require('express');
 const router = express.Router();
 const { OMR_ACCESS_SQL, UNDEFINED_COLUMN } = require('../config/userColumns');
 const bcrypt = require('bcryptjs');
-const mongoose = require('mongoose');
-const User = require('../models/User');
 const pool = require('../config/postgres');
 const auth = require('../middleware/auth');
 const checkRole = require('../middleware/role');
@@ -20,7 +18,7 @@ router.get('/', [auth, checkRole(['admin'])], async (req, res) => {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // @route   POST /api/admin/teachers
-// @desc    Create a teacher — PRIMARY: MongoDB Atlas, SECONDARY: PostgreSQL sync
+// @desc    Create a teacher
 // @access  Admin
 // ─────────────────────────────────────────────────────────────────────────────
 router.post('/teachers', [auth, checkRole(['admin'])], async (req, res) => {
@@ -28,6 +26,12 @@ router.post('/teachers', [auth, checkRole(['admin'])], async (req, res) => {
 
     if (!name || !email || !password) {
         return res.status(400).json({ msg: 'Name, email and password are required.' });
+    }
+    if (typeof password !== 'string' || password.length < 8) {
+        return res.status(400).json({ msg: 'Password must be at least 8 characters.' });
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email).trim())) {
+        return res.status(400).json({ msg: 'Please enter a valid e-mail address.' });
     }
 
     const cleanEmail = (email || '').trim().toLowerCase();
@@ -37,6 +41,11 @@ router.post('/teachers', [auth, checkRole(['admin'])], async (req, res) => {
     if (cleanSubject.toLowerCase() === 'maths') {
         cleanSubject = 'Mathematics';
     }
+    const ALLOWED_SUBJECTS = ['Physics', 'Chemistry', 'Botany', 'Zoology', 'Biology', 'Mathematics', 'Computer Science', 'Kannada', 'English', 'Hindi'];
+    if (!ALLOWED_SUBJECTS.some(x => x.toLowerCase() === cleanSubject.toLowerCase())) {
+        return res.status(400).json({ msg: 'Please choose a valid academic department.' });
+    }
+    cleanSubject = ALLOWED_SUBJECTS.find(x => x.toLowerCase() === cleanSubject.toLowerCase());
 
     try {
         // 1. Check if user already exists in PostgreSQL
@@ -67,42 +76,18 @@ router.post('/teachers', [auth, checkRole(['admin'])], async (req, res) => {
             created_at: row.created_at
         };
 
-        // 3. Non-blocking background sync to MongoDB (does not delay or block HTTP response)
-        if (mongoose.connection.readyState === 1 && User) {
-            setImmediate(async () => {
-                try {
-                    const existingMongo = await Promise.race([
-                        User.findOne({ email: cleanEmail }),
-                        new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 2000))
-                    ]);
-                    if (!existingMongo) {
-                        const mUser = new User({
-                            name: cleanName,
-                            email: cleanEmail,
-                            password: hashedPassword,
-                            role: 'teacher',
-                            subject: cleanSubject
-                        });
-                        await mUser.save();
-                    }
-                } catch (mErr) {
-                    console.warn('[ADMIN] Background Mongo sync notice:', mErr.message);
-                }
-            });
-        }
-
         console.log(`[ADMIN] Teacher successfully created: ${cleanName} <${cleanEmail}> [${cleanSubject}]`);
         return res.json(teacherData);
 
     } catch (err) {
         console.error('[ADMIN] Create teacher error:', err.message);
-        return res.status(500).json({ msg: 'Server error creating teacher: ' + err.message });
+        return res.status(500).json({ msg: 'Server error creating teacher. Please try again; if it keeps happening, tell the administrator.' });
     }
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
 // @route   GET /api/admin/teachers
-// @desc    Get all teachers (PostgreSQL primary, non-blocking MongoDB)
+// @desc    Get all teachers
 // @access  Admin
 // ─────────────────────────────────────────────────────────────────────────────
 router.get('/teachers', [auth, checkRole(['admin'])], async (req, res) => {
@@ -136,33 +121,6 @@ router.get('/teachers', [auth, checkRole(['admin'])], async (req, res) => {
             console.error('[ADMIN] PostgreSQL teachers fetch error:', pgErr.message);
         }
 
-        // 2. Only query MongoDB if PostgreSQL returned 0 teachers
-        if (teachersMap.size === 0 && mongoose.connection.readyState === 1 && User) {
-            try {
-                const mongoTeachers = await Promise.race([
-                    User.find({ role: 'teacher' }).select('-password').lean(),
-                    new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 2000))
-                ]);
-                for (const m of (mongoTeachers || [])) {
-                    const emailKey = (m.email || '').toLowerCase();
-                    if (!teachersMap.has(emailKey)) {
-                        teachersMap.set(emailKey, {
-                            _id: String(m._id),
-                            id: String(m._id),
-                            name: m.name,
-                            email: m.email,
-                            role: m.role,
-                            subject: m.subject || '',
-                            createdAt: m.createdAt,
-                            created_at: m.createdAt
-                        });
-                    }
-                }
-            } catch (mErr) {
-                console.warn('[ADMIN] Mongo teachers fetch notice:', mErr.message);
-            }
-        }
-
         const teachersList = Array.from(teachersMap.values());
         console.log(`[ADMIN] Total active faculty found: ${teachersList.length}`);
         return res.json(teachersList);
@@ -179,39 +137,19 @@ router.get('/teachers', [auth, checkRole(['admin'])], async (req, res) => {
 // @access  Admin
 // ─────────────────────────────────────────────────────────────────────────────
 router.delete('/teachers/:id', [auth, checkRole(['admin'])], async (req, res) => {
-    const teacherId = req.params.id;
+    const teacherId = String(req.params.id);
 
     try {
-        let deletedEmail = null;
-
-        // 1. Delete from PostgreSQL
-        try {
-            const check = await pool.query('SELECT email FROM public.users WHERE id::text = $1', [teacherId.toString()]);
-            if (check.rows.length > 0) {
-                deletedEmail = check.rows[0].email;
-            }
-            await pool.query('DELETE FROM public.users WHERE id::text = $1', [teacherId.toString()]);
-        } catch (pgErr) {
-            console.warn('[ADMIN] PostgreSQL delete warning:', pgErr.message);
+        // Only faculty accounts can be removed here: an administrator account must never be deleted from this screen.
+        const result = await pool.query(
+            "DELETE FROM public.users WHERE id::text = $1 AND role = 'teacher' RETURNING email",
+            [teacherId]
+        );
+        if (result.rowCount === 0) {
+            return res.status(404).json({ msg: 'Faculty account not found.' });
         }
-
-        // 2. Non-blocking delete from MongoDB
-        if (mongoose.connection.readyState === 1 && User) {
-            setImmediate(async () => {
-                try {
-                    if (mongoose.Types.ObjectId.isValid(teacherId)) {
-                        await User.findByIdAndDelete(teacherId);
-                    } else if (deletedEmail) {
-                        await User.deleteOne({ email: deletedEmail });
-                    }
-                } catch (mErr) {
-                    console.warn('[ADMIN] MongoDB delete warning:', mErr.message);
-                }
-            });
-        }
-
+        console.log(`[ADMIN] Faculty account removed: ${result.rows[0].email}`);
         return res.json({ msg: 'Teacher deleted successfully.' });
-
     } catch (err) {
         console.error('[ADMIN] Error deleting teacher:', err.message);
         return res.status(500).json({ msg: 'Server error deleting teacher.' });
@@ -224,52 +162,23 @@ router.delete('/teachers/:id', [auth, checkRole(['admin'])], async (req, res) =>
 // @access  Admin
 // ─────────────────────────────────────────────────────────────────────────────
 router.put('/teachers/:id/password', [auth, checkRole(['admin'])], async (req, res) => {
-    const teacherId = req.params.id;
+    const teacherId = String(req.params.id);
     const { newPassword } = req.body || {};
 
-    if (!newPassword || typeof newPassword !== 'string' || newPassword.trim().length < 4) {
-        return res.status(400).json({ msg: 'Password must be at least 4 characters.' });
+    if (!newPassword || typeof newPassword !== 'string' || newPassword.trim().length < 8) {
+        return res.status(400).json({ msg: 'Password must be at least 8 characters.' });
     }
 
-    const cleanPass = newPassword.trim();
-
     try {
-        const salt = await bcrypt.genSalt(10);
-        const hashedPassword = await bcrypt.hash(cleanPass, salt);
-        let updatedEmail = null;
-
-        // 1. Update in PostgreSQL
-        try {
-            const pgRes = await pool.query(`
-                UPDATE public.users 
-                SET password = $1 
-                WHERE id::text = $2 
-                RETURNING email, name
-            `, [hashedPassword, teacherId.toString()]);
-
-            if (pgRes.rows.length > 0) {
-                updatedEmail = pgRes.rows[0].email;
-            }
-        } catch (pgErr) {
-            console.warn('[ADMIN] PostgreSQL password update warning:', pgErr.message);
+        const hashedPassword = await bcrypt.hash(newPassword.trim(), 10);
+        const result = await pool.query(
+            "UPDATE public.users SET password = $1 WHERE id::text = $2 AND role = 'teacher' RETURNING email",
+            [hashedPassword, teacherId]
+        );
+        if (result.rowCount === 0) {
+            return res.status(404).json({ msg: 'Faculty account not found.' });
         }
-
-        // 2. Non-blocking update in MongoDB
-        if (mongoose.connection.readyState === 1 && User) {
-            setImmediate(async () => {
-                try {
-                    if (mongoose.Types.ObjectId.isValid(teacherId)) {
-                        await User.findByIdAndUpdate(teacherId, { password: hashedPassword });
-                    } else if (updatedEmail) {
-                        await User.updateOne({ email: updatedEmail }, { password: hashedPassword });
-                    }
-                } catch (mErr) {
-                    console.warn('[ADMIN] MongoDB password update warning:', mErr.message);
-                }
-            });
-        }
-
-        console.log(`[ADMIN] Password reset successfully for teacher ID ${teacherId} (${updatedEmail || 'Postgres'})`);
+        console.log(`[ADMIN] Password reset for faculty ${result.rows[0].email}`);
         return res.json({ msg: 'Password updated successfully.' });
     } catch (err) {
         console.error('[ADMIN] Error updating password:', err.message);
@@ -315,21 +224,6 @@ router.patch('/teachers/:id/omr-access', [auth, checkRole(['admin'])], async (re
             if (pgErr.code === UNDEFINED_COLUMN) {
                 return res.status(409).json({ msg: 'OMR access cannot be saved yet: the database needs migration 002 (adds users.omr_access). Run: node scripts/migrate.js --apply' });
             }
-        }
-
-        // 2. Non-blocking MongoDB sync
-        if (mongoose.connection.readyState === 1 && User) {
-            setImmediate(async () => {
-                try {
-                    if (mongoose.Types.ObjectId.isValid(teacherId)) {
-                        await User.findByIdAndUpdate(teacherId, { omrAccess: isEnabled });
-                    } else if (updatedUser && updatedUser.email) {
-                        await User.updateOne({ email: updatedUser.email }, { omrAccess: isEnabled });
-                    }
-                } catch (mErr) {
-                    console.warn('[ADMIN] Mongo OMR sync notice:', mErr.message);
-                }
-            });
         }
 
         if (!updatedUser) {

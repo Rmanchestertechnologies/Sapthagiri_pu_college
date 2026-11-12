@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../api';
 
@@ -24,7 +24,7 @@ export default function StudentLabPortal() {
     const [exams, setExams] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
-    const [now, setNow] = useState(Date.now());
+    const [now, setNow] = useState(() => Date.now());
     const [startingExamId, setStartingExamId] = useState(null);
 
     // ── 1-Second Master Clock for Real-time Red/Green transitions ──
@@ -200,7 +200,7 @@ export default function StudentLabPortal() {
             if (document.documentElement.requestFullscreen) {
                 document.documentElement.requestFullscreen().catch(() => {});
             }
-        } catch (err) {
+        } catch {
             console.log('Fullscreen request bypassed');
         }
 

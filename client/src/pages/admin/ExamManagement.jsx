@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../api';
 import { downloadFile } from '../../utils/downloadFile';
-import { sanitize, optionLabel } from '../../utils/sanitize';
+import { optionLabel } from '../../utils/sanitize';
 import MathRenderer from '../../components/MathRenderer';
 import ResizableDiagram from '../../components/ResizableDiagram';
 
@@ -734,7 +734,7 @@ export default function ExamManagement() {
         try {
             const res = await api.get('/api/grand-tests');
             setGrandTests(res.data);
-        } catch (e) { /* ignore */ }
+        } catch { /* ignore */ }
     };
 
     const togglePaper = (id) => {
@@ -866,7 +866,7 @@ export default function ExamManagement() {
                 selectedTemplateId: templates.length > 0 ? templates[0]._id : '',
                 instructions: instructionsToUse
             }));
-        } catch (e) { setMsg('Failed to load exam for print'); }
+        } catch { setMsg('Failed to load exam for print'); }
     };
 
     const copyShareLink = (examId) => {

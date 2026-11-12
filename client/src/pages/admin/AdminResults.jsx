@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import api from '../../api';
 import { downloadFile } from '../../utils/downloadFile';
-import * as XLSX from 'xlsx';
+import { downloadJsonSheet } from '../../utils/xlsxExport';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -50,7 +50,7 @@ export default function AdminResults() {
             const res = await api.post(`/api/exams/${selectedExam}/bridge-key`);
             setBridgeKey(res.data.key);
             setMsg(`✅ Bridge key generated! Expires: ${new Date(res.data.expiresAt).toLocaleDateString()}`);
-        } catch (e) { setMsg('Failed to generate key'); }
+        } catch { setMsg('Failed to generate key'); }
     };
 
     const copyKey = () => {
@@ -93,7 +93,7 @@ export default function AdminResults() {
         return '#ef4444';
     };
 
-    const exportExcel = () => {
+    const exportExcel = async () => {
         if (!results || results.length === 0) return;
         const exam = exams.find(e => e._id === selectedExam);
         const data = results.map((r, i) => {
@@ -160,11 +160,12 @@ export default function AdminResults() {
                 'Submitted At': new Date(r.createdAt).toLocaleString()
             };
         });
-        const worksheet = XLSX.utils.json_to_sheet(data);
-        const workbook = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(workbook, worksheet, "Results");
-        const examName = exam?.title || 'Exam';
-        XLSX.writeFile(workbook, `${examName}_Results.xlsx`);
+        const examName = (exam?.title || 'Exam').replace(/[^\w\- ]+/g, '_');
+        try {
+            await downloadJsonSheet(data, 'Results', `${examName}_Results.xlsx`);
+        } catch (err) {
+            setMsg('Could not create the Excel file: ' + err.message);
+        }
     };
 
     const exportPDF = () => {

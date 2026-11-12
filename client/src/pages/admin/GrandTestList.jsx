@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import api from '../../api';
-import { sanitize, optionLabel, stripQBPTags } from '../../utils/sanitize';
+import { optionLabel } from '../../utils/sanitize';
 import MathRenderer from '../../components/MathRenderer';
 
 const GrandTestList = () => {
@@ -172,7 +172,7 @@ const GrandTestList = () => {
             setSelectedGT(res.data);
             setParsedPreview([]);
             setDuplicateWarnings([]);
-        } catch (err) {
+        } catch {
             alert('Failed to load Grand Test');
         }
     };
@@ -221,7 +221,7 @@ const GrandTestList = () => {
                 await api.delete(`/api/grand-tests/${id}`);
                 fetchGrandTests();
                 if (selectedGT?._id === id) setSelectedGT(null);
-            } catch (err) {
+            } catch {
                 alert('Delete failed');
             }
         }
@@ -267,7 +267,7 @@ const GrandTestList = () => {
                 await api.delete(`/api/grand-tests/${selectedGT._id}/questions/${qId}`);
                 alert('Question removed successfully!');
                 handleOpenGT(selectedGT._id);
-            } catch (err) {
+            } catch {
                 alert('Failed to remove question');
             }
         }

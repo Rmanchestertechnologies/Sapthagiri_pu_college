@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../api';
 
@@ -15,7 +15,7 @@ export default function LabExamList() {
     });
     const navigate = useNavigate();
     const labToken = localStorage.getItem('lab_token');
-    const labUser = JSON.parse(localStorage.getItem('lab_user') || '{}');
+    const labUser = (() => { try { return JSON.parse(localStorage.getItem('lab_user') || '{}') || {}; } catch { return {}; } })();
 
     useEffect(() => {
         if (!labToken) {
@@ -34,7 +34,13 @@ export default function LabExamList() {
             });
     }, [labToken, navigate]);
 
-    const now = new Date();
+    // Re-evaluated every second so an upcoming exam turns live without a page reload
+    const [nowTick, setNowTick] = useState(() => Date.now());
+    useEffect(() => {
+        const id = setInterval(() => setNowTick(Date.now()), 1000);
+        return () => clearInterval(id);
+    }, []);
+    const now = new Date(nowTick);
 
     const getExamStatus = (exam) => {
         if (!exam.start_time) return 'live';
@@ -81,7 +87,7 @@ export default function LabExamList() {
                 if (document.documentElement.requestFullscreen) {
                     document.documentElement.requestFullscreen().catch(() => {});
                 }
-            } catch (err) {}
+            } catch { /* full screen is optional */ }
 
             navigate(`/exam/${examId}/instructions`);
         } catch (err) {

@@ -5,16 +5,16 @@ services:
     plan: free
     region: singapore
     rootDir: server
-    buildCommand: npm install
+    # Installs the server and, for the OMR scanner, its Python libraries into omr_engine/pylibs (the folder that survives
+    # between build and run). If the pip step fails the API still starts; the OMR screen then explains what is missing.
+    buildCommand: npm ci --omit=dev && (pip3 install --no-cache-dir --target omr_engine/pylibs -r omr_engine/requirements.txt || echo "WARNING - OMR libraries were not installed")
     startCommand: node index.js
+    healthCheckPath: /api/health
     envVars:
       - key: NODE_ENV
         value: production
       - key: PORT
         value: 10000
-      # ── MongoDB Atlas — primary database for users/faculty ──────────────────
-      - key: MONGO_URI
-        sync: false   # set in the Render dashboard
       # ── Supabase PostgreSQL — subject question databases ────────────────────
       - key: DATABASE_URL
         sync: false   # set in the Render dashboard
@@ -56,4 +56,26 @@ services:
       - key: DB_QBP_CONTROL_KEY
         sync: false
       - key: DB_SSL_CA
+        sync: false
+      # ── Proxies, OMR and optional services ────────────────────────────────────────────
+      # Browser -> Vercel (rewrite) -> Render is TWO proxies, so the client address is the second entry from the right.
+      # Keep it at 2 only while students and staff use the Vercel address; if the API is also used directly at its onrender.com
+      # address the lab-network check can be bypassed by a forged X-Forwarded-For (see docs/REVIEW_FINDINGS.md RV-07).
+      - key: TRUST_PROXY_HOPS
+        value: 2
+      - key: PYTHON_BIN
+        value: python3
+      - key: DB_POOL_MAX
+        value: 10
+      - key: DB_QBP_CONTROL_URL
+        sync: false
+      - key: SUPABASE_SECRET_KEY
+        sync: false
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
+      - key: GEMINI_API_KEY      # optional: AI question variants and Grand Test text parsing
         sync: false

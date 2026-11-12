@@ -1,4 +1,4 @@
-import React, { useState, useContext } from 'react';
+import { useState, useContext } from 'react';
 import { AuthContext } from '../../context/AuthContext';
 import { useNavigate, Navigate } from 'react-router-dom';
 
@@ -92,7 +92,7 @@ const UnifiedLogin = () => {
                             <input 
                                 type="email" 
                                 required 
-                                placeholder="sapthagiripucollegedvg@gmail.com"
+                                placeholder="name@example.com"
                                 value={formData.email} 
                                 onChange={e => setFormData({...formData, email: e.target.value})} 
                                 className="w-full border-2 border-slate-200 p-3.5 pl-11 rounded-2xl bg-slate-50/70 focus:outline-none focus:border-amber-500 focus:bg-white transition-all text-sm font-medium text-slate-800" 

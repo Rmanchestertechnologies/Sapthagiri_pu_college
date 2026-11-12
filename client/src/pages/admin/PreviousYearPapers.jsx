@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import api from '../../api';
 
@@ -53,7 +53,7 @@ const PreviousYearPapers = () => {
             setSelectedPaper(res.data);
             setParsedPreview([]);
             setDuplicateWarnings([]);
-        } catch (err) {
+        } catch {
             alert('Failed to load Previous Year Paper');
         }
     };
@@ -103,7 +103,7 @@ const PreviousYearPapers = () => {
                 await api.delete(`/api/previous-year-papers/${id}`);
                 fetchPapers();
                 if (selectedPaper?._id === id) setSelectedPaper(null);
-            } catch (err) {
+            } catch {
                 alert('Delete failed');
             }
         }

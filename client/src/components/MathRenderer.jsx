@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 import katex from 'katex';
 import DOMPurify from 'dompurify';
 import ResizableDiagram from './ResizableDiagram';

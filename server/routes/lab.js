@@ -47,7 +47,7 @@ router.get('/student/:rollNumber', labIpOnly, async (req, res) => {
         });
     } catch (err) {
         console.error('Error fetching student:', err);
-        res.status(500).json({ msg: 'Server error: ' + err.message });
+        res.status(500).json({ msg: 'Server error. Please try again; if it keeps happening, tell the administrator.' });
     }
 });
 
@@ -92,7 +92,7 @@ router.post('/login', labIpOnly, async (req, res) => {
         });
     } catch (err) {
         console.error(err.message);
-        res.status(500).json({ msg: 'Server Error: ' + err.message });
+        res.status(500).json({ msg: 'Server Error. Please try again; if it keeps happening, tell the administrator.' });
     }
 });
 
@@ -132,7 +132,7 @@ router.get('/exams', labIpOnly, async (req, res) => {
         res.json(result);
     } catch (err) {
         console.error('Lab exams error:', err);
-        res.status(500).json({ msg: 'Server Error: ' + err.message });
+        res.status(500).json({ msg: 'Server Error. Please try again; if it keeps happening, tell the administrator.' });
     }
 });
 

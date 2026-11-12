@@ -1,8 +1,6 @@
 const express = require('express');
 const router = express.Router();
 const multer = require('multer');
-const mongoose = require('mongoose');
-const Question = require('../models/Question');
 const auth = require('../middleware/auth');
 const checkRole = require('../middleware/role');
 const { sanitizeHtml, sanitizeArray } = require('../utils/sanitize');
@@ -48,7 +46,7 @@ router.post('/', [auth, checkRole(['admin', 'teacher']), upload.fields([{ name: 
         if (questionData.questionText) questionData.questionText = sanitizeHtml(questionData.questionText);
         if (questionData.solutionText) questionData.solutionText = sanitizeHtml(questionData.solutionText);
         if (questionData.questionTextTranslation) questionData.questionTextTranslation = sanitizeHtml(questionData.questionTextTranslation);
-        
+
         if (questionData.options) {
             if (typeof questionData.options === 'string') {
                 try { questionData.options = JSON.parse(questionData.options); } catch(e) {}
@@ -221,19 +219,10 @@ router.get('/daily-stats', [auth, checkRole(['admin', 'teacher'])], async (req, 
 });
 
 // @route   GET /api/questions/:id
-// @desc    Get a single question by ID from Supabase or MongoDB
+// @desc    Get a single question by ID from the question bank
 // @access  Teacher / Admin
 router.get('/:id', [auth, checkRole(['admin', 'teacher'])], async (req, res) => {
     try {
-        if (mongoose.Types.ObjectId.isValid(req.params.id)) {
-            const question = await Question.findById(req.params.id);
-            if (!question) return res.status(404).json({ msg: 'Question not found in MongoDB.' });
-            if (req.user.role !== 'admin' && !sameSubjectArea(question.subject, req.user.subject)) {
-                return res.status(403).json({ msg: 'Access denied: this question belongs to a different subject.' });
-            }
-            return res.json(question);
-        }
-
         const question = await supabaseQuestions.getQuestionById(req.params.id);
         if (!question) return res.status(404).json({ msg: 'Question not found.' });
 
@@ -249,20 +238,10 @@ router.get('/:id', [auth, checkRole(['admin', 'teacher'])], async (req, res) => 
 });
 
 // @route   DELETE /api/questions/:id
-// @desc    Delete a question from Supabase or MongoDB
+// @desc    Delete a question from the question bank
 // @access  Teacher / Admin
 router.delete('/:id', [auth, checkRole(['admin', 'teacher'])], async (req, res) => {
     try {
-        if (mongoose.Types.ObjectId.isValid(req.params.id)) {
-            const question = await Question.findById(req.params.id);
-            if (!question) return res.status(404).json({ msg: 'Question not found in MongoDB.' });
-            if (req.user.role !== 'admin' && !sameSubjectArea(question.subject, req.user.subject)) {
-                return res.status(403).json({ msg: 'Access denied: this question belongs to a different subject.' });
-            }
-            await Question.findByIdAndDelete(req.params.id);
-            return res.json({ msg: 'Question removed from MongoDB.' });
-        }
-
         const question = await supabaseQuestions.getQuestionById(req.params.id);
         if (!question) return res.status(404).json({ msg: 'Question not found.' });
 
@@ -279,70 +258,10 @@ router.delete('/:id', [auth, checkRole(['admin', 'teacher'])], async (req, res) 
 });
 
 // @route   POST /api/questions/update/:id
-// @desc    Update a question in Supabase or MongoDB
+// @desc    Update a question in the question bank
 // @access  Teacher / Admin
 router.post('/update/:id', [auth, checkRole(['admin', 'teacher']), upload.fields([{ name: 'image', maxCount: 1 }, { name: 'solutionImage', maxCount: 1 }])], async (req, res) => {
     try {
-        if (mongoose.Types.ObjectId.isValid(req.params.id)) {
-            let question = await Question.findById(req.params.id);
-            if (!question) return res.status(404).json({ msg: 'Question not found in MongoDB.' });
-
-            if (req.user.role !== 'admin' && !sameSubjectArea(question.subject, req.user.subject)) {
-                return res.status(403).json({ msg: 'Access denied: not authorized to edit this subject question.' });
-            }
-
-            const fieldsToUpdate = [
-                'questionText', 'options', 'answer', 'chapter', 'concept', 
-                'subConcept', 'level', 'type', 'solutionText', 'assertion', 
-                'reason', 'statements', 'matchPairs', 'numericalTolerance',
-                'questionTextTranslation', 'optionsTranslation'
-            ];
-            
-            fieldsToUpdate.forEach(field => {
-                if (req.body[field] !== undefined) {
-                    if (field === 'options' && typeof req.body[field] === 'string') {
-                        try {
-                            question.options = JSON.parse(req.body[field]);
-                        } catch (e) {
-                            question.options = req.body[field];
-                        }
-                    } else if (field === 'optionsTranslation' && typeof req.body[field] === 'string') {
-                        try {
-                            question.optionsTranslation = JSON.parse(req.body[field]);
-                        } catch (e) {
-                            question.optionsTranslation = req.body[field];
-                        }
-                    } else if (field === 'statements' && typeof req.body[field] === 'string') {
-                        try {
-                            question.statements = JSON.parse(req.body[field]);
-                        } catch (e) {
-                            question.statements = req.body[field];
-                        }
-                    } else if (field === 'matchPairs' && typeof req.body[field] === 'string') {
-                        try {
-                            question.matchPairs = JSON.parse(req.body[field]);
-                        } catch (e) {
-                            question.matchPairs = req.body[field];
-                        }
-                    } else {
-                        question[field] = req.body[field];
-                    }
-                }
-            });
-
-            if (req.files) {
-                if (req.files.image && req.files.image[0]) {
-                    question.imageUrl = req.files.image[0].path;
-                }
-                if (req.files.solutionImage && req.files.solutionImage[0]) {
-                    question.solutionImageUrl = req.files.solutionImage[0].path;
-                }
-            }
-
-            await question.save();
-            return res.json(question);
-        }
-
         let question = await supabaseQuestions.getQuestionById(req.params.id);
         if (!question) return res.status(404).json({ msg: 'Question not found.' });
 
@@ -365,21 +284,7 @@ router.post('/update/:id', [auth, checkRole(['admin', 'teacher']), upload.fields
 // @access  Teacher / Admin
 router.post('/convert-numerical/:id', [auth, checkRole(['admin', 'teacher'])], async (req, res) => {
     try {
-        if (mongoose.Types.ObjectId.isValid(req.params.id)) {
-            // MongoDB update
-            const question = await Question.findById(req.params.id);
-            if (!question) return res.status(404).json({ msg: 'Question not found in MongoDB.' });
-
-            if (req.user.role !== 'admin' && !sameSubjectArea(question.subject, req.user.subject)) {
-                return res.status(403).json({ msg: 'Access denied: not authorized to edit this subject question.' });
-            }
-
-            question.type = 'numerical';
-            question.options = [];
-            question.optionsTranslation = [];
-            await question.save();
-            return res.json({ msg: 'Question converted to Numerical successfully.', question });
-        } else {
+        {
             // Supabase update
             const question = await supabaseQuestions.getQuestionById(req.params.id);
             if (!question) return res.status(404).json({ msg: 'Question not found in Supabase.' });
@@ -410,14 +315,7 @@ router.post('/convert-numerical/:id', [auth, checkRole(['admin', 'teacher'])], a
 // @access  Teacher / Admin
 router.post('/:id/generate-variant', [auth, checkRole(['admin', 'teacher'])], async (req, res) => {
     try {
-        let question;
-        let isMongo = false;
-        if (mongoose.Types.ObjectId.isValid(req.params.id)) {
-            question = await Question.findById(req.params.id);
-            isMongo = true;
-        } else {
-            question = await supabaseQuestions.getQuestionById(req.params.id);
-        }
+        const question = await supabaseQuestions.getQuestionById(req.params.id);
 
         if (!question) return res.status(404).json({ msg: 'Question not found.' });
         if (req.user.role !== 'admin' && !sameSubjectArea(question.subject, req.user.subject)) {
@@ -449,9 +347,10 @@ Provide the output as a clean JSON object following this format:
 
 Output ONLY this JSON block. Do not include markdown code block formatting (like \`\`\`json) or any explanations.`;
 
-        const fetchResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+        const fetchResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            // the key travels in a header: a key in the URL ends up in server and proxy logs
+            headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
             body: JSON.stringify({
                 contents: [{ parts: [{ text: prompt }] }]
             })
@@ -484,30 +383,9 @@ Output ONLY this JSON block. Do not include markdown code block formatting (like
             createdBy: req.user.id
         };
 
-        if (isMongo) {
-            // If it was a MongoDB question (like in a GT), we can save it as a new MongoDB Question
-            const count = await Question.countDocuments();
-            const subjectCode = (variantData.subject || 'GEN').substring(0, 3).toUpperCase();
-            const questionId = `Q-${subjectCode}-VAR-${Date.now()}-${count + 1}`;
-            
-            const newQ = new Question({
-                ...variantData,
-                questionId,
-                sourceType: question.sourceType,
-                sourcePaperId: question.sourcePaperId,
-                sourceModel: question.sourceModel,
-                sourcePaperName: question.sourcePaperName,
-                sourceExam: question.sourceExam,
-                sourceDisplayCode: question.sourceDisplayCode,
-                academicYearLevel: question.academicYearLevel
-            });
-            await newQ.save();
-            return res.json(newQ);
-        } else {
-            // Save to Supabase Question Bank
-            const newQ = await supabaseQuestions.createQuestion(variantData, req.user.id, req.user.name || 'User');
-            return res.json(newQ);
-        }
+        // Save to the question bank
+        const newQ = await supabaseQuestions.createQuestion(variantData, req.user.id, req.user.name || 'User');
+        return res.json(newQ);
     } catch (err) {
         console.error('Generate variant error:', err);
         res.status(500).json({ msg: 'Server error generating question variant.' });
@@ -515,12 +393,14 @@ Output ONLY this JSON block. Do not include markdown code block formatting (like
 });
 
 // @route   POST /api/questions/bulk-import
-// @desc    Bulk import questions with AI schema-mapping cleanup
+// @desc    Bulk import questions (rows from an Excel / CSV sheet); invalid rows are skipped and reported
 // @access  Teacher / Admin
 router.post('/bulk-import', [auth, checkRole(['admin', 'teacher'])], async (req, res) => {
     try {
         const { questions } = req.body;
         if (!Array.isArray(questions)) return res.status(400).json({ msg: 'Questions array is required.' });
+        if (questions.length > 5000) return res.status(413).json({ msg: 'Too many rows in one import (limit 5000). Split the file.' });
+        const skipped = [];   // { row, reason }: row numbers are the sheet rows (the header is row 1)
 
         const getValCI = (obj, keys) => {
             const objKeys = Object.keys(obj);
@@ -534,16 +414,18 @@ router.post('/bulk-import', [auth, checkRole(['admin', 'teacher'])], async (req,
         const imported = [];
         for (let i = 0; i < questions.length; i++) {
             const q = questions[i];
-            
+
+            if (!q || typeof q !== 'object') { skipped.push({ row: i + 2, reason: 'Row is empty.' }); continue; }
             let qText = getValCI(q, ['questionText', 'question', 'text', 'question_text', 'questioncontent']) || '';
-            if (!qText) continue;
+            if (!qText) { skipped.push({ row: i + 2, reason: 'No question text.' }); continue; }
 
             let qType = getValCI(q, ['type', 'qtype', 'questiontype', 'q_type']) || 'MCQ';
-            
+
             let options = getValCI(q, ['options']) || [];
             if (typeof options === 'string') {
                 try { options = JSON.parse(options); } catch(e) { options = options.split(',').map(o => o.trim()); }
             }
+            if (!Array.isArray(options)) options = [];
             if (options.length === 0) {
                 const aVal = getValCI(q, ['opt_a', 'option_a', 'optiona', 'a', 'A']);
                 const bVal = getValCI(q, ['opt_b', 'option_b', 'optionb', 'b', 'B']);
@@ -553,7 +435,7 @@ router.post('/bulk-import', [auth, checkRole(['admin', 'teacher'])], async (req,
                     options = [aVal || '', bVal || '', cVal || '', dVal || ''].filter(Boolean);
                 }
             }
-            
+
             let answer = String(getValCI(q, ['answer', 'correct_option', 'correct', 'correctoption', 'ans']) || '');
             let classes = getValCI(q, ['classes', 'class', 'classes_level']) || ['12'];
             if (typeof classes === 'string') {
@@ -575,12 +457,22 @@ router.post('/bulk-import', [auth, checkRole(['admin', 'teacher'])], async (req,
                 }
             }
 
+            // A question that cannot be printed or answered must not enter the bank (the bank review found hundreds of these).
+            const isNumericalType = /numer|integer/i.test(String(qType));
+            if (!isNumericalType && options.filter(o => String(o).trim()).length < 2) {
+                skipped.push({ row: i + 2, reason: 'A multiple-choice question needs at least two options.' });
+                continue;
+            }
+            if (!String(answer).trim()) { skipped.push({ row: i + 2, reason: 'No answer given.' }); continue; }
+            const rowSubject = req.user.role === 'admin' ? getValCI(q, ['subject', 'subj']) : req.user.subject;
+            if (!rowSubject) { skipped.push({ row: i + 2, reason: 'No subject given.' }); continue; }
+
             const newQData = {
                 questionText: qText,
                 type: qType,
                 options,
                 answer,
-                subject: req.user.role === 'admin' ? (getValCI(q, ['subject', 'subj']) || 'Chemistry') : req.user.subject,
+                subject: rowSubject,
                 chapter: getValCI(q, ['chapter', 'chap']) || 'General',
                 concept: getValCI(q, ['concept', 'conc']) || 'General',
                 level: getValCI(q, ['level', 'difficulty']) || 'medium',
@@ -590,11 +482,21 @@ router.post('/bulk-import', [auth, checkRole(['admin', 'teacher'])], async (req,
                 optionsTranslation: transOptions
             };
 
-            const saved = await supabaseQuestions.createQuestion(newQData, req.user.id, req.user.name || 'User');
-            imported.push(saved);
+            try {
+                const saved = await supabaseQuestions.createQuestion(newQData, req.user.id, req.user.name || 'User');
+                imported.push(saved);
+            } catch (rowErr) {
+                console.error(`Bulk import row ${i + 2} failed:`, rowErr.message);
+                skipped.push({ row: i + 2, reason: 'The question could not be saved.' });
+            }
         }
 
-        res.json({ msg: `Successfully imported ${imported.length} questions.`, count: imported.length });
+        res.json({
+            msg: `Imported ${imported.length} question(s)${skipped.length ? `, skipped ${skipped.length}` : ''}.`,
+            count: imported.length,
+            skippedCount: skipped.length,
+            skipped: skipped.slice(0, 100)
+        });
     } catch (err) {
         console.error('Bulk import error:', err);
         res.status(500).json({ msg: 'Server error during bulk question import.' });

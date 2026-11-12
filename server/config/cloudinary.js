@@ -4,7 +4,8 @@ const dotenv = require('dotenv');
 const path = require('path');
 const fs = require('fs');
 
-dotenv.config();
+// ENV_FILE (used by scripts that target a throwaway database) must be the ONLY environment file read
+dotenv.config(process.env.ENV_FILE ? { path: process.env.ENV_FILE } : undefined);
 
 const isCloudinaryConfigured = 
   process.env.CLOUDINARY_CLOUD_NAME && 

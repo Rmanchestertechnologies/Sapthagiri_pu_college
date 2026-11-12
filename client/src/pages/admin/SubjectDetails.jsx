@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext } from 'react';
+import { useState, useEffect, useContext } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { AuthContext } from '../../context/AuthContext';
 import api from '../../api';
@@ -13,7 +13,6 @@ const SubjectDetails = () => {
     const [allTeachers, setAllTeachers] = useState([]);
     const [papers, setPapers] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [activeTab, setActiveTab] = useState('papers');
     const [selectedAnalysisPaper, setSelectedAnalysisPaper] = useState(null);
 
     const [showCommissionModal, setShowCommissionModal] = useState(false);
@@ -23,7 +22,6 @@ const SubjectDetails = () => {
         classes: ['12'],
         targetPerSubject: 60,
         difficultyDistribution: { easy: 40, medium: 40, hard: 20 },
-        assignedTeachers: {}
     });
 
     const logoMap = {
@@ -82,7 +80,7 @@ const SubjectDetails = () => {
             await api.post('/api/exams/from-paper', {
                 paperId: paper._id || paper.id,
                 title: paper.title || `${subject} Online Examination`,
-                duration_minutes: paper.duration || 180,
+                duration_minutes: parseInt(String(paper.duration ?? '').replace(/[^0-9]/g, ''), 10) || 180,
             });
             alert('✅ Exam successfully created and enabled for Online CBT!');
             navigate('/admin/dashboard/cbt-exams');
@@ -113,8 +111,8 @@ const SubjectDetails = () => {
                 return {
                     subject: subName,
                     teacherId: (user && (user._id || user.id)) ? (user._id || user.id) : 'sapthagiri-admin',
-                    teacherName: 'Sapthagiri PU College',
-                    teacherEmail: 'sapthagiripucollegedvg@gmail.com',
+                    teacherName: user?.name || 'Sapthagiri PU College',
+                    teacherEmail: user?.email || '',
                     targetQuestions: commissionForm.targetPerSubject || defaultTarget,
                     difficultyDistribution: commissionForm.difficultyDistribution,
                     status: 'Not Started'
@@ -129,15 +127,14 @@ const SubjectDetails = () => {
                 duration_minutes: 180
             });
 
-            alert(`✓ Exam "${commissionForm.title}" successfully created & assigned to faculty!`);
+            alert(`✓ Exam "${commissionForm.title}" created. Faculty can now prepare its subject papers.`);
             setShowCommissionModal(false);
             setCommissionForm({
                 title: '',
                 examType: 'CET',
                 classes: ['12'],
                 targetPerSubject: 60,
-                difficultyDistribution: { easy: 40, medium: 40, hard: 20 },
-                assignedTeachers: {}
+                difficultyDistribution: { easy: 40, medium: 40, hard: 20 }
             });
             fetchData();
         } catch (err) {
@@ -187,7 +184,7 @@ const SubjectDetails = () => {
                 </div>
             </div>
             
-            {true && (
+            {(
                 <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-gray-100 animate-fade-in-up">
                     <div className="flex justify-between items-center mb-8">
                         <h3 className="text-sm font-black text-navy flex items-center gap-3 uppercase tracking-widest">
@@ -198,7 +195,6 @@ const SubjectDetails = () => {
 
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         {papers.map(p => {
-                            const creator = teachers.find(t => t._id === p.teacherId) || allTeachers.find(t => t._id === p.teacherId);
                             const creatorName = 'Sapthagiri PU College';
 
                             return (

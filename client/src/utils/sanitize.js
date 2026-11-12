@@ -18,6 +18,9 @@ const CONFIG = {
     FORBID_TAGS: ['script', 'object', 'embed', 'link', 'iframe', 'form', 'input'],
     FORBID_ATTR: ['onerror', 'onload', 'onclick', 'onmouseover', 'onfocus', 'onblur'],
     FORCE_BODY: false,
+    // Images may only come from the college's own image store, the upload folder or inline data. A remote address from the
+    // question bank could otherwise be used as a tracking pixel.
+    ALLOWED_URI_REGEXP: /^(?:https:\/\/res\.cloudinary\.com\/|\/uploads\/|data:image\/(?:png|jpeg|gif|webp);base64,)/i,
 };
 
 /**

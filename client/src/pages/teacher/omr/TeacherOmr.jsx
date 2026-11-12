@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext, useRef } from 'react';
+import { useState, useEffect, useContext, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../../api';
 import { AuthContext } from '../../../context/AuthContext';
@@ -57,6 +57,15 @@ const TeacherOmr = () => {
     const fileInputRef = useRef(null);
 
     // Load available QPG papers
+    // Can the server run the scanner at all? If not, say so before anyone uploads sheets.
+    const [engineProblem, setEngineProblem] = useState('');
+    useEffect(() => {
+        if (!hasOmrAccess) return;
+        api.get('/api/omr/health')
+            .then(r => setEngineProblem(r.data?.available === false ? (r.data.reason || 'The OMR engine is not available on the server.') : ''))
+            .catch(() => { /* the scan itself reports any real problem */ });
+    }, [hasOmrAccess]);
+
     useEffect(() => {
         if (!hasOmrAccess) return;
         const fetchPapers = async () => {
@@ -118,6 +127,17 @@ const TeacherOmr = () => {
             console.error('Failed to load results:', err);
         } finally {
             setLoadingResults(false);
+        }
+    };
+
+    // Remove one scanned sheet (a wrong scan, a duplicate, or a test sheet)
+    const handleDeleteSubmission = async (submission) => {
+        if (!window.confirm(`Delete the scanned result of ${submission.studentName || submission.rollNumber} (roll ${submission.rollNumber})? This cannot be undone.`)) return;
+        try {
+            await api.delete(`/api/omr/submissions/${submission.id}`);
+            await fetchResults(selectedPaperId);
+        } catch (err) {
+            alert('Could not delete the result: ' + (err.response?.data?.msg || err.message));
         }
     };
 
@@ -317,6 +337,11 @@ const TeacherOmr = () => {
                     <p className="text-xs text-gold/70 font-semibold mt-1">
                         Automated bubble detection, scoring against QPG answer keys, and student concept diagnostics.
                     </p>
+                    {engineProblem && (
+                        <div role="alert" className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-xs font-bold text-red-700">
+                            OMR scanning is not available right now. {engineProblem}
+                        </div>
+                    )}
                 </div>
 
                 <div className="flex items-center gap-3 relative z-10">
@@ -849,6 +874,13 @@ const TeacherOmr = () => {
                                                         className="bg-gold/20 text-navy hover:bg-gold px-3 py-1 rounded-xl text-[10px] font-black uppercase tracking-wider transition cursor-pointer"
                                                     >
                                                         Analysis →
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleDeleteSubmission(s)}
+                                                        className="ml-2 text-red-600 hover:bg-red-50 px-2 py-1 rounded-xl text-[10px] font-black uppercase tracking-wider transition cursor-pointer"
+                                                        title="Delete this scanned result"
+                                                    >
+                                                        Delete
                                                     </button>
                                                 </td>
                                             </tr>

@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import MathRenderer from './MathRenderer';
 import { resolveImageUrl } from './QuestionImage';
 import api from '../api';
-import { optionLabel, isOptionCorrect } from '../utils/sanitize';
+
 
 /**
  * Quick Math / LaTeX Symbol Inserter Toolbar

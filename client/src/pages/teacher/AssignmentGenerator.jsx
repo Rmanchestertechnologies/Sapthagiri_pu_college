@@ -9,7 +9,7 @@
  * - Direct Save Assignment to Department Archives (MongoDB + Supabase)
  * - True A4 Print/PDF output with embedded Analysis, Answer Key, and Solutions
  */
-import React, { useState, useEffect, useContext, useMemo } from 'react';
+import { useState, useEffect, useContext, useMemo } from 'react';
 import { AuthContext } from '../../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import api from '../../api';

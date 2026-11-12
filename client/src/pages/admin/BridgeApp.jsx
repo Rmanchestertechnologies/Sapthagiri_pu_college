@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../api';
 
@@ -18,14 +18,16 @@ export default function BridgeApp() {
         try {
             const res = await api.get(`/api/exams/bridge/${key.trim()}`);
             setData(res.data);
-        } catch (e) {
-            setError(e.response?.data?.msg || 'Invalid or expired key.');
+        } catch (err) {
+            setError(err.response?.data?.msg || 'Invalid or expired key.');
         }
         setLoading(false);
     };
 
-    const getScoreColor = (score, total) => {
-        const pct = (score / (total * 4)) * 100;
+    // The marking scheme differs by exam type (+4/-1, +1/0, per-section rules), so the colour follows the share of
+    // correct answers rather than assuming a fixed number of marks per question.
+    const getScoreColor = (correct, total) => {
+        const pct = total > 0 ? (correct / total) * 100 : 0;
         if (pct >= 70) return '#10b981';
         if (pct >= 40) return '#f59e0b';
         return '#ef4444';
@@ -99,7 +101,6 @@ export default function BridgeApp() {
                             </thead>
                             <tbody>
                                 {data.results?.map((r, i) => {
-                                    const totalQ = data.exam?.questions?.length || (r.correct + r.incorrect + r.unattempted);
                                     return (
                                         <tr key={i} style={{ background: i % 2 === 0 ? '#fff' : '#f9fafb' }}>
                                             <td style={styles.td}>{i + 1}</td>
@@ -108,7 +109,7 @@ export default function BridgeApp() {
                                                 <div style={{ fontSize: 12, color: '#6b7280' }}>{r.studentEmail}</div>
                                             </td>
                                             <td style={styles.td}>{r.rollNumber || '—'}</td>
-                                            <td style={{ ...styles.td, fontWeight: 800, color: getScoreColor(r.score, r.correct + r.incorrect + r.unattempted), fontSize: 18 }}>{r.score}</td>
+                                            <td style={{ ...styles.td, fontWeight: 800, color: getScoreColor(r.correct, r.correct + r.incorrect + r.unattempted), fontSize: 18 }}>{r.score}</td>
                                             <td style={{ ...styles.td, color: '#10b981' }}>✅ {r.correct}</td>
                                             <td style={{ ...styles.td, color: '#ef4444' }}>❌ {r.incorrect}</td>
                                             <td style={{ ...styles.td, color: '#9ca3af' }}>— {r.unattempted}</td>

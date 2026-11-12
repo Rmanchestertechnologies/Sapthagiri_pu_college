@@ -1,7 +1,8 @@
 const { createClient } = require('@supabase/supabase-js');
 const dotenv = require('dotenv');
 
-dotenv.config();
+// ENV_FILE (used by scripts that target a throwaway database) must be the ONLY environment file read
+dotenv.config(process.env.ENV_FILE ? { path: process.env.ENV_FILE } : undefined);
 
 const SUPABASE_URL = process.env.SUPABASE_URL || 'https://vukxgqkrersxcasdklda.supabase.co';
 const SUPABASE_SECRET_KEY = process.env.SUPABASE_SECRET_KEY || 'dummy_sapthagiri_key';

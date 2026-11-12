@@ -21,7 +21,7 @@ router.post('/', [auth, checkRole(['admin'])], async (req, res) => {
         res.json(pypPaper);
     } catch (err) {
         console.error(err.message);
-        res.status(500).send('Server Error: ' + err.message);
+        res.status(500).json({ msg: 'Server error. Please try again; if it keeps happening, tell the administrator.' });
     }
 });
 
@@ -34,7 +34,7 @@ router.get('/', [auth, checkRole(['admin'])], async (req, res) => {
         res.json(papers);
     } catch (err) {
         console.error(err.message);
-        res.status(500).send('Server Error: ' + err.message);
+        res.status(500).json({ msg: 'Server error. Please try again; if it keeps happening, tell the administrator.' });
     }
 });
 
@@ -49,7 +49,7 @@ router.get('/:id', [auth, checkRole(['admin'])], async (req, res) => {
         res.json(paper);
     } catch (err) {
         console.error(err.message);
-        res.status(500).send('Server Error: ' + err.message);
+        res.status(500).json({ msg: 'Server error. Please try again; if it keeps happening, tell the administrator.' });
     }
 });
 
@@ -64,7 +64,7 @@ router.put('/:id', [auth, checkRole(['admin'])], async (req, res) => {
         res.json(paper);
     } catch (err) {
         console.error(err.message);
-        res.status(500).send('Server Error: ' + err.message);
+        res.status(500).json({ msg: 'Server error. Please try again; if it keeps happening, tell the administrator.' });
     }
 });
 
@@ -78,7 +78,7 @@ router.delete('/:id', [auth, checkRole(['admin'])], async (req, res) => {
         res.json({ msg: 'PYQ paper deleted.' });
     } catch (err) {
         console.error(err.message);
-        res.status(500).send('Server Error: ' + err.message);
+        res.status(500).json({ msg: 'Server error. Please try again; if it keeps happening, tell the administrator.' });
     }
 });
 
@@ -172,7 +172,7 @@ router.post('/:id/import', [auth, checkRole(['admin'])], async (req, res) => {
         });
     } catch (err) {
         console.error(err.message);
-        res.status(500).send('Server Error');
+        res.status(500).json({ msg: 'Server error. Please try again; if it keeps happening, tell the administrator.' });
     }
 });
 

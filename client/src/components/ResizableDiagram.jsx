@@ -14,7 +14,7 @@
  *   Natively renders high-res diagrams from Cloudinary CDN without relying on sleeping
  *   backend proxies. Auto-recovers gracefully from any brief network glitch.
  */
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { resolveImageUrl } from './QuestionImage';
 
 function parsePx(val, fallback = 180) {

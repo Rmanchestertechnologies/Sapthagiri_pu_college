@@ -6,10 +6,11 @@
   "scripts": {
     "start": "node index.js",
     "dev": "nodemon index.js",
-    "test": "cross-env NODE_ENV=test jest --runInBand --forceExit",
-    "test:unit": "jest tests/questionSelector.test.js tests/cbtScoring.test.js tests/securityAndOmr.test.js tests/authLogin.test.js tests/sessionToken.test.js tests/loginThrottle.test.js tests/latexPreRenderer.test.js tests/mergeExam.test.js tests/rateLimiter.test.js tests/cors.test.js tests/contentDisposition.test.js tests/wordExport.test.js tests/questionQuality.test.js tests/questionFixPlan.test.js --setupFilesAfterEnv ./tests/noop.setup.js",
+    "test": "npm run test:unit",
+    "test:unit": "jest tests/questionSelector.test.js tests/cbtScoring.test.js tests/securityAndOmr.test.js tests/authLogin.test.js tests/sessionToken.test.js tests/loginThrottle.test.js tests/latexPreRenderer.test.js tests/mergeExam.test.js tests/rateLimiter.test.js tests/cors.test.js tests/contentDisposition.test.js tests/wordExport.test.js tests/questionQuality.test.js tests/questionFixPlan.test.js tests/pdfBrowser.test.js tests/omrRuntime.test.js tests/questionFixApply.test.js --setupFilesAfterEnv ./tests/noop.setup.js",
     "test:verbose": "cross-env NODE_ENV=test jest --runInBand --forceExit --verbose",
-    "test:coverage": "cross-env NODE_ENV=test jest --runInBand --forceExit --coverage"
+    "test:coverage": "cross-env NODE_ENV=test jest --runInBand --forceExit --coverage",
+    "test:e2e": "node tests/e2e/run.js"
   },
   "jest": {
     "testEnvironment": "node",
@@ -18,7 +19,7 @@
     ],
     "testTimeout": 30000,
     "setupFilesAfterEnv": [
-      "./tests/setup.js"
+      "./tests/noop.setup.js"
     ],
     "transformIgnorePatterns": [
       "/node_modules/(?!(htmlparser2|parse5|html-encoding-sniffer)/)"
@@ -36,34 +37,36 @@
     "@supabase/supabase-js": "^2.112.2",
     "archiver": "^8.0.0",
     "bcryptjs": "^3.0.3",
-    "cloudinary": "^1.41.3",
+    "cloudinary": "^2.11.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
     "docx": "^9.7.1",
     "docxtemplater": "^3.68.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
-    "express-mongo-sanitize": "^2.2.0",
     "express-rate-limit": "^8.6.2",
     "express-validator": "^7.3.2",
     "helmet": "^8.3.0",
     "jsonwebtoken": "^9.0.3",
     "katex": "^0.16.45",
-    "mongoose": "^9.6.1",
     "multer": "^2.1.1",
     "multer-storage-cloudinary": "^4.0.0",
     "pg": "^8.20.0",
     "pizzip": "^3.2.0",
-    "puppeteer": "^24.42.0",
+    "puppeteer": "^25.17.0",
     "sanitize-html": "^2.17.6"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.16",
+    "@electric-sql/pglite-socket": "^0.2.19",
     "@jest/globals": "^30.4.1",
     "cross-env": "^10.1.0",
     "jest": "^30.4.2",
     "json": "^11.0.0",
-    "mongodb-memory-server": "^11.2.0",
     "nodemon": "^3.1.14",
     "supertest": "^7.2.2"
+  },
+  "overrides": {
+    "cloudinary": "^2.11.0"
   }
 }

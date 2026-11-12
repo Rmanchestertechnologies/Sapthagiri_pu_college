@@ -10,12 +10,12 @@
  * - Separate Alignment Step / Panel (not shown prematurely on create screen)
  * - 100% fidelity match between Preview and PDF print
  */
-import React, { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { EditQuestionModal, SwapQuestionModal } from './PaperQuestionEditorModals';
 import api from '../api';
 import A4PaperEngine from './A4PaperEngine';
-import QuestionBlock from './QuestionBlock';
-import { optionLabel } from '../utils/sanitize';
+
+
 import { generatePaperSet } from '../utils/pqrsGenerator';
 
 // ─── Marks helpers ────────────────────────────────────────────────────────────

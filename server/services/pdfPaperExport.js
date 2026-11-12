@@ -1,31 +1,15 @@
-const puppeteer = require('puppeteer');
+const { withPage } = require('./pdfBrowser');
 const { preRenderMath, getCss } = require('../utils/latexPreRenderer');
 const { hardenPage, escapeHtml } = require('./pdfSafety');
-
-let browserInstance = null;
-
-async function getBrowser() {
-    if (browserInstance && browserInstance.process() && browserInstance.process().signalCode === null) {
-        return browserInstance;
-    }
-    browserInstance = await puppeteer.launch({
-        headless: 'new',
-        args: [
-            '--no-sandbox',
-            '--disable-setuid-sandbox',
-            '--disable-dev-shm-usage',
-            '--disable-gpu'
-        ]
-    });
-    return browserInstance;
-}
 
 /**
  * Generates an institutional A4 Question Paper PDF with pre-rendered KaTeX vector math.
  */
 async function generatePaperPdf(paper, options = {}) {
-    const browser = await getBrowser();
-    const page = await browser.newPage();
+    return withPage((page) => renderPaperPdf(page, paper, options));
+}
+
+async function renderPaperPdf(page, paper, options) {
     try {
     await hardenPage(page); // no scripts, no requests except allow-listed https images
 

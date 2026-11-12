@@ -1,7 +1,8 @@
 const { Pool } = require('pg');
 const dotenv = require('dotenv');
 
-dotenv.config();
+// ENV_FILE (used by scripts that target a throwaway database) must be the ONLY environment file read
+dotenv.config(process.env.ENV_FILE ? { path: process.env.ENV_FILE } : undefined);
 
 /**
  * 8 Dedicated Subject Databases Configuration

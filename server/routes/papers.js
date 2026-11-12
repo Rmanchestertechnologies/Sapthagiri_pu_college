@@ -1,7 +1,6 @@
 const express = require('express');
 const { contentDisposition } = require('../utils/contentDisposition');
 const router = express.Router();
-const Paper = require('../models/Paper');
 const auth = require('../middleware/auth');
 const checkRole = require('../middleware/role');
 const { canAccessPaper, canDeletePaper, isAllowedImageUrl } = require('../services/accessRules');
@@ -234,7 +233,7 @@ router.post('/', [auth, checkRole(['admin', 'teacher'])], async (req, res) => {
         res.json(paper);
     } catch (err) {
         console.error('Save paper error:', err.message);
-        res.status(500).json({ msg: 'Server error saving paper: ' + err.message });
+        res.status(500).json({ msg: 'Server error saving paper. Please try again; if it keeps happening, tell the administrator.' });
     }
 });
 
@@ -248,7 +247,7 @@ router.get('/admin/all', [auth, checkRole(['admin'])], async (req, res) => {
         res.json(populated);
     } catch (err) {
         console.error(err.message);
-        res.status(500).json({ msg: 'Server Error: ' + err.message });
+        res.status(500).json({ msg: 'Server Error. Please try again; if it keeps happening, tell the administrator.' });
     }
 });
 
@@ -267,7 +266,7 @@ router.put('/admin/:id/status', [auth, checkRole(['admin'])], async (req, res) =
         res.json(paper);
     } catch (err) {
         console.error(err.message);
-        res.status(500).json({ msg: 'Server Error: ' + err.message });
+        res.status(500).json({ msg: 'Server Error. Please try again; if it keeps happening, tell the administrator.' });
     }
 });
 
@@ -282,7 +281,7 @@ router.get('/', [auth, checkRole(['teacher', 'admin'])], async (req, res) => {
         res.json(populated);
     } catch (err) {
         console.error(err.message);
-        res.status(500).json({ msg: 'Server Error: ' + err.message });
+        res.status(500).json({ msg: 'Server Error. Please try again; if it keeps happening, tell the administrator.' });
     }
 });
 
@@ -298,7 +297,7 @@ router.get('/:id', [auth, checkRole(['teacher', 'admin'])], async (req, res) => 
         res.json(populated);
     } catch (err) {
         console.error(err.message);
-        res.status(500).json({ msg: 'Server Error: ' + err.message });
+        res.status(500).json({ msg: 'Server Error. Please try again; if it keeps happening, tell the administrator.' });
     }
 });
 
@@ -348,7 +347,7 @@ router.put('/:id', [auth, checkRole(['teacher', 'admin'])], async (req, res) => 
         res.json(populated);
     } catch (err) {
         console.error('Update paper error:', err.message);
-        res.status(500).json({ msg: 'Server error updating paper: ' + err.message });
+        res.status(500).json({ msg: 'Server error updating paper. Please try again; if it keeps happening, tell the administrator.' });
     }
 });
 
@@ -376,7 +375,7 @@ router.patch('/:id/section', [auth, checkRole(['teacher', 'admin'])], async (req
         res.json(populated);
     } catch (err) {
         console.error('Update paper section error:', err.message);
-        res.status(500).json({ msg: 'Server error updating section: ' + err.message });
+        res.status(500).json({ msg: 'Server error updating section. Please try again; if it keeps happening, tell the administrator.' });
     }
 });
 
@@ -396,7 +395,7 @@ router.post('/export-word', [auth, checkRole(['teacher', 'admin'])], async (req,
         res.send(buffer);
     } catch (err) {
         console.error('Direct Word export error:', err.message);
-        res.status(500).json({ msg: 'Server error exporting paper to Word: ' + err.message });
+        res.status(500).json({ msg: 'Server error exporting paper to Word. Please try again; if it keeps happening, tell the administrator.' });
     }
 });
 
@@ -424,7 +423,7 @@ router.get('/:id/export-word', [auth, checkRole(['teacher', 'admin'])], async (r
         res.send(buffer);
     } catch (err) {
         console.error('Word export error:', err.message);
-        res.status(500).json({ msg: 'Server error exporting paper to Word: ' + err.message });
+        res.status(500).json({ msg: 'Server error exporting paper to Word. Please try again; if it keeps happening, tell the administrator.' });
     }
 });
 
@@ -445,7 +444,7 @@ router.get('/:id/export-pdf', [auth, checkRole(['teacher', 'admin'])], async (re
         res.send(buffer);
     } catch (err) {
         console.error('PDF export error:', err.message);
-        res.status(500).json({ msg: 'Server error exporting paper to PDF: ' + err.message });
+        res.status(500).json({ msg: 'Server error exporting paper to PDF. Please try again; if it keeps happening, tell the administrator.' });
     }
 });
 
@@ -460,7 +459,7 @@ router.delete('/:id', [auth, checkRole(['teacher', 'admin'])], async (req, res) 
         res.json({ msg: 'Paper removed' });
     } catch (err) {
         console.error(err.message);
-        res.status(500).json({ msg: 'Server Error: ' + err.message });
+        res.status(500).json({ msg: 'Server Error. Please try again; if it keeps happening, tell the administrator.' });
     }
 });
 

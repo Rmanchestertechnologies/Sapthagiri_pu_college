@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useContext, useMemo } from 'react';
-import { Check, Zap, Edit3, Rocket, ArrowLeft, ArrowRight, Target, Scale, X, Plus, Search, CheckCircle2, ChevronDown } from 'lucide-react';
+import { useState, useEffect, useContext, useMemo } from 'react';
+import { Check, Zap, Edit3, Target, Scale, X, Plus, Search, CheckCircle2 } from 'lucide-react';
 import { AuthContext } from '../../context/AuthContext';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../../api';
@@ -8,7 +8,7 @@ import PaperRenderer, { DEFAULT_SETTINGS } from '../../components/PaperRenderer'
 import A4AnswerKey from '../../components/A4AnswerKey';
 import A4SolutionKey from '../../components/A4SolutionKey';
 import Loader from '../../components/Loader';
-import { getQuestionOptionLabels, optionLabel, cleanOptionText, extractOptionsIfMissing } from '../../utils/sanitize';
+import { cleanOptionText, extractOptionsIfMissing } from '../../utils/sanitize';
 
 const EXAM_PATTERNS = {
     NEET: {
@@ -529,7 +529,7 @@ export default function CommissionedExam() {
                     const res = await api.get(`/api/questions?${p.toString()}`);
                     const rows = Array.isArray(res.data?.questions) ? res.data.questions : (Array.isArray(res.data) ? res.data : []);
                     return (selectedExamPattern === 'CET') ? rows : rows.filter(q => !isCetQ(q));
-                } catch (e) {
+                } catch {
                     return [];
                 }
             };
@@ -1108,7 +1108,7 @@ export default function CommissionedExam() {
             console.error('Word export error:', err);
             let errMsg = err.message;
             if (err.response?.data instanceof Blob) {
-                try { const t = await err.response.data.text(); const p = JSON.parse(t); if (p.msg) errMsg = p.msg; } catch (e) {}
+                try { const t = await err.response.data.text(); const p = JSON.parse(t); if (p.msg) errMsg = p.msg; } catch { /* body was not JSON */ }
             } else if (err.response?.data?.msg) { errMsg = err.response.data.msg; }
             alert('Failed to download Word document: ' + errMsg);
         } finally { setDownloadingWord(false); }

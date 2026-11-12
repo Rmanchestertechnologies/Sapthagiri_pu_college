@@ -1,9 +1,9 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import api from '../api';
-import MathRenderer from './MathRenderer';
+
 import { getResolvedAnswerLabel } from '../utils/sanitize';
 import { generatePaperSet } from '../utils/pqrsGenerator';
-import * as XLSX from 'xlsx';
+import { downloadArraySheet } from '../utils/xlsxExport';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -301,9 +301,8 @@ export default function A4AnswerKey({
     };
 
     // Professional Excel (.xlsx) Answer Key Export matching user reference layout 100%
-    const handleDownloadExcel = () => {
+    const handleDownloadExcel = async () => {
         try {
-            const wb = XLSX.utils.book_new();
             const wsData = [];
 
             // Row 1: Merged Centered Title Header
@@ -339,21 +338,11 @@ export default function A4AnswerKey({
                 wsData.push([]);
             });
 
-            const ws = XLSX.utils.aoa_to_sheet(wsData);
-
-            // Merge Title across 17 columns (A1:Q1)
-            ws['!merges'] = [
-                { s: { r: 0, c: 0 }, e: { r: 0, c: 16 } }
-            ];
-
-            // Column widths: Col A: 10, Col B: 10, Cols C to Q: 6 each
-            const colWidths = [{ wch: 10 }, { wch: 10 }];
-            for (let c = 0; c < 15; c++) colWidths.push({ wch: 6 });
-            ws['!cols'] = colWidths;
-
-            XLSX.utils.book_append_sheet(wb, ws, `KEY_ANS_SET_${activeSet}`);
+            // Title merged across 17 columns (A1:Q1); column widths: A and B 10, C to Q 6 each
+            const widths = [10, 10];
+            for (let c = 0; c < 15; c++) widths.push(6);
             const safeTitle = (paperTitle || 'KEY_ANS').replace(/[^a-zA-Z0-9_-]/g, '_');
-            XLSX.writeFile(wb, `${safeTitle}_KEY_ANS_SET_${activeSet}.xlsx`);
+            await downloadArraySheet(wsData, `KEY_ANS_SET_${activeSet}`, `${safeTitle}_KEY_ANS_SET_${activeSet}.xlsx`, { merges: ['A1:Q1'], widths });
         } catch (err) {
             console.error('Error generating Excel file:', err);
             alert('Failed to generate Excel file: ' + err.message);

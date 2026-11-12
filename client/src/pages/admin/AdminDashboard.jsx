@@ -1,7 +1,7 @@
-import React, { useContext, useState, useEffect } from 'react';
+import { useContext, useState, useEffect } from 'react';
 import { AuthContext } from '../../context/AuthContext';
-import { useNavigate, Routes, Route, Link, useLocation } from 'react-router-dom';
-import { Trash2, Eye, Clock, Calendar, ChevronDown, Filter, Search, X, FolderOpen, BookOpen, AlertCircle } from 'lucide-react';
+import { useNavigate, Routes, Route, useLocation } from 'react-router-dom';
+import { Trash2, Eye, Clock, Calendar, ChevronDown, Filter, Search, AlertCircle } from 'lucide-react';
 import UploadTemplate from './UploadTemplate';
 import CreateTeacher from './CreateTeacher';
 import SubjectDetails from './SubjectDetails';
@@ -307,8 +307,8 @@ const DashboardHome = () => {
                 return {
                     subject: subName,
                     teacherId: (user && (user._id || user.id)) ? (user._id || user.id) : 'sapthagiri-admin',
-                    teacherName: 'Sapthagiri PU College',
-                    teacherEmail: 'sapthagiripucollegedvg@gmail.com',
+                    teacherName: user?.name || 'Sapthagiri PU College',
+                    teacherEmail: user?.email || '',
                     targetQuestions: defaultTarget,
                     status: 'Pending'
                 };

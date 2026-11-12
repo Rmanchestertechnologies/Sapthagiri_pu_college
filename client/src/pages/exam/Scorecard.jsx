@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import api from '../../api';
-import { sanitize } from '../../utils/sanitize';
+
 import MathRenderer from '../../components/MathRenderer';
 
 export default function Scorecard() {

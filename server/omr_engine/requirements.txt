@@ -1,0 +1,7 @@
+# Libraries needed to SCAN sheets (server/omr_engine/scan_cli.py, called by routes/omr.js).
+# Verified by following every import reachable from scan_cli.py. TensorFlow is only needed by the training scripts in
+# omr_engine/scripts and is deliberately not listed.
+opencv-python-headless>=4.8,<5
+numpy>=1.26,<3
+onnxruntime>=1.17,<2
+Pillow>=10,<13

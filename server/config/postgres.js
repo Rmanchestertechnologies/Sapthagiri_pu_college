@@ -2,7 +2,8 @@ const { Pool } = require('pg');
 const dotenv = require('dotenv');
 const { buildSsl } = require('./dbSsl');
 
-dotenv.config();
+// ENV_FILE (used by scripts that target a throwaway database) must be the ONLY environment file read
+dotenv.config(process.env.ENV_FILE ? { path: process.env.ENV_FILE } : undefined);
 
 // The primary database comes from DATABASE_URL only. The previous version contained a built-in connection
 // string (with its password) and silently replaced DATABASE_URL with it when the variable named an older

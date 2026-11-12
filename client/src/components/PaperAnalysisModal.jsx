@@ -9,7 +9,7 @@
  *
  * Preserves 100% full vibrant colors, legends, and styling when printed or downloaded as PDF.
  */
-import React, { useState, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 
 // Helper to draw clean SVG Donut Segments with vibrant persistent colors
 const DonutChart = ({ data, size = 160, holeRadius = 45, title = '' }) => {
@@ -28,13 +28,14 @@ const DonutChart = ({ data, size = 160, holeRadius = 45, title = '' }) => {
     const radius = size / 2 - 10;
     const center = size / 2;
 
-    let cumulativeAngle = 0;
-    const slices = data.map((d) => {
+    // where each slice starts (prefix sums), computed up front instead of mutating a counter while rendering
+    const startAngles = [];
+    data.reduce((sum, d) => { startAngles.push(sum); return sum + (d.value / total) * 360; }, 0);
+    const slices = data.map((d, idx) => {
         const fraction = d.value / total;
         const angle = fraction * 360;
-        const startAngle = cumulativeAngle;
-        const endAngle = cumulativeAngle + angle;
-        cumulativeAngle += angle;
+        const startAngle = startAngles[idx];
+        const endAngle = startAngle + angle;
 
         const startRad = ((startAngle - 90) * Math.PI) / 180;
         const endRad = ((endAngle - 90) * Math.PI) / 180;

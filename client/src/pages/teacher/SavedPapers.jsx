@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../api';
-import { sanitize, optionLabel } from '../../utils/sanitize';
-import MathRenderer from '../../components/MathRenderer';
-import PaperRenderer, { DEFAULT_SETTINGS, SettingsPanel, formatMarks, calcTotal } from '../../components/PaperRenderer';
+
+
+import PaperRenderer, { DEFAULT_SETTINGS, SettingsPanel } from '../../components/PaperRenderer';
 import PaperAnalysisModal from '../../components/PaperAnalysisModal';
 import A4AnswerKey from '../../components/A4AnswerKey';
 import A4SolutionKey from '../../components/A4SolutionKey';
@@ -333,7 +333,7 @@ const PaperView = ({ paper: initialPaper, activeTemplate, onBack }) => {
                                     window.URL.revokeObjectURL(blobUrl);
                                 } catch (err) {
                                     console.error('Vector PDF export error:', err);
-                                    window.print();
+                                    alert('The PDF could not be created: ' + (err.response?.data?.msg || err.message) + '\nYou can use "Print / Save PDF" instead.');
                                 }
                             }}
                             title="Download Crisp Vector PDF with pre-rendered KaTeX Math"

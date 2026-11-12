@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../../api';
-import { sanitize } from '../../utils/sanitize';
+
 import MathRenderer from '../../components/MathRenderer';
 import ResizableDiagram from '../../components/ResizableDiagram';
 
@@ -172,7 +172,7 @@ export default function ExamEngine() {
                 const cachedAnswersStr = localStorage.getItem(storageKey);
                 let cachedAnswers = null;
                 if (cachedAnswersStr) {
-                    try { cachedAnswers = JSON.parse(cachedAnswersStr); } catch(e) {}
+                    try { cachedAnswers = JSON.parse(cachedAnswersStr); } catch { /* storage unavailable */ }
                 }
 
                 setAnswers(e.questions.map((q, i) => {
@@ -414,7 +414,7 @@ export default function ExamEngine() {
             try {
                 const storageKey = `exam_answers_${examId}_${session?._id}`;
                 localStorage.removeItem(storageKey);
-            } catch (e) {}
+            } catch { /* the cached answers were already cleared or unavailable */ }
             if (document.fullscreenElement) {
                 document.exitFullscreen().catch(() => {});
             }
@@ -431,8 +431,11 @@ export default function ExamEngine() {
         }
     }, [submitting, session, examId, navigate]);
 
-    answersRef.current = answers;
-    submitRef.current = handleSubmit;
+    // Keep the refs pointing at the latest values (read by the autosave timer and by the retry loop)
+    useEffect(() => {
+        answersRef.current = answers;
+        submitRef.current = handleSubmit;
+    });
 
     // ── Computed palette counts ─────────────────────────────────
     const counts = answers.reduce((acc, a) => {

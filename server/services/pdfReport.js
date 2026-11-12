@@ -1,18 +1,5 @@
-const puppeteer = require('puppeteer');
+const { withPage } = require('./pdfBrowser');
 const { hardenPage, escapeHtml } = require('./pdfSafety');
-
-let browser = null;
-
-async function getBrowser() {
-    if (browser && browser.process() && browser.process().signalCode === null) {
-        return browser;
-    }
-    browser = await puppeteer.launch({
-        headless: 'new',
-        args: ['--no-sandbox', '--disable-setuid-sandbox']
-    });
-    return browser;
-}
 
 /**
  * Generate a PDF scorecard buffer for a student exam session using Puppeteer
@@ -21,8 +8,10 @@ async function getBrowser() {
  * @returns {Promise<Buffer>}
  */
 async function generateReportPdf(session, exam) {
-    const b = await getBrowser();
-    const page = await b.newPage();
+    return withPage((page) => renderReportPdf(page, session, exam));
+}
+
+async function renderReportPdf(page, session, exam) {
     try {
     await hardenPage(page); // no scripts, no requests except allow-listed https images
     

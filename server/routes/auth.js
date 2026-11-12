@@ -3,8 +3,6 @@ const router = express.Router();
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
-const mongoose = require('mongoose');
-const User = require('../models/User');
 const { loginLimiter } = require('../middleware/rateLimiter');
 const { loginThrottle } = require('../middleware/loginThrottle');
 const { OMR_ACCESS_SQL } = require('../config/userColumns');
@@ -88,7 +86,7 @@ router.post('/login', loginLimiter, async (req, res) => {
         });
     }
 
-    // ── Regular User: MongoDB PRIMARY, Supabase PostgreSQL FALLBACK ─────────
+    // ── Regular user: PostgreSQL ────────────────────────────────────────────
     try {
         let userRecord = null;
 
@@ -109,30 +107,9 @@ router.post('/login', loginLimiter, async (req, res) => {
                 };
             }
         } catch (pgErr) {
-            console.warn('[AUTH] Postgres lookup warning:', pgErr.message);
-        }
-
-        // If not found in PostgreSQL, check MongoDB if connected (with 2s timeout)
-        if (!userRecord && mongoose?.connection?.readyState === 1 && User && User.findOne) {
-            try {
-                const mongoUser = await Promise.race([
-                    User.findOne({ email }),
-                    new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 2000))
-                ]);
-                if (mongoUser) {
-                    userRecord = {
-                        id: String(mongoUser._id),
-                        name: mongoUser.name,
-                        email: mongoUser.email,
-                        password: mongoUser.password,
-                        role: mongoUser.role,
-                        subject: mongoUser.subject,
-                        omrAccess: Boolean(mongoUser.omrAccess)
-                    };
-                }
-            } catch (mongoErr) {
-                console.warn('[AUTH] MongoDB lookup warning:', mongoErr.message);
-            }
+            // A database outage must not look like a wrong password (and must not count as a failed attempt).
+            console.error('[AUTH] Postgres lookup failed:', pgErr.message);
+            return res.status(503).json({ msg: 'The sign-in service is temporarily unavailable. Please try again in a minute.' });
         }
 
         if (!userRecord) {
@@ -234,22 +211,6 @@ router.get('/me', auth, async (req, res) => {
             }
         } catch (pgErr) {
             console.warn('[AUTH] /me Postgres lookup warning:', pgErr.message);
-        }
-
-        if (mongoose?.connection?.readyState === 1 && User) {
-            const user = await User.findById(id).select('-password');
-            if (user) {
-                return res.json({
-                    user: {
-                        id: user.id,
-                        name: user.name,
-                        email: user.email,
-                        role: user.role,
-                        subject: user.subject,
-                        omrAccess: Boolean(user.omrAccess)
-                    }
-                });
-            }
         }
 
         return res.status(404).json({ msg: 'User not found.' });

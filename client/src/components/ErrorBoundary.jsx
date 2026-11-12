@@ -16,7 +16,14 @@ class ErrorBoundary extends React.Component {
 
     handleGoHome = () => {
         this.setState({ hasError: false, error: null });
-        window.location.href = '/teacher/dashboard';
+        // Send each kind of user to their own home: staff to their dashboard, students (no staff login) to the exam portal.
+        let target = '/lab-exam';
+        try {
+            const role = JSON.parse(localStorage.getItem('user') || '{}')?.role;
+            if (role === 'admin') target = '/admin/dashboard';
+            else if (role === 'teacher') target = '/teacher/dashboard';
+        } catch { /* unreadable user record: use the student portal */ }
+        window.location.href = target;
     };
 
     handleReset = () => {
@@ -24,7 +31,7 @@ class ErrorBoundary extends React.Component {
             localStorage.removeItem('token');
             localStorage.removeItem('user');
             sessionStorage.clear();
-        } catch {}
+        } catch { /* storage unavailable */ }
         window.location.href = '/';
     };
 

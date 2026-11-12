@@ -23,7 +23,7 @@ router.post('/', [auth, checkRole(['admin', 'teacher'])], async (req, res) => {
         res.json(gtPaper);
     } catch (err) {
         console.error(err.message);
-        res.status(500).send('Server Error: ' + err.message);
+        res.status(500).json({ msg: 'Server error. Please try again; if it keeps happening, tell the administrator.' });
     }
 });
 
@@ -36,7 +36,7 @@ router.get('/', [auth, checkRole(['admin', 'teacher'])], async (req, res) => {
         res.json(papers);
     } catch (err) {
         console.error(err.message);
-        res.status(500).send('Server Error: ' + err.message);
+        res.status(500).json({ msg: 'Server error. Please try again; if it keeps happening, tell the administrator.' });
     }
 });
 
@@ -51,7 +51,7 @@ router.get('/:id', [auth, checkRole(['admin', 'teacher'])], async (req, res) => 
         res.json(paper);
     } catch (err) {
         console.error(err.message);
-        res.status(500).send('Server Error: ' + err.message);
+        res.status(500).json({ msg: 'Server error. Please try again; if it keeps happening, tell the administrator.' });
     }
 });
 
@@ -70,7 +70,7 @@ router.put('/:id', [auth, checkRole(['admin'])], async (req, res) => {
         res.json(paper);
     } catch (err) {
         console.error(err.message);
-        res.status(500).send('Server Error: ' + err.message);
+        res.status(500).json({ msg: 'Server error. Please try again; if it keeps happening, tell the administrator.' });
     }
 });
 
@@ -85,7 +85,7 @@ router.delete('/:id', [auth, checkRole(['admin'])], async (req, res) => {
         res.json({ msg: 'Grand Test paper deleted.' });
     } catch (err) {
         console.error(err.message);
-        res.status(500).send('Server Error: ' + err.message);
+        res.status(500).json({ msg: 'Server error. Please try again; if it keeps happening, tell the administrator.' });
     }
 });
 
@@ -124,9 +124,10 @@ Output ONLY a valid JSON array of these objects. Do not include markdown code bl
 Input Text:
 ${text}`;
 
-        const fetchResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+        const fetchResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            // the key travels in a header: a key in the URL ends up in server and proxy logs
+            headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
             body: JSON.stringify({
                 contents: [{ parts: [{ text: prompt }] }]
             })
@@ -152,7 +153,7 @@ ${text}`;
         }
     } catch (err) {
         console.error(err.message);
-        res.status(500).send('Server Error');
+        res.status(500).json({ msg: 'Server error. Please try again; if it keeps happening, tell the administrator.' });
     }
 });
 
@@ -246,7 +247,7 @@ router.post('/:id/import', [auth, checkRole(['admin', 'teacher'])], async (req, 
         });
     } catch (err) {
         console.error(err.message);
-        res.status(500).send('Server Error');
+        res.status(500).json({ msg: 'Server error. Please try again; if it keeps happening, tell the administrator.' });
     }
 });
 
@@ -272,7 +273,7 @@ router.delete('/:id/questions/:questionId', [auth, checkRole(['admin', 'teacher'
         res.json({ msg: 'Question removed from Grand Test.', questionsCount: gtPaper.questions.length });
     } catch (err) {
         console.error(err.message);
-        res.status(500).send('Server Error');
+        res.status(500).json({ msg: 'Server error. Please try again; if it keeps happening, tell the administrator.' });
     }
 });
 
@@ -298,16 +299,8 @@ router.post('/:id/questions/:oldQuestionId/replace', [auth, checkRole(['admin', 
         }
 
         // Fetch the new question
-        let newQuestionData;
-        if (source === 'supabase' || !mongoose.Types.ObjectId.isValid(dbQuestionId)) {
-            const supabaseQ = await supabaseQuestions.getQuestionById(dbQuestionId);
-            if (!supabaseQ) return res.status(404).json({ msg: 'Question not found in Supabase question bank.' });
-            newQuestionData = supabaseQ;
-        } else {
-            const mongoQ = await Question.findById(dbQuestionId);
-            if (!mongoQ) return res.status(404).json({ msg: 'Question not found in MongoDB question bank.' });
-            newQuestionData = mongoQ.toObject();
-        }
+        const newQuestionData = await supabaseQuestions.getQuestionById(dbQuestionId);
+        if (!newQuestionData) return res.status(404).json({ msg: 'Question not found in the question bank.' });
 
         // Generate a unique question ID
         const count = await Question.countDocuments();
@@ -357,7 +350,7 @@ router.post('/:id/questions/:oldQuestionId/replace', [auth, checkRole(['admin', 
         res.json({ msg: 'Question replaced successfully.', newQuestion: newQ });
     } catch (err) {
         console.error(err.message);
-        res.status(500).send('Server Error');
+        res.status(500).json({ msg: 'Server error. Please try again; if it keeps happening, tell the administrator.' });
     }
 });
 

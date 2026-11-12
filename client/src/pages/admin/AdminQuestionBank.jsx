@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../api';
-import { sanitize, optionLabel, isOptionCorrect, getResolvedAnswerLabel } from '../../utils/sanitize';
+import { optionLabel, isOptionCorrect, getResolvedAnswerLabel } from '../../utils/sanitize';
 import MathRenderer from '../../components/MathRenderer';
 
 
@@ -204,7 +204,7 @@ const AdminQuestionBank = () => {
             try {
                 await api.delete(`/api/questions/${id}`);
                 fetchQuestions();
-            } catch (err) {
+            } catch {
                 alert('Failed to delete question');
             }
         }

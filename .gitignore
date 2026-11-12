@@ -7,6 +7,9 @@ server/node_modules/
 client/dist/
 dist/
 
+# Python libraries installed at build time for the OMR scanner
+server/omr_engine/pylibs/
+
 # Environment Variables
 .env
 .env.local
@@ -37,3 +40,6 @@ server/omr_engine/alignment_debug/
 # Student enrolment / SATS lists are personal data and must not be committed
 *ENROLL*SATS*.pdf
 *enroll*sats*.pdf
+
+# Chrome downloaded by Puppeteer (see server/.puppeteerrc.cjs)
+server/.cache/

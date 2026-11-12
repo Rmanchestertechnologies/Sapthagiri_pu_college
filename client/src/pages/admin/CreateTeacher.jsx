@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../api';
 
@@ -106,7 +106,7 @@ const CreateTeacher = () => {
                     </div>
                     <div className="col-span-2 md:col-span-1">
                         <label className="block text-[10px] font-black text-navy/40 uppercase tracking-widest mb-3 ml-1">Initial Password</label>
-                        <input type="password" placeholder="••••••••" required value={formData.password} onChange={e => setFormData({ ...formData, password: e.target.value })} className="w-full border-2 border-gray-100 p-4 rounded-2xl focus:border-navy bg-white font-bold text-navy outline-none transition-all shadow-sm" />
+                        <input type="password" placeholder="At least 8 characters" required minLength={8} autoComplete="new-password" value={formData.password} onChange={e => setFormData({ ...formData, password: e.target.value })} className="w-full border-2 border-gray-100 p-4 rounded-2xl focus:border-navy bg-white font-bold text-navy outline-none transition-all shadow-sm" />
                     </div>
                     <div className="col-span-2 md:col-span-1">
                         <label className="block text-[10px] font-black text-navy/40 uppercase tracking-widest mb-3 ml-1">Academic Department</label>
@@ -183,18 +183,6 @@ const CreateTeacher = () => {
                 )}
 
                 {/* Default Credentials Reference Box */}
-                <div className="mt-8 p-5 rounded-2xl bg-amber-500/10 border border-amber-400/30">
-                    <h4 className="text-xs font-black text-navy uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                        <span>ℹ️</span> Pre-Seeded Faculty Accounts:
-                    </h4>
-                    <p className="text-xs text-slate-700 font-medium">Set each faculty password with the reset option in the faculty list.</p>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-3 text-[11px] font-bold text-slate-600">
-                        <div className="bg-white p-2 rounded-lg border border-slate-100">⚛️ <span className="text-navy">Physics:</span> physics@gmail.com</div>
-                        <div className="bg-white p-2 rounded-lg border border-slate-100">🧪 <span className="text-navy">Chemistry:</span> chemistry@gmail.com</div>
-                        <div className="bg-white p-2 rounded-lg border border-slate-100">🧬 <span className="text-navy">Biology:</span> biology@gmail.com</div>
-                        <div className="bg-white p-2 rounded-lg border border-slate-100">📐 <span className="text-navy">Maths:</span> maths@gmail.com</div>
-                    </div>
-                </div>
             </div>
         </div>
     );

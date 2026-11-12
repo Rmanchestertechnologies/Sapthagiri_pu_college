@@ -82,7 +82,7 @@ router.post('/commission', [auth, checkRole(['admin'])], async (req, res) => {
         res.json({ msg: 'Exam successfully commissioned and dispatched to teachers', exam: newExam });
     } catch (err) {
         console.error('Commission Error:', err);
-        res.status(500).json({ msg: 'Server error commissioning exam: ' + err.message });
+        res.status(500).json({ msg: 'Server error commissioning exam. Please try again; if it keeps happening, tell the administrator.' });
     }
 });
 
@@ -132,7 +132,7 @@ router.get('/my-assignments', auth, async (req, res) => {
         res.json(exams);
     } catch (err) {
         console.error('Fetch Assignments Error:', err);
-        res.status(500).json({ msg: 'Server error fetching assignments: ' + err.message });
+        res.status(500).json({ msg: 'Server error fetching assignments. Please try again; if it keeps happening, tell the administrator.' });
     }
 });
 
@@ -207,7 +207,7 @@ router.get('/commissioned', [auth, checkRole(['admin'])], async (req, res) => {
         res.json(enrichedExams);
     } catch (err) {
         console.error('Fetch Commissioned Error:', err);
-        res.status(500).json({ msg: 'Server error fetching commissioned exams: ' + err.message });
+        res.status(500).json({ msg: 'Server error fetching commissioned exams. Please try again; if it keeps happening, tell the administrator.' });
     }
 });
 
@@ -361,7 +361,7 @@ router.post('/merge', [auth, checkRole(['admin'])], async (req, res) => {
         });
     } catch (err) {
         console.error('Merge error:', err.message);
-        res.status(500).json({ msg: 'Server Error: ' + err.message });
+        res.status(500).json({ msg: 'Server Error. Please try again; if it keeps happening, tell the administrator.' });
     }
 });
 
@@ -398,7 +398,7 @@ router.post('/from-grand-test', [auth, checkRole(['admin'])], async (req, res) =
         res.status(201).json({ msg: 'Grand Test Exam created successfully', exam });
     } catch (err) {
         console.error('Grand Test exam creation error:', err.message);
-        res.status(500).json({ msg: 'Server Error: ' + err.message });
+        res.status(500).json({ msg: 'Server Error. Please try again; if it keeps happening, tell the administrator.' });
     }
 });
 
@@ -418,7 +418,7 @@ router.get('/', [auth, checkRole(['admin'])], async (req, res) => {
         }));
         res.json(safeExams);
     } catch (err) {
-        res.status(500).json({ msg: 'Server Error: ' + err.message });
+        res.status(500).json({ msg: 'Server Error. Please try again; if it keeps happening, tell the administrator.' });
     }
 });
 
@@ -466,7 +466,7 @@ router.get('/lab-active', async (req, res) => {
         });
     } catch (err) {
         console.error('Lab Active Exams Error:', err.message);
-        res.status(500).json({ msg: 'Server Error: ' + err.message });
+        res.status(500).json({ msg: 'Server Error. Please try again; if it keeps happening, tell the administrator.' });
     }
 });
 
@@ -483,7 +483,7 @@ router.get('/:id', [auth, checkRole(['admin', 'teacher'])], async (req, res) => 
         res.json(exam);
     } catch (err) {
         console.error('Fetch Exam By ID Error:', err);
-        res.status(500).json({ msg: 'Server error fetching exam: ' + err.message });
+        res.status(500).json({ msg: 'Server error fetching exam. Please try again; if it keeps happening, tell the administrator.' });
     }
 });
 
@@ -498,7 +498,7 @@ router.put('/:id', [auth, checkRole(['admin', 'teacher'])], async (req, res) => 
         res.json({ msg: 'Exam updated successfully', exam: updated });
     } catch (err) {
         console.error('Update Exam Error:', err);
-        res.status(500).json({ msg: 'Server error updating exam: ' + err.message });
+        res.status(500).json({ msg: 'Server error updating exam. Please try again; if it keeps happening, tell the administrator.' });
     }
 });
 
@@ -522,7 +522,7 @@ router.put('/:id/toggle-online-visibility', [auth, checkRole(['admin'])], async 
         res.json({ msg: `Exam online visibility updated to ${newVis ? 'Visible' : 'Hidden'}`, exam: updated });
     } catch (err) {
         console.error('Toggle visibility error:', err);
-        res.status(500).json({ msg: 'Server error: ' + err.message });
+        res.status(500).json({ msg: 'Server error. Please try again; if it keeps happening, tell the administrator.' });
     }
 });
 
@@ -559,7 +559,7 @@ router.post('/from-paper', [auth, checkRole(['admin'])], async (req, res) => {
         res.json({ msg: 'Exam successfully created and enabled for Online CBT', exam: newExam });
     } catch (err) {
         console.error('Create from paper error:', err);
-        res.status(500).json({ msg: 'Server error: ' + err.message });
+        res.status(500).json({ msg: 'Server error. Please try again; if it keeps happening, tell the administrator.' });
     }
 });
 
@@ -634,7 +634,7 @@ router.get('/admin/:id', [auth, checkRole(['admin'])], async (req, res) => {
         const exam = await hydrateExamQuestions(rawExam);
         res.json(exam);
     } catch (err) {
-        res.status(500).json({ msg: 'Server Error: ' + err.message });
+        res.status(500).json({ msg: 'Server Error. Please try again; if it keeps happening, tell the administrator.' });
     }
 });
 
@@ -658,7 +658,7 @@ router.put('/:id/config', [auth, checkRole(['admin'])], async (req, res) => {
         if (!exam) return res.status(404).json({ msg: 'Exam not found' });
         res.json({ msg: 'Exam updated', exam });
     } catch (err) {
-        res.status(500).json({ msg: 'Server Error: ' + err.message });
+        res.status(500).json({ msg: 'Server Error. Please try again; if it keeps happening, tell the administrator.' });
     }
 });
 
@@ -673,7 +673,7 @@ router.delete('/:id', [auth, checkRole(['admin'])], async (req, res) => {
         res.json({ msg: 'Exam deleted successfully' });
     } catch (err) {
         console.error(err.message);
-        res.status(500).json({ msg: 'Server Error: ' + err.message });
+        res.status(500).json({ msg: 'Server Error. Please try again; if it keeps happening, tell the administrator.' });
     }
 });
 
@@ -755,7 +755,7 @@ router.get('/:id/take', detectLabIp, async (req, res) => {
         };
         res.json(safeExam);
     } catch (err) {
-        res.status(500).json({ msg: 'Server Error: ' + err.message });
+        res.status(500).json({ msg: 'Server Error. Please try again; if it keeps happening, tell the administrator.' });
     }
 });
 
@@ -874,7 +874,7 @@ router.post('/:id/start', detectLabIp, requireLabNetworkIfConfigured, async (req
         res.status(outcome.status).json(outcome.body);
     } catch (err) {
         console.error(err.message);
-        res.status(500).json({ msg: 'Server Error: ' + err.message });
+        res.status(500).json({ msg: 'Server Error. Please try again; if it keeps happening, tell the administrator.' });
     }
 });
 
@@ -923,7 +923,7 @@ router.post('/:id/submit', detectLabIp, requireSessionAccess({ sessionFrom: 'bod
         });
     } catch (err) {
         console.error(err.message);
-        res.status(500).json({ msg: 'Server Error: ' + err.message });
+        res.status(500).json({ msg: 'Server Error. Please try again; if it keeps happening, tell the administrator.' });
     }
 });
 
@@ -981,7 +981,7 @@ router.get('/:id/scorecard/:sessionId', detectLabIp, requireSessionAccess({ sess
         });
     } catch (err) {
         console.error(err.message);
-        res.status(500).json({ msg: 'Server Error: ' + err.message });
+        res.status(500).json({ msg: 'Server Error. Please try again; if it keeps happening, tell the administrator.' });
     }
 });
 
@@ -1010,7 +1010,7 @@ router.get('/:id/results', [auth, checkRole(['admin'])], async (req, res) => {
             malpracticeReason: s.malpractice_reason ?? s.malpracticeReason ?? ''
         })));
     } catch (err) {
-        res.status(500).json({ msg: 'Server Error: ' + err.message });
+        res.status(500).json({ msg: 'Server Error. Please try again; if it keeps happening, tell the administrator.' });
     }
 });
 
@@ -1056,7 +1056,7 @@ router.get('/:id/analytics', [auth, checkRole(['admin'])], async (req, res) => {
 
         res.json(analytics);
     } catch (err) {
-        res.status(500).json({ msg: 'Server Error: ' + err.message });
+        res.status(500).json({ msg: 'Server Error. Please try again; if it keeps happening, tell the administrator.' });
     }
 });
 
@@ -1220,7 +1220,7 @@ router.post('/:id/malpractice', detectLabIp, requireSessionAccess({ sessionFrom:
         res.json({ msg: 'Malpractice reported and session locked', session });
     } catch (err) {
         console.error('Error reporting malpractice:', err.message);
-        res.status(500).json({ msg: 'Server Error: ' + err.message });
+        res.status(500).json({ msg: 'Server Error. Please try again; if it keeps happening, tell the administrator.' });
     }
 });
 
@@ -1243,7 +1243,7 @@ router.get('/:id/leaderboard', requireSessionAccess(), async (req, res) => {
         }));
         res.json(filtered);
     } catch (err) {
-        res.status(500).json({ msg: 'Server Error: ' + err.message });
+        res.status(500).json({ msg: 'Server Error. Please try again; if it keeps happening, tell the administrator.' });
     }
 });
 
@@ -1283,7 +1283,7 @@ router.post('/:id/session/save-progress', requireSessionAccess({ sessionFrom: 'b
         });
     } catch (err) {
         console.error('Autosave error:', err);
-        res.status(500).json({ msg: 'Server Error during autosave: ' + err.message });
+        res.status(500).json({ msg: 'Server Error during autosave. Please try again; if it keeps happening, tell the administrator.' });
     }
 });
 

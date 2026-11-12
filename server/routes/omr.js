@@ -7,11 +7,11 @@ const multer = require('multer');
 
 const auth = require('../middleware/auth');
 const pool = require('../config/postgres');
-const Paper = require('../models/Paper');
 const supabaseQuestions = require('../services/supabaseQuestions');
 const { OMR_ACCESS_SQL } = require('../config/userColumns');
 const { buildSeriesKey, parseAnswerIndices, SERIES } = require('../services/pqrsKeys');
 const { canUseOmrPaper } = require('../services/accessRules');
+const { checkOmrRuntime, pythonBin, pythonEnv } = require('../services/omrRuntime');
 const { evaluateSheet, parseMarks } = require('../services/omrEvaluator');
 
 // Configure Multer for temporary file uploads
@@ -85,8 +85,7 @@ function runOmrScannerCli(imagePath, examType) {
         ];
 
         // `python` does not exist on most Linux hosts (Render); override with PYTHON_BIN when needed.
-        const pythonBin = process.env.PYTHON_BIN || (process.platform === 'win32' ? 'python' : 'python3');
-        execFile(pythonBin, args, { maxBuffer: 10 * 1024 * 1024, timeout: 60000 }, (error, stdout, stderr) => {
+        execFile(pythonBin(), args, { maxBuffer: 10 * 1024 * 1024, timeout: 60000, env: pythonEnv() }, (error, stdout, stderr) => {
             if (error) {
                 console.error('[OMR CLI ERROR]', error.message, stderr);
                 return reject(new Error(stderr || error.message || 'OMR scanner engine process failed.'));
@@ -117,27 +116,9 @@ function runOmrScannerCli(imagePath, examType) {
 // Helper: Fetch and Populate QPG Paper Questions & Metadata
 // ─────────────────────────────────────────────────────────────────────────────
 async function getPaperWithQuestions(paperId) {
-    let paper = null;
-
-    // 1. Try PostgreSQL papers
-    try {
-        const pgRes = await pool.query('SELECT * FROM public.papers WHERE id::text = $1', [paperId.toString()]);
-        if (pgRes.rows.length > 0) {
-            paper = pgRes.rows[0];
-        }
-    } catch (e) {
-        console.warn('[OMR] PG paper fetch notice:', e.message);
-    }
-
-    // 2. Try MongoDB Paper
-    if (!paper && Paper) {
-        try {
-            paper = await Paper.findById(paperId).lean();
-        } catch (e) {
-            // ignore
-        }
-    }
-
+    // A database error is thrown to the caller (reported as a server error) instead of being treated as "paper not found".
+    const pgRes = await pool.query('SELECT * FROM public.papers WHERE id::text = $1', [paperId.toString()]);
+    const paper = pgRes.rows[0] || null;
     if (!paper) return null;
 
     let rawQuestions = paper.questions || paper.questionObjects || [];
@@ -177,6 +158,12 @@ async function getPaperWithQuestions(paperId) {
 // @desc    Get list of QPG papers available for OMR evaluation
 // @access  Teacher (with OMR permission) or Admin
 // ─────────────────────────────────────────────────────────────────────────────
+// @route   GET /api/omr/health
+// @desc    Can this server run the OMR engine? (used by the scan screen to explain a missing Python setup)
+router.get('/health', [auth, requireOmrAccess], async (req, res) => {
+    res.json(await checkOmrRuntime());
+});
+
 router.get('/papers', [auth, requireOmrAccess], async (req, res) => {
     try {
         const user = req.user;
@@ -372,6 +359,12 @@ router.post('/scan', [auth, requireOmrAccess, upload.array('sheets', 100)], asyn
     const files = req.files || [];
     if (files.length === 0) {
         return res.status(400).json({ msg: 'Please upload at least one OMR sheet image.' });
+    }
+
+    const runtime = await checkOmrRuntime();
+    if (!runtime.available) {
+        files.forEach(f => { try { fs.unlinkSync(f.path); } catch (e) {} });
+        return res.status(503).json({ msg: 'OMR scanning is not available on this server. ' + runtime.reason });
     }
 
     const { paperId, examType = 'NEET', correctMarks, wrongMarks, blankMarks } = req.body;
@@ -589,7 +582,7 @@ router.post('/scan', [auth, requireOmrAccess, upload.array('sheets', 100)], asyn
     } catch (err) {
         console.error('[OMR BATCH ERROR]:', err.message);
         files.forEach(f => { try { fs.unlinkSync(f.path); } catch(e){} });
-        return res.status(500).json({ msg: 'Internal error processing OMR sheets: ' + err.message });
+        return res.status(500).json({ msg: 'Internal error processing OMR sheets. Please try again; if it keeps happening, tell the administrator.' });
     }
 });
 

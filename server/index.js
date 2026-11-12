@@ -1,25 +1,14 @@
-const dns = require('dns');
-// Set DNS servers to resolve MongoDB SRV records reliably
-try {
-    dns.setServers(['8.8.8.8', '1.1.1.1']);
-} catch (err) {
-    console.warn('⚠️ Warning: Failed to set custom DNS servers:', err.message);
-}
 
 const express = require('express');
-const mongoose = require('mongoose');
 const cors = require('cors');
 const dotenv = require('dotenv');
 const path = require('path');
 const fs = require('fs');
 const cookieParser = require('cookie-parser');
 
-const connectDB = require('./config/db');
-
 
 // ── Security Middleware
 const helmet = require('helmet');
-const mongoSanitize = require('./middleware/mongoSanitize');
 const { apiLimiter, examLimiter } = require('./middleware/rateLimiter');
 const errorHandler = require('./middleware/errorHandler');
 const { parseAllowedOrigins, isOriginAllowed } = require('./services/accessRules');
@@ -88,7 +77,6 @@ app.use(cookieParser());
 // SECURITY: NoSQL Injection Protection
 // Strips $ and . from req.body, req.query, req.params
 // ─────────────────────────────────────────────────────────────────────────────
-app.use(mongoSanitize);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // RATE LIMITING — Global API limiter
@@ -117,12 +105,23 @@ app.get('/', (req, res) => {
     });
 });
 
-app.get('/api/health', (req, res) => {
-    const dbState = ['disconnected', 'connected', 'connecting', 'disconnecting'];
-    res.json({
+// Health check: answers 503 when the primary database cannot be reached, so the platform's probe can restart the service
+// instead of leaving a server running that fails every request.
+app.get('/api/health', async (req, res) => {
+    let db = 'ok';
+    try {
+        const pool = require('./config/postgres');
+        await Promise.race([
+            pool.query('SELECT 1'),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 4000))
+        ]);
+    } catch (err) {
+        db = 'unreachable';
+    }
+    res.status(db === 'ok' ? 200 : 503).json({
         institution: 'Sapthagiri PU College',
-        status: 'ok',
-        db: dbState[mongoose.connection.readyState] || 'supabase_postgres',
+        status: db === 'ok' ? 'ok' : 'degraded',
+        db,
         uptime: Math.floor(process.uptime()),
         version: '2.0.0',
         timestamp: new Date().toISOString()
@@ -165,7 +164,7 @@ app.use(errorHandler);
 const PORT = process.env.PORT || 5000;
 
 if (process.env.NODE_ENV !== 'test') {
-    // ── Async startup: await MongoDB, then start listening ──────────────────
+    // ── Async startup: check the database, then start listening ──────────────────
     (async () => {
         // 1. Warm up Supabase PostgreSQL pool (subject question databases)
         try {
@@ -178,28 +177,34 @@ if (process.env.NODE_ENV !== 'test') {
             console.warn('⚠️ Supabase PostgreSQL connection notice:', pgErr.message);
         }
 
-        // 2. Connect MongoDB Atlas — background sync & secondary persistence
-        mongoose.set('bufferCommands', false);
-        if (process.env.MONGO_URI) {
-            try {
-                await mongoose.connect(process.env.MONGO_URI, {
-                    serverSelectionTimeoutMS: 5000
-                });
-                console.log('✅ MongoDB Atlas Connected (sapthagiri database)');
-            } catch (mongoErr) {
-                // Log error but don't crash — Postgres routes are fully operational
-                console.warn('⚠️ MongoDB connection notice:', mongoErr.message);
-            }
-        } else {
-            console.warn('⚠️ MONGO_URI not set — operating with PostgreSQL primary engine.');
-        }
-
-        // 3. Start the HTTP server
-        app.listen(PORT, '0.0.0.0', () => {
-            const dbStatus = mongoose.connection.readyState === 1 ? 'MongoDB ✅' : 'MongoDB ❌';
-            console.log(`✅ Sapthagiri PU College QPG Server running on port ${PORT} | ${dbStatus}`);
+        // 2. Start the HTTP server
+        const server = app.listen(PORT, '0.0.0.0', () => {
+            console.log(`✅ Sapthagiri PU College QPG Server running on port ${PORT}`);
         });
+        // Platform load balancers keep connections open for about 60 s; Node closes idle ones after 5 s by default, which
+        // shows up as sporadic 502 errors on the next request over a reused connection.
+        server.keepAliveTimeout = 65 * 1000;
+        server.headersTimeout = 66 * 1000;
+
+        // Finish in-flight requests on a restart or deploy instead of cutting students off mid-submit.
+        const shutdown = (signal) => {
+            console.log(`${signal} received: closing the server`);
+            server.close(() => process.exit(0));
+            setTimeout(() => process.exit(0), 10000).unref();
+        };
+        process.on('SIGTERM', () => shutdown('SIGTERM'));
+        process.on('SIGINT', () => shutdown('SIGINT'));
     })();
+
+    // A promise rejected somewhere that nothing awaits must not take the whole exam server down; it is logged instead.
+    process.on('unhandledRejection', (reason) => {
+        console.error('[UNHANDLED REJECTION]', reason && reason.stack ? reason.stack : reason);
+    });
+    // After an uncaught exception the process state is unknown: log it and exit so the platform restarts a clean process.
+    process.on('uncaughtException', (err) => {
+        console.error('[UNCAUGHT EXCEPTION]', err && err.stack ? err.stack : err);
+        setTimeout(() => process.exit(1), 500).unref();
+    });
 }
 
 module.exports = app; // Exported for supertest

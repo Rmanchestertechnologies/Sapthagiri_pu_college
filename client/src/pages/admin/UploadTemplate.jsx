@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../api';
 
@@ -82,7 +82,7 @@ const UploadTemplate = () => {
         try {
             await api.delete(`/api/templates/${id}`);
             fetchTemplates();
-        } catch (err) {
+        } catch {
             alert('Delete failed');
         }
     };

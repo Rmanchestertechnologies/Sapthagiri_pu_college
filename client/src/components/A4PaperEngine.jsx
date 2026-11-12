@@ -13,7 +13,7 @@
 import React, { useMemo } from 'react';
 import QuestionBlock, { formatOptionKey } from './QuestionBlock';
 import MathRenderer from './MathRenderer';
-import { InstructionCoverPage, PaperHeader, formatMarks, calcTotal } from './PaperRenderer';
+import { PaperHeader, formatMarks, calcTotal } from './PaperRenderer';
 
 // Canonical subject normalizer (strictly maps variations of Maths/Phy/Chem/Bio to canonical names)
 const normalizeSubjectName = (sub) => {
