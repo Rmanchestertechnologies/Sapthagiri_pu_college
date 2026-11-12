@@ -233,6 +233,28 @@ async function init() {
     `);
     console.log('✅ Created exam_sessions table');
 
+    // OMR scan results (same definition as migrations/004_omr_submissions.sql)
+    await pool.query(`
+        CREATE TABLE IF NOT EXISTS public.omr_submissions (
+            id SERIAL PRIMARY KEY,
+            paper_id TEXT NOT NULL,
+            teacher_id TEXT NOT NULL,
+            roll_number TEXT NOT NULL,
+            student_name TEXT,
+            detected_series TEXT,
+            detected_answers JSONB DEFAULT '{}'::jsonb,
+            correct_answers JSONB DEFAULT '[]'::jsonb,
+            score_data JSONB DEFAULT '{}'::jsonb,
+            subject_scores JSONB DEFAULT '{}'::jsonb,
+            concept_analysis JSONB DEFAULT '[]'::jsonb,
+            image_path TEXT,
+            scan_status TEXT DEFAULT 'processed',
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+        );
+        CREATE INDEX IF NOT EXISTS idx_omr_submissions_paper ON public.omr_submissions (paper_id);
+    `);
+    console.log('✅ Created omr_submissions table');
+
     // 12. Students Table
     await pool.query(`
         CREATE TABLE IF NOT EXISTS public.students (

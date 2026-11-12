@@ -133,6 +133,36 @@ Found by driving the wizard, assignment, admin and student CBT screens against a
 New environment variables: `DB_POOL_MAX`, `DB_POOL_IDLE_MS`, `DB_SSL` (ignored in production), `DB_SSL_CA`, `TRUST_PROXY_HOPS`, `ENV_FILE` (scripts only).
 Migrations 001–003 were applied and re-run (idempotent) on the throwaway database only; **none is applied to production**.
 
+### Fixed in the follow-up pass (everything that was still unchecked)
+
+| ID | Sev | Where | Problem → correction |
+|----|-----|-------|----------------------|
+| FU-01 | HIGH | `AdminQuestionBank.jsx` | The page downloaded up to 20 000 full questions twice (from all eight databases) on every load and rendered all of them; against the real bank (75 749 questions) the request did not finish in 45 s. → Server-side pages of 50, total and page count from the server, chapter/concept lists from `/api/questions/meta`, stale-response guard, error and empty states. Loads in a few seconds; subject filter and paging checked in the browser. |
+| FU-02 | HIGH | `routes/omr.js`, `TeacherOmr.jsx` (OPEN-24) | A batch of up to 100 sheets was scanned inside one HTTP request (sheets are read one by one by the engine), so hosting timeouts cut large batches off. → `POST /api/omr/scan?async=true` answers 202 with a job id; `GET /api/omr/scan/jobs/:id` reports progress and the final summary (owner or admin only, kept one hour in memory). The screen polls it. The old synchronous call still works. Checked through the real engine with a real sheet image. |
+| FU-03 | HIGH | `scripts/init_db.js`, migration 004 | Nothing in the repository created `public.omr_submissions`, so scans failed on a database built by the script. → added to `init_db.js` and to migration 004 (`CREATE TABLE IF NOT EXISTS`, so a production table that already exists is left alone). Whether production has the table was **not** checked (read of the production database was declined by the safety layer). |
+| FU-04 | MEDIUM | `wordExport.js` | `\dfrac`/`	frac` and fractions with nested braces were left as raw LaTeX; Greek letters before a subscript (`
+u_0`) were not converted (`` does not match before `_`); `1^st` stayed literal; "Time: 60" had no unit; `**bold**` markers printed literally. → brace-aware fraction conversion, lookahead boundaries, ordinals, unit, marker cleanup (`wordExport.test.js`). |
+| FU-05 | MEDIUM | `papers.js`, `exams.js` | A title or student name containing a character outside Latin-1 (an en dash, a Kannada name) or a quote made `res.setHeader` throw, so the Word / PDF / ZIP download failed with a 500 after the file was built. → `utils/contentDisposition.js` (ASCII `filename` plus RFC 5987 `filename*`) on all six downloads. |
+| FU-06 | LOW | `Scorecard.jsx` | Missing React key on review cards. → fixed. |
+| FU-07 | - | `services/questionQuality.js`, `scripts/question_bank_quality_report.js` | No way to see data-quality problems in the question banks. → read-only report (see below). |
+
+Question-bank data quality (read-only report, rows flagged for human review, nothing changed):
+
+| Database | Questions | Flagged | Main findings |
+|----------|-----------|---------|---------------|
+| Mathematics 11 | 14 450 | 3 783 (26.2 %) | 2 995 `[UNCLEAR]`, 861 duplicate questions, 58 bad `correct_option` |
+| Mathematics 12 | 12 129 | 326 (2.7 %) | 101 `[UNCLEAR]`, 87 duplicate options, 74 duplicates, 23 bad `correct_option`, 22 without options |
+| Chemistry 11 | 9 440 | 272 (2.9 %) | 73 bad `correct_option`, 69 duplicate options, 69 `[UNCLEAR]` |
+| Chemistry 12 | 6 522 | 174 (2.7 %) | 111 duplicates, 50 duplicate options |
+| Biology 11 | 11 369 | 286 (2.5 %) | 146 duplicates, 41 duplicate options, 35 without options |
+| Biology 12 | 10 515 | 803 (7.6 %) | 496 duplicates, 228 `[UNCLEAR]` |
+| Physics 11 | 5 320 | 327 (6.1 %) | 163 `[UNCLEAR]`, 89 duplicates, 70 duplicate options, 15 bad `correct_option` |
+| Physics 12 | 8 577 | 164 (1.9 %) | 78 duplicates, 67 duplicate options, 11 `[UNCLEAR]`, 8 without options |
+
+Rules are conservative (`services/questionQuality.js`); a flagged row is a candidate to look at, not proof of an error. The question selector already skips option-less questions for NEET/CET.
+
+Word export, checked on a generated file (16 questions: MCQ, assertion-reason, statement, match; unicode title): valid .docx, no raw LaTeX left, line breaks inside assertion/reason kept, three images embedded. Not checked: how the file looks in Microsoft Word itself (no Word on this machine), and match-the-following questions whose source text is a garbled markdown table still produce wrong column items (a data-format problem in the bank, e.g. a sub-heading read as a row).
+
 ### Open (found, not fixed)
 
 | ID | Sev | File | Problem | Recommended correction |
@@ -149,7 +179,7 @@ Migrations 001–003 were applied and re-run (idempotent) on the throwaway datab
 | OPEN-17 | LOW | `client/src/pages/exam/Scorecard.jsx` | Recomputes correctness in the browser instead of using the server's `isCorrect`. Bridge keys are never expired. | Use server verdict; enforce `expires_at`. |
 | OPEN-20 | HIGH | `config/dbSsl.js` | Database TLS certificates are not verified: Supabase's chain is rejected by Node (checked: `self-signed certificate in certificate chain`). Verification is now available but needs the provider's CA certificate. | Download the Supabase CA, set `DB_SSL_CA` (text or file path). |
 | OPEN-23 | MEDIUM | `omr_engine/`, `omrEvaluator.js` | The engine's per-question confidence is now passed through and low-confidence or uncertain reads are flagged, but the review threshold (`OMR_REVIEW_GAP`, default 0.15) is a starting point, and no labelled set of real sheets exists to measure accuracy. The engine was only run on the blank reference sheet. | Scan a labelled batch of real sheets, measure, tune the threshold, and only then quote an accuracy. |
-| OPEN-24 | MEDIUM | `routes/omr.js` | A batch scans sheets one after another inside one HTTP request (up to 100 × up to 60 s); hosting timeouts will cut large batches off. | Queue the work and poll. |
+| OPEN-24 | LOW | `routes/omr.js` | Fixed by FU-02 (background job + polling). Jobs are in memory per server process: a restart loses a running job's status (stored results are kept). | Move to a persistent queue only if the server runs as several instances. |
 | OPEN-26 | MEDIUM | `CommissionedExam.jsx`, `pqrsGenerator.js` | The P/Q/R/S seed is the paper id, so a set printed before the paper was saved differs from the saved paper's set. Changing the seed would change sets already printed, so it was left and a warning added. | Decide on a stable seed stored with the paper (needs a column or `metadata` field). |
 | OPEN-27 | MEDIUM | `server/migrations/001_grand_test_and_pyq_questions.sql` | Grand Test / previous-year question storage does not exist. The migration is written (additive, with a rollback) and was checked by running it inside a rolled-back transaction on temporary tables, but it is **not applied**, and the import/replace/remove endpoints still answer 501 until code for them is written. | Approve, back up, run `node scripts/migrate.js --apply`, then implement the endpoints. |
 | OPEN-28 | LOW | `server/` | `MONGO_URI`'s host does not resolve from this machine, so the legacy MongoDB store may be gone; the root `find_*.js` / `test_*.js` debug scripts remain. | Confirm and delete. |

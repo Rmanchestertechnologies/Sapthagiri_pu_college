@@ -74,7 +74,6 @@ const MultiSelectCheckbox = ({ label, options, selectedValues, onChange, disable
 const AdminQuestionBank = () => {
     const navigate = useNavigate();
     const [questions, setQuestions] = useState([]);
-    const [allQuestions, setAllQuestions] = useState([]);
     const [filters, setFilters] = useState({
         examType: '',
         subject: '',
@@ -92,26 +91,40 @@ const AdminQuestionBank = () => {
     const [uniqueConcepts, setUniqueConcepts] = useState([]);
     const [uniqueSubConcepts, setUniqueSubConcepts] = useState([]);
 
-    const fetchAllQuestionsOnce = async () => {
-        try {
-            const res = await api.get('/api/questions?limit=20000&paginated=true');
-            const list = Array.isArray(res.data) ? res.data : (res.data?.questions || []);
-            setAllQuestions(list);
-            const chs = [...new Set(list.map(q => q.chapter))].filter(Boolean);
-            setUniqueChapters(chs);
-        } catch (err) {
-            console.error(err);
-        }
-    };
+    const PAGE_SIZE = 50;
+    const [page, setPage] = useState(1);
+    const [total, setTotal] = useState(0);
+    const [totalPages, setTotalPages] = useState(1);
+    const [loading, setLoading] = useState(false);
+    const [loadError, setLoadError] = useState('');
+    const requestId = React.useRef(0);
 
+    // Chapter and concept choices come from the metadata endpoint for the chosen subject. This page used to download up to
+    // 20 000 full questions (twice, from every database) just to build these lists and then rendered all of them at once,
+    // which froze the browser and timed out on the real question bank.
     useEffect(() => {
-        fetchAllQuestionsOnce();
-    }, []);
+        let cancelled = false;
+        setUniqueChapters([]);
+        setUniqueConcepts([]);
+        if (!filters.subject) return undefined;
+        api.get('/api/questions/meta', { params: { subject: filters.subject } })
+            .then(res => {
+                if (cancelled) return;
+                setUniqueChapters((res.data?.chapters || []).filter(Boolean));
+                setUniqueConcepts((res.data?.concepts || []).filter(Boolean));
+            })
+            .catch(err => console.error(err));
+        return () => { cancelled = true; };
+    }, [filters.subject]);
 
-    const fetchQuestions = async () => {
+    const fetchQuestions = async (targetPage = page) => {
+        const myRequest = ++requestId.current;
+        setLoading(true);
+        setLoadError('');
         try {
             const queryParams = new URLSearchParams();
-            queryParams.append('limit', '20000');
+            queryParams.append('limit', String(PAGE_SIZE));
+            queryParams.append('page', String(targetPage));
             queryParams.append('paginated', 'true');
             Object.keys(filters).forEach(key => {
                 if (Array.isArray(filters[key])) {
@@ -123,16 +136,28 @@ const AdminQuestionBank = () => {
                 }
             });
             const res = await api.get(`/api/questions?${queryParams.toString()}`);
+            if (myRequest !== requestId.current) return; // a newer request superseded this one
             const list = Array.isArray(res.data) ? res.data : (res.data?.questions || []);
             setQuestions(list);
+            const pg = res.data?.pagination;
+            setTotal(pg?.total ?? list.length);
+            setTotalPages(Math.max(1, pg?.pages ?? 1));
+            setUniqueSubConcepts([...new Set(list.map(q => q.subConcept))].filter(Boolean));
         } catch (err) {
+            if (myRequest !== requestId.current) return;
             console.error(err);
+            setLoadError(err.response?.data?.msg || 'Could not load questions. Please try again.');
+        } finally {
+            if (myRequest === requestId.current) setLoading(false);
         }
     };
 
+    // a changed filter starts again from page 1
+    useEffect(() => { setPage(1); }, [filters]);
     useEffect(() => {
-        fetchQuestions();
-    }, [filters]);
+        fetchQuestions(page);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [filters, page]);
 
     // Handle cascade filters with arrays
     const handleChapterChange = (chapters) => {
@@ -142,8 +167,6 @@ const AdminQuestionBank = () => {
             concept: [],
             subConcept: []
         }));
-        const matchingQs = allQuestions.filter(q => chapters.length === 0 || chapters.includes(q.chapter));
-        setUniqueConcepts([...new Set(matchingQs.map(q => q.concept))].filter(Boolean));
     };
 
     const handleConceptChange = (concepts) => {
@@ -152,11 +175,6 @@ const AdminQuestionBank = () => {
             concept: concepts,
             subConcept: []
         }));
-        const matchingQs = allQuestions.filter(q => 
-            (filters.chapter.length === 0 || filters.chapter.includes(q.chapter)) &&
-            (concepts.length === 0 || concepts.includes(q.concept))
-        );
-        setUniqueSubConcepts([...new Set(matchingQs.map(q => q.subConcept))].filter(Boolean));
     };
 
     const handleSubConceptChange = (subConcepts) => {
@@ -279,7 +297,12 @@ const AdminQuestionBank = () => {
 
             {/* Questions Grid */}
             <div className="grid grid-cols-1 gap-6">
-                <p className="text-sm font-bold text-navy">Matches Found: <span className="text-gold font-black">{questions.length}</span></p>
+                <p className="text-sm font-bold text-navy">Matches Found: <span className="text-gold font-black">{total}</span>
+                    {total > 0 && <span className="ml-3 text-xs font-semibold text-gray-500">Page {page} of {totalPages}</span>}
+                    {loading && <span className="ml-3 text-xs font-semibold text-gray-400">Loading…</span>}
+                </p>
+                {loadError && <p className="text-sm font-bold text-red-600" role="alert">{loadError}</p>}
+                {!loading && !loadError && questions.length === 0 && <p className="text-sm text-gray-500">No questions match these filters.</p>}
                 {questions.map(q => (
                     <div key={q._id} className="border border-gray-200 p-6 rounded-3xl shadow-sm bg-white relative group hover:shadow-md transition">
                         <div className="absolute top-4 right-4 hidden group-hover:flex gap-2 transition z-10">
@@ -308,7 +331,7 @@ const AdminQuestionBank = () => {
                         <div className="flex flex-wrap items-center gap-2 mb-3">
                             <span className="bg-navy/5 text-navy text-[10px] px-3 py-1 rounded-full font-bold uppercase tracking-wider">{q.questionId}</span>
                             <span className="text-[10px] font-semibold text-gray-600 bg-gray-50 px-3 py-1 rounded-full">Subject: {q.subject}</span>
-                            <span className="text-[10px] font-semibold text-gray-600 bg-gray-50 px-3 py-1 rounded-full">Class: {q.classes.join(', ')}</span>
+                            <span className="text-[10px] font-semibold text-gray-600 bg-gray-50 px-3 py-1 rounded-full">Class: {(q.classes || []).join(', ')}</span>
                             <span className="text-[10px] font-semibold text-gray-600 bg-gray-50 px-3 py-1 rounded-full">Type: {q.type}</span>
                             <span className="text-[10px] font-semibold text-gray-600 bg-gray-50 px-3 py-1 rounded-full">Level: {q.level}</span>
                             <span className="text-[10px] font-semibold text-gold bg-navy px-3 py-1 rounded-full uppercase tracking-wider">{q.sourceType} {q.sourceDisplayCode ? `(${q.sourceDisplayCode})` : ''}</span>
@@ -405,6 +428,13 @@ const AdminQuestionBank = () => {
                         </div>
                     </div>
                 ))}
+                {totalPages > 1 && (
+                    <div className="flex items-center justify-center gap-4 py-4">
+                        <button disabled={page <= 1 || loading} onClick={() => setPage(p => Math.max(1, p - 1))} className="px-5 py-2 rounded-xl border border-gray-200 text-xs font-black uppercase tracking-widest disabled:opacity-40">Previous</button>
+                        <span className="text-xs font-bold text-navy">Page {page} / {totalPages}</span>
+                        <button disabled={page >= totalPages || loading} onClick={() => setPage(p => Math.min(totalPages, p + 1))} className="px-5 py-2 rounded-xl border border-gray-200 text-xs font-black uppercase tracking-widest disabled:opacity-40">Next</button>
+                    </div>
+                )}
             </div>
         </div>
     );

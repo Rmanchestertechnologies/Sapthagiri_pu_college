@@ -247,15 +247,20 @@ changes an existing account.
 Schema changes go in `server/migrations/NNN_name.sql` (only the part above the `-- ── DOWN` marker runs).
 `node server/scripts/migrate.js` lists pending migrations without changing anything; `--apply` runs them, each in a
 transaction, and records them in `public.schema_migrations`. **Migration 001** (Grand Test and previous-year
-question storage) is written but **not applied**. Back up first; the rollback SQL is at the bottom of the file.
+question storage), **002** (`users.omr_access`), **003** (one open exam session per student) and **004** (`omr_submissions`,
+used by OMR scanning) are written but **not applied to production**. Back up first; the rollback SQL is at the bottom of each file.
 
 `node server/scripts/hash_plaintext_passwords.js` reports user accounts with unhashed passwords (dry run; `--apply` hashes them).
+
+`node server/scripts/question_bank_quality_report.js` is a **read-only** report of suspect rows in the eight subject question banks
+(empty or duplicate options, bad `correct_option`, `[UNCLEAR]` placeholders, unbalanced math, duplicate questions). It changes nothing;
+`--csv file.csv` writes one row per flagged question, `--db phy_12` limits it to one database.
 
 ## 10. Tests
 
 ```bash
-npm --prefix server run test:unit   # 102 tests: question selection, CBT scoring, OMR evaluation, access rules, login and lockout, session tokens, math rendering, exam merge
-npm --prefix client test            # 25 tests: P/Q/R/S generator, answer key numbering, server/browser parity
+npm --prefix server run test:unit   # 136 tests: question selection, CBT scoring, OMR evaluation, access rules, login and lockout, session tokens, rate limiter, CORS, math rendering, exam merge, Word export, download headers, bank quality rules
+npm --prefix client test            # 26 tests: P/Q/R/S generator, answer key numbering, server/browser parity
 npm --prefix server test            # integration suite; connects to the databases in .env
 npm --prefix client run build       # production build check
 ```

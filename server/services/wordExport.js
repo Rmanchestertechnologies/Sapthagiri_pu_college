@@ -68,6 +68,52 @@ const MATCH_CELL_BORDERS = {
 };
 
 /**
+ * Rewrites every \frac / \dfrac / \tfrac as "(numerator / denominator)". Handles nested braces; the innermost fraction is
+ * rewritten first. A fraction whose arguments cannot be found is reduced to its two groups instead of leaving the command.
+ */
+function readBraceGroup(str, start) {
+    let i = start;
+    while (i < str.length && /\s/.test(str[i])) i++;
+    if (str[i] === '{') {
+        let depth = 0;
+        for (let j = i; j < str.length; j++) {
+            if (str[j] === '{') depth++;
+            else if (str[j] === '}' && --depth === 0) return { text: str.slice(i + 1, j), end: j + 1 };
+        }
+        return null;
+    }
+    if (i < str.length && /[A-Za-z0-9]/.test(str[i])) return { text: str[i], end: i + 1 };
+    return null;
+}
+
+function convertFractions(input) {
+    let s = input.replace(/\\[dt]frac(?![a-zA-Z])/g, '\\frac');
+    for (let guard = 0; guard < 200; guard++) {
+        const at = s.lastIndexOf('\\frac');
+        if (at < 0) break;
+        const a = readBraceGroup(s, at + 5);
+        const b = a && readBraceGroup(s, a.end);
+        if (!a || !b) { s = s.slice(0, at) + s.slice(at + 5); continue; }
+        // already one bracketed term, e.g. the result of an inner fraction
+        const wrapped = t => {
+            if (t[0] !== '(') return false;
+            let depth = 0;
+            for (let k = 0; k < t.length; k++) {
+                if (t[k] === '(') depth++;
+                else if (t[k] === ')' && --depth === 0) return k === t.length - 1;
+            }
+            return false;
+        };
+        // one term: no operators or spaces, so no extra brackets needed
+        const simple = t => /^[^\s+\-*/=,]+$/.test(t.trim()) || wrapped(t.trim());
+        const num = simple(a.text) ? a.text.trim() : `(${a.text.trim()})`;
+        const den = simple(b.text) ? b.text.trim() : `(${b.text.trim()})`;
+        s = s.slice(0, at) + `(${num} / ${den})` + s.slice(b.end);
+    }
+    return s;
+}
+
+/**
  * Converts LaTeX math notation to clean, genuine Unicode characters for Microsoft Word.
  * Each character is 100% editable in Word. No raw LaTeX commands or $ delimiters appear.
  */
@@ -89,11 +135,8 @@ function latexToEditableText(latex) {
          .replace(/\\mathit\{([^{}]+)\}/g, '$1')
          .replace(/\\ce\{([^{}]+)\}/g, '$1');
 
-    // 2. Fractions: \frac{a}{b} -> (a / b)
-    while (/\\frac\{([^{}]+)\}\{([^{}]+)\}/.test(s)) {
-        s = s.replace(/\\frac\{([^{}]+)\}\{([^{}]+)\}/g, '($1 / $2)');
-    }
-    s = s.replace(/\\frac\s+([a-zA-Z0-9])\s+([a-zA-Z0-9])/g, '($1 / $2)');
+    // 2. Fractions: \frac{a}{b}, \dfrac, \tfrac -> (a / b). Brace-aware, so nested groups (\sqrt{..}, a_{0}) convert too.
+    s = convertFractions(s);
 
     // 3. Square roots
     s = s.replace(/\\sqrt\[(.*?)\]\{(.*?)\}/g, '√[$1]($2)')
@@ -109,43 +152,45 @@ function latexToEditableText(latex) {
         Xi: 'Ξ', Pi: 'Π', Sigma: 'Σ', Upsilon: 'Υ', Phi: 'Φ', Psi: 'Ψ', Omega: 'Ω'
     };
     for (const [cmd, sym] of Object.entries(greek)) {
-        s = s.replace(new RegExp('\\\\' + cmd + '\\b', 'g'), sym);
+        s = s.replace(new RegExp('\\\\' + cmd + '(?![a-zA-Z])', 'g'), sym);
     }
 
     // 5. Common math symbols & operators
-    s = s.replace(/\\times\b/g, '×')
-         .replace(/\\pm\b/g, '±')
-         .replace(/\\mp\b/g, '∓')
-         .replace(/\\div\b/g, '÷')
-         .replace(/\\cdot\b/g, '·')
-         .replace(/\\leq\b/g, '≤')
-         .replace(/\\geq\b/g, '≥')
-         .replace(/\\neq\b/g, '≠')
-         .replace(/\\approx\b/g, '≈')
-         .replace(/\\equiv\b/g, '≡')
-         .replace(/\\infty\b/g, '∞')
-         .replace(/\\propto\b/g, '∝')
-         .replace(/\\rightarrow\b|\\to\b/g, '→')
-         .replace(/\\leftarrow\b/g, '←')
-         .replace(/\\Rightarrow\b/g, '⇒')
-         .replace(/\\leftrightarrow\b/g, '↔')
-         .replace(/\\in\b/g, '∈')
-         .replace(/\\notin\b/g, '∉')
-         .replace(/\\subset\b/g, '⊂')
-         .replace(/\\supset\b/g, '⊃')
-         .replace(/\\cap\b/g, '∩')
-         .replace(/\\cup\b/g, '∪')
-         .replace(/\\int\b/g, '∫')
-         .replace(/\\sum\b/g, '∑')
-         .replace(/\\angle\b/g, '∠')
-         .replace(/\\circ\b|\^\\circ\b|\^\{\\circ\}/g, '°')
-         .replace(/\\degree\b/g, '°');
+    s = s.replace(/\\times(?![a-zA-Z])/g, '×')
+         .replace(/\\pm(?![a-zA-Z])/g, '±')
+         .replace(/\\mp(?![a-zA-Z])/g, '∓')
+         .replace(/\\div(?![a-zA-Z])/g, '÷')
+         .replace(/\\cdot(?![a-zA-Z])/g, '·')
+         .replace(/\\leq(?![a-zA-Z])/g, '≤')
+         .replace(/\\geq(?![a-zA-Z])/g, '≥')
+         .replace(/\\neq(?![a-zA-Z])/g, '≠')
+         .replace(/\\approx(?![a-zA-Z])/g, '≈')
+         .replace(/\\equiv(?![a-zA-Z])/g, '≡')
+         .replace(/\\infty(?![a-zA-Z])/g, '∞')
+         .replace(/\\propto(?![a-zA-Z])/g, '∝')
+         .replace(/\\rightarrow(?![a-zA-Z])|\\to(?![a-zA-Z])/g, '→')
+         .replace(/\\leftarrow(?![a-zA-Z])/g, '←')
+         .replace(/\\Rightarrow(?![a-zA-Z])/g, '⇒')
+         .replace(/\\leftrightarrow(?![a-zA-Z])/g, '↔')
+         .replace(/\\in(?![a-zA-Z])/g, '∈')
+         .replace(/\\notin(?![a-zA-Z])/g, '∉')
+         .replace(/\\subset(?![a-zA-Z])/g, '⊂')
+         .replace(/\\supset(?![a-zA-Z])/g, '⊃')
+         .replace(/\\cap(?![a-zA-Z])/g, '∩')
+         .replace(/\\cup(?![a-zA-Z])/g, '∪')
+         .replace(/\\int(?![a-zA-Z])/g, '∫')
+         .replace(/\\sum(?![a-zA-Z])/g, '∑')
+         .replace(/\\angle(?![a-zA-Z])/g, '∠')
+         .replace(/\\circ(?![a-zA-Z])|\^\\circ(?![a-zA-Z])|\^\{\\circ\}/g, '°')
+         .replace(/\\degree(?![a-zA-Z])/g, '°');
 
     // 6. Trigonometric and functions (remove backslash)
-    s = s.replace(/\\(sin|cos|tan|cot|sec|cosec|csc|log|ln|lim|exp|det)\b/g, '$1');
+    s = s.replace(/\\(sin|cos|tan|cot|sec|cosec|csc|log|ln|lim|exp|det)(?![a-zA-Z])/g, '$1');
 
     // 7. Superscripts
     const superMap = { '0':'⁰', '1':'¹', '2':'²', '3':'³', '4':'⁴', '5':'⁵', '6':'⁶', '7':'⁷', '8':'⁸', '9':'⁹', '+':'⁺', '-':'⁻', '=':'⁼', '(':'⁽', ')':'⁾', 'n':'ⁿ', 'i':'ⁱ', 'x':'ˣ' };
+    const ordinal = { st: 'ˢᵗ', nd: 'ⁿᵈ', rd: 'ʳᵈ', th: 'ᵗʰ' };
+    s = s.replace(/\^\{?(st|nd|rd|th)\}?(?![a-zA-Z])/g, (_, o) => ordinal[o]);
     s = s.replace(/\^\{([0-9\+\-nix]+)\}/g, (_, p1) => p1.split('').map(c => superMap[c] || c).join(''));
     s = s.replace(/\^([0-9])/g, (_, p1) => superMap[p1] || p1);
 
@@ -190,6 +235,9 @@ function cleanQuestionText(text) {
     str = str.replace(/!\[.*?\]\((https?:\/\/[^\s\)]+)\)/gi, '');
     str = str.replace(/<img[^>]+>/gi, '');
     str = str.replace(/<span\s+class=["']katex-error["'][^>]*>[\s\S]*?<\/span>/gi, '');
+
+    // Markdown emphasis left in imported text (**Column I**) would print as literal asterisks in Word
+    str = str.replace(/\*\*([^*\n]{1,80})\*\*/g, '$1');
 
     str = str.replace(/^(\s*(?:Q\.?\s*)?\d+[\.\)\-:]\s*)+/i, '');
     str = str.replace(/\[(?:QPV_|QBP_)?DIFFICULTY:\s*[^\]]+\]/gi, '');
@@ -711,7 +759,7 @@ async function generatePaperDoc(paper, template = null) {
     // ── 2. METADATA STRIP TABLE (Matching PDF) ──
     const subText = paper.subject || 'All Subjects';
     const classText = Array.isArray(paper.classes) ? paper.classes.join(', ') : (paper.classes || '12');
-    const durText = paper.duration || '180 Minutes';
+    const durText = /^\d+$/.test(String(paper.duration ?? '').trim()) ? `${String(paper.duration).trim()} Minutes` : (paper.duration || '180 Minutes');
     const maxMarksText = paper.headerConfig?.maxMarks || (paper.exam_type?.includes('JEE') ? '100' : '180');
 
     const metaBorders = {

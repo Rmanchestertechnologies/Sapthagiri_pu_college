@@ -1,4 +1,5 @@
 const express = require('express');
+const { contentDisposition } = require('../utils/contentDisposition');
 const router = express.Router();
 const Paper = require('../models/Paper');
 const auth = require('../middleware/auth');
@@ -391,7 +392,7 @@ router.post('/export-word', [auth, checkRole(['teacher', 'admin'])], async (req,
         const buffer = await generatePaperDoc(paper);
 
         res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
-        res.setHeader('Content-Disposition', `attachment; filename="${(paper.title || 'Question_Paper').replace(/\s+/g, '_')}.docx"`);
+        res.setHeader('Content-Disposition', contentDisposition(paper.title, 'docx', 'Question_Paper'));
         res.send(buffer);
     } catch (err) {
         console.error('Direct Word export error:', err.message);
@@ -419,7 +420,7 @@ router.get('/:id/export-word', [auth, checkRole(['teacher', 'admin'])], async (r
         const buffer = await generatePaperDoc(populatedPaper, template);
 
         res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
-        res.setHeader('Content-Disposition', `attachment; filename="${paper.title.replace(/\s+/g, '_')}.docx"`);
+        res.setHeader('Content-Disposition', contentDisposition(paper.title, 'docx', 'Question_Paper'));
         res.send(buffer);
     } catch (err) {
         console.error('Word export error:', err.message);
@@ -440,7 +441,7 @@ router.get('/:id/export-pdf', [auth, checkRole(['teacher', 'admin'])], async (re
         const buffer = await generatePaperPdf(populatedPaper);
 
         res.setHeader('Content-Type', 'application/pdf');
-        res.setHeader('Content-Disposition', `attachment; filename="${(paper.title || 'Question_Paper').replace(/\s+/g, '_')}.pdf"`);
+        res.setHeader('Content-Disposition', contentDisposition(paper.title, 'pdf', 'Question_Paper'));
         res.send(buffer);
     } catch (err) {
         console.error('PDF export error:', err.message);

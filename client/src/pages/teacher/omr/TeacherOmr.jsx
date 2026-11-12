@@ -169,20 +169,33 @@ const TeacherOmr = () => {
 
         try {
             setIsScanning(true);
-            setScanProgress(20);
+            setScanProgress(5);
 
-            const timer = setInterval(() => {
-                setScanProgress((prev) => (prev < 90 ? prev + 10 : prev));
-            }, 800);
-
-            const res = await api.post('/api/omr/scan', formData, {
+            // The server scans in the background and this screen polls it, so a large batch is not cut off by a request timeout.
+            const start = await api.post('/api/omr/scan?async=true', formData, {
                 headers: { 'Content-Type': 'multipart/form-data' }
             });
-
-            clearInterval(timer);
+            const jobId = start.data?.jobId;
+            let summary = jobId ? null : start.data; // an older server answers with the finished batch
+            let failures = 0;
+            while (!summary) {
+                await new Promise(r => setTimeout(r, 1500));
+                try {
+                    const poll = await api.get(`/api/omr/scan/jobs/${jobId}`);
+                    failures = 0;
+                    const { status, total, processed } = poll.data;
+                    if (total > 0) setScanProgress(Math.max(5, Math.min(95, Math.round((processed / total) * 95))));
+                    if (status === 'done') summary = poll.data;
+                    else if (status === 'failed') throw new Error(poll.data.error || 'The scan failed on the server.');
+                } catch (pollErr) {
+                    if (pollErr.response?.status === 404) throw new Error('The scan job was lost (the server may have restarted). Please upload the sheets again.');
+                    if (!pollErr.response && ++failures < 5) continue; // brief network drop: keep trying
+                    throw pollErr;
+                }
+            }
             setScanProgress(100);
 
-            setBatchSummary(res.data);
+            setBatchSummary(summary);
             await fetchResults(selectedPaperId);
             setSelectedFiles([]);
             if (fileInputRef.current) fileInputRef.current.value = '';

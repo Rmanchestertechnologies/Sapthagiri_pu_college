@@ -1,4 +1,5 @@
 const express = require('express');
+const { contentDisposition } = require('../utils/contentDisposition');
 const router = express.Router();
 const crypto = require('crypto');
 const storage = require('../services/postgresStorage');
@@ -1312,7 +1313,7 @@ router.get('/:id/export-word', [auth, checkRole(['admin'])], async (req, res) =>
         const buffer = await generatePaperDoc(paperAdapter, template);
 
         res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
-        res.setHeader('Content-Disposition', `attachment; filename="${exam.title.replace(/\s+/g, '_')}.docx"`);
+        res.setHeader('Content-Disposition', contentDisposition(exam.title, 'docx', 'Exam'));
         res.send(buffer);
     } catch (err) {
         console.error('Exam Word export error:', err.message);
@@ -1336,7 +1337,7 @@ router.get('/:id/pdf-report/:sessionId', detectLabIp, requireSessionAccess({ ses
         const buffer = await generateReportPdf(session, exam);
 
         res.setHeader('Content-Type', 'application/pdf');
-        res.setHeader('Content-Disposition', `attachment; filename="${(session.student_name || session.studentName || 'Result').replace(/\s+/g, '_')}.pdf"`);
+        res.setHeader('Content-Disposition', contentDisposition(session.student_name || session.studentName, 'pdf', 'Result'));
         res.send(buffer);
     } catch (err) {
         console.error('PDF report error:', err.message);
@@ -1361,7 +1362,7 @@ router.get('/:id/download-all-reports', [auth, checkRole(['admin'])], async (req
         const archive = archiver('zip', { zlib: { level: 9 } });
 
         res.setHeader('Content-Type', 'application/zip');
-        res.setHeader('Content-Disposition', `attachment; filename="${exam.title.replace(/\s+/g, '_')}_Reports.zip"`);
+        res.setHeader('Content-Disposition', contentDisposition(`${exam.title}_Reports`, 'zip', 'Reports'));
 
         archive.on('error', (err) => {
             throw err;

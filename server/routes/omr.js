@@ -322,6 +322,48 @@ router.get('/papers/:id/key', [auth, requireOmrAccess], async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Background scan jobs. A batch of up to 100 sheets takes minutes (the engine reads one sheet at a time), which is longer
+// than hosting platforms keep an HTTP request open. With `?async=true` the scan route answers at once with a job id and the
+// client polls GET /api/omr/scan/jobs/:id. Jobs live in memory (per server process) for one hour; the scored results
+// themselves are stored in public.omr_submissions as before.
+// ─────────────────────────────────────────────────────────────────────────────
+const scanJobs = new Map();
+const JOB_TTL_MS = 60 * 60 * 1000;
+function createScanJob(ownerId, total) {
+    const job = {
+        id: require('crypto').randomBytes(12).toString('hex'),
+        ownerId: String(ownerId),
+        status: 'running',
+        total,
+        processed: 0,
+        summary: null,
+        error: null,
+        createdAt: Date.now()
+    };
+    scanJobs.set(job.id, job);
+    return job;
+}
+setInterval(() => {
+    const cutoff = Date.now() - JOB_TTL_MS;
+    for (const [id, job] of scanJobs) if (job.createdAt < cutoff) scanJobs.delete(id);
+}, 10 * 60 * 1000).unref();
+
+router.get('/scan/jobs/:jobId', [auth, requireOmrAccess], (req, res) => {
+    const job = scanJobs.get(req.params.jobId);
+    if (!job || (job.ownerId !== String(req.user.id) && req.user.role !== 'admin')) {
+        return res.status(404).json({ msg: 'Scan job not found (it may have expired).' });
+    }
+    res.json({
+        jobId: job.id,
+        status: job.status,
+        total: job.total,
+        processed: job.processed,
+        error: job.error,
+        ...(job.status === 'done' ? job.summary : {})
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // @route   POST /api/omr/scan
 // @desc    Upload single or bulk OMR sheets, scan bubbles, evaluate against QPG key
 // @access  Teacher (with OMR permission) or Admin
@@ -401,6 +443,10 @@ router.post('/scan', [auth, requireOmrAccess, upload.array('sheets', 100)], asyn
         };
         const rollsSeenInBatch = new Map();
 
+        const asyncMode = req.query.async === 'true' || (req.body && req.body.async === 'true');
+        const job = asyncMode ? createScanJob(req.user.id, files.length) : null;
+
+        const processAll = async () => {
         const results = [];
         const errors = [];
 
@@ -512,10 +558,11 @@ router.post('/scan', [auth, requireOmrAccess, upload.array('sheets', 100)], asyn
             } finally {
                 // Remove temporary uploaded image after evaluation
                 try { fs.unlinkSync(file.path); } catch (e) {}
+                if (job) job.processed = i + 1;
             }
         }
 
-        return res.json({
+        return {
             success: true,
             totalUploaded: files.length,
             processedCount: results.length,
@@ -523,7 +570,21 @@ router.post('/scan', [auth, requireOmrAccess, upload.array('sheets', 100)], asyn
             needsReviewCount: results.filter(r => r.needsReview).length,
             results,
             errors
-        });
+        };
+        };
+
+        if (job) {
+            processAll()
+                .then(summary => { job.summary = summary; job.status = 'done'; })
+                .catch(err => {
+                    console.error('[OMR BATCH ERROR]:', err.message);
+                    job.status = 'failed';
+                    job.error = err.message;
+                    files.forEach(f => { try { fs.unlinkSync(f.path); } catch (e) {} });
+                });
+            return res.status(202).json({ success: true, jobId: job.id, totalUploaded: files.length });
+        }
+        return res.json(await processAll());
 
     } catch (err) {
         console.error('[OMR BATCH ERROR]:', err.message);
