@@ -43,3 +43,7 @@ server/omr_engine/alignment_debug/
 
 # Chrome downloaded by Puppeteer (see server/.puppeteerrc.cjs)
 server/.cache/
+
+# test coverage output
+server/coverage/
+coverage/
