@@ -183,7 +183,7 @@ export function BalanceDock({ count, target, unit = 'questions', marksPerQ = 0 }
     return (
         <motion.div
             initial={{ y: 80, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 80, opacity: 0 }} transition={SPRING.island}
-            className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 no-print"
+            className="fixed bottom-4 left-1/2 lg:left-[calc(50%+152px)] -translate-x-1/2 z-50 no-print"
             style={{ x: '-50%' }}
         >
             <div className={`flex items-center gap-3 rounded-full pl-3 pr-5 py-2 shadow-2xl backdrop-blur-md border ${

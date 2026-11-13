@@ -1,5 +1,5 @@
 import { useState, useEffect, useContext, useMemo, useRef, useCallback } from 'react';
-import { Check, Zap, Edit3, Target, Scale, X, Plus, Minus, Search, CheckCircle2 } from 'lucide-react';
+import { Check, Zap, Edit3, Target, Scale, X, Plus, Minus, Search, CheckCircle2, ArrowLeft, Command } from 'lucide-react';
 import { AuthContext } from '../../context/AuthContext';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../../api';
@@ -9,7 +9,8 @@ import A4AnswerKey from '../../components/A4AnswerKey';
 import A4SolutionKey from '../../components/A4SolutionKey';
 import Loader from '../../components/Loader';
 import { AnimatePresence } from 'framer-motion';
-import { MotionRoot, StepRail, StepTransition, StatusIsland, useIsland, BalanceDock, PaperSeal, CommandPalette, useCommandShortcut } from '../../ui/motion';
+import { StepSidebar } from '../../ui/motion/StepSidebar';
+import { MotionRoot, StepTransition, StatusIsland, useIsland, BalanceDock, PaperSeal, CommandPalette, useCommandShortcut } from '../../ui/motion';
 import { cleanOptionText, extractOptionsIfMissing } from '../../utils/sanitize';
 import { EXAM_PATTERNS, getQCategory, isCetQ, normalizeSubjectName } from './commissioned/examPatterns';
 
@@ -1091,36 +1092,52 @@ export default function CommissionedExam() {
         { id: 'dash', label: 'Leave the wizard (dashboard)', hint: 'exit', run: () => navigate('/teacher/dashboard') },
     ];
 
+    // what the left column shows: a line under each finished step, and the "your paper" card
+    const stepSummaries = {
+        1: [selectedExamPattern, selectedSubject].filter(Boolean).join(' · '),
+        2: selectedChapters.length ? `${selectedChapters.length} chapter${selectedChapters.length > 1 ? 's' : ''}` : '',
+        3: selectedConcepts.length ? `${selectedConcepts.length} concept${selectedConcepts.length > 1 ? 's' : ''}` : 'All concepts',
+        4: totalChapterQuestions ? `${totalChapterQuestions} questions` : '',
+        5: totalTypeQuestions ? `${totalTypeQuestions} by type` : '',
+        6: selectedQuestions && selectedQuestions.length ? `${selectedQuestions.length} picked` : '',
+        7: '',
+    };
+    const sidebarSteps = wizardSteps.map(st => ({ ...st, summary: stepSummaries[st.step] }));
+    const sidebarQuestions = (selectedQuestions && selectedQuestions.length) || (currentStep >= 5 ? totalChapterQuestions : 0) || (currentStep === 4 ? totalChapterQuestions : 0);
+    const sidebarSummary = {
+        exam: selectedExamPattern,
+        subject: selectedSubject,
+        cls: selectedClass === 'Both' ? 'Class 11 + 12' : (selectedClass ? `Class ${selectedClass}` : ''),
+        chapters: selectedChapters.length,
+        questions: sidebarQuestions,
+        marks: sidebarQuestions * (patternConfig.marksPerQ || 0),
+    };
+
     return (
         <MotionRoot>
-        <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
-            {/* Top Navigation Bar with Step Pill Indicators */}
-            <header className="bg-navy text-white px-6 py-4 shadow-lg border-b-2 border-gold flex items-center justify-between sticky top-0 z-40 no-print">
-                <div className="flex items-center gap-3">
-                    <button
-                        onClick={() => currentStep > 1 ? handleBackStep() : navigate('/teacher/dashboard')}
-                        className="bg-white/10 hover:bg-white/20 text-gold px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition flex items-center gap-1 cursor-pointer"
-                    >
-                        <span>←</span> Back
-                    </button>
-                    <div>
-                        <div className="flex items-center gap-2">
-                            <span className="bg-gold text-navy text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-widest">
-                                Exam Generator
-                            </span>
-                            <h1 className="hidden xl:block text-base font-black text-white uppercase tracking-tight whitespace-nowrap">
-                                {examTitle ? examTitle : 'Question Paper Generator'}
-                            </h1>
+        <div className="min-h-screen flex flex-col font-sans">
+            {/* Top bar: back, where you are, and the quick-jump hint. Progress lives in the left column. */}
+            <header className="glass sticky top-0 z-40 no-print border-x-0 border-t-0 rounded-none">
+                <div className="max-w-[1400px] mx-auto px-4 md:px-8 py-3 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                        <button
+                            onClick={() => currentStep > 1 ? handleBackStep() : navigate('/teacher/dashboard')}
+                            className="w-10 h-10 shrink-0 rounded-xl bg-white border border-slate-200 text-slate-600 hover:text-[#081b3b] hover:border-slate-300 flex items-center justify-center cursor-pointer"
+                            aria-label="Back"
+                        >
+                            <ArrowLeft size={18} />
+                        </button>
+                        <div className="min-w-0">
+                            <p className="eyebrow">Exam generator</p>
+                            <h1 className="text-base sm:text-lg font-extrabold text-[#081b3b] truncate">{examTitle ? examTitle : 'Question Paper Generator'}</h1>
                         </div>
                     </div>
+                    <button type="button" onClick={() => setPaletteOpen(true)}
+                        className="hidden sm:flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-500 hover:text-[#081b3b] hover:border-slate-300 cursor-pointer">
+                        <Command size={14} /> Quick jump <kbd className="rounded border border-slate-200 bg-slate-50 px-1.5 text-[10px]">Ctrl K</kbd>
+                    </button>
                 </div>
-
-                {/* Progress Step Indicators */}
-                <StepRail steps={wizardSteps} position={wizardPos} onSelect={setCurrentStep} />
             </header>
-            <div className="md:hidden bg-navy/95 text-gold text-[11px] font-black uppercase tracking-wider px-4 py-2 no-print">
-                Step {wizardPos + 1} of {wizardSteps.length} · {wizardSteps[wizardPos]?.label}
-            </div>
 
             {/* Centered Step-Transition Loader (Centered on screen, never persists after load) */}
             <StatusIsland status={stepLoading ? { state: 'working', message: loadingMessage || 'Loading…' } : island.status} />
@@ -1136,7 +1153,9 @@ export default function CommissionedExam() {
                 )}
             </AnimatePresence>
 
-            <main className="flex-1 max-w-6xl w-full mx-auto p-4 md:p-8 space-y-6 pb-28">
+            <div className="w-full max-w-[1400px] mx-auto lg:grid lg:grid-cols-[272px_minmax(0,1fr)] lg:gap-8 lg:px-8 lg:items-start">
+            <StepSidebar steps={sidebarSteps} position={wizardPos} onSelect={setCurrentStep} summary={sidebarSummary} />
+            <main className="min-w-0 w-full p-4 md:p-8 lg:px-0 space-y-6 pb-28">
                 <StepTransition stepKey={currentStep} direction={stepDirection} className="space-y-6">
 
                 {/* ----------------------------------------------------------------
@@ -1187,7 +1206,7 @@ export default function CommissionedExam() {
                         </div>
 
                         {/* Exam Pattern & Subject Cards */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                        <div className="grid gap-5" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(235px, 1fr))' }}>
                             {['NEET', 'JEE', 'CET', 'ASSIGNMENT'].map(patternKey => {
                                 const pattern = EXAM_PATTERNS[patternKey];
                                 const isSelected = selectedExamPattern === pattern.id;
@@ -1195,8 +1214,8 @@ export default function CommissionedExam() {
                                     <div
                                         key={pattern.id}
                                         onClick={() => setSelectedExamPattern(pattern.id)}
-                                        className={`bg-white rounded-3xl p-6 border-2 transition-all cursor-pointer flex flex-col justify-between shadow-sm hover:shadow-xl ${
-                                            isSelected ? 'border-gold ring-4 ring-gold/20 scale-[1.02]' : 'border-slate-200 hover:border-navy'
+                                        className={`bg-white rounded-3xl p-6 border-2 transition-all cursor-pointer flex flex-col justify-between shadow-sm hover:shadow-xl hover:-translate-y-0.5 ${
+                                            isSelected ? 'border-amber-400 ring-4 ring-amber-400/20' : 'border-slate-200 hover:border-slate-300'
                                         }`}
                                     >
                                         <div>
@@ -1392,7 +1411,7 @@ export default function CommissionedExam() {
                             />
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 max-h-[460px] overflow-y-auto pr-2">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-3 gap-3 max-h-[62vh] overflow-y-auto pr-2">
                             {isMetadataLoading ? (
                                 <div className="col-span-full py-16 flex flex-col items-center justify-center text-slate-500 gap-3">
                                     <Loader text={`Loading ${selectedSubject} chapters...`} />
@@ -1422,7 +1441,7 @@ export default function CommissionedExam() {
                                                     : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-800'
                                             }`}
                                         >
-                                            <span className="text-xs font-black line-clamp-1">{ch}</span>
+                                            <span className="text-[13px] font-bold leading-snug line-clamp-2">{ch}</span>
                                             <span className={`w-5 h-5 rounded-lg flex items-center justify-center text-xs font-black ${
                                                 isChecked ? 'bg-gold text-navy shadow-xs' : 'border border-slate-300 text-transparent'
                                             }`}>
@@ -1504,7 +1523,7 @@ export default function CommissionedExam() {
                             />
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 max-h-[460px] overflow-y-auto pr-2">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-3 gap-3 max-h-[62vh] overflow-y-auto pr-2">
                             {scopedConcepts
                                 .filter(cpt => cpt.name.toLowerCase().includes(conceptSearch.toLowerCase()))
                                 .map((cpt, idx) => {
@@ -1526,7 +1545,7 @@ export default function CommissionedExam() {
                                             }`}
                                         >
                                             <div className="min-w-0 flex-1">
-                                                <span className="text-xs font-black line-clamp-1">{cpt.name}</span>
+                                                <span className="text-[13px] font-bold leading-snug line-clamp-2">{cpt.name}</span>
                                                 {cpt.chapter && (
                                                     <span className="text-[9px] text-slate-400 font-bold block truncate">{cpt.chapter}</span>
                                                 )}
@@ -2300,6 +2319,7 @@ export default function CommissionedExam() {
                 )}
                 </StepTransition>
             </main>
+            </div>
 
             {/* ---------------------------------------------------------------- MODAL: ANSWER KEY ---------------------------------------------------------------- */}
             {showAnswerKey && (
