@@ -8,7 +8,9 @@ import { useState, useEffect, useCallback, useRef } from 'react';
  */
 export function resolveImageUrl(src) {
     if (!src || typeof src !== 'string') return '';
-    let trimmed = src.trim();
+    // Some bank rows carry invisible characters inside the address (a copy-and-paste artifact: "...eac<nbsp>-<nbsp>4d20..."), which
+    // points at a file that does not exist. A web address never contains them, so they are removed first.
+    let trimmed = src.replace(/[\u00a0\s]*-[\u00a0]+\s*/g, '-').replace(/[\u00a0\u200b-\u200d\u2060\ufeff]+/g, '').trim();
 
     // Strip {{IMG::...}} wrapper if present
     const imgMatch = trimmed.match(/^\{\{IMG::(.*?)\}\}$/i);

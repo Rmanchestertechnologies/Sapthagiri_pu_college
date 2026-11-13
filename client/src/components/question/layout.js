@@ -434,3 +434,32 @@ export function isOptionSelectedCorrect(optIdx, q) {
     }
     return false;
 }
+
+const ROMAN_TO_NUMBER = { i: 1, ii: 2, iii: 3, iv: 4, v: 5, vi: 6, vii: 7, viii: 8 };
+const PQRS_TO_NUMBER = { p: 1, q: 2, r: 3, s: 4, t: 5 };
+const MAPPING_PART = /^\s*\(?\s*([a-hA-H])\s*\)?\s*(?:[-\u2013\u2014:\u2192]|\\to|\\rightarrow|->)\s*\(?\s*(viii|vii|vi|iv|iii|ii|i|v|[1-8]|[p-tP-T])\s*\)?\s*\.?\s*$/i;
+
+/**
+ * Match-the-following answer options such as "a-(iii), b-(iv), c-(i), d-(ii)" are shown with the same labels the two columns use:
+ * capital letters for Column I and numbers for Column II, e.g. "A-(3), B-(4), C-(1), D-(2)". Anything that is not a plain list of
+ * letter-to-item mappings is returned unchanged.
+ */
+export function harmonizeMatchCode(text) {
+    if (typeof text !== 'string') return text;
+    const cleaned = text.replace(/\$/g, '').trim();
+    if (!cleaned) return text;
+    const parts = cleaned.split(/\s*[,;]\s*/).filter(Boolean);
+    if (parts.length < 2) {
+        if (!MAPPING_PART.test(cleaned)) return text;
+    }
+    const out = [];
+    for (const part of parts) {
+        const m = MAPPING_PART.exec(part);
+        if (!m) return text;
+        const word = m[2].toLowerCase();
+        const number = /^[1-8]$/.test(word) ? Number(word) : (ROMAN_TO_NUMBER[word] || PQRS_TO_NUMBER[word]);
+        if (!number) return text;
+        out.push(`${m[1].toUpperCase()}-(${number})`);
+    }
+    return out.join(', ');
+}

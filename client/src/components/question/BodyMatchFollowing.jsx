@@ -2,7 +2,7 @@ import React from 'react';
 import MathRenderer from '../MathRenderer';
 import ResizableDiagram from '../ResizableDiagram';
 import { getQuestionOptionLabels, extractOptionsIfMissing } from '../../utils/sanitize';
-import { Q, cleanOptionText, getOptionLabelText, isOptionSelectedCorrect } from './layout';
+import { Q, cleanOptionText, getOptionLabelText, harmonizeMatchCode, isOptionSelectedCorrect } from './layout';
 import { cleanQuestionText, extractDiagramFromText, parseMatchFromText } from './parsing';
 
 /**
@@ -73,10 +73,10 @@ export function BodyMatchFollowing({
         const pairCount = pairs.length;
         const leftKeys = Array.from({ length: pairCount }, (_, idx) => String.fromCharCode(65 + idx));
         opts = [
-            leftKeys.map((k, i) => `${k}-(${romanLabels[i] || (i + 1)})`).join(', '),
-            leftKeys.map((k, i) => `${k}-(${romanLabels[(i + 1) % pairCount] || ((i + 1) % pairCount + 1)})`).join(', '),
-            leftKeys.map((k, i) => `${k}-(${romanLabels[(i + 2) % pairCount] || ((i + 2) % pairCount + 1)})`).join(', '),
-            leftKeys.map((k, i) => `${k}-(${romanLabels[(i + 3) % pairCount] || ((i + 3) % pairCount + 1)})`).join(', '),
+            leftKeys.map((k, i) => `${k}-(${i + 1})`).join(', '),
+            leftKeys.map((k, i) => `${k}-(${(i + 1) % pairCount + 1})`).join(', '),
+            leftKeys.map((k, i) => `${k}-(${(i + 2) % pairCount + 1})`).join(', '),
+            leftKeys.map((k, i) => `${k}-(${(i + 3) % pairCount + 1})`).join(', '),
         ];
     }
     const rawQText = cleanQuestionText(pairs.length > 0 ? (introText || '') : (q.questionText || q.question || ''))
@@ -221,7 +221,7 @@ export function BodyMatchFollowing({
                             <span style={{ flex: 1, minWidth: 0, maxWidth: '100%', fontWeight: isCorrect ? 700 : 400 }}>
                                 <MathRenderer
                                     inline
-                                    text={cleanOptionText(typeof opt === 'object' ? (opt.text || opt.option || '') : opt)}
+                                    text={harmonizeMatchCode(cleanOptionText(typeof opt === 'object' ? (opt.text || opt.option || '') : opt))}
                                     questionId={qId}
                                     isOption={true}
                                     optionIndex={i}

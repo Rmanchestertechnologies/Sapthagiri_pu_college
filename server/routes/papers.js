@@ -1,5 +1,6 @@
 const express = require('express');
 const { contentDisposition } = require('../utils/contentDisposition');
+const { cleanImageUrl } = require('../utils/imageUrl');
 const router = express.Router();
 const auth = require('../middleware/auth');
 const checkRole = require('../middleware/role');
@@ -107,7 +108,7 @@ const imageBufferCache = new Map();
 // @access  Public
 router.get('/proxy-image', async (req, res) => {
     try {
-        const targetUrl = req.query.url;
+        const targetUrl = cleanImageUrl(req.query.url);
         if (!targetUrl || typeof targetUrl !== 'string') {
             return res.status(400).send('Missing url parameter');
         }

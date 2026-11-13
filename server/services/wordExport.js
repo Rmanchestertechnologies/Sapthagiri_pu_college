@@ -1,4 +1,5 @@
 const fs = require('fs');
+const { cleanImageUrl } = require('../utils/imageUrl');
 const path = require('path');
 const {
     Document,
@@ -494,6 +495,7 @@ const imageBufferCache = new Map();
  * Fetch image buffer from URL or local file
  */
 async function fetchImageBuffer(url) {
+    url = cleanImageUrl(url);
     if (!url || typeof url !== 'string') return null;
     const cleanUrl = url.trim().replace(/^['"]|['"]$/g, '');
     if (imageBufferCache.has(cleanUrl)) return imageBufferCache.get(cleanUrl);
