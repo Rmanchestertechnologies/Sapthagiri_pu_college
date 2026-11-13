@@ -26,6 +26,20 @@ previous README. Known defects and open decisions are tracked in
 
 ---
 
+
+## Documentation
+
+| Document | Purpose |
+|---|---|
+| `docs/ARCHITECTURE.md` | How the system is built: components, data, flows, security, reliability |
+| `docs/IMPLEMENTATION_REPORT.md` | What was changed and why, migrations, API changes, test results, known issues |
+| `docs/DEPLOYMENT_READINESS.md` | Go-live checklist, exam-day routine, rollback, limits |
+| `docs/AUDIT_AND_CHANGELOG.md` | Issue register and file-level change log |
+| `docs/REVIEW_FINDINGS.md` | Second review and how each finding was resolved |
+
+Local sandbox for trying the whole system without any real database: `npm --prefix server run dev:sandbox`, then
+`npm --prefix client run dev` and open http://localhost:5173 (the sandbox prints the test logins).
+
 ## 1. What the system does
 
 | Module | Where | Notes |

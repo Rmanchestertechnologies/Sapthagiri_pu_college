@@ -15,7 +15,8 @@ const path = require('path');
 
 const SERVER = path.resolve(__dirname, '../..');
 const DB_PORT = 54329;
-const API_PORT = 5070;
+const SERVE = process.argv.includes('--serve');   // keep running for manual work (UI review) instead of running the checks
+const API_PORT = SERVE ? 5000 : 5070;              // 5000 is what `npm run dev` in client/ proxies to
 
 function questionDbUrls() {
     const out = {};
@@ -103,7 +104,18 @@ async function waitForHealth(timeoutMs) {
         if (!await waitForHealth(60000)) throw new Error('the API server did not become healthy');
         console.log('[e2e] API server is up; running checks');
 
-        exitCode = await runNode([path.join(__dirname, 'checks.js')], { ...childEnv, E2E_BASE: `http://127.0.0.1:${API_PORT}` }, SERVER);
+        if (SERVE) {
+            console.log('[sandbox] Ready. API on http://127.0.0.1:' + API_PORT + '  (throw-away database, nothing real is touched)');
+            console.log('[sandbox] Start the site with:  npm --prefix client run dev   then open http://localhost:5173');
+            console.log('[sandbox] Admin: sapthagiripucollegedvg@gmail.com / local-test-admin-pass');
+            console.log('[sandbox] Teachers: physics@gmail.com, chemistry@gmail.com ... / local-test-faculty-pass');
+            console.log('[sandbox] Students (lab portal): T001, T002, T003   Lab login: TESTLAB / local-test-lab-pass');
+            console.log('[sandbox] Press Ctrl+C to stop.');
+            await new Promise(resolve => { process.on('SIGINT', resolve); process.on('SIGTERM', resolve); });
+            exitCode = 0;
+        } else {
+            exitCode = await runNode([path.join(__dirname, 'checks.js')], { ...childEnv, E2E_BASE: `http://127.0.0.1:${API_PORT}` }, SERVER);
+        }
     } catch (err) {
         console.error('[e2e] setup error:', err.message);
     } finally {

@@ -145,22 +145,22 @@ export default function ExamInstructions() {
                                 <div style={{ ...styles.paletteShape, ...styles.shapeAnsweredMarked }}>
                                     <div style={styles.greenDot}></div>
                                 </div>
-                                The question(s) "Answered and Marked for Review" will be considered for evalution.
+                                The question(s) "Answered and Marked for Review" will be considered for evaluation.
                             </li>
                         </ol>
                     </li>
-                    <li>You can click on the "&gt;" arrow which apperes to the left of question palette to collapse the question palette thereby maximizing the question window. To view the question palette again, you can click on "&lt;" which appears on the right side of question window.</li>
-                    <li>You can click on your "Profile" image on top right corner of your screen to change the language during the exam for entire question paper. On clicking of Profile image you will get a drop-down to change the question content to the desired language.</li>
-                    <li>You can click on <span style={styles.arrowIcon}>⬇</span> to navigate to the bottom and <span style={styles.arrowIcon}>⬆</span> to navigate to top of the question are, without scrolling.</li>
+                    <li>Your selected answers are saved automatically on the server every few seconds. If the page is refreshed or the computer restarts, sign in again with the same enrolment number: the exam resumes with your answers and the remaining time.</li>
+                    <li>Do not switch tabs, minimise the window or leave full-screen mode. These are recorded, and repeated attempts can disqualify you.</li>
                 </ol>
 
                 <div style={styles.sectionHeading}><u>Navigating to a Question:</u></div>
                 <ol start="7" style={styles.list}>
                     <li>To answer a question, do the following:
                         <ol type="a" style={styles.subList}>
-                            <li>Click on the question number in the Question Palette at the right of your screen to go to that numbered question directly. Note that using this option does NOT save your answer to the current question.</li>
+                            <li>Click on the question number in the Question Palette at the right of your screen to go to that numbered question directly. Your selected answer is kept.</li>
                             <li>Click on <strong>Save &amp; Next</strong> to save your answer for the current question and then go to the next question.</li>
-                            <li>Click on <strong>Mark for Review &amp; Next</strong> to save your answer for the current question, mark it for review, and then go to the next question.</li>
+                            <li>Click on <strong>Mark for Review &amp; Next</strong> to mark the current question for review and go to the next question. If you selected an answer it is kept and counted.</li>
+                            <li>Click on <strong>Save &amp; Mark for Review</strong> to keep your answer, mark the question for review, and go to the next question.</li>
                         </ol>
                     </li>
                 </ol>
@@ -179,17 +179,15 @@ export default function ExamInstructions() {
                     <li>To change your answer to a question that has already been answered, first select that question for answering and then follow the procedure for answering that type of question.</li>
                 </ol>
 
-                <div style={styles.sectionHeading}><u>Navigating through sections:</u></div>
+                <div style={styles.sectionHeading}><u>Submitting:</u></div>
                 <ol start="10" style={styles.list}>
-                    <li>Sections in this question paper are displayed on the top bar of the screen. Questions in a section can be viewed by click on the section name. The section you are currently viewing is highlighted.</li>
-                    <li>After click the <strong>Save &amp; Next</strong> button on the last question for a section, you will automatically be taken to the first question of the next section.</li>
-                    <li>You can shuffle between sections and questions anything during the examination as per your convenience only during the time stipulated.</li>
-                    <li>Candidate can view the corresponding section summery as part of the legend that appears in every section above the question palette.</li>
+                    <li>You can move between any questions during the exam, as often as you like, until the time is over.</li>
+                    <li>Click <strong>Submit</strong> when you have finished. A summary of answered, unanswered and marked questions is shown before the final confirmation. When the time reaches zero, your answers are submitted automatically.</li>
                 </ol>
 
                 <hr style={styles.divider} />
                 <div style={styles.redText}>
-                    Please note all questions will appear in your default language. This language can be changed for a particular question later on.
+                    All questions appear in English. Read each question and all of its options carefully before answering.
                 </div>
                 <hr style={styles.divider} />
 

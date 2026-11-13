@@ -9,105 +9,9 @@ import A4AnswerKey from '../../components/A4AnswerKey';
 import A4SolutionKey from '../../components/A4SolutionKey';
 import Loader from '../../components/Loader';
 import { cleanOptionText, extractOptionsIfMissing } from '../../utils/sanitize';
+import { EXAM_PATTERNS, getQCategory, isCetQ, normalizeSubjectName } from './commissioned/examPatterns';
 
-const EXAM_PATTERNS = {
-    NEET: {
-        id: 'NEET',
-        title: 'NEET (National Eligibility Entrance Test)',
-        badge: 'Medical UG',
-        subjects: ['Physics', 'Chemistry', 'Botany', 'Zoology'],
-        defaultTotal: 45,
-        marksPerQ: 4,
-        supportsNumerical: false,
-    },
-    JEE: {
-        id: 'JEE',
-        title: 'JEE Main (Joint Entrance Examination)',
-        badge: 'Engineering',
-        subjects: ['Physics', 'Chemistry', 'Mathematics'],
-        defaultTotal: 25,
-        marksPerQ: 4,
-        supportsNumerical: true,
-    },
-    CET: {
-        id: 'CET',
-        title: 'KCET (Karnataka Common Entrance Test)',
-        badge: 'Karnataka CET',
-        subjects: ['Physics', 'Chemistry', 'Mathematics', 'Biology'],
-        defaultTotal: 60,
-        marksPerQ: 1,
-        supportsNumerical: false,
-    },
-    ASSIGNMENT: {
-        id: 'ASSIGNMENT',
-        title: 'Institutional Assignment / Practice Paper',
-        badge: 'Assignment',
-        subjects: ['Physics', 'Chemistry', 'Mathematics', 'Biology', 'All Subjects'],
-        defaultTotal: 30,
-        marksPerQ: 1,
-        supportsNumerical: true,
-        isAssignment: true,
-    },
-    CUSTOM: {
-        id: 'CUSTOM',
-        title: 'Custom Single / Multi-Subject Assessment',
-        badge: 'Freeform / Custom',
-        subjects: ['Physics', 'Chemistry', 'Mathematics', 'Biology', 'Botany', 'Zoology'],
-        defaultTotal: 50,
-        marksPerQ: 1,
-        supportsNumerical: true,
-    }
-};
-
-const normalizeSubjectName = (sub) => {
-    if (!sub) return 'General';
-    const s = String(sub).trim().toLowerCase();
-    if (s.includes('math')) return 'Mathematics';
-    if (s.includes('physic') || s === 'phy') return 'Physics';
-    if (s.includes('chem')) return 'Chemistry';
-    if (s.includes('botan')) return 'Botany';
-    if (s.includes('zool')) return 'Zoology';
-    if (s.includes('bio')) return 'Biology';
-    return sub.trim();
-};
-
-export const getQCategory = (q, isJee = false) => {
-    if (!q) return 'mcq';
-    const t = (q.type || q.q_type || '').toUpperCase();
-    const txt = `${q.questionText || q.question || ''}`;
-    if (isJee && (t === 'NUMERICAL' || (!q.options?.length && !q.opt_a && !q.opt_b && q.num_answer))) return 'numerical';
-    if (t === 'ASSERTION_REASON' || /Assertion\s*(?:\(A\))?[:\-]/i.test(txt)) return 'ar';
-    if (t === 'MATCH_FOLLOWING' || t.includes('MATCH') || /Column\s*(?:I|1|A)\b/i.test(txt) || /Match the following/i.test(txt)) return 'match';
-
-    // Comprehensive diagram detection: checks question text, imageUrl, diagram_urls, and options!
-    const allOptStrings = [q.opt_a, q.opt_b, q.opt_c, q.opt_d, ...(Array.isArray(q.options) ? q.options : [])].filter(Boolean);
-    const hasOptionDiag = allOptStrings.some(opt => {
-        const s = typeof opt === 'object' ? (opt.text || opt.value || '') : String(opt || '');
-        return /\{\{IMG::|!\[|\[DIAGRAM:|<img|https?:\/\/res\.cloudinary\.com\//i.test(s);
-    });
-    const hasDiagram = (
-        t === 'DIAGRAM_BASED' ||
-        Boolean(q.imageUrl || q.image_url) ||
-        (Array.isArray(q.diagram_urls) && q.diagram_urls.length > 0) ||
-        (Array.isArray(q.diagramUrls) && q.diagramUrls.length > 0) ||
-        /\{\{IMG::|!\[|\[DIAGRAM:|<img|https?:\/\/res\.cloudinary\.com\//i.test(txt) ||
-        hasOptionDiag
-    );
-
-    if (t === 'STATEMENT_BASED' || /Statement\s*(?:I|1|A)\b/i.test(txt)) return 'stmt';
-    if (hasDiagram) return 'diag';
-    return 'mcq';
-};
-
-export const isCetQ = (q) => {
-    const qExams = (Array.isArray(q.classes) ? q.classes : []).concat(Array.isArray(q.exams) ? q.exams : []);
-    const srcExam = String(q.sourceExam || '').toUpperCase();
-    const qText = String(q.questionText || q.question || '').toUpperCase();
-    return qExams.some(e => ['CET', 'KCET'].includes(String(e).toUpperCase())) ||
-           srcExam.includes('CET') || srcExam.includes('KCET') ||
-           qText.includes('[KCET') || qText.includes('(KCET') ||
-           qText.includes('[CET') || qText.includes('(CET');
-};
+export { getQCategory, isCetQ } from './commissioned/examPatterns';
 
 export default function CommissionedExam() {
     const { user } = useContext(AuthContext);
@@ -1146,6 +1050,24 @@ export default function CommissionedExam() {
     // them permute it a second time and let edits overwrite the master order with a shuffled one.
     const keySetName = setsActive ? activeSet : 'P';
 
+    // The visible steps of the current flow. Internal step numbers stay 1-7 (the manual flow skips 4 and 5, the automatic flow
+    // skips 6); what the user sees is always "Step n of N" with N = 5 (manual) or 6 (automatic), the last one being the preview.
+    const wizardSteps = fetchMode === 'manual' ? [
+        { step: 1, label: 'Subject' },
+        { step: 2, label: 'Chapters' },
+        { step: 3, label: 'Concepts' },
+        { step: 6, label: 'Select Questions' },
+        { step: 7, label: 'Preview & Save' },
+    ] : [
+        { step: 1, label: 'Subject' },
+        { step: 2, label: 'Chapters' },
+        { step: 3, label: 'Concepts' },
+        { step: 4, label: 'Questions per Chapter' },
+        { step: 5, label: 'Questions per Type' },
+        { step: 7, label: 'Preview & Save' },
+    ];
+    const wizardPos = Math.max(0, wizardSteps.findIndex(x => x.step === currentStep));
+
     return (
         <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
             {/* Top Navigation Bar with Step Pill Indicators */}
@@ -1170,46 +1092,32 @@ export default function CommissionedExam() {
                 </div>
 
                 {/* Progress Step Indicators */}
-                <div className="hidden lg:flex items-center gap-1.5">
-                    {(fetchMode === 'manual' ? [
-                        { step: 1, label: '1. Subject' },
-                        { step: 2, label: '2. Chapters' },
-                        { step: 3, label: '3. Concepts' },
-                        { step: 6, label: '4. Select Questions' },
-                        { step: 7, label: '5. Preview & Save' },
-                    ] : [
-                        { step: 1, label: '1. Subject' },
-                        { step: 2, label: '2. Chapters' },
-                        { step: 3, label: '3. Concepts' },
-                        { step: 4, label: '4. Questions per Chapter' },
-                        { step: 5, label: '5. Questions per Type' },
-                        { step: 7, label: '6. Preview & Save' },
-                    ]).map(st => {
-                        const isClickable = (() => {
-                            if (fetchMode === 'manual') {
-                                const order = [1, 2, 3, 6, 7];
-                                return order.indexOf(st.step) < order.indexOf(currentStep);
-                            }
-                            const order = [1, 2, 3, 4, 5, 7];
-                            return order.indexOf(st.step) < order.indexOf(currentStep);
-                        })();
-
+                <div className="hidden md:flex items-center gap-1.5" aria-label="Progress">
+                    {wizardSteps.map((st, i) => {
+                        const isClickable = i < wizardPos;
+                        const isCurrent = i === wizardPos;
                         return (
-                            <div
+                            <button
+                                type="button"
                                 key={st.step}
+                                disabled={!isClickable}
+                                aria-current={isCurrent ? 'step' : undefined}
                                 onClick={() => isClickable && setCurrentStep(st.step)}
-                                className={`px-3 py-1 rounded-xl text-[11px] font-black uppercase tracking-wider transition cursor-pointer flex items-center gap-1 ${
-                                    currentStep === st.step
+                                className={`px-2.5 lg:px-3 py-1 rounded-xl text-[10px] lg:text-[11px] font-black uppercase tracking-wider transition flex items-center gap-1 ${
+                                    isCurrent
                                         ? 'bg-gold text-navy shadow-md ring-2 ring-gold/40 scale-105'
-                                        : (isClickable ? 'bg-white/20 text-white hover:bg-white/30' : 'bg-white/5 text-slate-400 opacity-50')
+                                        : (isClickable ? 'bg-white/20 text-white hover:bg-white/30 cursor-pointer' : 'bg-white/5 text-slate-400 opacity-50 cursor-default')
                                 }`}
                             >
-                                <span>{st.label}</span>
-                            </div>
+                                <span>{i + 1}.<span className="hidden lg:inline"> {st.label}</span></span>
+                            </button>
                         );
                     })}
                 </div>
             </header>
+            <div className="md:hidden bg-navy/95 text-gold text-[11px] font-black uppercase tracking-wider px-4 py-2 no-print">
+                Step {wizardPos + 1} of {wizardSteps.length} · {wizardSteps[wizardPos]?.label}
+            </div>
 
             {/* Centered Step-Transition Loader (Centered on screen, never persists after load) */}
             {stepLoading && <Loader fullPage={true} text={loadingMessage || 'Loading...'} />}
@@ -1223,7 +1131,7 @@ export default function CommissionedExam() {
                     <div className="space-y-8 animate-fade-in">
                         <div className="text-center max-w-2xl mx-auto space-y-2">
                             <span className="text-[10px] font-black text-gold uppercase tracking-[0.2em] bg-navy px-3 py-1 rounded-full">
-                                Step 1 of {fetchMode === 'manual' ? 5 : 6}
+                                Step {wizardPos + 1} of {wizardSteps.length}
                             </span>
                             <h2 className="text-3xl font-black text-navy uppercase tracking-tight">
                                 Exam Pattern & Subject Selection
@@ -1403,7 +1311,7 @@ export default function CommissionedExam() {
                         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-5">
                             <div>
                                 <span className="text-[10px] font-black text-gold uppercase tracking-[0.2em] bg-navy px-3 py-1 rounded-full">
-                                    Step 2 of {fetchMode === 'manual' ? 5 : 6}
+                                    Step {wizardPos + 1} of {wizardSteps.length}
                                 </span>
                                 <h2 className="text-2xl font-black text-navy uppercase tracking-tight mt-2">
                                     Chapter Selection &bull; {selectedSubject}
@@ -1543,7 +1451,7 @@ export default function CommissionedExam() {
                         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-5">
                             <div>
                                 <span className="text-[10px] font-black text-gold uppercase tracking-[0.2em] bg-navy px-3 py-1 rounded-full">
-                                    Step 3 of {fetchMode === 'manual' ? 5 : 6}
+                                    Step {wizardPos + 1} of {wizardSteps.length}
                                 </span>
                                 <h2 className="text-2xl font-black text-navy uppercase tracking-tight mt-2">
                                     Concept & Sub-Topic Selection
@@ -1653,7 +1561,7 @@ export default function CommissionedExam() {
                         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-5">
                             <div>
                                 <span className="text-[10px] font-black text-gold uppercase tracking-[0.2em] bg-navy px-3 py-1 rounded-full">
-                                    Step 4 of 6
+                                    Step {wizardPos + 1} of {wizardSteps.length}
                                 </span>
                                 <h2 className="text-2xl font-black text-navy uppercase tracking-tight mt-2">
                                     Questions From Each Chapter
@@ -1781,7 +1689,7 @@ export default function CommissionedExam() {
                             <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
                                 <div>
                                     <span className="text-[10px] font-black text-gold uppercase tracking-[0.2em] bg-navy px-3 py-1 rounded-full">
-                                        Step 5 of 6
+                                        Step {wizardPos + 1} of {wizardSteps.length}
                                     </span>
                                     <h2 className="text-2xl font-black text-navy uppercase tracking-tight mt-2">
                                         Questions From Each Question Type
@@ -1982,7 +1890,7 @@ export default function CommissionedExam() {
                         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-5">
                             <div>
                                 <span className="text-[10px] font-black text-gold uppercase tracking-[0.2em] bg-navy px-3 py-1 rounded-full">
-                                    Step 4 of 5
+                                    Step {wizardPos + 1} of {wizardSteps.length}
                                 </span>
                                 <h2 className="text-2xl font-black text-navy uppercase tracking-tight mt-2">
                                     Manual Question Selection &bull; {selectedSubject}
@@ -2314,6 +2222,11 @@ export default function CommissionedExam() {
                 ---------------------------------------------------------------- */}
                 {currentStep === 7 && (
                     <div className="space-y-6 animate-fade-in relative pb-12">
+                        <div className="text-center no-print">
+                            <span className="text-[10px] font-black text-gold uppercase tracking-[0.2em] bg-navy px-3 py-1 rounded-full">
+                                Step {wizardPos + 1} of {wizardSteps.length}
+                            </span>
+                        </div>
 
                         {/* Auto Fetch result: requested vs delivered, so partial generation is never silent */}
                         {fetchMode === 'auto' && generationReport && (

@@ -182,7 +182,8 @@ export default function ExamEngine() {
                         questionId: q._id,
                         selectedOption: cachedAns ? cachedAns.selectedOption : (savedAns ? savedAns.selectedOption : null),
                         markedForReview: cachedAns ? cachedAns.markedForReview : (savedAns ? savedAns.markedForReview : false),
-                        visited: cachedAns ? cachedAns.visited : (savedAns ? savedAns.visited : (i === 0)),
+                        // the question on screen when the exam opens has been seen, even if the server copy says otherwise
+                        visited: (cachedAns ? cachedAns.visited : (savedAns ? savedAns.visited : false)) || i === 0,
                         timeTaken: cachedAns ? (cachedAns.timeTaken || 0) : (savedAns ? (savedAns.timeTaken || 0) : 0)
                     };
                 }));
@@ -368,8 +369,8 @@ export default function ExamEngine() {
 
     const goTo = (idx) => {
         if (idx < 0 || !exam || idx >= exam.questions.length) return;
-        // Mark current as visited
-        updateAnswer(idx, { visited: true });
+        // Both the question being left and the one being opened have now been seen
+        setAnswers(prev => prev.map((a, i) => (i === idx || i === current) ? { ...a, visited: true } : a));
         setCurrent(idx);
     };
 
@@ -658,8 +659,17 @@ export default function ExamEngine() {
                                 <div style={styles.optionsTextContainer}>
                                     {currentQ.options?.map((opt, i) => {
                                         const label = String.fromCharCode(65 + i); // Use standard A, B, C, D
+                                        const isChosen = currentA.selectedOption === label || currentA.selectedOption === opt;
                                         return (
-                                            <div key={i} style={styles.optionTextLine}>
+                                            <div
+                                                key={i}
+                                                role="radio"
+                                                aria-checked={isChosen}
+                                                tabIndex={0}
+                                                onClick={() => handleOptionSelect(label)}
+                                                onKeyDown={(ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); handleOptionSelect(label); } }}
+                                                style={{ ...styles.optionTextLine, cursor: 'pointer', borderRadius: 6, padding: '6px 8px', background: isChosen ? '#e0e7ff' : 'transparent', outlineOffset: 2 }}
+                                            >
                                                 <span style={styles.optionTextLabel}>{label}.</span>
                                                 <MathRenderer inline={true} style={styles.optionTextContent} text={opt} />
                                             </div>
