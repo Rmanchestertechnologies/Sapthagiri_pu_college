@@ -12,6 +12,7 @@ import { useContext, useState, useEffect, useRef } from 'react';
 import { AuthContext } from '../../context/AuthContext';
 import { useNavigate, Routes, Route, Link, useLocation } from 'react-router-dom';
 import AddQuestion from './AddQuestion';
+import ModuleGrid from './ModuleGrid';
 import SavedPapers from './SavedPapers';
 import TemplateCart from './TemplateCart';
 import GrandTestList from '../admin/GrandTestList';
@@ -318,113 +319,7 @@ const TeacherDashboardHome = () => {
                 <div className="h-px flex-1 bg-gray-200"></div>
             </div>
 
-            <div className={`grid grid-cols-2 sm:grid-cols-3 ${hasOmr ? 'lg:grid-cols-7' : 'lg:grid-cols-6'} gap-4`}>
-                {/* Commissioned Exam */}
-                <Link
-                    to="/teacher/commissioned-exam"
-                    className="bg-navy p-5 rounded-2xl shadow-xl text-center border-2 border-gold hover:scale-[1.02] transition-all flex flex-col items-center justify-center gap-3 group min-h-[160px] relative overflow-hidden"
-                >
-                    <div className="absolute top-2 right-2 px-2 py-0.5 bg-gold text-navy text-[8px] font-black uppercase rounded-full tracking-widest">
-                        Official
-                    </div>
-                    <div className="bg-gold text-navy w-12 h-12 rounded-xl flex items-center justify-center text-2xl font-black shadow-md group-hover:rotate-12 transition-transform duration-300">
-                        📋
-                    </div>
-                    <div>
-                        <h2 className="text-sm font-black text-white">Commissioned Exam</h2>
-                        <p className="text-[10px] text-gold/80 mt-1 font-bold uppercase tracking-wider">Sequential Multi-Step</p>
-                    </div>
-                </Link>
-
-                {/* Question Bank */}
-                <Link
-                    to="/teacher/dashboard/add-question"
-                    className="bg-white p-5 rounded-2xl shadow-xs text-center border border-gray-100 hover:shadow-md hover:border-gold hover:text-navy transform hover:-translate-y-1 transition-all flex flex-col items-center justify-center gap-3 group min-h-[160px]"
-                >
-                    <div className="bg-gray-50 text-gold w-12 h-12 rounded-xl flex items-center justify-center text-xl font-black shadow-inner group-hover:bg-navy group-hover:text-gold transition-colors duration-300">
-                        Q
-                    </div>
-                    <div>
-                        <h2 className="text-sm font-black text-navy">Question Bank</h2>
-                        <p className="text-[10px] text-slate/50 mt-1 font-bold uppercase tracking-wider">Repository Management</p>
-                    </div>
-                </Link>
-
-                {/* Create Paper */}
-                <Link
-                    to="/teacher/create-paper"
-                    className="bg-navy p-5 rounded-2xl shadow-xl text-center border-2 border-gold hover:scale-[1.02] transition-all flex flex-col items-center justify-center gap-3 group min-h-[160px]"
-                >
-                    <div className="bg-gold text-navy w-12 h-12 rounded-xl flex items-center justify-center text-2xl font-black shadow-md group-hover:rotate-12 transition-transform duration-300">
-                        +
-                    </div>
-                    <div>
-                        <h2 className="text-sm font-black text-white">Create Paper</h2>
-                        <p className="text-[10px] text-gold/60 mt-1 font-bold uppercase tracking-wider">Step-by-Step Wizard</p>
-                    </div>
-                </Link>
-
-                {/* Assignments Generator */}
-                <Link
-                    to="/teacher/dashboard/assignments"
-                    className="bg-white p-5 rounded-2xl shadow-xs text-center border border-gold/30 hover:shadow-md hover:border-navy hover:text-navy transform hover:-translate-y-1 transition-all flex flex-col items-center justify-center gap-3 group ring-1 ring-gold/10 min-h-[160px]"
-                >
-                    <div className="bg-amber-50 text-navy w-12 h-12 rounded-xl flex items-center justify-center text-xl font-black shadow-inner group-hover:bg-gold group-hover:text-navy transition-colors duration-300">
-                        📝
-                    </div>
-                    <div>
-                        <h2 className="text-sm font-black text-navy">Assignments</h2>
-                        <p className="text-[10px] text-slate/50 mt-1 font-bold uppercase tracking-wider">Practice & Keys</p>
-                    </div>
-                </Link>
-
-                {/* Saved Papers */}
-                <Link
-                    to="/teacher/dashboard/saved-papers"
-                    className="bg-white p-5 rounded-2xl shadow-xs text-center border border-gray-100 hover:shadow-md hover:border-gold hover:text-navy transform hover:-translate-y-1 transition-all flex flex-col items-center justify-center gap-3 group min-h-[160px]"
-                >
-                    <div className="bg-gray-50 text-gold w-12 h-12 rounded-xl flex items-center justify-center text-xl font-black shadow-inner group-hover:bg-navy group-hover:text-gold transition-colors duration-300">
-                        P
-                    </div>
-                    <div>
-                        <h2 className="text-sm font-black text-navy">Saved Papers</h2>
-                        <p className="text-[10px] text-slate/50 mt-1 font-bold uppercase tracking-wider">Document Archives</p>
-                    </div>
-                </Link>
-
-                {/* Grand Test Papers */}
-                <Link
-                    to="/teacher/dashboard/grand-tests"
-                    className="bg-white p-5 rounded-2xl shadow-xs text-center border border-gray-100 hover:shadow-md hover:border-gold hover:text-navy transform hover:-translate-y-1 transition-all flex flex-col items-center justify-center gap-3 group min-h-[160px]"
-                >
-                    <div className="bg-gray-50 text-gold w-12 h-12 rounded-xl flex items-center justify-center text-xl font-black shadow-inner group-hover:bg-navy group-hover:text-gold transition-colors duration-300">
-                        GT
-                    </div>
-                    <div>
-                        <h2 className="text-sm font-black text-navy">Grand Tests</h2>
-                        <p className="text-[10px] text-slate/50 mt-1 font-bold uppercase tracking-wider">GT Paper Archives</p>
-                    </div>
-                </Link>
-
-                {/* OMR Evaluation Module — ONLY visible if Admin granted OMR access */}
-                {hasOmr && (
-                    <Link
-                        to="/teacher/dashboard/omr"
-                        className="bg-emerald-950/10 p-5 rounded-2xl shadow-xs text-center border border-emerald-500/40 hover:shadow-md hover:border-emerald-400 transform hover:-translate-y-1 transition-all flex flex-col items-center justify-center gap-3 group ring-1 ring-emerald-500/20 min-h-[160px]"
-                    >
-                        <div className="bg-emerald-500/20 text-emerald-400 w-12 h-12 rounded-xl flex items-center justify-center text-2xl font-black shadow-inner group-hover:bg-emerald-500 group-hover:text-navy transition-colors duration-300">
-                            📑
-                        </div>
-                        <div>
-                            <div className="flex items-center justify-center gap-1">
-                                <h2 className="text-sm font-black text-navy">OMR Evaluation</h2>
-                                <span className="bg-emerald-100 text-emerald-800 text-[8px] font-black px-1.5 py-0.5 rounded-full uppercase">Enabled</span>
-                            </div>
-                            <p className="text-[10px] text-slate/50 mt-1 font-bold uppercase tracking-wider">Scanner & Analytics</p>
-                        </div>
-                    </Link>
-                )}
-            </div>
+            <ModuleGrid hasOmr={hasOmr} />
         </div>
     );
 };

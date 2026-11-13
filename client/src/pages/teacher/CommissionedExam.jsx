@@ -1,5 +1,5 @@
 import { useState, useEffect, useContext, useMemo, useRef, useCallback } from 'react';
-import { Check, Zap, Edit3, Target, Scale, X, Plus, Search, CheckCircle2 } from 'lucide-react';
+import { Check, Zap, Edit3, Target, Scale, X, Plus, Minus, Search, CheckCircle2 } from 'lucide-react';
 import { AuthContext } from '../../context/AuthContext';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../../api';
@@ -1108,7 +1108,7 @@ export default function CommissionedExam() {
                             <span className="bg-gold text-navy text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-widest">
                                 Exam Generator
                             </span>
-                            <h1 className="text-base font-black text-white uppercase tracking-tight">
+                            <h1 className="hidden xl:block text-base font-black text-white uppercase tracking-tight whitespace-nowrap">
                                 {examTitle ? examTitle : 'Question Paper Generator'}
                             </h1>
                         </div>
@@ -1627,9 +1627,9 @@ export default function CommissionedExam() {
                                         <button
                                             type="button"
                                             onClick={() => setChapterQuotas(prev => ({ ...prev, [ch]: Math.max(0, (parseInt(prev[ch]) || 0) - 1) }))}
-                                            className="w-8 h-8 rounded-lg bg-white border border-slate-300 font-black text-xs hover:bg-slate-100 cursor-pointer"
+                                            className="w-9 h-9 rounded-xl bg-white border border-slate-300 text-navy flex items-center justify-center shadow-xs hover:bg-navy hover:text-gold hover:border-navy active:scale-90 transition cursor-pointer" aria-label="Fewer questions"
                                         >
-                                            -
+                                            <Minus size={16} strokeWidth={3} />
                                         </button>
                                         <input
                                             type="number"
@@ -1652,9 +1652,9 @@ export default function CommissionedExam() {
                                         <button
                                             type="button"
                                             onClick={() => setChapterQuotas(prev => ({ ...prev, [ch]: (parseInt(prev[ch]) || 0) + 1 }))}
-                                            className="w-8 h-8 rounded-lg bg-white border border-slate-300 font-black text-xs hover:bg-slate-100 cursor-pointer"
+                                            className="w-9 h-9 rounded-xl bg-white border border-slate-300 text-navy flex items-center justify-center shadow-xs hover:bg-navy hover:text-gold hover:border-navy active:scale-90 transition cursor-pointer" aria-label="More questions"
                                         >
-                                            +
+                                            <Plus size={16} strokeWidth={3} />
                                         </button>
                                     </div>
                                 </div>
@@ -1752,9 +1752,9 @@ export default function CommissionedExam() {
                                         <button
                                             type="button"
                                             onClick={() => handleTypeCountChange(item.key, -1)}
-                                            className="w-8 h-8 rounded-lg bg-white border border-slate-300 font-black text-xs hover:bg-slate-100 cursor-pointer"
+                                            className="w-9 h-9 rounded-xl bg-white border border-slate-300 text-navy flex items-center justify-center shadow-xs hover:bg-navy hover:text-gold hover:border-navy active:scale-90 transition cursor-pointer" aria-label="Fewer questions"
                                         >
-                                            -
+                                            <Minus size={16} strokeWidth={3} />
                                         </button>
                                         <input
                                             type="number"
@@ -1775,9 +1775,9 @@ export default function CommissionedExam() {
                                         <button
                                             type="button"
                                             onClick={() => handleTypeCountChange(item.key, 1)}
-                                            className="w-8 h-8 rounded-lg bg-white border border-slate-300 font-black text-xs hover:bg-slate-100 cursor-pointer"
+                                            className="w-9 h-9 rounded-xl bg-white border border-slate-300 text-navy flex items-center justify-center shadow-xs hover:bg-navy hover:text-gold hover:border-navy active:scale-90 transition cursor-pointer" aria-label="More questions"
                                         >
-                                            +
+                                            <Plus size={16} strokeWidth={3} />
                                         </button>
                                     </div>
                                 </div>
