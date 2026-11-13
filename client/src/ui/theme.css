@@ -75,3 +75,64 @@ button:not(:disabled):active { transform: scale(0.97); }
 @media print {
   body { background: #fff !important; background-image: none !important; }
 }
+
+/* ───────────── App-wide refinement of the existing Tailwind screens ─────────────
+   These rules re-skin the older pages (lists, tables, forms, buttons) without touching their markup or behaviour.
+   Everything inside the question paper (.a4-print-document) and its engine wrapper is excluded. */
+
+/* softer heavy weights and a readable minimum size for tiny labels */
+.app-surface .font-black:not(.a4-print-document *, .a4-engine-wrapper *) { font-weight: 800; }
+.app-surface .text-\[10px\]:not(.a4-print-document *, .a4-engine-wrapper *),
+.app-surface .text-\[9px\]:not(.a4-print-document *, .a4-engine-wrapper *),
+.app-surface .text-\[8px\]:not(.a4-print-document *, .a4-engine-wrapper *) { font-size: 10.5px; }
+
+/* titles: strong but not shouting */
+.app-surface :is(h1, h2, h3).uppercase:not(.a4-print-document *, .a4-engine-wrapper *) { letter-spacing: -0.005em; }
+
+/* cards */
+.app-surface :is(.rounded-xl, .rounded-2xl, .rounded-3xl).bg-white:not(.a4-print-document *, .a4-engine-wrapper *, input, button, select) {
+  border-color: var(--hairline);
+  box-shadow: var(--shadow-1);
+}
+.app-surface :is(.rounded-2xl, .rounded-3xl).bg-white.shadow-md:not(.a4-print-document *),
+.app-surface :is(.rounded-2xl, .rounded-3xl).bg-white.shadow-xl:not(.a4-print-document *) { box-shadow: var(--shadow-3); }
+
+/* primary buttons: navy + gold become a gradient with a soft lift on hover */
+.app-surface button.bg-navy.text-gold:not(.a4-print-document *, :disabled),
+.app-surface a.bg-navy.text-gold:not(.a4-print-document *) {
+  background-image: linear-gradient(90deg, #081b3b, #0d2a5e);
+  box-shadow: 0 10px 22px -12px rgba(8, 27, 59, 0.6);
+}
+.app-surface button.bg-navy.text-gold:not(.a4-print-document *, :disabled):hover { transform: translateY(-1px); }
+.app-surface button.bg-gold.text-navy:not(.a4-print-document *, :disabled) { box-shadow: 0 10px 22px -12px rgba(245, 158, 11, 0.7); }
+
+/* tables: calm header, row hover, rounded container */
+.app-surface table:not(.a4-print-document *, .a4-engine-wrapper *) { border-collapse: separate; border-spacing: 0; }
+.app-surface table:not(.a4-print-document *, .a4-engine-wrapper *) thead th {
+  background: #f1f5f9; color: #475569; font-size: 11px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase;
+  border-bottom: 1px solid #e2e8f0;
+}
+.app-surface table:not(.a4-print-document *, .a4-engine-wrapper *) tbody tr { transition: background-color 0.15s ease; }
+.app-surface table:not(.a4-print-document *, .a4-engine-wrapper *) tbody tr:hover { background: #fbfaf5; }
+.app-surface table:not(.a4-print-document *, .a4-engine-wrapper *) td { border-bottom: 1px solid #eef2f7; }
+
+/* form controls: roomier, friendlier */
+.app-surface :is(input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"]), select, textarea):not(.a4-print-document *, .a4-engine-wrapper *) {
+  border-radius: 12px;
+}
+.app-surface input[type="checkbox"], .app-surface input[type="radio"] { accent-color: var(--saffron); }
+
+/* status pills keep a consistent rounded look */
+.app-surface :is(.bg-emerald-100, .bg-red-100, .bg-amber-100, .bg-blue-100, .bg-gray-100):is(span):not(.a4-print-document *) { border-radius: 999px; }
+
+/* modals: blurred backdrop and larger radius for the common fixed overlays */
+.app-surface .fixed.inset-0:is(.bg-black\/50, .bg-black\/60, .bg-slate-900\/60, .bg-slate-950\/60, .bg-black\/70):not(.a4-print-document *) { backdrop-filter: blur(4px); }
+.app-surface .fixed.inset-0 > :is(.rounded-2xl, .rounded-3xl).bg-white { box-shadow: var(--shadow-3); border: 1px solid rgba(255, 255, 255, 0.6); }
+
+/* entrance for page content */
+@keyframes page-rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.page-rise { animation: page-rise 0.35s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+@media (prefers-reduced-motion: reduce) { .page-rise { animation: none; } }
+
+/* page titles written in capitals in the markup read better in normal case at large sizes */
+.app-surface :is(h1, h2).uppercase:is(.text-2xl, .text-3xl, .text-4xl):not(.a4-print-document *, .a4-engine-wrapper *) { text-transform: none; font-size: 1.65rem; line-height: 1.2; }

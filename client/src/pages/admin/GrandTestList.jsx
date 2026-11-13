@@ -652,7 +652,7 @@ const GrandTestList = () => {
                         </div>
 
                         {/* Search & Filters */}
-                        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 bg-gray-50 p-4 rounded-2xl border border-gray-100">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5 gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-100">
                             <div className="md:col-span-2">
                                 <label className="block text-[9px] font-black text-navy/40 uppercase tracking-widest mb-1">Search Keywords</label>
                                 <input 
