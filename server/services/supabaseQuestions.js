@@ -140,6 +140,11 @@ function mapSupabaseToQuestion(row, usageMap = null) {
         colB = colB[0].split(/(?=\([ivx0-9]+\))/i).map(s => s.trim()).filter(Boolean);
     }
 
+    // Stored columns with blank entries (some bank rows keep two empty strings in the hidden column data) would pair the wrong
+    // items or drop some. The question text itself is complete, so the stored columns are ignored and the text is parsed.
+    const hasBlank = list => list.some(item => !String(item == null ? '' : item).trim());
+    if (hasBlank(colA) || hasBlank(colB)) { colA = []; colB = []; }
+
     // Clean column items and auto-merge accidental sentence continuations
     const isColumnSubheader = (s) => /^[\(\[]?\s*(?:elements|properties|compounds|reagents|reactants|quantities|units|column\s*[i|1|2|a|b]|list\s*[i|1|2|a|b])\s*[\)\]]?$/i.test(String(s || '').trim());
     function cleanColumnList(list) {

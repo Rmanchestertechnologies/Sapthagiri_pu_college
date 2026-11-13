@@ -183,7 +183,7 @@ const call = async (method, path, { token, session, body, raw } = {}) => {
     const started = await post('?async=true');
     ok(started.status === 202 && started.data.jobId, 'OMR async scan job: accepted at once with a job id', JSON.stringify(started.data).slice(0, 200));
     let job = null;
-    for (let i = 0; i < 80; i++) { job = (await call('GET', `/api/omr/scan/jobs/${started.data.jobId}`, { token: admin })).data; if (job && job.status !== 'running') break; await new Promise(r => setTimeout(r, 1500)); }
+    for (let i = 0; i < 240; i++) { job = (await call('GET', `/api/omr/scan/jobs/${started.data.jobId}`, { token: admin })).data; if (job && job.status !== 'running') break; await new Promise(r => setTimeout(r, 1500)); }
     ok(job && job.status === 'done' && job.total === 2 && job.processed === 2, 'OMR async scan job: finishes and reports progress', JSON.stringify(job).slice(0, 300));
     ok(job && job.processedCount + job.failedCount === 2, 'OMR async scan job: every sheet is either scored or reported as failed', JSON.stringify(job).slice(0, 300));
     console.log('     (engine result:', JSON.stringify({ processed: job && job.processedCount, failed: job && job.failedCount, errors: job && job.errors && job.errors.map(e => e.error).slice(0, 1) }).slice(0, 240), ')');

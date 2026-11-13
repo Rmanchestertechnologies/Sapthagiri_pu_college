@@ -29,7 +29,7 @@ function pythonEnv() {
 function checkOmrRuntime({ force = false, exec = execFile } = {}) {
     if (!force && cached && Date.now() - cached.at < CACHE_MS) return Promise.resolve(cached.result);
     return new Promise(resolve => {
-        exec(pythonBin(), ['-c', CHECK_CODE], { timeout: 20000, env: pythonEnv() }, (error, stdout, stderr) => {
+        exec(pythonBin(), ['-c', CHECK_CODE], { timeout: 60000, env: pythonEnv() }, (error, stdout, stderr) => {
             let result;
             if (!error) {
                 result = { available: true, python: pythonBin() };
@@ -39,6 +39,10 @@ function checkOmrRuntime({ force = false, exec = execFile } = {}) {
                     python: pythonBin(),
                     reason: `Python was not found on the server (looked for "${pythonBin()}"). Install Python 3, or set PYTHON_BIN.`
                 };
+            } else if (error.killed || error.signal === 'SIGTERM') {
+                // Starting OpenCV and the ONNX runtime for the first time can be slow on a busy small host. That is not proof the
+                // engine is missing, so say what happened and do not remember the answer for long.
+                result = { available: false, python: pythonBin(), transient: true, reason: 'Starting the OMR engine took too long (the server is busy or just started). Please try again in a minute.' };
             } else {
                 const missing = /No module named '([^']+)'/.exec(String(stderr || error.message));
                 result = {
@@ -49,7 +53,8 @@ function checkOmrRuntime({ force = false, exec = execFile } = {}) {
                         : 'The OMR engine could not be started on the server.'
                 };
             }
-            cached = { at: Date.now(), result };
+            // a timeout is only cached for a few seconds, a definite answer (installed / missing) for a minute
+            cached = { at: result.transient ? Date.now() - (CACHE_MS - 5000) : Date.now(), result };
             resolve(result);
         });
     });

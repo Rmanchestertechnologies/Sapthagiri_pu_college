@@ -483,6 +483,30 @@ export function parseStatementsFromText(q) {
         return { introText, statements: matches, outroText };
     }
 
+    // Pattern A2: short labels "S1: ... S2: ..." / "S-1." / "S I)" (used by many bank questions)
+    const shortRegex = /(?:^|\r?\n|\s)S\s*[-–—]?\s*([1-9]|[IVX]+)\s*[:.)]\s*([\s\S]*?)(?=(?:\r?\n|\s)S\s*[-–—]?\s*(?:[1-9]|[IVX]+)\s*[:.)]|$)/g;
+    const shortMatches = [];
+    let sm;
+    let firstShortIdx = -1;
+    let lastShortIdx = -1;
+    while ((sm = shortRegex.exec(bodyTxt)) !== null) {
+        if (firstShortIdx === -1) firstShortIdx = sm.index;
+        lastShortIdx = shortRegex.lastIndex;
+        const body = cleanStatementText(sm[2]);
+        if (body) shortMatches.push({ label: `Statement ${sm[1]}:`, text: body });
+    }
+    if (shortMatches.length >= 2) {
+        let outroText = bodyTxt.substring(lastShortIdx).trim();
+        const lastStmt = shortMatches[shortMatches.length - 1];
+        const outroLineMatch = lastStmt.text.match(/(?:\r?\n|\s{2,})?(?:In the light of|Choose the correct|Select the|Which of the|How many of|The (?:correct|incorrect) statement|From the above|Identify the|The (?:correct|incorrect) combination is)[\s\S]*$/i);
+        if (outroLineMatch) {
+            outroText = (outroLineMatch[0] + (outroText ? '\n' + outroText : '')).trim();
+            lastStmt.text = lastStmt.text.substring(0, outroLineMatch.index).trim();
+        }
+        const introText = firstShortIdx > 0 ? bodyTxt.substring(0, firstShortIdx).trim() : '';
+        return { introText, statements: shortMatches, outroText };
+    }
+
     // Pattern B: Lettered statements: A. ... B. ... or (A) ... (B) ... or A) ... B) ... or [A] ... [B] ...
     const letterRegex = /(?:^|\r?\n)\s*(?:\(([A-Ha-h])\)|\[([A-Ha-h])\]|([A-Ha-h])[\.:\)])\s*([\s\S]*?)(?=(?:\r?\n\s*(?:\([A-Ha-h]\)|\[[A-Ha-h]\]|[A-Ha-h][\.:\)])\s*)|$)/g;
     let letterMatches = [];

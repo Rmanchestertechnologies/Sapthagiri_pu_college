@@ -53,6 +53,22 @@ describe('assertion-reason questions cut off after "Reason:"', () => {
     });
 });
 
+describe('match questions with blank stored columns', () => {
+    test('blank entries make the mapper ignore the stored columns (the question text is parsed instead)', () => {
+        const row = { id: 'm1', q_type: 'mcq', question: 'Match the following.\n\nColumn I\nElectronic Conductor\nElectrolytic Conductor\nNon-electrolyte\nWeak electrolyte\n\nColumn II\nAcetic acid\nSolid salts\nSucrose\nMolten salts',
+            column_a: ['', '', 'Non-electrolyte', 'Weak electrolyte'], column_b: ['Acetic acid', 'Solid salts', 'Sucrose', 'Molten salts'], chapter: 'c', exams: ['NEET'], klass: '12' };
+        const q = mapSupabaseToQuestion(row);
+        expect(q.column_a).toEqual([]);
+        expect(q.matchPairs).toEqual([]);
+        expect(q.questionText).toMatch(/Electronic Conductor/);
+    });
+
+    test('complete columns are kept', () => {
+        const q = mapSupabaseToQuestion({ id: 'm2', q_type: 'mcq', question: 'Match the following.', column_a: ['Acetic acid', 'Benzene'], column_b: ['Weak acid', 'Hydrocarbon'], chapter: 'c', exams: ['NEET'], klass: '12' });
+        expect(q.matchPairs).toEqual([{ left: 'Acetic acid', right: 'Weak acid' }, { left: 'Benzene', right: 'Hydrocarbon' }]);
+    });
+});
+
 describe('paper generation skips questions with a bad key and says so', () => {
     const good = i => ({ _id: `g${i}`, id: `g${i}`, chapter: 'Work', type: 'MCQ', level: 'medium', questionText: `Good question number ${i} about work and energy`, options: ['a', 'b', 'c', 'd'], correct_option: 'A', keyProblem: null });
     const bad = i => ({ ...good(100 + i), _id: `b${i}`, id: `b${i}`, correct_option: 'D', keyProblem: 'KEY_EMPTY_OPTION' });

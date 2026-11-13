@@ -22,6 +22,15 @@ describe('OMR runtime check', () => {
         expect(r.reason).toMatch(/requirements\.txt/);
     });
 
+    test('a timeout is reported as "took too long", not as a missing engine, and is retried soon', async () => {
+        const timedOut = Object.assign(new Error('killed'), { killed: true, signal: 'SIGTERM' });
+        const r = await checkOmrRuntime({ force: true, exec: (b, a, o, cb) => cb(timedOut, '', '') });
+        expect(r.available).toBe(false);
+        expect(r.reason).toMatch(/took too long/);
+        expect(r.reason).not.toMatch(/not installed|not found/);
+        expect(r.transient).toBe(true);
+    });
+
     test('the answer is cached for a minute and can be forced fresh', async () => {
         const calls = [];
         const exec = (bin, args, opts, cb) => { calls.push(1); cb(null, '', ''); };
