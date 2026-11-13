@@ -19,7 +19,7 @@ import TeacherOmr from '../teacher/omr/TeacherOmr';
 import CommissionedExam from '../teacher/CommissionedExam';
 import api from '../../api';
 import { AdminAssignmentWrapper } from './admin-dashboard/AdminAssignmentWrapper';
-import { AdminNotificationBell } from './admin-dashboard/AdminNotificationBell';
+import { AdminShell } from './admin-dashboard/AdminShell';
 
 const DashboardHome = () => {
     const { user, logout } = useContext(AuthContext);
@@ -1511,237 +1511,25 @@ const DashboardHome = () => {
 
 /* Admin wrapper for AssignmentGenerator — gets subject from URL param */
 
-const AdminDashboard = () => {
-
-    const { user, logout } = useContext(AuthContext);
-    const navigate = useNavigate();
-    const location = useLocation();
-    const [isSideboxOpen, setIsSideboxOpen] = useState(false);
-
-    const navItems = [
-        {
-            group: 'Examination Operations',
-            items: [
-                { title: 'Executive Overview', path: '/admin/dashboard', icon: '📋', desc: 'Delegation & readiness dashboard' },
-                { title: 'Create Question Paper', path: '/admin/dashboard/create-paper', icon: '✍️', desc: 'Create single or mixed-subject papers' },
-                { title: 'OMR Evaluation & Scanner', path: '/admin/dashboard/omr', icon: '📑', desc: 'Scan physical OMR sheets & merit lists' },
-                { title: 'CBT Online Exams', path: '/admin/dashboard/cbt-exams', icon: '⚡', desc: 'Manage & monitor online exams' },
-                { title: 'Results & Scorecards', path: '/admin/dashboard/results', icon: '📊', desc: 'View student scores and analytics' }
-            ]
-        },
-        {
-            group: 'Academic Vault',
-            items: [
-                { title: 'Question Bank', path: '/admin/dashboard/questions', icon: '📚', desc: 'Institutional question repository' },
-                { title: 'Grand Test Papers', path: '/admin/dashboard/grand-tests', icon: '🏆', desc: 'Archive of official grand tests' },
-                { title: 'Previous Year Papers', path: '/admin/dashboard/previous-year-papers', icon: '📑', desc: 'PYQs repository & keys' },
-                { title: 'Exam Blueprints', path: '/admin/dashboard/exam-blueprints', icon: '📐', desc: 'Chapter weightage & patterns' },
-                { title: 'Document Templates', path: '/admin/dashboard/upload-template', icon: '📄', desc: 'Institutional paper formatting' }
-            ]
-        }
-    ];
-
-    // Current page label
-    const getCurrentPageTitle = () => {
-        if (location.pathname.includes('create-paper')) return 'Create Question Paper';
-        if (location.pathname.includes('omr')) return 'OMR Sheet Evaluation';
-        if (location.pathname.includes('cbt-exams')) return 'CBT Online Exams';
-        if (location.pathname.includes('results')) return 'Result Scorecards';
-        if (location.pathname.includes('questions')) return 'Question Bank';
-        if (location.pathname.includes('grand-tests')) return 'Grand Tests';
-        if (location.pathname.includes('previous-year-papers')) return 'Previous Year Papers';
-        if (location.pathname.includes('exam-blueprints')) return 'Exam Blueprints';
-        if (location.pathname.includes('upload-template')) return 'Templates';
-        
-        return 'Executive Overview';
-    };
-
-    return (
-        <div className="min-h-screen bg-[#F8FAFC] flex flex-col font-sans">
-
-            {/* ── LEFT-SIDE SLIDE-OVER SIDEBOX DRAWER ── */}
-            <div className={`fixed inset-0 z-50 transition-all duration-300 ${isSideboxOpen ? 'visible pointer-events-auto' : 'invisible pointer-events-none'}`}>
-                {/* Backdrop Overlay */}
-                <div 
-                    onClick={() => setIsSideboxOpen(false)}
-                    className={`absolute inset-0 bg-slate-950/60 backdrop-blur-sm transition-opacity duration-300 ${isSideboxOpen ? 'opacity-100' : 'opacity-0'}`}
-                />
-
-                {/* Sidebox Panel (Slides in from LEFT) */}
-                <aside className={`absolute top-0 left-0 h-full w-88 max-w-[85vw] bg-[#071738] text-white shadow-2xl border-r-4 border-amber-400 flex flex-col justify-between transition-transform duration-300 ease-out ${isSideboxOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-                    <div>
-                        {/* Sidebox Top Brand Bar */}
-                        <div className="p-5 border-b border-white/10 flex items-center justify-between bg-black/20">
-                            <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-xl bg-white p-1 border border-amber-400/50 shadow-md flex items-center justify-center">
-                                    <img src="/SapthagiriLogo.jpg" alt="Logo" className="w-full h-full object-contain rounded-lg" />
-                                </div>
-                                <div>
-                                    <h2 className="text-sm font-black uppercase tracking-tight text-white leading-none">Sapthagiri PU College</h2>
-                                    <span className="text-[10px] text-amber-400 font-extrabold uppercase tracking-widest mt-1 block">Admin Console Menu</span>
-                                </div>
-                            </div>
-                            <button 
-                                onClick={() => setIsSideboxOpen(false)}
-                                className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white flex items-center justify-center text-sm font-bold transition cursor-pointer"
-                                title="Close Menu"
-                            >
-                                ✕
-                            </button>
-                        </div>
-
-                        {/* Navigation Options List */}
-                        <div className="p-4 space-y-5 overflow-y-auto max-h-[calc(100vh-140px)]">
-                            {navItems.map((group, gIdx) => (
-                                <div key={gIdx}>
-                                    <span className="text-[10px] font-black uppercase tracking-[0.2em] text-amber-400/70 px-3 block mb-2">
-                                        {group.group}
-                                    </span>
-                                    <div className="space-y-1">
-                                        {group.items.map((item, iIdx) => {
-                                            const isActive = item.path === '/admin/dashboard'
-                                                ? (location.pathname === '/admin/dashboard' || location.pathname === '/admin/dashboard/')
-                                                : location.pathname.includes(item.path.split('/').pop());
-
-                                            return (
-                                                <button
-                                                    key={iIdx}
-                                                    onClick={() => {
-                                                        navigate(item.path);
-                                                        setIsSideboxOpen(false);
-                                                    }}
-                                                    className={`w-full flex items-center gap-3.5 px-3.5 py-2.5 rounded-xl text-left transition cursor-pointer ${
-                                                        isActive
-                                                            ? 'bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 font-black shadow-md'
-                                                            : 'text-slate-300 hover:bg-white/10 hover:text-white'
-                                                    }`}
-                                                >
-                                                    <span className="text-lg leading-none">{item.icon}</span>
-                                                    <div className="min-w-0 flex-1">
-                                                        <div className={`text-xs font-bold leading-tight ${isActive ? 'text-slate-950' : 'text-white'}`}>
-                                                            {item.title}
-                                                        </div>
-                                                        <div className={`text-[10px] truncate mt-0.5 ${isActive ? 'text-slate-900/80 font-semibold' : 'text-slate-400'}`}>
-                                                            {item.desc}
-                                                        </div>
-                                                    </div>
-                                                </button>
-                                            );
-                                        })}
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-
-                    {/* Sidebox Bottom User & Logout */}
-                    <div className="p-4 border-t border-white/10 bg-black/30 flex items-center justify-between">
-                        <div className="flex items-center gap-2.5">
-                            <div className="w-8 h-8 rounded-full bg-amber-400 text-slate-950 font-black text-xs flex items-center justify-center shadow">
-                                AD
-                            </div>
-                            <div>
-                                <div className="text-xs font-black text-white leading-tight">Admin Console</div>
-                                <div className="text-[10px] text-slate-400 font-mono">Davanagere Campus</div>
-                            </div>
-                        </div>
-                        <button
-                            onClick={() => { logout(); navigate('/'); }}
-                            className="bg-rose-500/20 text-rose-400 hover:bg-rose-600 hover:text-white px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition cursor-pointer"
-                        >
-                            Logout
-                        </button>
-                    </div>
-                </aside>
-            </div>
-
-            {/* ── TOP APP BAR — SAPTHAGIRI NAVY & GOLD WITH LEFT-ALIGNED HAMBURGER MENU ── */}
-            <nav className="bg-[#081B3B] px-3 sm:px-6 py-3 sm:py-3.5 text-white flex justify-between items-center gap-2 z-40 sticky top-0 shadow-2xl border-b-4 border-amber-500 backdrop-blur-md">
-                {/* Left Brand Area */}
-                <div className="flex items-center gap-2 sm:gap-3.5 min-w-0">
-                    {/* LEFT-SIDE HAMBURGER MENU BUTTON */}
-                    <button
-                        onClick={() => setIsSideboxOpen(true)}
-                        className="relative shrink-0 bg-amber-400 text-slate-950 hover:bg-amber-300 w-10 h-10 rounded-xl flex items-center justify-center font-black text-lg hover:scale-105 transition shadow-lg cursor-pointer"
-                        title="Open Admin Dashboard Menu"
-                    >
-                        <span className="text-xl leading-none">☰</span>
-                        <span className="absolute -top-1 -right-1 bg-navy text-amber-400 text-[8px] font-black w-4 h-4 rounded-full flex items-center justify-center leading-none border border-amber-400">
-                            A
-                        </span>
-                    </button>
-
-                    <div 
-                        className="flex items-center cursor-pointer hover:opacity-90 transition gap-2 sm:gap-3 min-w-0"
-                        onClick={() => navigate('/admin/dashboard')}
-                    >
-                        <div className="flex shrink-0 w-9 h-9 sm:w-10 sm:h-10 items-center justify-center shadow-lg bg-white rounded-xl p-1 border-2 border-amber-400">
-                            <img src="/SapthagiriLogo.jpg" alt="Logo" className="w-full h-full object-contain rounded-lg" />
-                        </div>
-                        <div className="min-w-0">
-                            <h1 className="text-sm sm:text-base font-black tracking-tight uppercase leading-tight text-white flex items-center flex-wrap gap-x-2">
-                                <span>Sapthagiri PU College</span>
-                                <span className="bg-amber-500 text-slate-950 text-[9px] font-black px-2 py-0.5 rounded-md uppercase tracking-wider">
-                                    Admin Portal
-                                </span>
-                            </h1>
-                            <p className="text-[10px] font-bold text-amber-400 uppercase tracking-widest truncate">
-                                {getCurrentPageTitle()}
-                            </p>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Right Navigation & Dashboard Menu Controls */}
-                <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
-                    {location.pathname !== '/admin/dashboard' && location.pathname !== '/admin/dashboard/' && (
-                        <button
-                            onClick={() => navigate('/admin/dashboard')}
-                            className="bg-white/5 border border-amber-400/30 text-amber-400 px-3 sm:px-3.5 py-1.5 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-white/10 transition flex items-center gap-1.5 cursor-pointer sm:mr-1"
-                            title="Back to Dashboard"
-                            aria-label="Back to Dashboard"
-                        >
-                            <span>←</span> <span className="hidden sm:inline">Back to Dashboard</span>
-                        </button>
-                    )}
-
-                    {/* Admin Notification Bell */}
-                    <AdminNotificationBell />
-
-                    <div className="hidden sm:block w-px h-7 bg-amber-400/20 mx-1"></div>
-
-                    {/* Logout Button */}
-                    <button 
-                        onClick={() => { logout(); navigate('/'); }} 
-                        className="bg-red-500/10 border border-red-500/30 text-red-500 px-2.5 sm:px-4 py-2 rounded-xl text-[11px] sm:text-xs font-black uppercase tracking-wider sm:tracking-widest hover:bg-red-500 hover:text-white transition-all shadow-sm cursor-pointer"
-                        title="Sign Out"
-                    >
-                        Logout
-                    </button>
-                </div>
-            </nav>
-
-            {/* ── MAIN CONTENT OUTLET ── */}
-            <div className="flex-1 p-4 sm:p-10 max-w-7xl mx-auto w-full min-w-0">
-                <Routes>
-                    <Route path="/" element={<DashboardHome />} />
-                    <Route path="create-paper" element={<CommissionedExam />} />
-                    <Route path="omr/*" element={<TeacherOmr />} />
-                    <Route path="cbt-exams" element={<ExamManagement />} />
-                    <Route path="results" element={<AdminResults />} />
-                    <Route path="questions" element={<AdminQuestionBank />} />
-                    <Route path="upload-template" element={<UploadTemplate />} />
-                    <Route path="create-teacher" element={<CreateTeacher />} />
-                    <Route path="subject/:subject" element={<SubjectDetails />} />
-                    <Route path="preview/:paperId" element={<AdminPaperPreview />} />
-                    <Route path="grand-tests" element={<GrandTestList />} />
-                    <Route path="previous-year-papers" element={<PreviousYearPapers />} />
-                    <Route path="exam-blueprints" element={<ExamBlueprints />} />
-                    <Route path="assignments/:subject" element={<AdminAssignmentWrapper />} />
-                </Routes>
-            </div>
-        </div>
-    );
-};
+const AdminDashboard = () => (
+    <AdminShell>
+        <Routes>
+            <Route path="/" element={<DashboardHome />} />
+            <Route path="create-paper" element={<CommissionedExam />} />
+            <Route path="omr/*" element={<TeacherOmr />} />
+            <Route path="cbt-exams" element={<ExamManagement />} />
+            <Route path="results" element={<AdminResults />} />
+            <Route path="questions" element={<AdminQuestionBank />} />
+            <Route path="upload-template" element={<UploadTemplate />} />
+            <Route path="create-teacher" element={<CreateTeacher />} />
+            <Route path="subject/:subject" element={<SubjectDetails />} />
+            <Route path="preview/:paperId" element={<AdminPaperPreview />} />
+            <Route path="grand-tests" element={<GrandTestList />} />
+            <Route path="previous-year-papers" element={<PreviousYearPapers />} />
+            <Route path="exam-blueprints" element={<ExamBlueprints />} />
+            <Route path="assignments/:subject" element={<AdminAssignmentWrapper />} />
+        </Routes>
+    </AdminShell>
+);
 
 export default AdminDashboard;
