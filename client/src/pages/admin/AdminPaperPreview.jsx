@@ -19,6 +19,7 @@
  */
 import { useState, useEffect, useContext, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { motion, LayoutGroup } from 'framer-motion';
 import { AuthContext } from '../../context/AuthContext';
 import api from '../../api';
 import { downloadFile } from '../../utils/downloadFile';
@@ -265,208 +266,115 @@ const AdminPaperPreview = () => {
         <div className="animate-fade-in space-y-8 pb-16">
             
             {/* ── TOP ACTION BAR & SET SELECTOR ── */}
-            <div className="bg-surface p-6 rounded-3xl shadow-sm border border-gray-200 no-print">
-                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 pb-6 border-b border-gray-100">
-                    <div>
-                        <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-                            <span className="bg-navy text-gold text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-lg">
-                                {selectedPaper.subject || 'Assessment'}
+            <div className="no-print space-y-4">
+                {/* title row */}
+                <div className="surface p-6 flex flex-col lg:flex-row lg:items-start justify-between gap-5">
+                    <div className="min-w-0">
+                        <div className="flex items-center gap-2 mb-2 flex-wrap">
+                            <span className="rounded-full bg-[#081b3b] text-amber-400 text-[10px] font-extrabold uppercase tracking-[0.14em] px-3 py-1">{selectedPaper.subject || 'Assessment'}</span>
+                            <span className="rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-extrabold uppercase tracking-[0.14em] px-3 py-1">{selectedPaper.questions?.length || 0} questions</span>
+                            <span className={`rounded-full text-[10px] font-extrabold uppercase tracking-[0.14em] px-3 py-1 border ${
+                                (selectedPaper.status || 'Pending Approval') === 'Approved' ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                    : selectedPaper.status === 'Rejected' ? 'bg-red-50 text-red-700 border-red-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>
+                                {selectedPaper.status || 'Pending Approval'}
                             </span>
-                            <span className="bg-emerald-100 text-emerald-800 text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-lg">
-                                {selectedPaper.questions?.length || 0} Questions
-                            </span>
-                            <span className="text-[10px] font-bold text-gray-500 bg-gray-100 px-2.5 py-1 rounded-md">
-                                Status: {selectedPaper.status || 'Pending Approval'}
-                            </span>
-                            {(selectedPaper.status || 'Pending Approval') !== 'Approved' && (
-                                <button
-                                    onClick={() => handleSetStatus('Approved')}
-                                    disabled={savingStatus}
-                                    className="text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 cursor-pointer"
-                                >
-                                    Approve
-                                </button>
-                            )}
-                            {selectedPaper.status !== 'Rejected' && (
-                                <button
-                                    onClick={() => handleSetStatus('Rejected')}
-                                    disabled={savingStatus}
-                                    className="text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 cursor-pointer"
-                                >
-                                    Reject
-                                </button>
-                            )}
                         </div>
-                        <h2 className="text-2xl font-black text-navy uppercase tracking-tight">
-                            {selectedPaper.title || 'Question Paper Preview'}
-                        </h2>
+                        <h2 className="text-2xl sm:text-3xl font-extrabold text-[#081b3b] tracking-tight break-words">{selectedPaper.title || 'Question Paper Preview'}</h2>
                     </div>
-
-                    {/* Primary Download & View Actions */}
-                    <div className="flex items-center gap-2.5 flex-wrap">
-                        <button
-                            onClick={() => setShowAnalysisModal(true)}
-                            className="bg-gold text-navy hover:bg-navy hover:text-gold px-4 py-2.5 rounded-xl font-black text-xs uppercase tracking-wider transition shadow flex items-center gap-1.5 cursor-pointer"
-                        >
-                            <span>📊</span> View Analysis
-                        </button>
-                        <button
-                            onClick={() => setShowAnswerKeyModal(true)}
-                            className="bg-navy text-gold hover:bg-gold hover:text-navy px-4 py-2.5 rounded-xl font-black text-xs uppercase tracking-wider transition shadow flex items-center gap-1.5 cursor-pointer"
-                        >
-                            <span>🔑</span> Answer Key (Set {activeSet})
-                        </button>
-                        <button
-                            onClick={() => setShowSolutionsModal(true)}
-                            className="bg-navy text-gold hover:bg-gold hover:text-navy px-4 py-2.5 rounded-xl font-black text-xs uppercase tracking-wider transition shadow flex items-center gap-1.5 cursor-pointer"
-                        >
-                            <span>💡</span> Solutions (Set {activeSet})
-                        </button>
-                        <button
-                            onClick={handleDownloadWord}
-                            className="bg-white border-2 border-navy text-navy hover:bg-navy hover:text-white px-4 py-2.5 rounded-xl font-black text-xs uppercase tracking-wider transition shadow-sm flex items-center gap-1.5 cursor-pointer"
-                        >
-                            <span>📝</span> Export Word (.docx)
-                        </button>
-                        <button
-                            onClick={() => navigate('/admin/dashboard')}
-                            className="bg-white border-2 border-gray-200 text-slate-600 hover:border-navy hover:text-navy px-4 py-2.5 rounded-xl font-black text-xs uppercase tracking-wider transition shadow-sm flex items-center gap-1.5 cursor-pointer"
-                        >
-                            ← Back
-                        </button>
+                    <div className="flex items-center gap-2 flex-wrap">
+                        {(selectedPaper.status || 'Pending Approval') !== 'Approved' && (
+                            <button onClick={() => handleSetStatus('Approved')} disabled={savingStatus}
+                                className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold uppercase tracking-wider px-4 py-2.5 shadow-sm disabled:opacity-50 cursor-pointer">Approve</button>
+                        )}
+                        {selectedPaper.status !== 'Rejected' && (
+                            <button onClick={() => handleSetStatus('Rejected')} disabled={savingStatus}
+                                className="rounded-xl bg-white border border-red-200 text-red-600 hover:bg-red-50 text-xs font-extrabold uppercase tracking-wider px-4 py-2.5 disabled:opacity-50 cursor-pointer">Reject</button>
+                        )}
+                        <button onClick={() => navigate('/admin/dashboard')}
+                            className="rounded-xl bg-white border border-slate-200 text-slate-600 hover:text-[#081b3b] hover:border-slate-300 text-xs font-extrabold uppercase tracking-wider px-4 py-2.5 cursor-pointer">← Back</button>
                     </div>
                 </div>
 
-                {/* ── DURATION & MARKS QUICK EDITOR (FOR ALL TYPES OF PAPERS) ── */}
-                <div className="mt-4 p-3.5 rounded-2xl bg-amber-50/70 border border-amber-200/90 flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-2xs">
-                    <div className="flex items-center gap-2.5">
-                        <span className="text-xl">⏱️</span>
-                        <div>
-                            <h4 className="text-xs font-black text-navy uppercase tracking-wider">Exam Duration & Marks Settings</h4>
-                            <p className="text-[11px] text-slate-500 font-medium">Modify duration & total marks for this paper — updates preview, headers, exports & answer key</p>
+                {/* tools row: documents on the left, layout and download on the right */}
+                <div className="surface p-3 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                        {[
+                            { label: 'Analysis', icon: '📊', on: () => setShowAnalysisModal(true) },
+                            { label: `Answer key · Set ${activeSet}`, icon: '🔑', on: () => setShowAnswerKeyModal(true) },
+                            { label: `Solutions · Set ${activeSet}`, icon: '💡', on: () => setShowSolutionsModal(true) },
+                            { label: 'Export Word', icon: '📝', on: handleDownloadWord },
+                        ].map(b => (
+                            <button key={b.label} onClick={b.on}
+                                className="rounded-xl px-3.5 py-2.5 text-xs font-extrabold text-slate-700 hover:bg-slate-100 flex items-center gap-2 cursor-pointer"><span>{b.icon}</span>{b.label}</button>
+                        ))}
+                    </div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                        <button onClick={() => setShowAlignment(!showAlignment)} aria-pressed={showAlignment}
+                            className={`rounded-xl px-4 py-2.5 text-xs font-extrabold flex items-center gap-2 border cursor-pointer ${showAlignment ? 'bg-amber-50 border-amber-300 text-amber-800' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'}`}>
+                            <span>⚙️</span> {showAlignment ? 'Hide layout tools' : 'Layout tools'}
+                        </button>
+                        <button onClick={handleDownloadAllSets}
+                            className="rounded-xl bg-gradient-to-r from-[#081b3b] to-[#0d2a5e] text-amber-400 px-4 py-2.5 text-xs font-extrabold uppercase tracking-wider shadow-md hover:shadow-lg flex items-center gap-2 cursor-pointer"><span>⬇</span> Download Set {activeSet} (PDF)</button>
+                    </div>
+                </div>
+
+                {/* paper details strip */}
+                <div className="surface p-4 flex flex-col xl:flex-row xl:items-center justify-between gap-4">
+                    <div className="flex items-center gap-3 min-w-0">
+                        <span className="w-10 h-10 shrink-0 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center text-lg">⏱️</span>
+                        <div className="min-w-0">
+                            <h4 className="text-sm font-extrabold text-[#081b3b]">Duration and marks</h4>
+                            <p className="text-xs text-slate-500 font-medium">Changes update the preview, headers, exports and answer key.</p>
                         </div>
                     </div>
-
-                    <div className="flex items-center gap-2.5 flex-wrap">
-                        {/* Time / Duration Input */}
-                        <div className="flex items-center gap-1.5 bg-white px-3 py-1.5 rounded-xl border border-slate-300 shadow-2xs">
-                            <span className="text-xs font-bold text-slate-600">Duration:</span>
-                            <input
-                                type="text"
-                                value={editableDuration}
-                                onChange={(e) => {
-                                    setEditableDuration(e.target.value);
-                                    setSettings(s => ({ ...s, duration: e.target.value }));
-                                }}
-                                placeholder="e.g. 80 Mins, 3 Hours"
-                                className="w-28 text-xs font-black text-navy px-1.5 py-0.5 border-b border-navy/30 focus:border-navy outline-none"
-                            />
-                        </div>
-
-                        {/* Max Marks Input */}
-                        <div className="flex items-center gap-1.5 bg-white px-3 py-1.5 rounded-xl border border-slate-300 shadow-2xs">
-                            <span className="text-xs font-bold text-slate-600">Max Marks:</span>
-                            <input
-                                type="number"
-                                min="1"
-                                value={editableMarks}
-                                onChange={(e) => {
-                                    const raw = e.target.value;
-                                    setEditableMarks(raw);
-                                    setSettings(s => ({ ...s, totalMarks: raw === '' ? '' : (parseInt(raw, 10) || 0) }));
-                                }}
-                                onBlur={() => {
-                                    if (editableMarks === '' || isNaN(editableMarks) || Number(editableMarks) < 1) {
-                                        setEditableMarks('70');
-                                        setSettings(s => ({ ...s, totalMarks: 70 }));
-                                    }
-                                }}
-                                placeholder="e.g. 60, 720, 300"
-                                className="w-20 text-xs font-black text-navy px-1.5 py-0.5 border-b border-navy/30 focus:border-navy outline-none"
-                            />
-                        </div>
-
-                        {/* Start Q.# Customization Input */}
-                        <div className="flex items-center gap-1.5 bg-white px-3 py-1.5 rounded-xl border border-slate-300 shadow-2xs">
-                            <span className="text-xs font-bold text-slate-600">Start Q.#:</span>
-                            <input
-                                type="number"
-                                min="1"
-                                value={settings.startQNo !== undefined ? settings.startQNo : 1}
-                                onChange={(e) => {
-                                    const raw = e.target.value;
-                                    setSettings(s => ({
-                                        ...s,
-                                        startQNo: raw === '' ? '' : (parseInt(raw, 10) || 0)
-                                    }));
-                                }}
-                                onBlur={() => {
-                                    if (settings.startQNo === '' || isNaN(settings.startQNo) || Number(settings.startQNo) < 1) {
-                                        setSettings(s => ({ ...s, startQNo: 1 }));
-                                    }
-                                }}
-                                placeholder="e.g. 1, 10"
-                                className="w-16 text-xs font-black text-navy px-1.5 py-0.5 border-b border-navy/30 focus:border-navy outline-none"
-                            />
-                        </div>
-
-                        {/* Save Button */}
-                        <button
-                            type="button"
-                            onClick={handleSaveHeaderDetails}
-                            disabled={savingHeader}
-                            className="bg-navy text-gold hover:bg-gold hover:text-navy px-3.5 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition shadow-xs cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
-                        >
-                            <span>{savingHeader ? '⏳' : '💾'}</span>
-                            <span>{savingHeader ? 'Saving...' : 'Save Settings'}</span>
+                    <div className="flex items-end gap-3 flex-wrap">
+                        <label className="block">
+                            <span className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 mb-1">Duration</span>
+                            <input type="text" value={editableDuration} placeholder="e.g. 80 Mins"
+                                onChange={(e) => { setEditableDuration(e.target.value); setSettings(s => ({ ...s, duration: e.target.value })); }}
+                                className="w-32 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold text-[#081b3b] outline-none focus:border-amber-500 focus:bg-white" />
+                        </label>
+                        <label className="block">
+                            <span className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 mb-1">Max marks</span>
+                            <input type="number" min="1" value={editableMarks} placeholder="e.g. 60"
+                                onChange={(e) => { const raw = e.target.value; setEditableMarks(raw); setSettings(s => ({ ...s, totalMarks: raw === '' ? '' : (parseInt(raw, 10) || 0) })); }}
+                                onBlur={() => { if (editableMarks === '' || isNaN(editableMarks) || Number(editableMarks) < 1) { setEditableMarks('70'); setSettings(s => ({ ...s, totalMarks: 70 })); } }}
+                                className="w-24 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold text-[#081b3b] outline-none focus:border-amber-500 focus:bg-white" />
+                        </label>
+                        <label className="block">
+                            <span className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 mb-1">Start Q.#</span>
+                            <input type="number" min="1" value={settings.startQNo !== undefined ? settings.startQNo : 1} placeholder="1"
+                                onChange={(e) => { const raw = e.target.value; setSettings(s => ({ ...s, startQNo: raw === '' ? '' : (parseInt(raw, 10) || 0) })); }}
+                                onBlur={() => { if (settings.startQNo === '' || isNaN(settings.startQNo) || Number(settings.startQNo) < 1) setSettings(s => ({ ...s, startQNo: 1 })); }}
+                                className="w-20 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold text-[#081b3b] outline-none focus:border-amber-500 focus:bg-white" />
+                        </label>
+                        <button type="button" onClick={handleSaveHeaderDetails} disabled={savingHeader}
+                            className="rounded-xl bg-[#081b3b] text-amber-400 hover:bg-[#0d2a5e] px-4 py-2.5 text-xs font-extrabold uppercase tracking-wider disabled:opacity-50 cursor-pointer flex items-center gap-2">
+                            <span>{savingHeader ? '⏳' : '💾'}</span><span>{savingHeader ? 'Saving…' : 'Save'}</span>
                         </button>
-
                         {headerSavedNotice && (
-                            <span className="text-xs font-bold text-emerald-700 animate-fade-in flex items-center gap-1 bg-emerald-50 px-2 py-1 rounded-lg border border-emerald-200">
-                                <span>✓</span> {headerSavedNotice}
-                            </span>
+                            <span className="text-xs font-bold text-emerald-700 flex items-center gap-1 bg-emerald-50 px-2.5 py-2 rounded-xl border border-emerald-200"><span>✓</span> {headerSavedNotice}</span>
                         )}
                     </div>
                 </div>
 
-                {/* ── PQRS SET SWITCHER TABS ── */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-4">
-                    <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-xs font-black text-navy uppercase tracking-wider mr-2">Paper Sets:</span>
-                        {['P', 'Q', 'R', 'S'].map(setKey => (
-                            <button
-                                key={setKey}
-                                onClick={() => setActiveSet(setKey)}
-                                className={`px-4 py-2 rounded-xl font-black text-xs uppercase tracking-wider transition cursor-pointer flex items-center gap-2 shadow-sm ${
-                                    activeSet === setKey
-                                        ? 'bg-navy text-gold scale-105 border-2 border-gold'
-                                        : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
-                                }`}
-                            >
-                                <span>SET {setKey}</span>
-                                <span className="text-[10px] opacity-70 font-semibold">
-                                    {setKey === 'P' ? '(Original)' : setKey === 'Q' ? '(Q Shuffle)' : setKey === 'R' ? '(Q+Opt Shuffle)' : '(Max Shuffle)'}
-                                </span>
-                            </button>
-                        ))}
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                        <button
-                            onClick={() => setShowAlignment(!showAlignment)}
-                            className={`px-4 py-2 rounded-xl font-black text-xs uppercase tracking-wider transition border cursor-pointer ${
-                                showAlignment ? 'bg-amber-500 text-white border-amber-600' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-                            }`}
-                        >
-                            <span>⚙️</span> {showAlignment ? 'Hide Alignment Controls' : 'Alignment Controls'}
-                        </button>
-                        <button
-                            onClick={handleDownloadAllSets}
-                            className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl font-black text-xs uppercase tracking-wider transition shadow cursor-pointer flex items-center gap-1.5"
-                        >
-                            <span>⬇</span> Download Current Set (PDF)
-                        </button>
-                    </div>
+                {/* paper set switcher: one pill glides between P Q R S */}
+                <div className="flex items-center gap-3 flex-wrap">
+                    <span className="eyebrow !text-slate-500">Paper set</span>
+                    <LayoutGroup id="set-switch">
+                        <div className="inline-flex items-center gap-1 rounded-2xl bg-slate-200/70 p-1">
+                            {['P', 'Q', 'R', 'S'].map(setKey => (
+                                <button key={setKey} onClick={() => setActiveSet(setKey)} aria-pressed={activeSet === setKey}
+                                    className={`relative rounded-xl px-4 py-2 text-xs font-extrabold cursor-pointer ${activeSet === setKey ? 'text-[#081b3b]' : 'text-slate-500 hover:text-slate-700'}`}>
+                                    {activeSet === setKey && <motion.span layoutId="set-pill" transition={{ type: 'spring', stiffness: 420, damping: 32 }} className="absolute inset-0 rounded-xl bg-white shadow" />}
+                                    <span className="relative">Set {setKey}</span>
+                                </button>
+                            ))}
+                        </div>
+                    </LayoutGroup>
+                    <span className="text-xs font-semibold text-slate-500">
+                        {activeSet === 'P' ? 'Original order' : activeSet === 'Q' ? 'Questions shuffled' : activeSet === 'R' ? 'Questions and options shuffled' : 'Maximum shuffle'}
+                    </span>
                 </div>
             </div>
 
