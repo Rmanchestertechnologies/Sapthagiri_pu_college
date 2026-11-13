@@ -1,7 +1,8 @@
 import { useContext, useState, useEffect } from 'react';
 import { AuthContext } from '../../context/AuthContext';
 import { useNavigate, Routes, Route } from 'react-router-dom';
-import { Trash2, Eye, Clock, Calendar, ChevronDown, Filter, Search, AlertCircle } from 'lucide-react';
+import { Trash2, Eye, Clock, Calendar, ChevronDown, Filter, Search, AlertCircle, FilePlus2, Zap, ClipboardList, Database, Target, ArrowRight } from 'lucide-react';
+import { AnimatedNumber } from '../../ui/motion';
 import UploadTemplate from './UploadTemplate';
 import CreateTeacher from './CreateTeacher';
 import SubjectDetails from './SubjectDetails';
@@ -448,59 +449,56 @@ const DashboardHome = () => {
     return (
         <div className="animate-fade-in-up space-y-8">
 
-            {/* ── CLEAN EXECUTIVE HEADER & QUICK ACTION ── */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2 border-b border-slate-200/80">
-                <div>
-                    <div className="flex items-center gap-2 mb-1">
-                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                        <span className="text-[11px] font-black text-navy uppercase tracking-[0.2em]">Academic Session 2025–26</span>
+            {/* ── EXECUTIVE HERO & QUICK ACTIONS ── */}
+            <div className="relative overflow-hidden rounded-[28px] bg-gradient-to-br from-[#081b3b] via-[#0b2552] to-[#123a7a] text-white p-6 sm:p-9 shadow-[0_30px_70px_-30px_rgba(8,27,59,0.55)]">
+                <span aria-hidden="true" className="absolute -right-16 -top-16 w-72 h-72 rounded-full bg-amber-400/15 blur-2xl" />
+                <span aria-hidden="true" className="absolute -left-10 -bottom-20 w-64 h-64 rounded-full bg-sky-400/10 blur-2xl" />
+                <div className="relative flex flex-col lg:flex-row lg:items-end justify-between gap-6">
+                    <div className="max-w-2xl">
+                        <div className="flex items-center gap-2 mb-3">
+                            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                            <span className="eyebrow">Academic session 2025–26</span>
+                        </div>
+                        <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight leading-[1.1]">Institutional Assessment Command</h2>
+                        <p className="mt-3 text-sm sm:text-base text-white/65 font-medium leading-relaxed">
+                            Centralized assessment management, real-time question paper compilation, and department progress.
+                        </p>
                     </div>
-                    <h2 className="text-2xl sm:text-3xl font-black text-navy tracking-tight">
-                        Institutional Assessment Command
-                    </h2>
-                    <p className="text-xs sm:text-sm text-slate-500 font-medium mt-0.5">
-                        Centralized assessment management, real-time question paper compilation, and department progress.
-                    </p>
-                </div>
-
-                <div className="flex items-center gap-3">
-                    <button
-                        onClick={() => navigate('/admin/dashboard/create-paper')}
-                        className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-widest hover:scale-105 active:scale-95 transition-all shadow-md flex items-center gap-2.5 cursor-pointer"
-                    >
-                        <span className="text-base">✍️</span>
-                        <span>Create Question Paper</span>
-                    </button>
-                    <button
-                        id="admin-quick-commission-btn"
-                        onClick={() => setShowCommissionModal(true)}
-                        className="bg-navy text-gold hover:bg-slate-900 px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-widest hover:scale-105 active:scale-95 transition-all shadow-md flex items-center gap-2.5 border-2 border-gold cursor-pointer"
-                    >
-                        <span className="text-base">⚡</span>
-                        <span>Commission Exam</span>
-                    </button>
+                    <div className="flex flex-wrap items-center gap-3">
+                        <button
+                            onClick={() => navigate('/admin/dashboard/create-paper')}
+                            className="group rounded-2xl bg-amber-400 hover:bg-amber-300 text-[#081b3b] px-6 py-3.5 font-extrabold text-xs uppercase tracking-widest shadow-lg shadow-amber-500/20 flex items-center gap-2 cursor-pointer"
+                        >
+                            <FilePlus2 size={17} />
+                            <span>Create Question Paper</span>
+                        </button>
+                        <button
+                            id="admin-quick-commission-btn"
+                            onClick={() => setShowCommissionModal(true)}
+                            className="rounded-2xl bg-white/10 hover:bg-white/20 border border-white/20 text-white px-6 py-3.5 font-extrabold text-xs uppercase tracking-widest flex items-center gap-2 cursor-pointer backdrop-blur"
+                        >
+                            <Zap size={17} className="text-amber-400" />
+                            <span>Commission Exam</span>
+                        </button>
+                    </div>
                 </div>
             </div>
 
-            {/* ── 3 COMPACT EXECUTIVE KPI CARDS (NO PROFESSORS / FACULTY) ── */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6">
-                <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center text-xl font-black shadow-inner">
-                        📋
-                    </div>
+            {/* ── 3 EXECUTIVE KPI CARDS ── */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-5">
+                <div className="surface p-5 flex items-center gap-4">
+                    <span className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center"><ClipboardList size={22} /></span>
                     <div>
-                        <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Commissioned</div>
-                        <div className="text-xl font-black text-navy">{totalExamsCount} Exams</div>
+                        <div className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider">Commissioned</div>
+                        <div className="text-2xl font-extrabold text-[#081b3b]"><AnimatedNumber value={totalExamsCount} /> <span className="text-sm font-bold text-slate-400">exams</span></div>
                     </div>
                 </div>
 
-                <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-xl font-black shadow-inner">
-                        ✍️
-                    </div>
+                <div className="surface p-5 flex items-center gap-4">
+                    <span className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center"><Database size={22} /></span>
                     <div>
-                        <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Questions Ready</div>
-                        <div className="text-xl font-black text-navy">{totalReadyQuestions} Qs</div>
+                        <div className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider">Questions ready</div>
+                        <div className="text-2xl font-extrabold text-[#081b3b]"><AnimatedNumber value={totalReadyQuestions} /> <span className="text-sm font-bold text-slate-400">Qs</span></div>
                     </div>
                 </div>
 
@@ -510,16 +508,14 @@ const DashboardHome = () => {
                         const el = document.getElementById('commissioned-exams-section');
                         if (el) el.scrollIntoView({ behavior: 'smooth' });
                     }}
-                    className="bg-white p-5 rounded-2xl border border-gold/40 shadow-xs flex items-center gap-4 cursor-pointer hover:border-gold hover:shadow-md transition-all group"
+                    className="surface p-5 flex items-center gap-4 cursor-pointer hover:shadow-md hover:border-amber-300 transition-all group"
                 >
-                    <div className="w-12 h-12 rounded-xl bg-gold/15 text-navy flex items-center justify-center text-xl font-black shadow-inner group-hover:scale-110 transition-transform">
-                        📋
-                    </div>
-                    <div>
-                        <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Commissioned Exam</div>
-                        <div className="text-xl font-black text-navy flex items-center gap-1.5">
-                            <span>{activeExam ? `${activeExam.examType} Active` : 'Start Blueprint'}</span>
-                            <span className="text-xs text-gold font-bold">→</span>
+                    <span className="w-12 h-12 rounded-2xl bg-[#081b3b] text-amber-400 flex items-center justify-center group-hover:scale-105 transition-transform"><Target size={22} /></span>
+                    <div className="min-w-0">
+                        <div className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider">Commissioned exam</div>
+                        <div className="text-lg font-extrabold text-[#081b3b] flex items-center gap-1.5">
+                            <span>{activeExam ? `${activeExam.examType} active` : 'Start blueprint'}</span>
+                            <ArrowRight size={16} className="text-amber-500 shrink-0 group-hover:translate-x-1 transition-transform" />
                         </div>
                     </div>
                 </div>
