@@ -1,11 +1,37 @@
 import { useContext, useState, useEffect } from 'react';
 import { AuthContext } from '../../context/AuthContext';
 import { useNavigate, Routes, Route } from 'react-router-dom';
-import { Trash2, Eye, Clock, ChevronDown, Search, AlertCircle, FilePlus2, Zap, ClipboardList, Database, Target, ArrowRight, FolderOpen, Folder, LayoutGrid, List, X, Trophy, BookOpen, BarChart3, Atom, FlaskConical, Sigma, Dna, Leaf, PawPrint } from 'lucide-react';
+import { Trash2, Eye, Clock, ChevronDown, Search, AlertCircle, FilePlus2, Zap, ClipboardList, Database, Target, ArrowRight, FolderOpen, Pencil, Check, ArrowDownUp, Folder, LayoutGrid, List, X, Trophy, BookOpen, BarChart3, Atom, FlaskConical, Sigma, Dna, Leaf, PawPrint } from 'lucide-react';
 import { motion, LayoutGroup } from 'framer-motion';
 import { AnimatedNumber, SPRING } from '../../ui/motion';
 
 const SUBJECT_ICONS = { Physics: Atom, Chemistry: FlaskConical, Mathematics: Sigma, Biology: Dna, Botany: Leaf, Zoology: PawPrint };
+const SUBJECT_TONES = {
+    Physics: { bar: 'from-blue-400 to-indigo-500', tile: 'bg-blue-50 text-blue-600', wash: 'from-blue-50 to-white' },
+    Chemistry: { bar: 'from-emerald-400 to-teal-500', tile: 'bg-emerald-50 text-emerald-600', wash: 'from-emerald-50 to-white' },
+    Mathematics: { bar: 'from-violet-400 to-purple-500', tile: 'bg-violet-50 text-violet-600', wash: 'from-violet-50 to-white' },
+    Biology: { bar: 'from-rose-400 to-pink-500', tile: 'bg-rose-50 text-rose-600', wash: 'from-rose-50 to-white' },
+    Botany: { bar: 'from-lime-400 to-green-500', tile: 'bg-lime-50 text-lime-700', wash: 'from-lime-50 to-white' },
+    Zoology: { bar: 'from-orange-400 to-amber-500', tile: 'bg-orange-50 text-orange-600', wash: 'from-orange-50 to-white' },
+};
+
+/** A circular progress gauge that fills with a spring. */
+function ProgressRing({ pct = 0, size = 64, stroke = 6, dark = false }) {
+    const r = (size - stroke) / 2;
+    const c = 2 * Math.PI * r;
+    const v = Math.max(0, Math.min(100, pct));
+    const colour = v >= 100 ? '#10b981' : '#f59e0b';
+    return (
+        <span className="relative inline-flex shrink-0 items-center justify-center" style={{ width: size, height: size }} role="img" aria-label={`${v}% complete`}>
+            <svg width={size} height={size} className="-rotate-90">
+                <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={dark ? 'rgba(255,255,255,0.18)' : '#e2e8f0'} strokeWidth={stroke} />
+                <motion.circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={colour} strokeWidth={stroke} strokeLinecap="round" strokeDasharray={c}
+                    initial={{ strokeDashoffset: c }} animate={{ strokeDashoffset: c * (1 - v / 100) }} transition={{ type: 'spring', stiffness: 90, damping: 22 }} />
+            </svg>
+            <span className={`absolute text-[11px] font-extrabold ${dark ? 'text-white' : 'text-[#081b3b]'}`}>{v}%</span>
+        </span>
+    );
+}
 import UploadTemplate from './UploadTemplate';
 import CreateTeacher from './CreateTeacher';
 import SubjectDetails from './SubjectDetails';
@@ -137,6 +163,8 @@ const DashboardHome = () => {
     const [isExamSubjectsOpen, setIsExamSubjectsOpen] = useState(false);
     const [isSavedPapersOpen, setIsSavedPapersOpen] = useState(true);
     const [paperView, setPaperView] = useState('grid');
+    const [paperSort, setPaperSort] = useState('newest');
+    const [visiblePapers, setVisiblePapers] = useState(9);
     const [savedPapersCategory, setSavedPapersCategory] = useState('ALL');
     const [isCategoryDropdownOpen, setIsCategoryDropdownOpen] = useState(false);
     const [savedPapersSearch, setSavedPapersSearch] = useState('');
@@ -525,78 +553,64 @@ const DashboardHome = () => {
                 </div>
             </div>
 
-            {/* ── SECTION 1: COMMISSIONED EXAMS & PCMB TARGETS (ONE BOX - CLICK TO EXPAND 4 SUBJECTS) ── */}
-            <div id="commissioned-exams-section" className="surface overflow-hidden transition-all duration-300">
-                {/* Master Box Header (Click to Open/Close) */}
-                <div
-                    onClick={() => setIsExamSubjectsOpen(!isExamSubjectsOpen)}
-                    className="p-6 cursor-pointer hover:bg-slate-50/70 transition flex flex-col md:flex-row md:items-center justify-between gap-4 select-none"
-                >
-                    <div className="flex items-center gap-4">
-                        <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#081b3b] to-[#123a7a] text-amber-400 flex items-center justify-center shadow-xl shadow-blue-950/20 shrink-0">
-                            <ClipboardList size={26} />
-                        </div>
-                        <div>
-                            <div className="flex items-center gap-2 flex-wrap mb-1">
-                                <span className="bg-navy text-gold text-[10px] font-black uppercase tracking-widest px-2.5 py-0.5 rounded-lg">
-                                    {activeExam?.examType || 'CET'}
-                                </span>
-                                <h3 className="font-extrabold text-xl text-[#081b3b] tracking-tight">
-                                    {activeExam?.title || 'Commissioned Examination Targets'}
-                                </h3>
-                                <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2.5 py-0.5 rounded-md">
-                                    {activeExam?.classes && activeExam.classes.length > 1 ? 'Class 11 & 12' : `Class ${activeExam?.classes?.[0] || '12'}`}
-                                </span>
+            {/* ── COMMISSIONED EXAMS (per-subject targets of each commissioned exam) ── */}
+            <section id="commissioned-exams-section" className="space-y-5">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div className="flex items-center gap-4 min-w-0">
+                        <span className="w-14 h-14 shrink-0 rounded-2xl bg-gradient-to-br from-amber-400 to-orange-500 text-[#081b3b] flex items-center justify-center shadow-xl shadow-amber-500/25"><ClipboardList size={26} /></span>
+                        <div className="min-w-0">
+                            <div className="flex items-center gap-2.5 flex-wrap">
+                                <h3 className="text-2xl font-extrabold text-[#081b3b] tracking-tight">Commissioned Exams</h3>
+                                <span className="rounded-full bg-amber-100 text-amber-800 text-xs font-extrabold px-3 py-1"><AnimatedNumber value={commissionedExams.length} /> registered</span>
                             </div>
-                            <p className="text-xs text-slate-500 font-medium">
-                                {commissionedExams.length} Total Exams Registered • Tap to open 4 PCMB department target breakdown
-                            </p>
+                            <p className="text-sm text-slate-500 font-medium mt-0.5">Track every department's progress towards each commissioned exam and open the subject papers.</p>
                         </div>
                     </div>
-
-                    <div className="flex items-center gap-4 self-end md:self-auto">
-                        <div className="text-right hidden sm:block">
-                            <span className="text-xs font-black text-navy block">
-                                {isExamSubjectsOpen ? 'Hide Department Subjects' : 'View 4 Subjects & Switch Exam'}
-                            </span>
-                            <span className="text-[10px] text-slate-400">
-                                Physics • Chemistry • Maths • Biology
-                            </span>
-                        </div>
-                        <div className={`w-11 h-11 rounded-xl flex items-center justify-center transition-all duration-300 ${
-                            isExamSubjectsOpen ? 'bg-[#081b3b] text-amber-300 rotate-180 shadow-md' : 'bg-slate-100 text-[#081b3b] hover:bg-slate-200'
-                        }`}>
-                            <ChevronDown size={19} />
-                        </div>
-                    </div>
+                    <button type="button" onClick={() => setIsExamSubjectsOpen(!isExamSubjectsOpen)} aria-expanded={isExamSubjectsOpen}
+                        className="self-start md:self-auto h-11 rounded-xl border border-slate-200 bg-white px-4 text-xs font-extrabold uppercase tracking-wider text-slate-600 hover:text-[#081b3b] hover:border-slate-300 flex items-center gap-2 cursor-pointer">
+                        {isExamSubjectsOpen ? 'Hide departments' : 'View 4 subjects & switch exam'} <ChevronDown size={15} className={`transition-transform ${isExamSubjectsOpen ? 'rotate-180' : ''}`} />
+                    </button>
                 </div>
 
-                {/* WHEN CLICKED: THE EXAM SWITCHER & 4 PCMB SUBJECTS EXPAND */}
+                {!isExamSubjectsOpen && activeExam && (() => {
+                    const sa = activeExam.subjectAssignments || [];
+                    const tt = sa.reduce((sum, x) => sum + (x.targetQuestions || 60), 0);
+                    const ta = activeExam.totalQuestionsAdded !== undefined ? activeExam.totalQuestionsAdded : sa.reduce((sum, x) => sum + (x.questionsCount || (x.submittedPaperId?.questions?.length || 0)), 0);
+                    const pc = tt > 0 ? Math.min(100, Math.round((ta / tt) * 100)) : 0;
+                    return (
+                        <button type="button" onClick={() => setIsExamSubjectsOpen(true)} className="w-full text-left surface p-4 flex items-center gap-4 hover:shadow-lg hover:border-amber-300 transition-all cursor-pointer group">
+                            <ProgressRing pct={pc} size={56} stroke={6} />
+                            <span className="min-w-0 flex-1">
+                                <span className="flex items-center gap-2 flex-wrap">
+                                    <span className="rounded-full bg-[#081b3b] text-amber-300 text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-1">{activeExam.examType || 'CET'}</span>
+                                    <span className="text-lg font-extrabold text-[#081b3b] truncate">{activeExam.title}</span>
+                                    <span className="rounded-full bg-slate-100 text-slate-600 text-[11px] font-bold px-2.5 py-1">{activeExam.classes && activeExam.classes.length > 1 ? 'Class 11 & 12' : `Class ${activeExam.classes?.[0] || '12'}`}</span>
+                                </span>
+                                <span className="block text-xs text-slate-500 font-semibold mt-1">{ta} of {tt} questions compiled · Physics • Chemistry • Maths • Biology</span>
+                            </span>
+                            <ArrowRight size={18} className="text-slate-300 group-hover:text-[#081b3b] group-hover:translate-x-1 transition-all shrink-0" />
+                        </button>
+                    );
+                })()}
+
                 {isExamSubjectsOpen && (
-                    <div className="p-6 pt-0 border-t border-slate-100 space-y-6 animate-fade-in bg-slate-50/40">
+                    <div className="space-y-6">
                         {loading ? (
-                            <div className="p-12 text-center text-slate-400 font-bold text-sm">
-                                Loading assessment progress...
-                            </div>
+                            <div className="surface p-12 text-center text-slate-400 font-bold text-sm">Loading assessment progress…</div>
                         ) : commissionedExams.length === 0 ? (
-                            <div className="p-12 border-2 border-dashed border-slate-200 rounded-2xl text-center">
-                                <h4 className="font-black text-navy text-base mb-1">No Commissioned Exams Yet</h4>
-                                <p className="text-xs text-gray-500 mb-4">Create your first standardized exam to open subject question targets.</p>
-                                <button
-                                    onClick={() => setShowCommissionModal(true)}
-                                    className="bg-gold text-navy px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest hover:scale-105 transition shadow cursor-pointer"
-                                >
-                                    + Create Exam
-                                </button>
+                            <div className="p-12 border-2 border-dashed border-slate-300 rounded-3xl bg-white text-center">
+                                <div className="w-14 h-14 mx-auto rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mb-4"><ClipboardList size={26} /></div>
+                                <h4 className="font-extrabold text-lg text-[#081b3b] mb-1">No Commissioned Exams Yet</h4>
+                                <p className="text-sm text-slate-500 mb-5">Create your first standardized exam to open subject question targets.</p>
+                                <button onClick={() => setShowCommissionModal(true)}
+                                    className="bg-amber-400 hover:bg-amber-300 text-[#081b3b] px-6 py-3 rounded-2xl font-extrabold text-xs uppercase tracking-widest shadow-lg shadow-amber-500/25 cursor-pointer">+ Create Exam</button>
                             </div>
                         ) : (
-                            <div className="space-y-6 pt-4">
-                                {/* Exam Switcher Pills */}
+                            <>
+                                {/* exam switcher */}
                                 <div>
-                                    <div className="text-xs font-black text-navy uppercase tracking-wider mb-2.5">
-                                        Select Assessment:
-                                    </div>
-                                    <div className="flex items-center gap-2.5 overflow-x-auto pb-2 scrollbar-none">
+                                    <p className="eyebrow !text-slate-500 mb-2.5">Select assessment</p>
+                                    <div className="flex items-stretch gap-3 overflow-x-auto pb-3 -mx-1 px-1">
                                         {commissionedExams.map((exam) => {
                                             const examKey = exam._id || exam.id;
                                             const isSelected = ((activeExam?._id || activeExam?.id) === examKey);
@@ -606,28 +620,16 @@ const DashboardHome = () => {
                                                 ? exam.totalQuestionsAdded
                                                 : subAssignments.reduce((sum, sa) => sum + (sa.questionsCount || (sa.submittedPaperId?.questions?.length || 0)), 0);
                                             const overallPct = totalTarget > 0 ? Math.min(100, Math.round((totalAdded / totalTarget) * 100)) : 0;
-                                            const examType = exam.examType || 'CET';
-
                                             return (
-                                                <button
-                                                    key={examKey}
-                                                    onClick={() => setSelectedExamId(examKey)}
-                                                    className={`px-4 py-2 rounded-xl font-bold text-xs uppercase tracking-wider transition-all flex items-center gap-2 whitespace-nowrap cursor-pointer ${
-                                                        isSelected
-                                                            ? 'bg-navy text-gold shadow-md font-black border-2 border-gold scale-[1.02]'
-                                                            : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
-                                                    }`}
-                                                >
-                                                    <span className={`text-[9px] font-black px-1.5 py-0.5 rounded ${
-                                                        isSelected ? 'bg-gold/20 text-gold' : 'bg-slate-100 text-navy'
-                                                    }`}>
-                                                        {examType}
-                                                    </span>
-                                                    <span>{exam.title}</span>
-                                                    <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
-                                                        isSelected ? 'bg-white text-navy' : 'bg-slate-100 text-slate-600'
-                                                    }`}>
-                                                        {overallPct}%
+                                                <button key={examKey} onClick={() => setSelectedExamId(examKey)} aria-pressed={isSelected}
+                                                    className={`relative shrink-0 w-[250px] text-left rounded-2xl p-4 flex items-center gap-3 cursor-pointer transition-all ${isSelected
+                                                        ? 'bg-gradient-to-br from-[#081b3b] to-[#123a7a] text-white shadow-xl shadow-blue-950/25 ring-2 ring-amber-400'
+                                                        : 'bg-white border border-slate-200 text-slate-700 hover:border-slate-300 hover:shadow-md'}`}>
+                                                    <ProgressRing pct={overallPct} size={48} stroke={5} dark={isSelected} />
+                                                    <span className="min-w-0">
+                                                        <span className={`inline-block text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-md mb-1 ${isSelected ? 'bg-amber-400/20 text-amber-300' : 'bg-slate-100 text-[#081b3b]'}`}>{exam.examType || 'CET'}</span>
+                                                        <span className="block text-sm font-extrabold leading-tight truncate" title={exam.title}>{exam.title}</span>
+                                                        <span className={`block text-[11px] font-semibold ${isSelected ? 'text-white/60' : 'text-slate-400'}`}>{totalAdded} / {totalTarget} questions</span>
                                                     </span>
                                                 </button>
                                             );
@@ -635,7 +637,6 @@ const DashboardHome = () => {
                                     </div>
                                 </div>
 
-                                {/* Active Exam Action Controls */}
                                 {activeExam && (() => {
                                     const exam = activeExam;
                                     const subAssignments = exam.subjectAssignments || [];
@@ -647,52 +648,40 @@ const DashboardHome = () => {
 
                                     return (
                                         <div className="space-y-5">
-                                            <div className="bg-white p-5 rounded-2xl border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xs">
-                                                <div>
-                                                    <h4 className="font-black text-base text-navy uppercase">{exam.title}</h4>
-                                                    <p className="text-xs text-slate-400 mt-0.5">
-                                                        Total Readiness: {totalAdded} / {totalTarget} Questions Compiled ({overallPct}%)
-                                                    </p>
-                                                </div>
-                                                <div className="flex items-center gap-2 flex-wrap">
-                                                    <button
-                                                        onClick={() => handleMergeExamSubjects(exam)}
-                                                        disabled={merging}
-                                                        className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-1.5 rounded-xl font-black text-xs uppercase tracking-wider transition flex items-center gap-1.5 cursor-pointer shadow-md border border-emerald-400"
-                                                        title="Merge all completed subject papers into a single grand assessment paper"
-                                                    >
-                                                        <span>⚡</span> {merging ? 'Merging...' : 'Merge All Subjects'}
-                                                    </button>
-                                                    <button
-                                                        onClick={() => setSelectedViewExam(exam)}
-                                                        className="bg-navy text-gold hover:bg-slate-900 px-3.5 py-1.5 rounded-xl font-bold text-xs uppercase tracking-wider transition flex items-center gap-1.5 cursor-pointer shadow-xs"
-                                                    >
-                                                        <span>👁</span> View Full Paper
-                                                    </button>
-                                                    <button
-                                                        onClick={() => setSelectedAnalysisExam(exam)}
-                                                        className="bg-gold text-navy hover:bg-amber-400 px-3.5 py-1.5 rounded-xl font-bold text-xs uppercase tracking-wider transition flex items-center gap-1.5 cursor-pointer shadow-xs"
-                                                    >
-                                                        <span>📊</span> Analysis
-                                                    </button>
-                                                    <button
-                                                        onClick={() => handleDeleteExam(exam._id || exam.id)}
-                                                        className="bg-white text-rose-600 border border-rose-200 hover:bg-rose-50 px-3 py-1.5 rounded-xl font-bold text-xs transition cursor-pointer"
-                                                    >
-                                                        ✕ Delete
-                                                    </button>
+                                            {/* active exam banner */}
+                                            <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#081b3b] via-[#0b2552] to-[#123a7a] text-white p-6 sm:p-7 shadow-[0_24px_60px_-30px_rgba(8,27,59,0.6)]">
+                                                <span aria-hidden="true" className="absolute -right-12 -top-12 w-56 h-56 rounded-full bg-amber-400/15 blur-2xl" />
+                                                <div className="relative flex flex-col xl:flex-row xl:items-center justify-between gap-6">
+                                                    <div className="min-w-0 flex-1">
+                                                        <div className="flex items-center gap-2 mb-2 flex-wrap">
+                                                            <span className="rounded-full bg-amber-400 text-[#081b3b] text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-1">{exam.examType || 'CET'}</span>
+                                                            <span className="rounded-full bg-white/10 text-white/80 text-[11px] font-bold px-2.5 py-1">{exam.classes && exam.classes.length > 1 ? 'Class 11 & 12' : `Class ${exam.classes?.[0] || '12'}`}</span>
+                                                        </div>
+                                                        <h4 className="text-2xl font-extrabold tracking-tight truncate">{exam.title}</h4>
+                                                        <div className="mt-4 max-w-md">
+                                                            <div className="flex justify-between text-xs font-bold text-white/70 mb-1.5"><span>Total readiness</span><span>{totalAdded} / {totalTarget} · {overallPct}%</span></div>
+                                                            <div className="h-2.5 rounded-full bg-white/15 overflow-hidden"><motion.div className="h-full rounded-full bg-gradient-to-r from-amber-300 to-emerald-400" initial={{ width: 0 }} animate={{ width: `${overallPct}%` }} transition={{ type: 'spring', stiffness: 120, damping: 24 }} /></div>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex items-center gap-2 flex-wrap">
+                                                        <button onClick={() => handleMergeExamSubjects(exam)} disabled={merging}
+                                                            className="h-11 px-5 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-white text-xs font-extrabold uppercase tracking-wider flex items-center gap-2 shadow-lg shadow-emerald-900/30 disabled:opacity-60 cursor-pointer"
+                                                            title="Merge all completed subject papers into a single grand assessment paper"><Zap size={15} /> {merging ? 'Merging...' : 'Merge All Subjects'}</button>
+                                                        <button onClick={() => setSelectedViewExam(exam)} className="h-11 px-4 rounded-2xl bg-white/10 hover:bg-white/20 border border-white/20 text-white text-xs font-extrabold uppercase tracking-wider flex items-center gap-2 cursor-pointer"><Eye size={15} /> View Full Paper</button>
+                                                        <button onClick={() => setSelectedAnalysisExam(exam)} className="h-11 px-4 rounded-2xl bg-amber-400 hover:bg-amber-300 text-[#081b3b] text-xs font-extrabold uppercase tracking-wider flex items-center gap-2 cursor-pointer"><BarChart3 size={15} /> Analysis</button>
+                                                        <button onClick={() => handleDeleteExam(exam._id || exam.id)} className="h-11 px-4 rounded-2xl bg-rose-500/15 hover:bg-rose-500 text-rose-200 hover:text-white border border-rose-400/30 text-xs font-extrabold flex items-center gap-2 cursor-pointer"><Trash2 size={15} /> Delete</button>
+                                                    </div>
                                                 </div>
                                             </div>
 
-                                            {/* The Multi-Subject Department Cards */}
-                                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                                            {/* the department cards */}
+                                            <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-4 gap-5">
                                                 {subAssignments.map((sa, idx) => {
                                                     const subName = sa.subject;
                                                     const isJEE = (exam.examType || '').toUpperCase().includes('JEE');
                                                     const isNEET = (exam.examType || '').toUpperCase().includes('NEET');
                                                     const target = isJEE ? 25 : isNEET ? 45 : (sa.targetQuestions || 60);
 
-                                                    // Find submitted paper either directly or in allPapers
                                                     let submittedPaper = null;
                                                     if (sa.submittedPaperId && typeof sa.submittedPaperId === 'object' && (sa.submittedPaperId._id || sa.submittedPaperId.id)) {
                                                         submittedPaper = sa.submittedPaperId;
@@ -721,107 +710,70 @@ const DashboardHome = () => {
                                                         : (sa.questionsCount || 0);
                                                     const pct = Math.min(100, Math.round((count / target) * 100));
                                                     const isReady = count >= target || pct >= 100;
-
-                                                    const subIcon = subName.toLowerCase().includes('physic') ? '⚛️'
-                                                        : subName.toLowerCase().includes('chem') ? '🧪'
-                                                        : subName.toLowerCase().includes('math') ? '📐'
-                                                        : subName.toLowerCase().includes('botan') ? '🌿'
-                                                        : subName.toLowerCase().includes('zool') ? '🐾'
-                                                        : '🧬';
+                                                    const key = Object.keys(SUBJECT_ICONS).find(k => subName.toLowerCase().includes(k.toLowerCase().slice(0, 4))) || 'Biology';
+                                                    const SubIcon = SUBJECT_ICONS[key] || BookOpen;
+                                                    const tone = SUBJECT_TONES[key] || SUBJECT_TONES.Biology;
 
                                                     return (
-                                                        <div key={idx} className={`border p-4 rounded-2xl bg-white flex flex-col justify-between shadow-xs transition ${
-                                                            isReady ? 'border-emerald-300 ring-2 ring-emerald-50' : 'border-slate-200 hover:border-navy'
-                                                        }`}>
-                                                            <div>
-                                                                <div className="flex justify-between items-center mb-3">
-                                                                    <div className="flex items-center gap-2">
-                                                                        <span className="text-lg">{subIcon}</span>
-                                                                        <h5 className="text-xs font-black text-navy uppercase">{subName}</h5>
+                                                        <motion.div key={idx} initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} whileHover={{ y: -3 }} transition={{ ...SPRING.soft, delay: idx * 0.05 }}
+                                                            className={`relative overflow-hidden rounded-3xl bg-white flex flex-col justify-between border ${isReady ? 'border-emerald-300 shadow-lg shadow-emerald-500/10' : 'border-slate-200 shadow-sm hover:shadow-xl hover:shadow-blue-950/10'}`}>
+                                                            <span className={`h-1.5 w-full bg-gradient-to-r ${tone.bar}`} aria-hidden="true" />
+                                                            <div className="p-5">
+                                                                <div className="flex items-center justify-between gap-3">
+                                                                    <div className="flex items-center gap-3 min-w-0">
+                                                                        <span className={`w-11 h-11 shrink-0 rounded-2xl flex items-center justify-center ${tone.tile}`}><SubIcon size={22} /></span>
+                                                                        <h5 className="text-base font-extrabold text-[#081b3b] truncate">{subName}</h5>
                                                                     </div>
-                                                                    <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full ${
-                                                                        isReady ? 'bg-emerald-100 text-emerald-800' : count > 0 ? 'bg-blue-100 text-blue-800' : 'bg-amber-100 text-amber-800'
-                                                                    }`}>
-                                                                        {isReady ? 'Ready' : count > 0 ? 'In Progress' : 'Pending'}
+                                                                    <span className={`shrink-0 text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-1 rounded-full ${isReady ? 'bg-emerald-100 text-emerald-800' : count > 0 ? 'bg-blue-100 text-blue-800' : 'bg-amber-100 text-amber-800'}`}>
+                                                                        {isReady ? 'Ready' : count > 0 ? 'In progress' : 'Pending'}
                                                                     </span>
                                                                 </div>
 
-                                                                <div className="bg-slate-50 p-2.5 rounded-xl border border-gray-100 mb-3 text-left">
-                                                                    <div className="text-[11px] font-black text-navy uppercase tracking-wider flex items-center justify-between">
-                                                                        <span>Format Quota</span>
-                                                                        <span className="text-amber-600 font-bold">
-                                                                            {isJEE ? '20 Sec A + 5 Sec B' : `${target} Qs`}
-                                                                        </span>
+                                                                <div className="mt-5 flex items-center gap-4">
+                                                                    <ProgressRing pct={pct} size={76} stroke={7} />
+                                                                    <div className="min-w-0">
+                                                                        <p className="text-2xl font-extrabold text-[#081b3b] leading-none"><AnimatedNumber value={count} /><span className="text-sm font-bold text-slate-400"> / {target}</span></p>
+                                                                        <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mt-1">Questions</p>
+                                                                        <p className="text-[11px] font-bold text-amber-600 mt-1">{isJEE ? '20 Sec A + 5 Sec B' : `${target} Qs quota`}</p>
                                                                     </div>
+                                                                </div>
+
+                                                                <div className="mt-4 rounded-2xl bg-slate-50 px-3.5 py-2.5 text-[12px] font-semibold">
                                                                     {submittedPaper ? (
-                                                                        <div className="text-[10px] text-emerald-700 font-bold mt-1 truncate" title={submittedPaper.title}>
-                                                                            ✓ Saved: {submittedPaper.title || `${subName} - ${exam.title}`}
-                                                                        </div>
+                                                                        <span className="text-emerald-700 flex items-center gap-1.5 truncate" title={submittedPaper.title}><Check size={14} className="shrink-0" /> <span className="truncate">Saved: {submittedPaper.title || `${subName} - ${exam.title}`}</span></span>
                                                                     ) : (
-                                                                        <div className="text-[10px] text-slate-400 font-medium mt-1">
-                                                                            Select & compile {subName} questions
-                                                                        </div>
+                                                                        <span className="text-slate-400">Select & compile {subName} questions</span>
                                                                     )}
                                                                 </div>
-
-                                                                <div className="mb-2">
-                                                                    <div className="flex justify-between text-[10px] font-black text-navy mb-1">
-                                                                        <span>Progress</span>
-                                                                        <span>{count} / {target} Qs ({pct}%)</span>
-                                                                    </div>
-                                                                    <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden p-0.5 shadow-inner">
-                                                                        <div
-                                                                            style={{ width: `${pct}%` }}
-                                                                            className={`h-full rounded-full transition-all duration-500 ${
-                                                                                isReady ? 'bg-emerald-500' : count > 0 ? 'bg-blue-600' : 'bg-gray-300'
-                                                                            }`}
-                                                                        />
-                                                                    </div>
-                                                                </div>
                                                             </div>
 
-                                                            <div className="mt-3 pt-3 border-t border-gray-100 flex flex-col gap-2">
+                                                            <div className="px-5 pb-5">
                                                                 {submittedPaperId ? (
                                                                     <div className="flex items-center gap-2">
-                                                                        <button
-                                                                            type="button"
-                                                                            onClick={() => navigate(`/admin/dashboard/preview/${submittedPaperId}`)}
-                                                                            className="flex-1 bg-navy text-gold hover:bg-slate-900 py-2 px-3 rounded-xl text-xs font-black uppercase tracking-wider transition text-center cursor-pointer shadow-xs"
-                                                                            title="View & Download PDF in single subject form"
-                                                                        >
-                                                                            👁 View / PDF
-                                                                        </button>
-                                                                        <button
-                                                                            type="button"
+                                                                        <button type="button" onClick={() => navigate(`/admin/dashboard/preview/${submittedPaperId}`)} title="View & Download PDF in single subject form"
+                                                                            className="flex-1 h-11 rounded-2xl bg-gradient-to-r from-[#081b3b] to-[#0d2a5e] text-amber-300 text-xs font-extrabold uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-blue-950/20 cursor-pointer"><Eye size={15} /> View / PDF</button>
+                                                                        <button type="button" title="Edit questions for this subject"
                                                                             onClick={() => navigate(`/admin/dashboard/create-paper?examId=${exam._id || exam.id}&paperId=${submittedPaperId}&subject=${subName}&examType=${exam.examType || 'CET'}&examTitle=${encodeURIComponent(exam.title)}&classes=${encodeURIComponent(exam.classes ? (exam.classes.includes('11') && exam.classes.includes('12') ? 'Both' : exam.classes[0]) : '12')}`)}
-                                                                            className="bg-slate-100 hover:bg-slate-200 text-navy py-2 px-3 rounded-xl text-xs font-black uppercase tracking-wider transition text-center cursor-pointer"
-                                                                            title="Edit questions for this subject"
-                                                                        >
-                                                                            ✎ Edit
-                                                                        </button>
+                                                                            className="h-11 px-4 rounded-2xl bg-slate-100 hover:bg-slate-200 text-[#081b3b] text-xs font-extrabold flex items-center gap-1.5 cursor-pointer"><Pencil size={14} /> Edit</button>
                                                                     </div>
                                                                 ) : (
-                                                                    <button
-                                                                        type="button"
+                                                                    <button type="button"
                                                                         onClick={() => navigate(`/admin/dashboard/create-paper?examId=${exam._id || exam.id}&subject=${subName}&examType=${exam.examType || 'CET'}&examTitle=${encodeURIComponent(exam.title)}&classes=${encodeURIComponent(exam.classes ? (exam.classes.includes('11') && exam.classes.includes('12') ? 'Both' : exam.classes[0]) : '12')}`)}
-                                                                        className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 px-3 rounded-xl text-xs font-black uppercase tracking-wider transition text-center cursor-pointer shadow-md flex items-center justify-center gap-1.5"
-                                                                    >
-                                                                        <span>✍️</span> Select & Create {subName} Paper →
-                                                                    </button>
+                                                                        className="w-full h-11 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20 cursor-pointer"><FilePlus2 size={15} /> Select & create {subName} paper <ArrowRight size={14} /></button>
                                                                 )}
                                                             </div>
-                                                        </div>
+                                                        </motion.div>
                                                     );
                                                 })}
                                             </div>
                                         </div>
                                     );
                                 })()}
-                            </div>
+                            </>
                         )}
                     </div>
                 )}
-            </div>
+            </section>
 
             {/* ── SAVED PAPERS LIBRARY (organised by competitive exam and by subject) ── */}
             <section id="saved-papers-section" className="space-y-5">
@@ -854,9 +806,31 @@ const DashboardHome = () => {
 
                 {isSavedPapersOpen && (
                     <>
+                        {/* at-a-glance numbers (click a tile to filter) */}
+                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                            {[
+                                { key: 'ALL', label: 'All papers', Icon: Folder, tone: 'from-[#081b3b] to-[#123a7a]', n: allPapers.length },
+                                { key: 'NEET', label: 'NEET', Icon: Target, tone: 'from-teal-500 to-emerald-600', n: getSavedCategoryCount('NEET') },
+                                { key: 'JEE', label: 'JEE', Icon: Zap, tone: 'from-indigo-500 to-violet-600', n: getSavedCategoryCount('JEE') },
+                                { key: 'CET', label: 'CET', Icon: Trophy, tone: 'from-amber-400 to-orange-500', n: getSavedCategoryCount('CET') },
+                            ].map(({ key, label, Icon, tone, n }) => {
+                                const share = allPapers.length ? Math.round((n / allPapers.length) * 100) : 0;
+                                return (
+                                    <button key={key} type="button" onClick={() => { setSavedPapersCategory(key); setVisiblePapers(9); }}
+                                        className={`relative overflow-hidden rounded-2xl p-4 text-left text-white bg-gradient-to-br ${tone} shadow-lg hover:-translate-y-0.5 transition-transform cursor-pointer ${savedPapersCategory === key ? 'ring-4 ring-amber-300/70' : ''}`}>
+                                        <Icon size={64} className="absolute -right-3 -bottom-3 opacity-15" aria-hidden="true" />
+                                        <span className="relative block text-[11px] font-extrabold uppercase tracking-wider text-white/80">{label}</span>
+                                        <span className="relative block text-3xl font-extrabold leading-tight"><AnimatedNumber value={n} /></span>
+                                        <span className="relative mt-1 block h-1.5 rounded-full bg-white/25 overflow-hidden"><span className="block h-full rounded-full bg-white/90" style={{ width: `${share}%` }} /></span>
+                                    </button>
+                                );
+                            })}
+                        </div>
+
                         {/* search + filter chips */}
                         <div className="surface p-4 space-y-4">
-                            <div className="relative">
+                            <div className="flex flex-col sm:flex-row gap-3">
+                            <div className="relative flex-1">
                                 <Search size={18} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
                                 <input type="text" value={savedPapersSearch} onChange={(e) => setSavedPapersSearch(e.target.value)}
                                     placeholder="Search saved papers by title, subject or exam…"
@@ -865,6 +839,17 @@ const DashboardHome = () => {
                                     <button type="button" onClick={() => setSavedPapersSearch('')} aria-label="Clear search"
                                         className="absolute right-3 top-1/2 -translate-y-1/2 w-7 h-7 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 flex items-center justify-center cursor-pointer"><X size={15} /></button>
                                 )}
+                            </div>
+                            <label className="relative flex items-center gap-2 h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-xs font-extrabold uppercase tracking-wider text-slate-500 cursor-pointer">
+                                <ArrowDownUp size={15} />
+                                <select value={paperSort} onChange={(e) => { setPaperSort(e.target.value); setVisiblePapers(9); }} aria-label="Sort papers"
+                                    className="bg-transparent text-[#081b3b] font-extrabold outline-none cursor-pointer pr-1">
+                                    <option value="newest">Newest first</option>
+                                    <option value="oldest">Oldest first</option>
+                                    <option value="questions">Most questions</option>
+                                    <option value="title">Title A–Z</option>
+                                </select>
+                            </label>
                             </div>
                             <LayoutGroup id="paper-filter">
                                 <div className="flex items-center gap-2 flex-wrap">
@@ -909,6 +894,13 @@ const DashboardHome = () => {
                                 );
                             });
                             const isIndividual = ['Physics', 'Chemistry', 'Mathematics', 'Biology', 'Botany', 'Zoology'].includes(savedPapersCategory);
+                            const stamp = (p) => new Date(p.createdAt || p.created_at || 0).getTime() || 0;
+                            const sortedPapers = [...filteredPapers].sort((x, y) => (
+                                paperSort === 'oldest' ? stamp(x) - stamp(y)
+                                    : paperSort === 'questions' ? (y.questions?.length || 0) - (x.questions?.length || 0)
+                                    : paperSort === 'title' ? String(x.title || '').localeCompare(String(y.title || ''))
+                                    : stamp(y) - stamp(x)));
+                            const shownPapers = sortedPapers.slice(0, visiblePapers);
 
                             if (filteredPapers.length === 0) {
                                 return (
@@ -936,7 +928,7 @@ const DashboardHome = () => {
                                 <div>
                                     <p className="mb-3 text-xs font-bold uppercase tracking-wider text-slate-400">{filteredPapers.length} {filteredPapers.length === 1 ? 'paper' : 'papers'} · {savedPapersCategory === 'ALL' ? 'all categories' : savedPapersCategory}</p>
                                     <div className={paperView === 'grid' ? 'grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-5' : 'flex flex-col gap-3'}>
-                                        {filteredPapers.map((p, idx) => {
+                                        {shownPapers.map((p, idx) => {
                                             const pId = p._id || p.id;
                                             const qCount = Array.isArray(p.questions) ? p.questions.length : 0;
                                             const dt = formatPaperDateTime(p.createdAt || p.created_at);
@@ -977,7 +969,8 @@ const DashboardHome = () => {
                                                 <motion.div key={pId} initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} whileHover={{ y: -4 }} transition={{ ...SPRING.soft, delay: Math.min(idx, 12) * 0.03 }}
                                                     onClick={open} className="group relative overflow-hidden rounded-3xl bg-white border border-slate-200 shadow-sm hover:shadow-2xl hover:shadow-blue-950/10 hover:border-slate-300 cursor-pointer flex flex-col">
                                                     <span className={`h-1.5 w-full bg-gradient-to-r ${accent.bar}`} aria-hidden="true" />
-                                                    <div className="p-5 flex-1 flex flex-col">
+                                                    <SubIcon size={120} className="absolute -right-6 top-10 text-slate-100 pointer-events-none" aria-hidden="true" />
+                                                    <div className="relative p-5 flex-1 flex flex-col">
                                                         <div className="flex items-start justify-between gap-3">
                                                             <div className="flex items-center gap-2 flex-wrap">
                                                                 <span className={`text-[11px] font-extrabold px-2.5 py-1 rounded-full border uppercase tracking-wide ${accent.chip}`}>{examLabel}</span>
@@ -995,7 +988,7 @@ const DashboardHome = () => {
                                                         </dl>
                                                         {dt.time && <p className="mt-2.5 text-[11px] text-slate-400 font-semibold flex items-center gap-1.5"><Clock size={12} /> {dt.time}</p>}
                                                     </div>
-                                                    <div className="px-5 pb-5 flex items-center gap-2">
+                                                    <div className="relative px-5 pb-5 flex items-center gap-2">
                                                         <button type="button" onClick={(e) => { e.stopPropagation(); open(); }}
                                                             className="flex-1 h-11 rounded-2xl bg-gradient-to-r from-[#081b3b] to-[#0d2a5e] text-amber-300 text-xs font-extrabold uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-blue-950/20 cursor-pointer"><Eye size={15} /> View paper</button>
                                                         <button type="button" onClick={openStats} title="View paper analysis"
@@ -1005,6 +998,14 @@ const DashboardHome = () => {
                                             );
                                         })}
                                     </div>
+                                    {sortedPapers.length > shownPapers.length && (
+                                        <div className="mt-6 flex justify-center">
+                                            <button type="button" onClick={() => setVisiblePapers(v => v + 9)}
+                                                className="h-12 px-8 rounded-2xl bg-white border border-slate-200 hover:border-slate-300 hover:shadow-md text-xs font-extrabold uppercase tracking-wider text-[#081b3b] flex items-center gap-2 cursor-pointer">
+                                                Show more <span className="rounded-full bg-slate-100 px-2 py-0.5 text-slate-500">{sortedPapers.length - shownPapers.length} left</span>
+                                            </button>
+                                        </div>
+                                    )}
                                 </div>
                             );
                         })()}
