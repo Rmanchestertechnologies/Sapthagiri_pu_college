@@ -1,0 +1,77 @@
+/*
+ * App-wide look. Applies to everything EXCEPT the question paper (.a4-print-document and its children keep their own styling)
+ * and printing (see the @media print block at the end).
+ */
+
+:root {
+  --ink: #081b3b;
+  --ink-2: #0d2a5e;
+  --saffron: #f59e0b;
+  --canvas: #f6f7fb;
+  --hairline: rgba(15, 23, 42, 0.08);
+  --shadow-1: 0 1px 2px rgba(15, 23, 42, 0.05), 0 1px 1px rgba(15, 23, 42, 0.03);
+  --shadow-2: 0 4px 14px -4px rgba(15, 23, 42, 0.12), 0 2px 4px rgba(15, 23, 42, 0.04);
+  --shadow-3: 0 18px 40px -14px rgba(8, 27, 59, 0.28), 0 6px 14px -6px rgba(15, 23, 42, 0.12);
+  --display: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif;
+}
+
+/* soft canvas: warm light with two faint colour washes, fixed so it does not scroll with the page */
+body {
+  background-color: var(--canvas);
+  background-image:
+    radial-gradient(900px 520px at 8% -8%, rgba(245, 158, 11, 0.10), transparent 60%),
+    radial-gradient(1000px 600px at 100% 0%, rgba(13, 42, 94, 0.08), transparent 55%);
+  background-attachment: fixed;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* headings get the display face (the paper does not) */
+h1, h2, h3, h4 { font-family: var(--display); letter-spacing: -0.015em; }
+.a4-print-document h1, .a4-print-document h2, .a4-print-document h3, .a4-print-document h4,
+.a4-engine-wrapper h1, .a4-engine-wrapper h2, .a4-engine-wrapper h3, .a4-engine-wrapper h4 { font-family: inherit; letter-spacing: inherit; }
+
+::selection { background: rgba(245, 158, 11, 0.3); }
+
+/* one consistent keyboard focus ring */
+:where(button, a, input, select, textarea, [role="button"], summary):focus-visible {
+  outline: 2px solid var(--saffron);
+  outline-offset: 2px;
+  border-radius: 10px;
+}
+
+/* quieter scrollbars */
+* { scrollbar-width: thin; scrollbar-color: rgba(100, 116, 139, 0.45) transparent; }
+*::-webkit-scrollbar { width: 9px; height: 9px; }
+*::-webkit-scrollbar-thumb { background: rgba(100, 116, 139, 0.4); border-radius: 999px; border: 2px solid transparent; background-clip: content-box; }
+*::-webkit-scrollbar-thumb:hover { background: rgba(71, 85, 105, 0.6); background-clip: content-box; border: 2px solid transparent; }
+
+/* cards: softer edges and layered shadows instead of flat borders (the paper is excluded) */
+:where(main, .app-surface) :where(.rounded-2xl, .rounded-3xl):where(.bg-white):not(.a4-print-document *) {
+  border-color: var(--hairline);
+  box-shadow: var(--shadow-1);
+}
+
+/* buttons feel pressable everywhere */
+button:not(:disabled), [role="button"] { transition: transform 0.12s ease, box-shadow 0.18s ease, background-color 0.18s ease, color 0.18s ease; }
+button:not(:disabled):active { transform: scale(0.97); }
+
+/* inputs */
+:where(input[type="text"], input[type="email"], input[type="password"], input[type="number"], input[type="search"], select, textarea):not(.a4-print-document *) {
+  transition: box-shadow 0.18s ease, border-color 0.18s ease, background-color 0.18s ease;
+}
+:where(input[type="text"], input[type="email"], input[type="password"], input[type="number"], input[type="search"], select, textarea):focus {
+  box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.16);
+}
+
+/* reusable pieces for new code */
+.glass { background: rgba(255, 255, 255, 0.72); backdrop-filter: blur(14px) saturate(160%); -webkit-backdrop-filter: blur(14px) saturate(160%); border: 1px solid rgba(255, 255, 255, 0.6); box-shadow: var(--shadow-2); }
+.glass-dark { background: rgba(8, 27, 59, 0.78); backdrop-filter: blur(14px) saturate(150%); -webkit-backdrop-filter: blur(14px) saturate(150%); border: 1px solid rgba(255, 255, 255, 0.08); }
+.surface { background: #fff; border: 1px solid var(--hairline); border-radius: 22px; box-shadow: var(--shadow-1); }
+.eyebrow { font-size: 10.5px; font-weight: 800; letter-spacing: 0.16em; text-transform: uppercase; color: var(--saffron); }
+
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+
+@media print {
+  body { background: #fff !important; background-image: none !important; }
+}
