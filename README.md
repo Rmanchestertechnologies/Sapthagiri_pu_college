@@ -213,7 +213,7 @@ dashboard in production. `server/.env.example` is the template.
 | `ALLOWED_ORIGINS` | recommended | Comma-separated front-end origins. Unset or `*` reflects every origin with credentials (any website could act as a logged-in user). |
 | `IMAGE_PROXY_HOSTS` | optional | Extra hosts the image proxy may fetch (Cloudinary and `*.supabase.co` are built in). |
 | `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` | optional | Image upload; falls back to local disk when missing. |
-| `TRUST_PROXY_HOPS` | recommended | Number of proxies in front of the API. Browser → Vercel → Render is **2** (set in `render.yaml`). It decides which address is the client's (lab-network check, rate limits). |
+| `TRUST_PROXY_HOPS` | recommended | Number of proxies in front of the API. The site calls Render directly, so it is **1** (set in `render.yaml`); use 2 only if the site is switched to same-origin `/api` rewrites. It decides which address is the client's (lab-network check, rate limits). |
 | `DB_POOL_MAX`, `DB_POOL_IDLE_MS` | optional | Connection pool size / idle timeout for the primary database. |
 | `PDF_MAX_PAGES` | optional | How many PDF pages may render at once (default 3). |
 | `GEMINI_API_KEY` | optional | Grand-test text parsing and question variants. |

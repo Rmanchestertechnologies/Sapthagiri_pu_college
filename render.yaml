@@ -58,11 +58,12 @@ services:
       - key: DB_SSL_CA
         sync: false
       # ── Proxies, OMR and optional services ────────────────────────────────────────────
-      # Browser -> Vercel (rewrite) -> Render is TWO proxies, so the client address is the second entry from the right.
-      # Keep it at 2 only while students and staff use the Vercel address; if the API is also used directly at its onrender.com
-      # address the lab-network check can be bypassed by a forged X-Forwarded-For (see docs/REVIEW_FINDINGS.md RV-07).
+      # The website (Vercel) calls this API directly at its onrender.com address (VITE_API_URL is built into the site), so the only
+      # proxy in front of the server is Render's load balancer: ONE hop. With 2, a visitor could forge the first entry of
+      # X-Forwarded-For and defeat the lab-network check and the per-address limits. Change it only if the site is switched to
+      # same-origin /api rewrites (then 2).
       - key: TRUST_PROXY_HOPS
-        value: 2
+        value: 1
       - key: PYTHON_BIN
         value: python3
       - key: DB_POOL_MAX
