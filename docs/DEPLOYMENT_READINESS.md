@@ -18,6 +18,15 @@ Supabase, Vercel and MongoDB Atlas; the code cannot do them.
   (`render.yaml` installs them into `server/omr_engine/pylibs`); the banner names what is missing.
 - ☐ Download one paper as PDF (confirms Chrome is found).
 
+### A2. App database moved (2026-11-13)
+The app's own tables (users, students, papers, online exams, blueprints, notifications, question usage) were copied from the
+Physics Class 11 project to a **separate new Supabase project** (`pxtdwuripvmpmtvbztid`, pooler host `aws-0-ap-southeast-2`) with
+`node server/scripts/move_app_data.js` (tested by `npm --prefix server run test:move`). The question databases were not copied
+or changed, and the old database was only read. `DATABASE_URL` on Render now points at the new project (use its **pooler**
+address: the direct `db.<ref>.supabase.co` address is IPv6-only). The new users table was emptied on purpose: the only login is the
+built-in admin (`sapthagiripucollegedvg@gmail.com`, password = `ADMIN_PASSWORD`). The old copy (6 users, all rows) still exists in
+the Physics 11 project and can be used as a fallback by pointing `DATABASE_URL` back at it.
+
 ### B. Supabase
 - ☐ Take a backup / snapshot of the primary project.
 - ☐ Run migrations: `cd server && node scripts/migrate.js` (shows pending), then `node scripts/migrate.js --apply`.

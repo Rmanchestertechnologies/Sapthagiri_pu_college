@@ -11,7 +11,8 @@
     "test:verbose": "cross-env NODE_ENV=test jest --runInBand --forceExit --verbose",
     "test:coverage": "cross-env NODE_ENV=test jest --runInBand --forceExit --coverage",
     "test:e2e": "node tests/e2e/run.js",
-    "dev:sandbox": "node tests/e2e/run.js --serve"
+    "dev:sandbox": "node tests/e2e/run.js --serve",
+    "test:move": "node tests/e2e/move-check.js"
   },
   "jest": {
     "testEnvironment": "node",
