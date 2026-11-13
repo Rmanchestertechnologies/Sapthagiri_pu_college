@@ -152,6 +152,7 @@ function assembleByQuotas({
     const prefSet = new Set((preferredConcepts || []).map(c => String(c).toLowerCase()));
     const seenIds = new Set();
     let skippedWithoutOptions = 0;
+    let skippedBadKey = 0;
     const buckets = {};
     const poolSize = {};
     for (const { chapter } of quotas) {
@@ -164,6 +165,8 @@ function assembleByQuotas({
             // Bank records typed NUMERICAL/other but without options used to be relabelled MCQ for NEET/KCET papers, which
             // printed an unanswerable question and a key such as "RADIATION". Only JEE numerical questions may lack options.
             if (!(isJee && getQuestionCategory(q, true) === 'numerical') && !hasUsableOptions(q)) { skippedWithoutOptions++; continue; }
+            // marked answer empty or an option missing between two others: printing it gives a wrong or blank key
+            if (q.keyProblem) { skippedBadKey++; continue; }
             seenIds.add(id);
             unique.push(q);
         }
@@ -293,6 +296,9 @@ function assembleByQuotas({
         warnings.push(`Difficulty mix differs from the request (requested: ${fmt(levelTargets)}; delivered: ${fmt(levelPicked)}) because the selected chapters do not hold enough questions at every level.`);
     }
 
+    if (skippedBadKey > 0) {
+        warnings.push(`${skippedBadKey} bank question(s) whose marked correct option is empty or whose options have a gap were left out (they would print a wrong or blank answer key).`);
+    }
     if (skippedWithoutOptions > 0) {
         warnings.push(`${skippedWithoutOptions} bank question(s) without answer options were left out (they cannot be printed or answered as multiple-choice).`);
     }
@@ -308,6 +314,7 @@ function assembleByQuotas({
         typeReport,
         difficultyReport,
         skippedWithoutOptions,
+        skippedBadKey,
         warnings
     };
 }

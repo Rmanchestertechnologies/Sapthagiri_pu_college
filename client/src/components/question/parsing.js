@@ -1,5 +1,5 @@
 import React from 'react';
-import { Q } from './layout';
+import { Q } from './layout.js';
 
 export function cleanStatementText(str) {
     if (!str) return '';
@@ -297,10 +297,14 @@ export function parseMatchFromText(q) {
     const cleanItem = (s) => {
         if (!s) return '';
         return cleanStatementText(s)
-            .replace(/^[\(\[]?(?:[A-Ea-e1-8]|i{1,4}|iv|v|vi{0,3}|ix|x|[p-tP-T])[\)\]\.:\-]\s*/, '')
+            // a bracketed label "(A)" / "[2]" is always a label; a bare one ("A.", "1)", "p-") only when whitespace follows it,
+            // otherwise "1.5 eV", "p-nitrophenol", "2-butene" would lose their first characters
+            .replace(/^(?:[\(\[](?:[A-Ea-e1-8]|i{1,4}|iv|v|vi{0,3}|ix|x|[p-tP-T])[\)\]]|(?:[A-Ea-e1-8]|i{1,4}|iv|v|vi{0,3}|ix|x|[p-tP-T])[\)\.:\-](?=\s))\s*/, '')
             .replace(/^\*+\s*/, '')
             .replace(/\*+$/, '')
-            .replace(/^(?:with|Column|List|I|II|A|B|1|2)\s*/i, '')
+            // only a leftover header ("Column I", "List-II:") is removed: the old pattern also cut the first letter off items
+            // such as "Acetic acid" (-> "cetic acid"), "Benzene" and "Iron"
+            .replace(/^(?:with\s+)?(?:Column|List)\s*[-:]?\s*(?:II|I|1|2|A|B)\b[:\-\s]*/i, '')
             .replace(/[:\-]$/, '')
             .trim();
     };

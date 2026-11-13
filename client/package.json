@@ -9,7 +9,7 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test": "node --test tests/pqrsGenerator.test.mjs tests/pqrsServerParity.test.mjs tests/xlsxImport.test.mjs"
+    "test": "node --test tests/pqrsGenerator.test.mjs tests/pqrsServerParity.test.mjs tests/xlsxImport.test.mjs tests/optionLogic.test.mjs tests/categoryParity.test.mjs tests/matchParsing.test.mjs"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.2.4",

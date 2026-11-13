@@ -50,6 +50,7 @@ describe('question bank quality rules', () => {
         expect(checkRow(ar)).toContain('AR_WITHOUT_REASON');
         expect(checkRow({ ...ar, reason: 'It is due to transitions to n = 2.' })).not.toContain('AR_WITHOUT_REASON');
         expect(checkRow({ ...ar, question: ar.question + '\nReason: transitions end at n = 2.' })).not.toContain('AR_WITHOUT_REASON');
+        expect(checkRow({ ...ar, question: ar.question + '\nReason: ' })).toContain('AR_WITHOUT_REASON');   // label with nothing after it
     });
 
     test('duplicates are detected across rows', () => {

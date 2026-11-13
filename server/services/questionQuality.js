@@ -87,7 +87,8 @@ function checkRow(row, seenTexts = null) {
     if (visible.some(s => braceDeficit(s) > 0)) issues.push('BROKEN_FRACTION');
     if ([text(row.concept), text(row.topic), q, text(row.solution_text)].some(s => /\[\s*UNCLEAR\s*\]/i.test(s))) issues.push('UNCLEAR_MARKER');
     if ([q, ...opts.map(o => o.text)].some(s => /\[(?:QBP|QPV)_[A-Z_]+:|Reference\s+case/i.test(s))) issues.push('LEAKED_MARKER');
-    if (/assertion/.test(qType) && !/reason/i.test(q) && !text(row.reason).trim()) issues.push('AR_WITHOUT_REASON');
+    // the label "Reason:" alone is not a reason: some bank rows stop right after it
+    if (/assertion/.test(qType) && !text(row.reason).trim() && !/Reason\s*(?:\(R\))?\s*[:\-]\s*\S[\s\S]{6,}/i.test(q)) issues.push('AR_WITHOUT_REASON');
 
     if (seenTexts) {
         const key = q.toLowerCase().replace(/\s+/g, ' ').trim();

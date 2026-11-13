@@ -457,16 +457,41 @@ function mapSupabaseToQuestion(row, usageMap = null) {
     }
 
     let answer = correctOption || numAnswer || '';
-    if (correctOption && options.length > 0) {
-        const idx = parseInt(correctOption, 10) - 1;
-        if (idx >= 0 && idx < options.length) {
-            answer = options[idx];
-        } else if (/^[A-D]$/i.test(String(correctOption).trim())) {
-            const letterIdx = String(correctOption).trim().toUpperCase().charCodeAt(0) - 65;
-            if (letterIdx >= 0 && letterIdx < options.length) {
-                answer = options[letterIdx];
-            }
+    // The four stored option slots, by position. The list above drops empty options, which moves every later option up one
+    // place; a letter such as "C" must be looked up in its own slot, not in the shortened list.
+    const slotColumns = (row.opt_a != null || row.opt_b != null || row.opt_c != null || row.opt_d != null)
+        ? [row.opt_a, row.opt_b, row.opt_c, row.opt_d]
+        : ((row.option_a != null || row.option_b != null || row.option_c != null || row.option_d != null) ? [row.option_a, row.option_b, row.option_c, row.option_d] : null);
+    // Slots only count when the options really came from the four columns (not true/false, not a match question's QBP options).
+    const slotValues = slotColumns ? slotColumns.map(v => (v == null ? '' : String(v))) : null;
+    const slots = (slotValues && effectiveQType !== 'true_false' && slotValues.some(v => v.trim())) ? slotValues : null;
+    // keyProblem marks a question that must not be put in a paper: its marked answer is empty/missing, or an option is missing
+    // between two others (the labels would shift). The paper generator skips these; the bank review lists them.
+    let keyProblem = null;
+    if (slots) {
+        let sawEmpty = false;
+        for (const v of slots) {
+            if (!v.trim()) sawEmpty = true;
+            else if (sawEmpty) { keyProblem = 'OPTION_GAP'; break; }
         }
+    }
+    if (correctOption && options.length > 0) {
+        const marked = String(correctOption).trim();
+        let slotIdx = -1;
+        if (/^[A-D]$/i.test(marked)) slotIdx = marked.toUpperCase().charCodeAt(0) - 65;
+        else if (/^[1-4]$/.test(marked)) slotIdx = parseInt(marked, 10) - 1;
+        if (slotIdx >= 0) {
+            const text = slots ? slots[slotIdx] : options[slotIdx];
+            if (text != null && String(text).trim()) answer = typeof text === 'string' && slots ? cleanDifficultyTags(text) : text;
+            else if (effectiveQType !== 'true_false') keyProblem = keyProblem || 'KEY_EMPTY_OPTION';
+        }
+    }
+
+    // An assertion-reason question whose Reason is missing (the bank text stops after "Reason:") cannot be answered.
+    if (!keyProblem && type === 'ASSERTION_REASON') {
+        const reasonColumn = String(row.reason || '').trim();
+        const reasonInText = /Reason\s*(?:\(R\))?\s*[:\-]\s*\S[\s\S]{6,}/i.test(rawQuestion || '');
+        if (!reasonColumn && !reasonInText) keyProblem = 'AR_INCOMPLETE';
     }
 
     const cleanExamsList = (Array.isArray(row.exams) ? row.exams : []).filter(e => !['KCET', 'CET'].includes(String(e).toUpperCase()));
@@ -509,6 +534,7 @@ function mapSupabaseToQuestion(row, usageMap = null) {
         opt_d: row.opt_d || options[3] || '',
         answer: answer,
         correct_option: correctOption,
+        keyProblem,
         num_answer: numAnswer,
         solutionText: cleanSolution,
         questionTextTranslation: cleanDifficultyTags(row.question_text_translation || ''),

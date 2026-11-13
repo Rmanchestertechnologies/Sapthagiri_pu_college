@@ -61,6 +61,7 @@ export function optionLabel(idx, classes = [], optionFormat = 'numeric') {
 /**
  * Strips leading option prefixes (e.g., '(A) ', '1. ', 'A: ', '[1] ') from option strings,
  * and fixes trailing OCR / LaTeX artifact braces like "40.8 eV.}", "54.4 eV}", "0.49\, A}".
+ * Used by every renderer (the question block re-exports this one function).
  */
 export function cleanOptionText(text) {
     if (!text) return '';
@@ -75,19 +76,21 @@ export function cleanOptionText(text) {
         .trim();
 
     // Check if this option is a matching combination mapping like:
-    // "a-(iv)", "A-1", "A-P", "A-(P)", "A \to P", "A -> 2", "(a)-(ii), (b)-(iv)"
-    const isMatchingCombo = /^(?:\(?[A-Da-d1-4]\)?\s*(?:[-–—:]|\\to|\\rightarrow|->)\s*\(?[A-Za-z0-9ivxIVX]+\)?)/i.test(str);
+    // "a-(iv)", "A-1", "A-P", "A-(P)", "A \to P", "A -> 2", "(a)-(ii), (b)-(iv)", "(p)–(ii)", "p → (iv)"
+    const isMatchingCombo = /^(?:\(?[A-Da-d1-4p-tP-T]\)?\s*(?:[-–—:→]|\\to|\\rightarrow|->)\s*\(?[A-Za-z0-9ivxIVX]+\)?)/i.test(str);
     // Check if option is a statement combination reference e.g. "(a) and (b) only", "(1) and (2)", "(a), (b) and (c)", "(a) only", "A, B"
     const isStatementCombo = /^(?:\(?[A-Da-d1-4]\)?\s*(?:and|&|,|or|\/|\+)|(?:\([A-Da-d1-4]\)|\[[A-Da-d1-4]\]|[A-Da-d1-4][\)\.:])\s*(?:only|both|all)\b)/i.test(str);
 
     if (isMatchingCombo) {
-        // If option starts with outer option index like "(1) A-iv, B-ii" or "(A) A-P, B-Q", strip only the outer index
-        str = str.replace(/^\s*(?:\([1-4A-D]\)|\[[1-4A-D]\]|[1-4A-D][\.\:\)])\s+(?=\(?[A-Da-d1-4]\)?\s*[-–—:->\\])/i, '');
+        // If option starts with outer option index like "(1) A-iv, B-ii" or "(1) (p)-(ii)", strip only the outer index
+        str = str.replace(/^\s*(?:\([1-4A-Da-d]\)|\[[1-4A-Da-d]\]|[1-4A-Da-d][\.\:\)])\s+(?=\(?[A-Da-d1-4p-tP-T]\)?\s*[-–—:->→\\])/i, '');
     } else if (!isStatementCombo) {
-        str = str.replace(/^\s*(?:\([A-Da-d1-4]\)|\[[A-Da-d1-4]\]|[A-Da-d1-4][\.\:\-\)])\s*(?=\S)/i, '');
+        // A leading label is "(A)", "[2]", "A.", "1)" ... A bare "1." / "4-" is only a label when whitespace follows it:
+        // "1.5 m", "2.5 eV" and "4-methylpentane" are values and must keep their first digit.
+        str = str.replace(/^\s*(?:\([A-Da-d1-4]\)|\[[A-Da-d1-4]\]|[A-Da-d1-4][\.\:\-\)](?=\s))\s*(?=\S)/i, '');
     }
 
-    // Clean trailing stray unclosed braces e.g. "40.8 eV.}", "54.4 eV}", "0.49\, A}"
+    // Clean stray closing braces from OCR / LaTeX like "40.8 eV.}", "54.4 eV}", "0.49\, A}"
     const openBraces = (str.match(/\{/g) || []).length;
     const closeBraces = (str.match(/\}/g) || []).length;
     if (closeBraces > openBraces) {
@@ -377,7 +380,7 @@ export function getResolvedAnswerLabel(q, optionFormat = null) {
  */
 export function getResolvedAnswerCode(q) {
     if (!q) return 'N/A';
-    const rawAns = q.answer ?? q.correct_option ?? q.correctAnswer ?? '';
+    const rawAns = q.correct_option ?? q.answer ?? q.correctAnswer ?? '';
     const options = Array.isArray(q.options) ? q.options : [];
     const labels = getQuestionOptionLabels(q);
     const indices = parseAnswerIndices(rawAns, options);
@@ -396,7 +399,7 @@ export function getResolvedAnswerCode(q) {
  */
 export function isOptionCorrect(q, optIndex) {
     if (!q || optIndex === undefined) return false;
-    const rawAns = q.answer ?? q.correct_option ?? q.correctAnswer ?? '';
+    const rawAns = q.correct_option ?? q.answer ?? q.correctAnswer ?? '';
     const options = Array.isArray(q.options) ? q.options : [];
     const indices = parseAnswerIndices(rawAns, options);
     return indices.includes(optIndex);

@@ -1,5 +1,8 @@
 import React from 'react';
-import { optionLabel } from '../../utils/sanitize';
+import { optionLabel, cleanOptionText } from '../../utils/sanitize.js';
+
+// one implementation for every renderer (see utils/sanitize.js)
+export { cleanOptionText };
 
 /**
  * Dynamic option grid calculator based on length and complexity:
@@ -357,44 +360,6 @@ export const AR_OPTIONS = [
     'Assertion is correct but Reason is incorrect.',
     'Assertion is incorrect but Reason is correct.',
 ];
-
-export function cleanOptionText(text) {
-    if (!text) return '';
-    let str = String(text)
-        .replace(/&#x27;/g, "'")
-        .replace(/&#39;/g, "'")
-        .replace(/&quot;/g, '"')
-        .replace(/&amp;/g, '&')
-        .replace(/&lt;/g, '<')
-        .replace(/&gt;/g, '>')
-        .replace(/&nbsp;/g, ' ')
-        .trim();
-
-    // Check if this option is a matching combination mapping like:
-    // "a-(iv)", "A-1", "A-P", "A-(P)", "A \to P", "A -> 2", "(a)-(ii), (b)-(iv)", "(p)–(ii)", "p → (iv)"
-    const isMatchingCombo = /^(?:\(?[A-Da-d1-4p-tP-T]\)?\s*(?:[-–—:→]|\\to|\\rightarrow|->)\s*\(?[A-Za-z0-9ivxIVX]+\)?)/i.test(str);
-    // Check if option is a statement combination reference e.g. "(a) and (b) only", "(1) and (2)", "(a), (b) and (c)", "(a) only", "A, B"
-    const isStatementCombo = /^(?:\(?[A-Da-d1-4]\)?\s*(?:and|&|,|or|\/|\+)|(?:\([A-Da-d1-4]\)|\[[A-Da-d1-4]\]|[A-Da-d1-4][\)\.:])\s*(?:only|both|all)\b)/i.test(str);
-
-    if (isMatchingCombo) {
-        // If option starts with outer option index like "(1) A-iv, B-ii" or "(1) (p)-(ii)", strip only the outer index
-        str = str.replace(/^\s*(?:\([1-4A-Da-d]\)|\[[1-4A-Da-d]\]|[1-4A-Da-d][\.\:\)])\s+(?=\(?[A-Da-d1-4p-tP-T]\)?\s*[-–—:->→\\])/i, '');
-    } else if (!isStatementCombo) {
-        str = str.replace(/^\s*(?:\([A-Da-d1-4]\)|\[[A-Da-d1-4]\]|[A-Da-d1-4][\.\:\-\)])\s*(?=\S)/i, '');
-    }
-
-    // Clean stray closing braces from OCR / LaTeX like "40.8 eV.}", "54.4 eV}", "0.49\, A}"
-    const openBraces = (str.match(/\{/g) || []).length;
-    const closeBraces = (str.match(/\}/g) || []).length;
-    if (closeBraces > openBraces) {
-        str = str.replace(/([0-9a-zA-Z\s\.,\\_]+)\}\s*$/, '$1');
-        if ((str.match(/\}/g) || []).length > openBraces) {
-            str = str.replace(/\}\s*$/, '');
-        }
-    }
-    str = str.replace(/\\,\s*A\}?/g, ' \\text{ A}');
-    return str.trim();
-}
 
 export function getOptionLabelText(idx, optionFormat = '(1) (2) (3) (4)', customLabels = null, classes = []) {
     const fmt = String(optionFormat || '').toLowerCase();
