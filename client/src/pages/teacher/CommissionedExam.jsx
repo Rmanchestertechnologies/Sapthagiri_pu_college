@@ -1106,7 +1106,7 @@ export default function CommissionedExam() {
                                 className={`px-2.5 lg:px-3 py-1 rounded-xl text-[10px] lg:text-[11px] font-black uppercase tracking-wider transition flex items-center gap-1 ${
                                     isCurrent
                                         ? 'bg-gold text-navy shadow-md ring-2 ring-gold/40 scale-105'
-                                        : (isClickable ? 'bg-white/20 text-white hover:bg-white/30 cursor-pointer' : 'bg-white/5 text-slate-400 opacity-50 cursor-default')
+                                        : (isClickable ? 'bg-white/20 text-white hover:bg-white/30 cursor-pointer' : 'bg-white/5 text-slate-300 border border-white/15 cursor-default')
                                 }`}
                             >
                                 <span>{i + 1}.<span className="hidden lg:inline"> {st.label}</span></span>
@@ -1201,7 +1201,7 @@ export default function CommissionedExam() {
                                             <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-2">
                                                 Click Subject Block to Open:
                                             </span>
-                                            <div className="grid grid-cols-2 gap-2">
+                                            <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(118px, 1fr))' }}>
                                                 {pattern.subjects.map(sub => (
                                                     <button
                                                         key={sub}
@@ -1210,10 +1210,10 @@ export default function CommissionedExam() {
                                                             e.stopPropagation();
                                                             handleSelectSubjectBlock(sub, pattern.id);
                                                         }}
-                                                        className="bg-navy/5 hover:bg-navy hover:text-gold text-navy text-xs font-black py-2.5 px-3 rounded-xl transition text-center border border-navy/10 shadow-2xs cursor-pointer flex items-center justify-between"
+                                                        className="bg-navy/5 hover:bg-navy hover:text-gold text-navy text-xs font-black py-2.5 px-3 rounded-xl transition text-center border border-navy/10 shadow-2xs cursor-pointer flex items-center justify-between gap-1.5 min-w-0"
                                                     >
-                                                        <span>{sub}</span>
-                                                        <span className="text-xs">→</span>
+                                                        <span className="min-w-0 break-words">{sub}</span>
+                                                        <span className="text-xs shrink-0">→</span>
                                                     </button>
                                                 ))}
                                             </div>
