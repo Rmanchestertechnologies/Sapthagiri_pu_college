@@ -1,0 +1,17 @@
+database,question_id,question_text,note
+math_11,1d252bfc-87f2-4783-bb60-cc33fb020461,"Consider the following statements:",statements and all four options empty
+bio_11,e167ced6-244d-4f69-b3af-fbc9cfe441de,"(PYQ, 2016). Study the four statements (a-d) given below and select the two correct ones out of them.",statements a-d missing
+bio_11,341e20da-cac7-4939-ab07-e978a9396d11,"Select from the following the total number of features belonging to animal kingdom.",features and options missing
+bio_12,178197f2-ba39-4b28-8c7d-209f574c7230,"Which of the following statements are false?",statements I-V missing
+bio_12,a80a93ce-8b25-4d25-a8ab-4676c2fe44c0,"Which of the following statements are correct regarding female reproductive cycle?",statements A-D missing
+bio_12,a4f71436-2efd-4989-b67f-80f4ca97c12c,"Read four statements (a-d) carefully, find the correct statement:",statements a-d missing
+bio_12,bd01fb1c-c250-4e2b-97b3-feef81cb7a33,"Only three statements are correct among the given five statements. Identify them:",statements A-E missing
+bio_12,9aeabe24-de2c-44f8-94d5-dc794449ff03,"Consider the following four statements (1 to 4) regarding kidney transplant and select the two correct ones out of these.",statements and options missing
+bio_12,c86410d8-c2e1-4521-a812-3d2ff3b2c314,"During replication of retrovirus (HIV)",statements A-D missing
+bio_12,dfbc6896-7db4-49d6-8448-467a35a1465c,"What is the correct sequence of the following events?",events and options missing
+bio_12,63c9e1e7-cffa-4443-a1e8-618971c20690,"What is the correct sequence of the following events?",events and options missing
+chem_11,b6c36f60-d9c1-4e2d-98c1-91cd382e2c6c,"Higher yield of NO ... can be obtained at ΔH=+180.7 kJ/mol",conditions A-D missing
+chem_11,c779197a-69ea-4382-b204-ca1d1d8cb2b5,"In which of the following reactions, the formation of product is favoured by decrease in temperature?",reactions A-D missing
+chem_11,cb785886-b333-45b1-8c52-4161b91be444,"Consider the following salts. Which ... produce a basic solution?",salts A-E missing
+chem_11,ecf36cde-149c-422f-9457-0823a0e5cc05,"Consider the following reactions. ... favoured by decrease in pressure?",reactions A-D missing
+chem_11,ea801b96-d920-4963-8326-8fe6e956cba2,"Which option is correct regarding solubility (s) of salt?",statements (a)-(c) missing
