@@ -256,11 +256,11 @@ export default function ResizableDiagram({
                 onLoad={handleImageLoad}
                 onError={handleImageError}
                 style={{
-                    height: `${height}px`,
-                    maxHeight: `${height}px`,
-                    minHeight: isOption ? '45px' : '70px',
-                    minWidth: isOption ? '45px' : '60px',
-                    maxWidth: sizeScale ? `${sizeScale}%` : (isOption ? '140px' : (maxWidth || '100%')),
+                    height: `${Math.round(height * (Number(sizeScale) > 0 ? Number(sizeScale) / 100 : 1))}px`,
+                    maxHeight: `${Math.round(height * (Number(sizeScale) > 0 ? Number(sizeScale) / 100 : 1))}px`,
+                    minHeight: isOption ? '30px' : '40px',
+                    minWidth: isOption ? '30px' : '40px',
+                    maxWidth: isOption ? '140px' : (maxWidth || '100%'),
                     width: 'auto',
                     objectFit: 'contain',
                     display: isOption ? 'inline-block' : 'block',

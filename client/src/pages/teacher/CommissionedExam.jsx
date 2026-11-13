@@ -2228,8 +2228,9 @@ export default function CommissionedExam() {
                             </span>
                         </div>
 
-                        {/* Auto Fetch result: requested vs delivered, so partial generation is never silent */}
-                        {fetchMode === 'auto' && generationReport && (
+                        {/* Auto Fetch result. Shown ONLY when the paper is really short of what was asked (so a short paper is never silent);
+                            a complete paper shows nothing, and the technical notes (difficulty mix, type counts, skipped rows) stay out of sight. */}
+                        {fetchMode === 'auto' && generationReport && !generationReport.complete && (
                             <div className={`max-w-4xl mx-auto rounded-2xl border p-4 text-xs ${generationReport.complete && generationReport.warnings.length === 0 ? 'bg-emerald-50 border-emerald-200 text-emerald-900' : 'bg-amber-50 border-amber-300 text-amber-900'}`}>
                                 <div className="flex items-start justify-between gap-3">
                                     <p className="font-black">
@@ -2248,11 +2249,6 @@ export default function CommissionedExam() {
                                         </span>
                                     ))}
                                 </div>
-                                {generationReport.warnings.length > 0 && (
-                                    <ul className="mt-2 list-disc pl-4 space-y-0.5 font-medium">
-                                        {generationReport.warnings.map((w, i) => <li key={i}>{w}</li>)}
-                                    </ul>
-                                )}
                             </div>
                         )}
 

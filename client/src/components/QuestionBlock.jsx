@@ -118,6 +118,18 @@ function QuestionBlockInner({
         }
     };
 
+    // back to the defaults the paper settings give (no per-question override)
+    const handleResetLayout = () => {
+        setLocalAlignment(imageBelowQuestion ? 'Below' : null);
+        setLocalOptionsPerLine(null);
+        setLocalSizeScale(100);
+        setLocalDiagramHeight(parseInt(diagramMaxHeight || 180, 10));
+        if (onLayoutChange) {
+            onLayoutChange({ imageAlignment: null, optionsPerLine: null, sizeScale: 100, customDiagramHeight: null });
+        }
+        if (onDiagramResize) onDiagramResize(parseInt(diagramMaxHeight || 180, 10), 'main');
+    };
+
     const activeFontSize = q.fontSize || fontSize;
     const qType = (q.type || q.q_type || 'MCQ').toUpperCase();
     const qTextRaw = q.questionText || q.question || '';
@@ -410,6 +422,7 @@ function QuestionBlockInner({
                     onOptionsPerLineChange={handleOptionsPerLineChange}
                     onSizeScaleChange={handleSizeScaleChange}
                     onDiagramSizeDelta={handleDiagramSizeDelta}
+                    onReset={handleResetLayout}
                     onClose={() => setShowGearPopup(false)}
                 />
             )}

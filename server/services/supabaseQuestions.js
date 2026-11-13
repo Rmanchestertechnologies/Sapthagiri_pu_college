@@ -1390,8 +1390,23 @@ async function getQuestionsWithChapterQuotas({
         let pool = fetched.filter(q => String(q.chapter || '').toLowerCase() === wanted);
         const widened = pool.length < fetched.length;
         if (reqExam !== 'CET') pool = pool.filter(q => !looksCet(q));
+        let availableTotal = widened ? pool.length : Math.max(res.pagination?.total || 0, pool.length);
+
+        // Most of the bank is tagged JEE and far less NEET (or the other way round): a NEET paper that only looked at NEET-tagged
+        // questions found 9 of the 125 questions of one chapter and the paper came out short. Questions with the requested tag
+        // stay preferred; when they leave too little room to choose from (fewer than twice the quota), the multiple-choice
+        // questions tagged for the other exam are added to the pool. CET/KCET-tagged questions are never used.
+        if ((reqExam === 'NEET' || reqExam === 'JEE') && pool.length < qty * 2) {
+            const resAny = await getQuestions({ ...filters, examType: 'ANY' }, 1, sampleSize);
+            if (resAny.dbError && !failedChapters.includes(chapterName)) failedChapters.push(chapterName);
+            const have = new Set(pool.map(q => String(q._id || q.id)));
+            const extra = (resAny.questions || []).filter(q =>
+                String(q.chapter || '').toLowerCase() === wanted && !looksCet(q) && !have.has(String(q._id || q.id)));
+            pool = pool.concat(extra);
+            availableTotal = Math.max(availableTotal, resAny.pagination?.total || 0, pool.length);
+        }
         chapterPools[chapterName] = pool;
-        chapterAvailable[chapterName] = widened ? pool.length : Math.max(res.pagination?.total || 0, pool.length);
+        chapterAvailable[chapterName] = availableTotal;
     };
 
     // Bounded concurrency: each chapter costs 2 queries per target database.
