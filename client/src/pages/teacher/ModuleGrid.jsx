@@ -57,7 +57,7 @@ export default function ModuleGrid({ hasOmr = false }) {
                 ))}
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-3 gap-3">
                 {secondary.map(({ to, title, desc, Icon, tone }) => (
                     <motion.div key={to} variants={item} whileHover={{ y: -2 }} whileTap={{ scale: 0.985 }} transition={SPRING.press}>
                         <Link to={to} className="group flex items-center gap-4 rounded-2xl bg-white border border-slate-200 p-4 shadow-xs hover:shadow-md hover:border-slate-300 transition-shadow">

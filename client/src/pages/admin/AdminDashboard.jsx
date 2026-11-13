@@ -1,6 +1,6 @@
 import { useContext, useState, useEffect } from 'react';
 import { AuthContext } from '../../context/AuthContext';
-import { useNavigate, Routes, Route, useLocation } from 'react-router-dom';
+import { useNavigate, Routes, Route } from 'react-router-dom';
 import { Trash2, Eye, Clock, Calendar, ChevronDown, Filter, Search, AlertCircle } from 'lucide-react';
 import UploadTemplate from './UploadTemplate';
 import CreateTeacher from './CreateTeacher';

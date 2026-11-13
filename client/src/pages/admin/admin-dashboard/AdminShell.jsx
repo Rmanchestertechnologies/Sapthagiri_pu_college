@@ -29,8 +29,8 @@ export const ADMIN_NAV = [
     },
 ];
 
-const isActivePath = (pathname, itemPath) => (itemPath === '/admin/dashboard'
-    ? (pathname === '/admin/dashboard' || pathname === '/admin/dashboard/')
+const isActivePath = (pathname, itemPath, home) => (itemPath === home
+    ? (pathname === home || pathname === `${home}/`)
     : pathname.includes(itemPath.split('/').pop()));
 
 export function pageTitleFor(pathname) {
@@ -47,18 +47,18 @@ export function pageTitleFor(pathname) {
     return 'Executive Overview';
 }
 
-function SidebarBody({ onNavigate, onClose }) {
+function SidebarBody({ onNavigate, onClose, cfg }) {
     const { logout } = useContext(AuthContext);
     const navigate = useNavigate();
     const location = useLocation();
     return (
         <div className="h-full flex flex-col bg-gradient-to-b from-[#071738] to-[#050e1f] text-white">
             <div className="p-5 flex items-center justify-between gap-3">
-                <button type="button" onClick={() => onNavigate('/admin/dashboard')} className="flex items-center gap-3 min-w-0 text-left cursor-pointer">
+                <button type="button" onClick={() => onNavigate(cfg.home)} className="flex items-center gap-3 min-w-0 text-left cursor-pointer">
                     <span className="w-11 h-11 shrink-0 rounded-2xl bg-white p-1 shadow-lg"><img src="/SapthagiriLogo.jpg" alt="" className="w-full h-full object-contain rounded-xl" /></span>
                     <span className="min-w-0">
                         <span className="block text-sm font-extrabold leading-tight truncate">Sapthagiri PU College</span>
-                        <span className="block text-[10px] font-extrabold uppercase tracking-[0.16em] text-amber-400">Admin portal</span>
+                        <span className="block text-[10px] font-extrabold uppercase tracking-[0.16em] text-amber-400">{cfg.portal}</span>
                     </span>
                 </button>
                 {onClose && (
@@ -66,19 +66,19 @@ function SidebarBody({ onNavigate, onClose }) {
                 )}
             </div>
 
-            <nav className="flex-1 overflow-y-auto px-3 pb-4 space-y-6" aria-label="Admin sections">
-                <LayoutGroup id={onClose ? 'admin-nav-drawer' : 'admin-nav'}>
-                    {ADMIN_NAV.map(group => (
+            <nav className="flex-1 overflow-y-auto px-3 pb-4 space-y-6" aria-label="Sections">
+                <LayoutGroup id={onClose ? `${cfg.id}-nav-drawer` : `${cfg.id}-nav`}>
+                    {cfg.nav.map(group => (
                         <div key={group.group}>
                             <p className="px-3 mb-2 text-[10px] font-extrabold uppercase tracking-[0.18em] text-white/40">{group.group}</p>
                             <ul className="space-y-0.5">
                                 {group.items.map(({ title, path, Icon, desc }) => {
-                                    const active = isActivePath(location.pathname, path);
+                                    const active = isActivePath(location.pathname, path, cfg.home);
                                     return (
                                         <li key={path}>
                                             <button type="button" onClick={() => onNavigate(path)} aria-current={active ? 'page' : undefined}
                                                 className={`relative w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-left cursor-pointer transition-colors ${active ? 'text-[#081b3b]' : 'text-white/75 hover:text-white hover:bg-white/5'}`}>
-                                                {active && <motion.span layoutId="admin-nav-pill" transition={SPRING.bouncy} className="absolute inset-0 rounded-xl bg-gradient-to-r from-amber-400 to-amber-300 shadow-lg shadow-amber-500/20" />}
+                                                {active && <motion.span layoutId={`${cfg.id}-nav-pill`} transition={SPRING.bouncy} className="absolute inset-0 rounded-xl bg-gradient-to-r from-amber-400 to-amber-300 shadow-lg shadow-amber-500/20" />}
                                                 <Icon size={18} className="relative shrink-0" />
                                                 <span className="relative min-w-0">
                                                     <span className="block text-[13px] font-bold leading-tight truncate">{title}</span>
@@ -94,10 +94,23 @@ function SidebarBody({ onNavigate, onClose }) {
                 </LayoutGroup>
             </nav>
 
+            {cfg.actions && cfg.actions.length > 0 && (
+                <div className="px-3 pb-3">
+                    <p className="px-3 mb-2 text-[10px] font-extrabold uppercase tracking-[0.18em] text-white/40">Resources</p>
+                    {cfg.actions.map(({ title, Icon, desc, run }) => (
+                        <button key={title} type="button" onClick={() => { run(); if (onClose) onClose(); }}
+                            className="w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-left cursor-pointer text-white/75 hover:text-white hover:bg-white/5">
+                            <Icon size={18} className="shrink-0" />
+                            <span className="min-w-0"><span className="block text-[13px] font-bold leading-tight truncate">{title}</span><span className="block text-[11px] text-white/40 truncate">{desc}</span></span>
+                        </button>
+                    ))}
+                </div>
+            )}
+
             <div className="p-4 border-t border-white/10 flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2.5 min-w-0">
-                    <span className="w-9 h-9 rounded-full bg-amber-400 text-[#081b3b] text-xs font-extrabold flex items-center justify-center shrink-0">AD</span>
-                    <span className="min-w-0"><span className="block text-xs font-bold truncate">Admin console</span><span className="block text-[10px] text-white/40 truncate">Davanagere campus</span></span>
+                    <span className="w-9 h-9 rounded-full bg-amber-400 text-[#081b3b] text-xs font-extrabold flex items-center justify-center shrink-0">{cfg.user.initials}</span>
+                    <span className="min-w-0"><span className="block text-xs font-bold truncate">{cfg.user.name}</span><span className="block text-[10px] text-white/40 truncate">{cfg.user.sub}</span></span>
                 </div>
                 <button type="button" onClick={() => { logout(); navigate('/'); }} aria-label="Sign out" title="Sign out"
                     className="w-9 h-9 rounded-xl bg-rose-500/15 text-rose-300 hover:bg-rose-500 hover:text-white flex items-center justify-center cursor-pointer"><LogOut size={16} /></button>
@@ -110,12 +123,12 @@ function SidebarBody({ onNavigate, onClose }) {
  * Admin frame: a permanent left sidebar on wide screens (a slide-in drawer on small ones) and a slim glass top bar with the page
  * title, back button and notifications. The paper wizard (create-paper) has its own left column, so there the sidebar becomes the drawer.
  */
-export function AdminShell({ children }) {
+export function PortalShell({ cfg, children }) {
     const navigate = useNavigate();
     const location = useLocation();
     const [drawer, setDrawer] = useState(false);
     const wizardRoute = location.pathname.includes('create-paper');
-    const atHome = location.pathname === '/admin/dashboard' || location.pathname === '/admin/dashboard/';
+    const atHome = location.pathname === cfg.home || location.pathname === `${cfg.home}/`;
 
     useEffect(() => { setDrawer(false); }, [location.pathname]);
     useEffect(() => {
@@ -130,7 +143,7 @@ export function AdminShell({ children }) {
     return (
         <div className="min-h-screen font-sans">
             {!wizardRoute && (
-                <aside className="hidden lg:block fixed inset-y-0 left-0 w-[272px] z-30 no-print shadow-2xl shadow-blue-950/20"><SidebarBody onNavigate={go} /></aside>
+                <aside className="hidden lg:block fixed inset-y-0 left-0 w-[272px] z-30 no-print shadow-2xl shadow-blue-950/20"><SidebarBody onNavigate={go} cfg={cfg} /></aside>
             )}
 
             <AnimatePresence>
@@ -138,7 +151,7 @@ export function AdminShell({ children }) {
                     <motion.div className="fixed inset-0 z-50 no-print" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
                         <div className="absolute inset-0 bg-slate-950/60 backdrop-blur-sm" onClick={() => setDrawer(false)} />
                         <motion.aside className="absolute inset-y-0 left-0 w-[300px] max-w-[86vw] shadow-2xl" initial={{ x: -320 }} animate={{ x: 0 }} exit={{ x: -320 }} transition={SPRING.island}>
-                            <SidebarBody onNavigate={go} onClose={() => setDrawer(false)} />
+                            <SidebarBody onNavigate={go} onClose={() => setDrawer(false)} cfg={cfg} />
                         </motion.aside>
                     </motion.div>
                 )}
@@ -151,19 +164,28 @@ export function AdminShell({ children }) {
                             <button type="button" onClick={() => setDrawer(true)} aria-label="Open menu"
                                 className={`w-10 h-10 shrink-0 rounded-xl bg-[#081b3b] text-amber-400 flex items-center justify-center cursor-pointer ${wizardRoute ? '' : 'lg:hidden'}`}><Menu size={19} /></button>
                             {!atHome && (
-                                <button type="button" onClick={() => navigate('/admin/dashboard')} aria-label="Back to dashboard" title="Back to dashboard"
+                                <button type="button" onClick={() => navigate(cfg.home)} aria-label="Back to dashboard" title="Back to dashboard"
                                     className="w-10 h-10 shrink-0 rounded-xl bg-white border border-slate-200 text-slate-600 hover:text-[#081b3b] flex items-center justify-center cursor-pointer"><ChevronLeft size={18} /></button>
                             )}
                             <div className="min-w-0">
-                                <p className="eyebrow">Admin portal</p>
-                                <h1 className="text-lg font-extrabold text-[#081b3b] truncate">{pageTitleFor(location.pathname)}</h1>
+                                <p className="eyebrow">{cfg.portal}</p>
+                                <h1 className="text-lg font-extrabold text-[#081b3b] truncate">{cfg.titleFor(location.pathname)}</h1>
                             </div>
                         </div>
-                        <div className="flex items-center gap-2 shrink-0"><AdminNotificationBell /></div>
+                        <div className="flex items-center gap-2 shrink-0">{cfg.topRight}</div>
                     </div>
                 </header>
                 <div className="p-4 sm:p-8 max-w-7xl mx-auto w-full min-w-0">{children}</div>
             </div>
         </div>
     );
+}
+
+export function AdminShell({ children }) {
+    const cfg = {
+        id: 'admin', home: '/admin/dashboard', portal: 'Admin portal', nav: ADMIN_NAV, titleFor: pageTitleFor,
+        user: { initials: 'AD', name: 'Admin console', sub: 'Davanagere campus' },
+        topRight: <AdminNotificationBell />,
+    };
+    return <PortalShell cfg={cfg}>{children}</PortalShell>;
 }

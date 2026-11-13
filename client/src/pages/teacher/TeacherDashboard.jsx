@@ -10,9 +10,11 @@
  */
 import { useContext, useState, useEffect, useRef } from 'react';
 import { AuthContext } from '../../context/AuthContext';
-import { useNavigate, Routes, Route, Link, useLocation } from 'react-router-dom';
+import { useNavigate, Routes, Route } from 'react-router-dom';
 import AddQuestion from './AddQuestion';
 import ModuleGrid from './ModuleGrid';
+import { PortalShell } from '../admin/admin-dashboard/AdminShell';
+import { LayoutDashboard, ClipboardList, FilePlus2, NotebookPen, Database, FolderOpen, Trophy, Archive, ScanLine, Image as ImageIcon } from 'lucide-react';
 import SavedPapers from './SavedPapers';
 import TemplateCart from './TemplateCart';
 import GrandTestList from '../admin/GrandTestList';
@@ -324,229 +326,70 @@ const TeacherDashboardHome = () => {
     );
 };
 
-const TeacherDashboard = () => {
-    const { user, logout } = useContext(AuthContext);
-    const navigate = useNavigate();
-    const location = useLocation();
-    const [isSideboxOpen, setIsSideboxOpen] = useState(false);
-    const [showTemplateCart, setShowTemplateCart] = useState(false);
+const TEACHER_NAV = [
+    {
+        group: 'Workspace',
+        items: [
+            { title: 'Home', path: '/teacher/dashboard', Icon: LayoutDashboard, desc: 'Your workspace' },
+            { title: 'Commissioned Exam', path: '/teacher/commissioned-exam', Icon: ClipboardList, desc: 'Official multi-step exam' },
+            { title: 'Create Paper', path: '/teacher/create-paper', Icon: FilePlus2, desc: 'Step-by-step wizard' },
+            { title: 'Assignments', path: '/teacher/dashboard/assignments', Icon: NotebookPen, desc: 'Practice and keys' },
+        ],
+    },
+    {
+        group: 'Library',
+        items: [
+            { title: 'Question Bank', path: '/teacher/dashboard/add-question', Icon: Database, desc: 'Add and manage questions' },
+            { title: 'Saved Papers', path: '/teacher/dashboard/saved-papers', Icon: FolderOpen, desc: 'Drafts and finished papers' },
+            { title: 'Grand Tests', path: '/teacher/dashboard/grand-tests', Icon: Trophy, desc: 'Grand test archives' },
+            { title: 'Previous Year Papers', path: '/teacher/dashboard/previous-year-papers', Icon: Archive, desc: 'PYQs and answer keys' },
+        ],
+    },
+];
 
+const teacherTitleFor = (pathname) => {
+    if (pathname.includes('add-question')) return 'Question Bank';
+    if (pathname.includes('saved-papers')) return 'Saved Papers';
+    if (pathname.includes('grand-tests')) return 'Grand Tests';
+    if (pathname.includes('previous-year-papers')) return 'Previous Year Papers';
+    if (pathname.includes('assignments')) return 'Assignments';
+    if (pathname.includes('omr')) return 'OMR Evaluation';
+    return 'Your Workspace';
+};
+
+const TeacherDashboard = () => {
+    const { user } = useContext(AuthContext);
+    const navigate = useNavigate();
+    const [showTemplateCart, setShowTemplateCart] = useState(false);
     const hasOmr = Boolean(user?.role === 'admin' || user?.omrAccess || user?.omr_access);
 
-    const logoMap = {
-        'Physics': '/physicslogo.jpeg',
-        'Chemistry': '/chemistrylogo.jpeg',
-        'Biology': '/biologylogo.jpeg',
-        'Maths': '/mathslogo.jpeg',
-        'Mathematics': '/mathslogo.jpeg',
+    const nav = hasOmr
+        ? [TEACHER_NAV[0], { ...TEACHER_NAV[1], items: [...TEACHER_NAV[1].items, { title: 'OMR Evaluation', path: '/teacher/dashboard/omr', Icon: ScanLine, desc: 'Scanner and analytics' }] }]
+        : TEACHER_NAV;
+
+    const cfg = {
+        id: 'teacher', home: '/teacher/dashboard', portal: `Faculty portal · ${user?.subject || 'PCMB'}`, nav, titleFor: teacherTitleFor,
+        user: { initials: user?.subject ? user.subject.substring(0, 2).toUpperCase() : 'FC', name: user?.name || 'Faculty member', sub: `${user?.subject || 'PCMB'} department` },
+        actions: [{ title: 'Institutional Templates', Icon: ImageIcon, desc: 'Approved header graphics', run: () => setShowTemplateCart(true) }],
+        topRight: null,
     };
 
-    const navItems = [
-        {
-            group: 'Archives & Reference Papers',
-            items: [
-                { title: 'Previous Year Papers (PYQs)', path: '/teacher/dashboard/previous-year-papers', icon: '📑', desc: 'Official question papers & answer keys repository' }
-            ]
-        }
-    ];
-
     return (
-        <div className="min-h-screen bg-background flex flex-col font-sans">
+        <PortalShell cfg={cfg}>
+            <Routes>
+                <Route path="/" element={<TeacherDashboardHome />} />
+                <Route path="add-question" element={<AddQuestion />} />
+                <Route path="saved-papers" element={<SavedPapers />} />
+                <Route path="grand-tests" element={<GrandTestList />} />
+                <Route path="previous-year-papers" element={<PreviousYearPapers />} />
+                <Route path="assignments" element={<AssignmentGenerator onBack={() => navigate('/teacher/dashboard')} />} />
+                <Route path="omr/*" element={<TeacherOmr />} />
+            </Routes>
 
-            {/* ── LEFT-SIDE SLIDE-OVER SIDEBOX DRAWER ── */}
-            <div className={`fixed inset-0 z-50 transition-all duration-300 ${isSideboxOpen ? 'visible pointer-events-auto' : 'invisible pointer-events-none'}`}>
-                {/* Backdrop Overlay */}
-                <div 
-                    onClick={() => setIsSideboxOpen(false)}
-                    className={`absolute inset-0 bg-slate-950/60 backdrop-blur-sm transition-opacity duration-300 ${isSideboxOpen ? 'opacity-100' : 'opacity-0'}`}
-                />
-
-                {/* Sidebox Panel (Slides in from LEFT) */}
-                <aside className={`absolute top-0 left-0 h-full w-88 max-w-[85vw] bg-[#071738] text-white shadow-2xl border-r-4 border-amber-400 flex flex-col justify-between transition-transform duration-300 ease-out ${isSideboxOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-                    <div>
-                        {/* Sidebox Top Brand Bar */}
-                        <div className="p-5 border-b border-white/10 flex items-center justify-between bg-black/20">
-                            <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-xl bg-white p-1 border border-amber-400/50 shadow-md flex items-center justify-center">
-                                    <img src="/SapthagiriLogo.jpg" alt="Logo" className="w-full h-full object-contain rounded-lg" />
-                                </div>
-                                <div>
-                                    <h2 className="text-sm font-black uppercase tracking-tight text-white leading-none">Sapthagiri PU College</h2>
-                                    <span className="text-[10px] text-amber-400 font-extrabold uppercase tracking-widest mt-1 block">Faculty Navigation Menu</span>
-                                </div>
-                            </div>
-                            <button 
-                                onClick={() => setIsSideboxOpen(false)}
-                                className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white flex items-center justify-center text-sm font-bold transition cursor-pointer"
-                                title="Close Menu"
-                            >
-                                ✕
-                            </button>
-                        </div>
-
-                        {/* Navigation Options List */}
-                        <div className="p-4 space-y-5 overflow-y-auto max-h-[calc(100vh-180px)]">
-                            {navItems.map((group, gIdx) => (
-                                <div key={gIdx}>
-                                    <span className="text-[10px] font-black uppercase tracking-[0.2em] text-amber-400/70 px-3 block mb-2">
-                                        {group.group}
-                                    </span>
-                                    <div className="space-y-1">
-                                        {group.items.map((item, iIdx) => {
-                                            const isActive = location.pathname.includes(item.path.split('/').pop());
-
-                                            return (
-                                                <button
-                                                    key={iIdx}
-                                                    onClick={() => {
-                                                        navigate(item.path);
-                                                        setIsSideboxOpen(false);
-                                                    }}
-                                                    className={`w-full flex items-center gap-3.5 px-3.5 py-2.5 rounded-xl text-left transition cursor-pointer ${
-                                                        isActive
-                                                            ? 'bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 font-black shadow-md'
-                                                            : 'text-slate-300 hover:bg-white/10 hover:text-white'
-                                                    }`}
-                                                >
-                                                    <span className="text-lg leading-none">{item.icon}</span>
-                                                    <div className="min-w-0 flex-1">
-                                                        <div className={`text-xs font-bold leading-tight ${isActive ? 'text-slate-950' : 'text-white'}`}>
-                                                            {item.title}
-                                                        </div>
-                                                        <div className={`text-[10px] truncate mt-0.5 ${isActive ? 'text-slate-900/80 font-semibold' : 'text-slate-400'}`}>
-                                                            {item.desc}
-                                                        </div>
-                                                    </div>
-                                                </button>
-                                            );
-                                        })}
-                                    </div>
-                                </div>
-                            ))}
-
-                            {/* Template Cart Trigger */}
-                            <div>
-                                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-amber-400/70 px-3 block mb-2">
-                                    Resources & Headers
-                                </span>
-                                <button
-                                    onClick={() => {
-                                        setIsSideboxOpen(false);
-                                        setShowTemplateCart(true);
-                                    }}
-                                    className="w-full flex items-center gap-3.5 px-3.5 py-2.5 rounded-xl text-left transition cursor-pointer text-slate-300 hover:bg-white/10 hover:text-white"
-                                >
-                                    <span className="text-lg leading-none">🖼️</span>
-                                    <div className="min-w-0 flex-1">
-                                        <div className="text-xs font-bold leading-tight text-white">
-                                            Institutional Templates
-                                        </div>
-                                        <div className="text-[10px] truncate mt-0.5 text-slate-400">
-                                            Browse approved header template graphics
-                                        </div>
-                                    </div>
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Sidebox Bottom User & Logout */}
-                    <div className="p-4 border-t border-white/10 bg-black/30 flex items-center justify-between">
-                        <div className="flex items-center gap-2.5">
-                            <div className="w-8 h-8 rounded-full bg-amber-400 text-slate-950 font-black text-xs flex items-center justify-center shadow">
-                                {user?.subject ? user.subject.substring(0, 2).toUpperCase() : 'FC'}
-                            </div>
-                            <div>
-                                <div className="text-xs font-black text-white leading-tight">{user?.name || 'Faculty Member'}</div>
-                                <div className="text-[10px] text-amber-400 font-mono">{user?.subject || 'PCMB'} Department</div>
-                            </div>
-                        </div>
-                        <button
-                            onClick={() => { logout(); navigate('/'); }}
-                            className="bg-rose-500/20 text-rose-400 hover:bg-rose-600 hover:text-white px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition cursor-pointer"
-                        >
-                            Logout
-                        </button>
-                    </div>
-                </aside>
-            </div>
-
-            {/* Top Navigation Bar - Sapthagiri Navy & Gold */}
-            <nav className="bg-[#081B3B] px-6 py-3.5 text-white flex justify-between items-center z-10 shadow-2xl border-b-4 border-amber-500">
-                <div className="flex items-center gap-3.5">
-                    {/* LEFT-SIDE HAMBURGER MENU BUTTON */}
-                    <button
-                        onClick={() => setIsSideboxOpen(true)}
-                        title="Open Faculty Menu"
-                        className="relative bg-amber-400 text-slate-950 hover:bg-amber-300 w-10 h-10 rounded-xl flex items-center justify-center font-black text-lg hover:scale-105 transition shadow-lg cursor-pointer"
-                    >
-                        <span className="text-xl leading-none">☰</span>
-                        <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[8px] font-black w-4 h-4 rounded-full flex items-center justify-center leading-none">
-                            T
-                        </span>
-                    </button>
-
-                    <div
-                        className="flex items-center cursor-pointer hover:opacity-80 transition gap-3"
-                        onClick={() => navigate('/teacher/dashboard')}
-                    >
-                        <div className="w-10 h-10 flex items-center justify-center shadow-lg bg-white rounded-xl p-1 border-2 border-amber-400">
-                            <img src="/SapthagiriLogo.jpg" alt="Sapthagiri PU College" className="w-full h-full object-contain rounded-lg" />
-                        </div>
-                        <div className="flex flex-col">
-                            <h1 className="text-base font-black tracking-tight uppercase leading-tight text-white">
-                                Sapthagiri PU College
-                            </h1>
-                            <div className="flex items-center gap-2 mt-0.5">
-                                {user?.subject && logoMap[user.subject] && (
-                                    <img src={logoMap[user.subject]} alt={user.subject} className="w-4 h-4 object-contain rounded-sm" />
-                                )}
-                                <span className="text-[10px] font-black text-amber-400 uppercase tracking-widest">
-                                    Faculty Portal • {user?.subject || 'PCMB'}
-                                </span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Top Navigation Options */}
-                <div className="flex items-center gap-2.5">
-                    {location.pathname !== '/teacher/dashboard' && (
-                        <button
-                            onClick={() => navigate('/teacher/dashboard')}
-                            className="bg-white/5 border border-gold/30 text-gold px-3.5 py-1.5 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-white/10 transition flex items-center gap-1.5 cursor-pointer mr-1"
-                        >
-                            <span>←</span> Back to Dashboard
-                        </button>
-                    )}
-
-                    <div className="w-px h-7 bg-gold/20 mx-1"></div>
-                    <button
-                        onClick={() => { logout(); navigate('/'); }}
-                        className="bg-red-500/10 border border-red-500/30 text-red-500 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-red-500 hover:text-white transition-all shadow-sm cursor-pointer"
-                    >
-                        Logout
-                    </button>
-                </div>
-            </nav>
-
-            <div className="flex-1 px-6 py-6 max-w-7xl mx-auto w-full">
-                <Routes>
-                    <Route path="/" element={<TeacherDashboardHome />} />
-                    <Route path="add-question" element={<AddQuestion />} />
-                    <Route path="saved-papers" element={<SavedPapers />} />
-                    <Route path="grand-tests" element={<GrandTestList />} />
-                    <Route path="previous-year-papers" element={<PreviousYearPapers />} />
-                    <Route path="assignments" element={<AssignmentGenerator onBack={() => navigate('/teacher/dashboard')} />} />
-                    <Route path="omr/*" element={<TeacherOmr />} />
-                </Routes>
-            </div>
-
-            {/* Template Cart Drawer */}
             {showTemplateCart && (
                 <TemplateCart onClose={() => setShowTemplateCart(false)} />
             )}
-        </div>
+        </PortalShell>
     );
 };
 
