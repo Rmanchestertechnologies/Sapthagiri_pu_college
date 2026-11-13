@@ -260,7 +260,7 @@ export default function ResizableDiagram({
                     maxHeight: `${Math.round(height * (Number(sizeScale) > 0 ? Number(sizeScale) / 100 : 1))}px`,
                     minHeight: isOption ? '30px' : '40px',
                     minWidth: isOption ? '30px' : '40px',
-                    maxWidth: isOption ? '140px' : (maxWidth || '100%'),
+                    maxWidth: isOption ? `${Math.round(140 * (Number(sizeScale) > 0 ? Number(sizeScale) / 100 : 1))}px` : (maxWidth || '100%'),
                     width: 'auto',
                     objectFit: 'contain',
                     display: isOption ? 'inline-block' : 'block',

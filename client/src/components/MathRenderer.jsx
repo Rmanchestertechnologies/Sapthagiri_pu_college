@@ -252,6 +252,7 @@ const MathRenderer = ({
     onSizeChange,
     isOption = false,
     optionIndex,
+    sizeScale = null,
 }) => {
     const safeText = typeof text === 'string' ? text : (text ? String(text) : '');
     // Stateless test regex without /g flag to avoid lastIndex mutation across re-renders
@@ -346,6 +347,7 @@ const MathRenderer = ({
                             src={token.src}
                             alt={token.alt}
                             isOption={isOption}
+                            sizeScale={sizeScale}
                             questionId={questionId}
                             diagramKey={tokenKey}
                             initialHeight={resolvedHeight}

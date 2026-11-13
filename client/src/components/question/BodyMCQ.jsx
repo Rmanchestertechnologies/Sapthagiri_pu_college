@@ -176,6 +176,7 @@ export function BodyMCQ({
                                     initialHeight={optHeight}
                                     customDiagramSizes={q.customDiagramSizes}
                                     isOption={true}
+                                    sizeScale={sizeScale}
                                     optionIndex={i}
                                     onSizeChange={onDiagramResize ? (h, key) => onDiagramResize(qId, h, key || ('opt_' + i)) : undefined}
                                 />

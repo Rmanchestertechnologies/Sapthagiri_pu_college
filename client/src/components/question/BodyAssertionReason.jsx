@@ -135,6 +135,7 @@ export function BodyAssertionReason({
                                     text={cleanOptionText(typeof opt === 'object' ? (opt.text || opt.option || '') : opt)}
                                     questionId={qId}
                                     isOption={true}
+                                    sizeScale={sizeScale}
                                     optionIndex={i}
                                 />
                             </span>
