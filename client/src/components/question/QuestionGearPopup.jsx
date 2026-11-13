@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import { createPortal } from 'react-dom';
 
 const PANEL_WIDTH = 340;
@@ -49,7 +49,8 @@ export function QuestionGearPopup({
     // keep the paper visible: make room for the panel, and put it back when the panel closes
     useEffect(() => {
         const previous = document.body.style.paddingRight;
-        document.body.style.paddingRight = `${PANEL_WIDTH}px`;
+        // on a narrow screen there is no room beside the page: the panel then covers it instead of squeezing it
+        if (window.innerWidth >= 900) document.body.style.paddingRight = `${PANEL_WIDTH}px`;
         document.body.style.transition = 'padding-right 0.15s ease';
         return () => { document.body.style.paddingRight = previous; };
     }, []);

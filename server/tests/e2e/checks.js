@@ -41,6 +41,12 @@ const call = async (method, path, { token, session, body, raw } = {}) => {
   ok(Object.values(per).every(n => n === 4) && Object.keys(per).length === 3, 'AutoFetch: exactly 4 per chapter', JSON.stringify(per));
   const qs = gen.data.questions;
 
+  // a NEET paper must fill up even when most of a chapter's questions carry the JEE tag (tag fallback), and show no shortfall
+  const genBig = await call('POST', '/api/questions/chapter-distribution', { token: teacher1, body: {
+    subject: 'Physics', classes: '12', examType: 'NEET', chapterQuotas: { 'Current Electricity': 25, 'Atoms': 20 },
+    typeAllocations: { mcq: 45 }, difficultyDistribution: { easy: 30, medium: 50, hard: 20 } } });
+  ok(genBig.status === 200 && genBig.data.total === 45 && genBig.data.complete, 'AutoFetch: NEET paper of 45 from two chapters is complete (exam-tag fallback)', JSON.stringify(genBig.data?.distributionReport).slice(0, 200));
+
   // ── papers: save, ownership, update, export ──────────────────────────────
   const paperBody = (title, questions, extra = {}) => ({ title, subject: 'Physics', examType: 'NEET', classes: ['12'], questions: questions.map(q => q._id), questionObjects: questions, totalQuestions: questions.length, status: 'Draft', ...extra });
   const saved = await call('POST', '/api/papers', { token: teacher1, body: paperBody('E2E Physics Paper', qs.slice(0, 8), { metadata: { pqrsSeed: 'seed-e2e-1' } }) });

@@ -34,3 +34,12 @@ test('the outro question stays outside the last statement', () => {
     assert.match(r.outroText, /In the light of/);
     assert.doesNotMatch(r.statements[1].text, /In the light of/);
 });
+
+test('a closing instruction line is not left on the last statement', () => {
+    for (const outro of ['The correct option is:', 'Choose the correct answer from the options given below:', 'Based on the above, select the right choice.']) {
+        const r = parse(`Consider the following statements:\nS1: Water boils at 100 C.\nS2: Ice floats on water. ${outro}`);
+        assert.equal(r.statements.length, 2);
+        assert.ok(!/correct|choose|based on/i.test(r.statements[1].text), r.statements[1].text);
+        assert.ok(r.outroText.length > 0);
+    }
+});

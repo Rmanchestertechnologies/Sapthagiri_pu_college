@@ -445,7 +445,7 @@ export function parseStatementsFromText(q) {
             }));
             if (!outroText && stmts.length > 0) {
                 const last = stmts[stmts.length - 1];
-                const outroLineMatch = last.text.match(/(?:\r?\n|\s{2,})?(?:In the light of|Choose the correct|Select the|Which of the|How many of|The (?:correct|incorrect) statement|From the above|Identify the|The (?:correct|incorrect) combination is)[\s\S]*$/i);
+                const outroLineMatch = last.text.match(/(?:\r?\n|\s{2,})?(?:In the light of|Choose the (?:correct|incorrect|right|wrong|most)|Select the|Which (?:of the|one of|option)|How many of|The (?:correct|incorrect|right|true|false) (?:statement|combination|option|answer|choice)|From the above|Based on the (?:above|given)|Identify the|Pick the|Find the (?:correct|incorrect)|Mark the)[\s\S]*$/i);
                 if (outroLineMatch) {
                     outroText = outroLineMatch[0].trim();
                     last.text = last.text.substring(0, outroLineMatch.index).trim();
@@ -474,7 +474,7 @@ export function parseStatementsFromText(q) {
     if (matches.length >= 2) {
         let outroText = q.outroText || bodyTxt.substring(lastIdx).trim();
         const lastStmt = matches[matches.length - 1];
-        const outroLineMatch = lastStmt.text.match(/(?:\r?\n|\s{2,})?(?:In the light of|Choose the correct|Select the|Which of the|How many of|The (?:correct|incorrect) statement|From the above|Identify the|The (?:correct|incorrect) combination is)[\s\S]*$/i);
+        const outroLineMatch = lastStmt.text.match(/(?:\r?\n|\s{2,})?(?:In the light of|Choose the (?:correct|incorrect|right|wrong|most)|Select the|Which (?:of the|one of|option)|How many of|The (?:correct|incorrect|right|true|false) (?:statement|combination|option|answer|choice)|From the above|Based on the (?:above|given)|Identify the|Pick the|Find the (?:correct|incorrect)|Mark the)[\s\S]*$/i);
         if (outroLineMatch) {
             outroText = (outroLineMatch[0] + (outroText ? '\n' + outroText : '')).trim();
             lastStmt.text = lastStmt.text.substring(0, outroLineMatch.index).trim();
@@ -498,7 +498,7 @@ export function parseStatementsFromText(q) {
     if (shortMatches.length >= 2) {
         let outroText = bodyTxt.substring(lastShortIdx).trim();
         const lastStmt = shortMatches[shortMatches.length - 1];
-        const outroLineMatch = lastStmt.text.match(/(?:\r?\n|\s{2,})?(?:In the light of|Choose the correct|Select the|Which of the|How many of|The (?:correct|incorrect) statement|From the above|Identify the|The (?:correct|incorrect) combination is)[\s\S]*$/i);
+        const outroLineMatch = lastStmt.text.match(/(?:\r?\n|\s{2,})?(?:In the light of|Choose the (?:correct|incorrect|right|wrong|most)|Select the|Which (?:of the|one of|option)|How many of|The (?:correct|incorrect|right|true|false) (?:statement|combination|option|answer|choice)|From the above|Based on the (?:above|given)|Identify the|Pick the|Find the (?:correct|incorrect)|Mark the)[\s\S]*$/i);
         if (outroLineMatch) {
             outroText = (outroLineMatch[0] + (outroText ? '\n' + outroText : '')).trim();
             lastStmt.text = lastStmt.text.substring(0, outroLineMatch.index).trim();
@@ -530,7 +530,7 @@ export function parseStatementsFromText(q) {
         if (isSequential) {
             let outroText = bodyTxt.substring(lastLetterIdx).trim();
             const lastStmt = letterMatches[letterMatches.length - 1];
-            const outroLineMatch = lastStmt.text.match(/(?:\r?\n)(?:In the light of|Choose the correct|Select the|Which of the|How many of|The (?:correct|incorrect) statement|From the above|Identify the)[\s\S]*$/i);
+            const outroLineMatch = lastStmt.text.match(/(?:\r?\n)(?:In the light of|Choose the (?:correct|incorrect|right|wrong|most)|Select the|Which (?:of the|one of|option)|How many of|The (?:correct|incorrect|right|true|false) (?:statement|combination|option|answer|choice)|From the above|Based on the (?:above|given)|Identify the|Pick the|Find the (?:correct|incorrect)|Mark the)[\s\S]*$/i);
             if (outroLineMatch) {
                 outroText = (outroLineMatch[0] + (outroText ? '\n' + outroText : '')).trim();
                 lastStmt.text = lastStmt.text.substring(0, outroLineMatch.index).trim();
@@ -561,7 +561,7 @@ export function parseStatementsFromText(q) {
     if (romanMatches.length >= 2) {
         let outroText = bodyTxt.substring(lastRomanIdx).trim();
         const lastStmt = romanMatches[romanMatches.length - 1];
-        const outroLineMatch = lastStmt.text.match(/(?:\r?\n)(?:In the light of|Choose the correct|Select the|Which of the|How many of|The (?:correct|incorrect) statement|From the above|Identify the)[\s\S]*$/i);
+        const outroLineMatch = lastStmt.text.match(/(?:\r?\n)(?:In the light of|Choose the (?:correct|incorrect|right|wrong|most)|Select the|Which (?:of the|one of|option)|How many of|The (?:correct|incorrect|right|true|false) (?:statement|combination|option|answer|choice)|From the above|Based on the (?:above|given)|Identify the|Pick the|Find the (?:correct|incorrect)|Mark the)[\s\S]*$/i);
         if (outroLineMatch) {
             outroText = (outroLineMatch[0] + (outroText ? '\n' + outroText : '')).trim();
             lastStmt.text = lastStmt.text.substring(0, outroLineMatch.index).trim();
