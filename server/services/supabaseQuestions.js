@@ -288,7 +288,7 @@ function mapSupabaseToQuestion(row, usageMap = null) {
     }
 
     // Effective question type (QBP_TYPE overrides stored q_type)
-    const effectiveQType = qbpType || qTypeLower;
+    let effectiveQType = qbpType || qTypeLower;
 
     // True/False handling
     let correctOption = row.correct_option || '';
@@ -447,6 +447,12 @@ function mapSupabaseToQuestion(row, usageMap = null) {
     const hasRomanStatements = /(?:statements?|consider the following)[\s\S]*?(?:^|\r?\n)\s*(?:\([ivx]+\)|[ivx]+[\.:\)])\s+[\s\S]*?(?:^|\r?\n)\s*(?:\([ivx]+\)|[ivx]+[\.:\)])\s+/i.test(cleanQuestion);
     // A question that has two columns (or says "match") is a match question even when its items are lettered A, B, C - the
     // lettered/roman "statements" patterns below would otherwise steal it and give it Statement I/II options.
+    // Some plain multiple-choice rows carry a stray [QBP_TYPE:statement_based] marker. The marker only counts when the
+    // question really has statements; otherwise the stored type (mcq_single, ...) is used, so it is not shown as a statement question.
+    if (qbpType === 'statement_based' && /^mcq/.test(qTypeLower) && dynamicStatements.length === 0 && !(statement1 && statement2) &&
+        !hasLetteredStatements && !hasRomanStatements && !/Statements?/i.test(cleanQuestion)) {
+        effectiveQType = qTypeLower;
+    }
     const hasMatchSignal = (
         effectiveQType.includes('match') ||
         colA.length > 0 ||
@@ -574,7 +580,21 @@ function mapSupabaseToQuestion(row, usageMap = null) {
         }
     }
 
+    // Some rows store the answer's value ("90") instead of its letter. When exactly one option reads the same, that option is
+    // the key; when none does, the key points at nothing the student can tick. (Multi-answer keys such as "A, B, D" are fine.)
+    if (!keyProblem && correctOption && options.length >= 2 && (type === 'MCQ' || type === 'DIAGRAM_BASED')) {
+        const marked = String(correctOption).trim();
+        if (!/^[A-D1-4]$/i.test(marked) && !/^[A-D](?:\s*[,;&]\s*[A-D])+$/i.test(marked)) {
+            const norm = s => String(s).replace(/[\s$]/g, '').toLowerCase();
+            const hits = options.map((o, i) => (norm(o) === norm(marked) ? i : -1)).filter(i => i >= 0);
+            if (hits.length === 1) { correctOption = 'ABCD'[hits[0]]; answer = options[hits[0]]; }
+            else keyProblem = 'KEY_NOT_AN_OPTION';
+        }
+    }
+    if (!keyProblem && type === 'NUMERICAL' && !String(answer == null ? '' : answer).trim()) keyProblem = 'NUMERICAL_NO_ANSWER';
     if (matchKeyUnknown && !keyProblem) keyProblem = 'MATCH_KEY_UNKNOWN';
+    // A diagram placeholder that was never filled in would print as the words "[DIAGRAM REQUIRED]".
+    if (!keyProblem && !hasDiag && [cleanQuestion, ...options].some(t => /\[DIAGRAM REQUIRED\]/i.test(String(t)))) keyProblem = 'DIAGRAM_MISSING';
     // Two options that read exactly the same make the question unanswerable (a student cannot tell A from C).
     if (!keyProblem && options.length >= 2 && type !== 'TRUE_FALSE') {
         const norm = o => String(o).replace(/\s+/g, '').toLowerCase();

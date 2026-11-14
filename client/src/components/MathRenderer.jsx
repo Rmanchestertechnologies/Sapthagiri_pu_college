@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import katex from 'katex';
 import DOMPurify from 'dompurify';
 import ResizableDiagram from './ResizableDiagram';
+import { normalizeEquation, ensureMathDelimiters } from '../utils/mathNormalize';
 
 /**
  * KaTeX-permissive DOMPurify config — allows all KaTeX output HTML safely.
@@ -70,24 +71,6 @@ function formatCleanUnicodeMath(str) {
 }
 
 /**
- * STEP 1: ensureMathDelimiters(text)
- * - Fix broken LaTeX boundaries
- * - Convert \( and \) to standard $, and \[ and \] to standard $$...$$
- * - Wrap naked \begin{...} \end{...} blocks in $$...$$
- */
-export function ensureMathDelimiters(text) {
-    if (!text || typeof text !== 'string') return '';
-    let res = text;
-    // Wrap naked \begin{...}...\end{...} blocks in $$...$$ if not already wrapped
-    res = res.replace(/(?<!\$\$|\$)\\begin\{(matrix|pmatrix|bmatrix|vmatrix|aligned|align|array|cases)\}([\s\S]*?)\\end\{\1\}(?!\$\$|\$)/g, '$$\\begin{$1}$2\\end{$1}$$');
-    // Convert \[...\] to $$...$$
-    res = res.replace(/\\\[([\s\S]*?)\\\]/g, '$$$$$1$$$$');
-    // Convert \(...\) to $...$
-    res = res.replace(/\\\(([\s\S]*?)\\\)/g, '$$$1$$');
-    return res;
-}
-
-/**
  * STEP 2: smartConvertRaw(text)
  * - Auto-convert plain-text chemistry to LaTeX (e.g. H2SO4 -> H_{2}SO_{4}, Fe^3+ -> Fe^{3+})
  * - Convert Greek words to symbols (alpha -> \alpha)
@@ -119,40 +102,7 @@ export function tokenizeMarkdown(text) {
     return text.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
 }
 
-/**
- * STEP 4: Equation Normalization before passing to KaTeX
- * - convert ^([0-9]+[+-]) to ^{$1} (e.g. Li^2+ -> Li^{2+}, Fe^3+ -> Fe^{3+})
- * - replace √ with \surd
- * - replace × with \times
- * - replace ° with ^{\circ}
- */
-export function normalizeEquation(rawMath) {
-    if (!rawMath) return '';
-    let eq = String(rawMath).trim();
-
-    // Strip leading / trailing quotes or stray punctuation that break math mode
-    eq = eq.replace(/^[\$'"`,;:]+/, '').replace(/[\$'"`,;:]+$/, '').trim();
-
-    // Fix exponent charges: ^([0-9]+[+-]) -> ^{$1}
-    eq = eq.replace(/\^([0-9]+[+-])/g, '^{$1}');
-
-    // Convert unicode symbols to LaTeX
-    eq = eq.replace(/√/g, '\\surd ');
-    eq = eq.replace(/×/g, '\\times ');
-    eq = eq.replace(/°/g, '^{\\circ}');
-
-    // Clean unmatched closing braces
-    const openB = (eq.match(/\{/g) || []).length;
-    const closeB = (eq.match(/\}/g) || []).length;
-    if (closeB > openB) {
-        eq = eq.replace(/([0-9a-zA-Z\s\.,\\_]+)\}\s*$/, '$1');
-        if ((eq.match(/\}/g) || []).length > openB) {
-            eq = eq.replace(/\}\s*$/, '');
-        }
-    }
-
-    return eq;
-}
+export { normalizeEquation, ensureMathDelimiters };
 
 /**
  * Safely render math with KaTeX, intercepting any errors so red katex-error spans never leak onto papers.
