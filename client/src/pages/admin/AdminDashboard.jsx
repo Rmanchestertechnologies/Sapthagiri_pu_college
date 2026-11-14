@@ -435,6 +435,11 @@ const DashboardHome = ({ view = 'home' }) => {
                 setMerging(false);
                 return;
             }
+            if (paperIds.length < subAssignments.length) {
+                alert(`Only ${paperIds.length} of ${subAssignments.length} subjects have a saved paper. Every subject block needs its paper before the exam can be merged.`);
+                setMerging(false);
+                return;
+            }
 
             const res = await api.post('/api/exams/merge', {
                 title: `${exam.title} - Grand Assessment`,
@@ -446,7 +451,7 @@ const DashboardHome = ({ view = 'home' }) => {
             const mergedPaper = res.data?.paper;
             const targetPaperId = mergedPaper?._id || mergedPaper?.id;
 
-            alert(`✓ Successfully merged ${paperIds.length} subjects into "${exam.title} - Grand Assessment"! Opening assessment preview...`);
+            alert(`✓ Merged ${paperIds.length} subjects into "${exam.title} - Grand Assessment". It is saved in Saved Papers under ${exam.examType || 'NEET'}. Opening the preview...`);
             fetchData();
             if (targetPaperId) {
                 navigate(`/admin/dashboard/preview/${targetPaperId}`);
@@ -495,6 +500,15 @@ const DashboardHome = ({ view = 'home' }) => {
         } finally {
             setDeletingAll(false);
         }
+    };
+
+    // The paper that fills one subject block: the one saved from that block (linked on the exam) or created with this exam's examId.
+    const findBlockPaper = (exam, sa) => {
+        if (sa.submittedPaperId && typeof sa.submittedPaperId === 'object' && (sa.submittedPaperId._id || sa.submittedPaperId.id)) return sa.submittedPaperId;
+        const pId = sa.submittedPaperId ? String(sa.submittedPaperId) : null;
+        if (pId) { const f = allPapers.find(p => String(p._id || p.id) === pId); if (f) return f; }
+        return allPapers.find(p => p.examId && String(p.examId) === String(exam._id || exam.id) && !p.isMerged &&
+            String(p.subject || '').toLowerCase().includes(String(sa.subject || '').toLowerCase())) || null;
     };
 
     const activeExam = commissionedExams.find(e => (e._id || e.id) === selectedExamId) || commissionedExams[0];
@@ -665,9 +679,18 @@ const DashboardHome = ({ view = 'home' }) => {
                                                         </div>
                                                     </div>
                                                     <div className="flex items-center gap-2 flex-wrap">
-                                                        <button onClick={() => handleMergeExamSubjects(exam)} disabled={merging}
-                                                            className="h-11 px-5 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-white text-xs font-extrabold uppercase tracking-wider flex items-center gap-2 shadow-lg shadow-emerald-900/30 disabled:opacity-60 cursor-pointer"
-                                                            title="Merge all completed subject papers into a single grand assessment paper"><Zap size={15} /> {merging ? 'Merging...' : 'Merge All Subjects'}</button>
+                                                        {(() => {
+                                                            const readyBlocks = subAssignments.filter(sa => findBlockPaper(exam, sa)).length;
+                                                            const allReady = subAssignments.length > 0 && readyBlocks === subAssignments.length;
+                                                            return (
+                                                                <div className="flex flex-col items-start gap-1">
+                                                                    <button onClick={() => handleMergeExamSubjects(exam)} disabled={merging || !allReady}
+                                                                        className="h-11 px-5 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-white text-xs font-extrabold uppercase tracking-wider flex items-center gap-2 shadow-lg shadow-emerald-900/30 disabled:opacity-45 disabled:cursor-not-allowed cursor-pointer"
+                                                                        title={allReady ? 'Merge all subject papers into one paper, saved under ' + (exam.examType || 'NEET') : 'Every subject block needs its paper first'}><Zap size={15} /> {merging ? 'Merging...' : 'Merge All Subjects'}</button>
+                                                                    <span className="text-[11px] font-semibold text-white/70">{allReady ? 'All subjects ready — saves under ' + (exam.examType || 'NEET') : `${readyBlocks} of ${subAssignments.length} subjects saved`}</span>
+                                                                </div>
+                                                            );
+                                                        })()}
                                                         <button onClick={() => setSelectedViewExam(exam)} className="h-11 px-4 rounded-2xl bg-white/10 hover:bg-white/20 border border-white/20 text-white text-xs font-extrabold uppercase tracking-wider flex items-center gap-2 cursor-pointer"><Eye size={15} /> View Full Paper</button>
                                                         <button onClick={() => setSelectedAnalysisExam(exam)} className="h-11 px-4 rounded-2xl bg-indigo-400 hover:bg-indigo-300 text-[#1e1b4b] text-xs font-extrabold uppercase tracking-wider flex items-center gap-2 cursor-pointer"><BarChart3 size={15} /> Analysis</button>
                                                         <button onClick={() => handleDeleteExam(exam._id || exam.id)} className="h-11 px-4 rounded-2xl bg-rose-500/15 hover:bg-rose-500 text-rose-200 hover:text-white border border-rose-400/30 text-xs font-extrabold flex items-center gap-2 cursor-pointer"><Trash2 size={15} /> Delete</button>
@@ -734,7 +757,10 @@ const DashboardHome = ({ view = 'home' }) => {
 
                                                                 <div className="mt-4 rounded-2xl bg-slate-50 px-3.5 py-2.5 text-[12px] font-semibold">
                                                                     {submittedPaper ? (
-                                                                        <span className="text-emerald-700 flex items-center gap-1.5 truncate" title={submittedPaper.title}><Check size={14} className="shrink-0" /> <span className="truncate">Saved: {submittedPaper.title || `${subName} - ${exam.title}`}</span></span>
+                                                                        <span className="text-emerald-700 flex flex-col gap-0.5 min-w-0" title={submittedPaper.title}>
+                                                                            <span className="flex items-center gap-1.5 truncate"><Check size={14} className="shrink-0" /> <span className="truncate">Saved: {submittedPaper.title || `${subName} - ${exam.title}`}</span></span>
+                                                                            <span className="text-[11px] font-medium text-slate-500 pl-5 truncate">{[sa.teacherName && sa.teacherName !== 'Admin Office' ? `by ${sa.teacherName}` : '', formatPaperDateTime(submittedPaper.createdAt || submittedPaper.created_at).date].filter(Boolean).join(' · ')}</span>
+                                                                        </span>
                                                                     ) : (
                                                                         <span className="text-slate-400">Select & compile {subName} questions</span>
                                                                     )}

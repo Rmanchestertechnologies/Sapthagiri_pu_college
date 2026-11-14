@@ -281,10 +281,9 @@ const TeacherAssignmentsSection = () => {
 
                             <button
                                 onClick={() => {
-                                    const targetUrl = item.submittedPaperId
-                                        ? `/teacher/create-paper?examId=${item.examId}&paperId=${item.submittedPaperId}`
-                                        : `/teacher/create-paper?examId=${item.examId}`;
-                                    navigate(targetUrl);
+                                    const cls = Array.isArray(item.classes) && item.classes.includes('11') && item.classes.includes('12') ? 'Both' : (item.classes?.[0] || '12');
+                                    const block = `examId=${item.examId}&subject=${encodeURIComponent(item.subject)}&examType=${encodeURIComponent(item.examType || 'CET')}&examTitle=${encodeURIComponent(item.examTitle || '')}&classes=${encodeURIComponent(cls)}`;
+                                    navigate(item.submittedPaperId ? `/teacher/create-paper?${block}&paperId=${item.submittedPaperId}` : `/teacher/create-paper?${block}`);
                                 }}
                                 className="w-full mt-1 bg-navy text-gold hover:bg-gold hover:text-navy py-2 rounded-xl font-black text-xs uppercase tracking-widest transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer group"
                             >

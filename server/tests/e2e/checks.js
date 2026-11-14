@@ -77,6 +77,27 @@ const call = async (method, path, { token, session, body, raw } = {}) => {
   ok(!!phy?.submittedPaperId && !chem?.submittedPaperId, 'block rule: only the Physics block is filled, Chemistry stays empty');
   await call('DELETE', '/api/exams/commissioned/all', { token: admin });
 
+  // ── the commissioned-exam flow end to end: blocks -> papers saved from each block -> merge -> merged paper sits under the exam type
+  const flowEx = await call('POST', '/api/exams/commission', { token: admin, body: { title: 'E2E NEET Flow', examType: 'NEET', classes: ['12'], duration_minutes: 180,
+    subjectAssignments: ['Physics', 'Chemistry'].map(subject => ({ subject, teacherId: 'sapthagiri-admin', teacherName: 'Admin', targetQuestions: 45, status: 'Pending' })) } });
+  const flowId = flowEx.data?.exam?._id || flowEx.data?.exam?.id;
+  const qs3 = (subject) => Array.from({ length: 3 }, (_, i) => ({ _id: `${subject}${i}`, id: `${subject}${i}`, type: 'MCQ', subject, chapter: 'X', marks: 4, questionText: `${subject} question ${i}?`, options: ['A', 'B', 'C', 'D'], correct_option: 'B', answer: 'B' }));
+  const flowPhy = await call('POST', '/api/papers', { token: admin, body: { title: 'E2E NEET Flow - Physics', subject: 'Physics', examType: 'NEET', classes: ['12'], examId: flowId, questions: qs3('Physics'), questionObjects: qs3('Physics'), status: 'Draft' } });
+  ok(flowPhy.status === 200 || flowPhy.status === 201, 'flow: Physics paper saved from its block', String(flowPhy.status));
+  // closing the laptop = a brand new request later: the saved paper and its link are still there
+  let flowNow = (await call('GET', '/api/exams/commissioned', { token: admin })).data.find(e => String(e._id || e.id) === String(flowId));
+  ok(!!flowNow?.subjectAssignments?.find(s => s.subject === 'Physics')?.submittedPaperId && !flowNow?.subjectAssignments?.find(s => s.subject === 'Chemistry')?.submittedPaperId, 'flow: the saved Physics paper is still linked later, Chemistry still empty');
+  const flowChem = await call('POST', '/api/papers', { token: teacher2, body: { title: 'E2E NEET Flow - Chemistry', subject: 'Chemistry', examType: 'NEET', classes: ['12'], examId: flowId, questions: qs3('Chemistry'), questionObjects: qs3('Chemistry'), status: 'Draft' } });
+  ok(flowChem.status === 200 || flowChem.status === 201, 'flow: another teacher saves the Chemistry paper from its block', String(flowChem.status));
+  flowNow = (await call('GET', '/api/exams/commissioned', { token: admin })).data.find(e => String(e._id || e.id) === String(flowId));
+  const readyIds = (flowNow?.subjectAssignments || []).map(s => s.submittedPaperId && (s.submittedPaperId._id || s.submittedPaperId.id || s.submittedPaperId)).filter(Boolean);
+  ok(readyIds.length === 2, 'flow: both subject blocks are filled', String(readyIds.length));
+  const flowMerge = await call('POST', '/api/exams/merge', { token: admin, body: { title: 'E2E NEET Flow - Grand Assessment', examType: 'NEET', paperIds: readyIds, duration_minutes: 180 } });
+  ok(flowMerge.status === 201 && flowMerge.data.paper?.examType === 'NEET' && /Grand Assessment/.test(flowMerge.data.paper?.title || ''), 'flow: merged paper is saved with the exam type NEET', JSON.stringify({ s: flowMerge.status, t: flowMerge.data?.paper?.examType }));
+  const allPapersNow = await call('GET', '/api/papers/admin/all', { token: admin });
+  ok(Array.isArray(allPapersNow.data) && allPapersNow.data.some(p => /E2E NEET Flow - Grand/.test(p.title) && /NEET/i.test(p.examType || p.exam_type || '')), 'flow: the merged paper is listed in Saved Papers under NEET');
+  await call('DELETE', '/api/exams/commissioned/all', { token: admin });
+
   // ── OMR paper list must work for an account that has no papers yet (it used to fail with a ReferenceError from old MongoDB code)
   const omrEmpty = await call('GET', '/api/omr/papers', { token: admin });
   ok(omrEmpty.status === 200 && Array.isArray(omrEmpty.data.papers), 'OMR: the paper list answers 200 even when there are no papers', String(omrEmpty.status) + ' ' + JSON.stringify(omrEmpty.data).slice(0, 80));

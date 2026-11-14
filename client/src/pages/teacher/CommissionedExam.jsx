@@ -207,6 +207,7 @@ export default function CommissionedExam() {
                     const paperRes = await api.get(`/api/papers/${paramPaperId}`);
                     const p = paperRes.data;
                     if (p) {
+                        setSavedPaperId(String(p._id || p.id || paramPaperId));
                         if (p.title) setExamTitle(p.title);
                         if (p.subject) setSelectedSubject(p.subject);
                         if (p.examType) setSelectedExamPattern(p.examType);
