@@ -48,64 +48,70 @@ export default function FacultyToday() {
     const recent = list.slice(0, 4);
 
     const stats = [
-        { label: 'Papers saved', value: list.length, Icon: FolderOpen },
-        { label: 'Drafts to finish', value: drafts, Icon: FileClock },
-        { label: 'Created this week', value: thisWeek, Icon: Flame },
-        { label: 'Pinned', value: list.filter(p => pinned.has(String(p._id || p.id))).length, Icon: Star },
+        { label: 'Papers saved', value: list.length, Icon: FolderOpen, tone: 'bg-indigo-50 text-indigo-600' },
+        { label: 'Drafts to finish', value: drafts, Icon: FileClock, tone: 'bg-amber-50 text-amber-600' },
+        { label: 'Created this week', value: thisWeek, Icon: Flame, tone: 'bg-rose-50 text-rose-600' },
+        { label: 'Pinned papers', value: list.filter(p => pinned.has(String(p._id || p.id))).length, Icon: Star, tone: 'bg-emerald-50 text-emerald-600' },
     ];
 
     return (
-        <section className="relative overflow-hidden rounded-[28px] bg-gradient-to-br from-[#081b3b] via-[#0b2552] to-[#123a7a] text-white p-6 sm:p-8 shadow-[0_30px_70px_-34px_rgba(8,27,59,0.7)] mb-6">
-            <span aria-hidden="true" className="absolute -right-16 -top-20 w-72 h-72 rounded-full bg-amber-400/20 blur-3xl" />
-            <span aria-hidden="true" className="absolute -left-10 -bottom-24 w-64 h-64 rounded-full bg-sky-400/10 blur-3xl" />
-            <div className="relative grid lg:grid-cols-[1.1fr_1fr] gap-8">
+        <section className="mb-6 space-y-5">
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
                 <div>
-                    <p className="flex items-center gap-2 text-amber-300 text-xs font-extrabold uppercase tracking-[0.16em]"><Icon size={15} /> {now.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
-                    <h2 className="mt-3 text-3xl sm:text-4xl font-extrabold tracking-tight !normal-case !text-white !text-[2.1rem] leading-tight">{text}, {first}.</h2>
-                    <p className="mt-2 text-white/60 font-medium max-w-md">Pick up a draft, or start a fresh {user?.subject ? `${user.subject} ` : ''}paper — the wizard builds it for you.</p>
-                    <div className="mt-6 flex flex-wrap gap-3">
-                        <motion.button type="button" whileHover={{ y: -2 }} whileTap={{ scale: 0.97 }} transition={SPRING.press} onClick={() => navigate('/teacher/create-paper')}
-                            className="h-12 px-6 rounded-2xl bg-gradient-to-r from-amber-300 to-amber-500 text-[#081b3b] text-xs font-extrabold uppercase tracking-wider flex items-center gap-2 shadow-lg shadow-amber-500/25 cursor-pointer"><FilePlus2 size={17} /> Create a paper</motion.button>
-                        <button type="button" onClick={() => navigate('/teacher/dashboard/saved-papers')}
-                            className="h-12 px-5 rounded-2xl bg-white/10 hover:bg-white/20 border border-white/20 text-white text-xs font-extrabold uppercase tracking-wider flex items-center gap-2 cursor-pointer"><FolderOpen size={16} /> Saved papers</button>
-                    </div>
-                    <dl className="mt-7 grid grid-cols-2 2xl:grid-cols-4 gap-3">
-                        {stats.map(({ label, value, Icon: StatIcon }) => (
-                            <div key={label} className="rounded-2xl bg-white/[0.07] border border-white/10 px-3.5 py-3">
-                                <dt className="flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-wider text-white/50"><StatIcon size={12} /> {label}</dt>
-                                <dd className="text-2xl font-extrabold"><AnimatedNumber value={papers ? value : 0} /></dd>
-                            </div>
-                        ))}
-                    </dl>
+                    <p className="text-xs font-semibold text-slate-500 flex items-center gap-2"><Icon size={14} className="text-amber-500" /> {now.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
+                    <h2 className="mt-1 text-[26px] sm:text-3xl font-bold tracking-tight text-[#081b3b] !normal-case">{text}, {first}</h2>
+                    <p className="mt-1 text-sm text-slate-500">Pick up a draft, or start a fresh {user?.subject ? `${user.subject} ` : ''}paper — the wizard builds it for you.</p>
                 </div>
+                <div className="flex flex-wrap items-center gap-2.5">
+                    <button type="button" onClick={() => navigate('/teacher/dashboard/saved-papers')}
+                        className="h-10 px-4 rounded-xl bg-white border border-slate-200 hover:border-slate-300 text-[#081b3b] text-[13px] font-semibold flex items-center gap-2 cursor-pointer shadow-sm"><FolderOpen size={15} className="text-indigo-500" /> Saved papers</button>
+                    <button type="button" onClick={() => navigate('/teacher/create-paper')}
+                        className="h-10 px-4 rounded-xl bg-[#081b3b] hover:bg-[#0d2a5e] text-white text-[13px] font-semibold flex items-center gap-2 cursor-pointer shadow-sm"><FilePlus2 size={15} className="text-amber-400" /> Create a paper</button>
+                </div>
+            </div>
 
-                <div className="rounded-3xl bg-white/[0.07] border border-white/10 p-5 backdrop-blur">
-                    <p className="text-xs font-extrabold uppercase tracking-[0.14em] text-white/55 mb-3">Pick up where you left off</p>
-                    {papers === null && <p className="text-sm text-white/50 py-6 text-center">Loading your papers…</p>}
-                    {papers !== null && recent.length === 0 && (
-                        <div className="py-6 text-center">
-                            <p className="font-bold">No papers yet</p>
-                            <p className="text-sm text-white/55 mt-1">Your first paper takes about a minute.</p>
+            <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
+                {stats.map(({ label, value, Icon: StatIcon, tone }) => (
+                    <div key={label} className="rounded-2xl bg-white border border-slate-200/80 p-4 sm:p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+                        <div className="flex items-center justify-between">
+                            <span className="text-[13px] font-semibold text-slate-500">{label}</span>
+                            <span className={`w-9 h-9 rounded-xl flex items-center justify-center ${tone}`}><StatIcon size={17} /></span>
                         </div>
-                    )}
-                    <ul className="space-y-2">
-                        {recent.map((p, i) => {
-                            const id = p._id || p.id;
-                            return (
-                                <motion.li key={id} initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} transition={{ ...SPRING.soft, delay: i * 0.05 }}>
-                                    <button type="button" onClick={() => navigate(`/teacher/create-paper?paperId=${id}`)} className="group w-full flex items-center gap-3 rounded-2xl bg-white/[0.06] hover:bg-white/[0.14] px-3.5 py-3 text-left cursor-pointer transition-colors">
-                                        <span className="min-w-0 flex-1">
-                                            <span className="block font-bold truncate">{p.title || 'Untitled paper'}</span>
-                                            <span className="block text-xs text-white/50 truncate">{p.subject || 'Paper'} · {p.questions?.length || p.totalQuestions || 0} questions · {when(p.createdAt || p.created_at)}</span>
-                                        </span>
-                                        <span className="text-[10px] font-extrabold uppercase tracking-wider rounded-full px-2 py-1 bg-amber-400/20 text-amber-300">{p.status || 'Draft'}</span>
-                                        <ArrowRight size={16} className="text-white/40 group-hover:text-amber-300 group-hover:translate-x-0.5 transition-all" />
-                                    </button>
-                                </motion.li>
-                            );
-                        })}
-                    </ul>
+                        <p className="mt-3 text-3xl font-bold tracking-tight text-[#081b3b]"><AnimatedNumber value={papers ? value : 0} /></p>
+                    </div>
+                ))}
+            </div>
+
+            <div className="rounded-2xl bg-white border border-slate-200/80 p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+                <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-[15px] font-bold text-[#081b3b]">Pick up where you left off</h3>
+                    <button type="button" onClick={() => navigate('/teacher/dashboard/saved-papers')} className="text-xs font-semibold text-blue-600 hover:underline cursor-pointer">View all</button>
                 </div>
+                {papers === null && <p className="text-sm text-slate-400 py-6 text-center">Loading your papers…</p>}
+                {papers !== null && recent.length === 0 && (
+                    <div className="py-8 text-center">
+                        <p className="font-semibold text-[#081b3b]">No papers yet</p>
+                        <p className="text-sm text-slate-500 mt-1">Your first paper takes about a minute.</p>
+                    </div>
+                )}
+                <ul className="divide-y divide-slate-100">
+                    {recent.map((p, i) => {
+                        const id = p._id || p.id;
+                        return (
+                            <motion.li key={id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ ...SPRING.soft, delay: i * 0.04 }}>
+                                <button type="button" onClick={() => navigate(`/teacher/create-paper?paperId=${id}`)} className="group w-full flex items-center gap-3 py-3 text-left cursor-pointer">
+                                    <span className="w-9 h-9 shrink-0 rounded-lg bg-slate-100 text-slate-500 flex items-center justify-center"><FileClock size={16} /></span>
+                                    <span className="min-w-0 flex-1">
+                                        <span className="block text-sm font-semibold text-[#081b3b] truncate">{p.title || 'Untitled paper'}</span>
+                                        <span className="block text-xs text-slate-500 truncate">{p.subject || 'Paper'} · {p.questions?.length || p.totalQuestions || 0} questions · {when(p.createdAt || p.created_at)}</span>
+                                    </span>
+                                    <span className="text-[11px] font-semibold rounded-full px-2.5 py-1 bg-amber-50 text-amber-700">{p.status || 'Draft'}</span>
+                                    <ArrowRight size={16} className="text-slate-300 group-hover:text-[#081b3b] group-hover:translate-x-0.5 transition-all" />
+                                </button>
+                            </motion.li>
+                        );
+                    })}
+                </ul>
             </div>
         </section>
     );

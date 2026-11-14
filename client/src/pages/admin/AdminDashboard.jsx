@@ -163,7 +163,7 @@ const DashboardHome = () => {
     // Expandable Box States (One box when clicked the four will open)
     const [isExamSubjectsOpen, setIsExamSubjectsOpen] = useState(false);
     const [isSavedPapersOpen, setIsSavedPapersOpen] = useState(true);
-    const [paperView, setPaperView] = useState('grid');
+    const [paperView, setPaperView] = useState('list');
     const [pinned, setPinned] = useState(() => {
         try { return new Set(JSON.parse(localStorage.getItem('pinned-papers') || '[]').map(String)); } catch { return new Set(); }
     });
@@ -492,89 +492,49 @@ const DashboardHome = () => {
     return (
         <div className="animate-fade-in-up space-y-8">
 
-            {/* ── EXECUTIVE HERO & QUICK ACTIONS ── */}
-            <div className="relative overflow-hidden rounded-[28px] bg-gradient-to-br from-[#081b3b] via-[#0b2552] to-[#123a7a] text-white p-6 sm:p-9 shadow-[0_30px_70px_-30px_rgba(8,27,59,0.55)]">
-                <span aria-hidden="true" className="absolute -right-16 -top-16 w-72 h-72 rounded-full bg-amber-400/15 blur-2xl" />
-                <span aria-hidden="true" className="absolute -left-10 -bottom-20 w-64 h-64 rounded-full bg-sky-400/10 blur-2xl" />
-                <div className="relative flex flex-col lg:flex-row lg:items-end justify-between gap-6">
-                    <div className="max-w-2xl">
-                        <div className="flex items-center gap-2 mb-3">
-                            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                            <span className="eyebrow">Academic session 2025–26</span>
-                        </div>
-                        <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight leading-[1.1]">Institutional Assessment Command</h2>
-                        <p className="mt-3 text-sm sm:text-base text-white/65 font-medium leading-relaxed">
-                            Centralized assessment management, real-time question paper compilation, and department progress.
-                        </p>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-3">
-                        <button
-                            onClick={() => navigate('/admin/dashboard/create-paper')}
-                            className="group rounded-2xl bg-amber-400 hover:bg-amber-300 text-[#081b3b] px-6 py-3.5 font-extrabold text-xs uppercase tracking-widest shadow-lg shadow-amber-500/20 flex items-center gap-2 cursor-pointer"
-                        >
-                            <FilePlus2 size={17} />
-                            <span>Create Question Paper</span>
-                        </button>
-                        <button
-                            id="admin-quick-commission-btn"
-                            onClick={() => setShowCommissionModal(true)}
-                            className="rounded-2xl bg-white/10 hover:bg-white/20 border border-white/20 text-white px-6 py-3.5 font-extrabold text-xs uppercase tracking-widest flex items-center gap-2 cursor-pointer backdrop-blur"
-                        >
-                            <Zap size={17} className="text-amber-400" />
-                            <span>Commission Exam</span>
-                        </button>
-                    </div>
+            {/* ── GREETING + KEY NUMBERS ── */}
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+                <div>
+                    <p className="text-xs font-semibold text-slate-500 flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />{new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })} · Academic session 2025–26</p>
+                    <h2 className="mt-1 text-[26px] sm:text-3xl font-bold tracking-tight text-[#081b3b] !normal-case">{(() => { const h = new Date().getHours(); return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening'; })()}, Admin</h2>
+                    <p className="mt-1 text-sm text-slate-500">Here is where every department stands across your commissioned exams and saved papers.</p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2.5">
+                    <button id="admin-quick-commission-btn" onClick={() => setShowCommissionModal(true)}
+                        className="h-10 px-4 rounded-xl bg-white border border-slate-200 hover:border-slate-300 text-[#081b3b] text-[13px] font-semibold flex items-center gap-2 cursor-pointer shadow-sm"><Zap size={15} className="text-amber-500" /> Commission exam</button>
+                    <button onClick={() => navigate('/admin/dashboard/create-paper')}
+                        className="h-10 px-4 rounded-xl bg-[#081b3b] hover:bg-[#0d2a5e] text-white text-[13px] font-semibold flex items-center gap-2 cursor-pointer shadow-sm"><FilePlus2 size={15} className="text-amber-400" /> Create question paper</button>
                 </div>
             </div>
 
-            {/* ── 3 EXECUTIVE KPI CARDS ── */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-5">
-                <div className="surface p-5 flex items-center gap-4">
-                    <span className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center"><ClipboardList size={22} /></span>
-                    <div>
-                        <div className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider">Commissioned</div>
-                        <div className="text-2xl font-extrabold text-[#081b3b]"><AnimatedNumber value={totalExamsCount} /> <span className="text-sm font-bold text-slate-400">exams</span></div>
-                    </div>
-                </div>
-
-                <div className="surface p-5 flex items-center gap-4">
-                    <span className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center"><Database size={22} /></span>
-                    <div>
-                        <div className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider">Questions ready</div>
-                        <div className="text-2xl font-extrabold text-[#081b3b]"><AnimatedNumber value={totalReadyQuestions} /> <span className="text-sm font-bold text-slate-400">Qs</span></div>
-                    </div>
-                </div>
-
-                <div
-                    onClick={() => {
-                        setIsExamSubjectsOpen(true);
-                        const el = document.getElementById('commissioned-exams-section');
-                        if (el) el.scrollIntoView({ behavior: 'smooth' });
-                    }}
-                    className="surface p-5 flex items-center gap-4 cursor-pointer hover:shadow-md hover:border-amber-300 transition-all group"
-                >
-                    <span className="w-12 h-12 rounded-2xl bg-[#081b3b] text-amber-400 flex items-center justify-center group-hover:scale-105 transition-transform"><Target size={22} /></span>
-                    <div className="min-w-0">
-                        <div className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider">Commissioned exam</div>
-                        <div className="text-lg font-extrabold text-[#081b3b] flex items-center gap-1.5">
-                            <span>{activeExam ? `${activeExam.examType} active` : 'Start blueprint'}</span>
-                            <ArrowRight size={16} className="text-amber-500 shrink-0 group-hover:translate-x-1 transition-transform" />
+            <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
+                {[
+                    { label: 'Commissioned exams', value: totalExamsCount, Icon: ClipboardList, tone: 'bg-amber-50 text-amber-600', hint: activeExam ? `${activeExam.examType || 'CET'} active` : 'None active yet' },
+                    { label: 'Saved papers', value: allPapers.length, Icon: FolderOpen, tone: 'bg-indigo-50 text-indigo-600', hint: `${getSavedCategoryCount('NEET')} NEET · ${getSavedCategoryCount('JEE')} JEE · ${getSavedCategoryCount('CET')} CET` },
+                    { label: 'Questions ready', value: totalReadyQuestions, Icon: Database, tone: 'bg-emerald-50 text-emerald-600', hint: 'Compiled for commissioned exams' },
+                    { label: 'Departments pending', value: (activeExam?.subjectAssignments || []).filter(sa => !(sa.questionsCount > 0 || sa.submittedPaperId)).length, Icon: Target, tone: 'bg-rose-50 text-rose-600', hint: 'Waiting for a subject paper' },
+                ].map(({ label, value, Icon, tone, hint }) => (
+                    <div key={label} className="rounded-2xl bg-white border border-slate-200/80 p-4 sm:p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+                        <div className="flex items-center justify-between">
+                            <span className="text-[13px] font-semibold text-slate-500">{label}</span>
+                            <span className={`w-9 h-9 rounded-xl flex items-center justify-center ${tone}`}><Icon size={17} /></span>
                         </div>
+                        <p className="mt-3 text-3xl font-bold tracking-tight text-[#081b3b]"><AnimatedNumber value={value} /></p>
+                        <p className="mt-1 text-xs text-slate-400 font-medium truncate">{hint}</p>
                     </div>
-                </div>
+                ))}
             </div>
 
-            <CommandCenter papers={allPapers} exams={commissionedExams} pinned={pinned} onTogglePin={togglePin}
-                onOpenPaper={(p) => navigate(`/admin/dashboard/preview/${p._id || p.id}`)} go={navigate} />
-
+            <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_360px] gap-6 items-start">
+                <div className="min-w-0">
             {/* ── COMMISSIONED EXAMS (per-subject targets of each commissioned exam) ── */}
             <section id="commissioned-exams-section" className="space-y-5">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div className="flex items-center gap-4 min-w-0">
-                        <span className="w-14 h-14 shrink-0 rounded-2xl bg-gradient-to-br from-amber-400 to-orange-500 text-[#081b3b] flex items-center justify-center shadow-xl shadow-amber-500/25"><ClipboardList size={26} /></span>
+                        <span className="w-11 h-11 shrink-0 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center"><ClipboardList size={20} /></span>
                         <div className="min-w-0">
                             <div className="flex items-center gap-2.5 flex-wrap">
-                                <h3 className="text-2xl font-extrabold text-[#081b3b] tracking-tight">Commissioned Exams</h3>
+                                <h3 className="text-xl font-bold text-[#081b3b] tracking-tight">Commissioned Exams</h3>
                                 <span className="rounded-full bg-amber-100 text-amber-800 text-xs font-extrabold px-3 py-1"><AnimatedNumber value={commissionedExams.length} /> registered</span>
                             </div>
                             <p className="text-sm text-slate-500 font-medium mt-0.5">Track every department's progress towards each commissioned exam and open the subject papers.</p>
@@ -789,14 +749,21 @@ const DashboardHome = () => {
                 )}
             </section>
 
+                </div>
+                <aside className="min-w-0">
+                    <CommandCenter side papers={allPapers} exams={commissionedExams} pinned={pinned} onTogglePin={togglePin}
+                        onOpenPaper={(p) => navigate(`/admin/dashboard/preview/${p._id || p.id}`)} go={navigate} />
+                </aside>
+            </div>
+
             {/* ── SAVED PAPERS LIBRARY (organised by competitive exam and by subject) ── */}
             <section id="saved-papers-section" className="space-y-5">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div className="flex items-center gap-4 min-w-0">
-                        <span className="w-14 h-14 shrink-0 rounded-2xl bg-gradient-to-br from-[#081b3b] to-[#123a7a] text-amber-400 flex items-center justify-center shadow-xl shadow-blue-950/20"><FolderOpen size={26} /></span>
+                        <span className="w-11 h-11 shrink-0 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center"><FolderOpen size={20} /></span>
                         <div className="min-w-0">
                             <div className="flex items-center gap-2.5 flex-wrap">
-                                <h3 className="text-2xl font-extrabold text-[#081b3b] tracking-tight">Saved Papers</h3>
+                                <h3 className="text-xl font-bold text-[#081b3b] tracking-tight">Saved Papers</h3>
                                 <span className="rounded-full bg-amber-100 text-amber-800 text-xs font-extrabold px-3 py-1"><AnimatedNumber value={allPapers.length} /> total</span>
                             </div>
                             <p className="text-sm text-slate-500 font-medium mt-0.5">Every question paper your faculty has saved, ready to open, analyse or export.</p>
@@ -823,19 +790,22 @@ const DashboardHome = () => {
                         {/* at-a-glance numbers (click a tile to filter) */}
                         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                             {[
-                                { key: 'ALL', label: 'All papers', Icon: Folder, tone: 'from-[#081b3b] to-[#123a7a]', n: allPapers.length },
-                                { key: 'NEET', label: 'NEET', Icon: Target, tone: 'from-teal-500 to-emerald-600', n: getSavedCategoryCount('NEET') },
-                                { key: 'JEE', label: 'JEE', Icon: Zap, tone: 'from-indigo-500 to-violet-600', n: getSavedCategoryCount('JEE') },
-                                { key: 'CET', label: 'CET', Icon: Trophy, tone: 'from-amber-400 to-orange-500', n: getSavedCategoryCount('CET') },
-                            ].map(({ key, label, Icon, tone, n }) => {
+                                { key: 'ALL', label: 'All papers', Icon: Folder, chip: 'bg-slate-100 text-slate-600', bar: 'bg-slate-700', n: allPapers.length },
+                                { key: 'NEET', label: 'NEET', Icon: Target, chip: 'bg-teal-50 text-teal-600', bar: 'bg-teal-500', n: getSavedCategoryCount('NEET') },
+                                { key: 'JEE', label: 'JEE', Icon: Zap, chip: 'bg-indigo-50 text-indigo-600', bar: 'bg-indigo-500', n: getSavedCategoryCount('JEE') },
+                                { key: 'CET', label: 'CET', Icon: Trophy, chip: 'bg-amber-50 text-amber-600', bar: 'bg-amber-500', n: getSavedCategoryCount('CET') },
+                            ].map(({ key, label, Icon, chip, bar, n }) => {
                                 const share = allPapers.length ? Math.round((n / allPapers.length) * 100) : 0;
+                                const on = savedPapersCategory === key;
                                 return (
-                                    <button key={key} type="button" onClick={() => { setSavedPapersCategory(key); setVisiblePapers(9); }}
-                                        className={`relative overflow-hidden rounded-2xl p-4 text-left text-white bg-gradient-to-br ${tone} shadow-lg hover:-translate-y-0.5 transition-transform cursor-pointer ${savedPapersCategory === key ? 'ring-4 ring-amber-300/70' : ''}`}>
-                                        <Icon size={64} className="absolute -right-3 -bottom-3 opacity-15" aria-hidden="true" />
-                                        <span className="relative block text-[11px] font-extrabold uppercase tracking-wider text-white/80">{label}</span>
-                                        <span className="relative block text-3xl font-extrabold leading-tight"><AnimatedNumber value={n} /></span>
-                                        <span className="relative mt-1 block h-1.5 rounded-full bg-white/25 overflow-hidden"><span className="block h-full rounded-full bg-white/90" style={{ width: `${share}%` }} /></span>
+                                    <button key={key} type="button" onClick={() => { setSavedPapersCategory(key); setVisiblePapers(9); }} aria-pressed={on}
+                                        className={`rounded-2xl p-4 text-left bg-white border transition-all cursor-pointer hover:shadow-md ${on ? 'border-[#081b3b] ring-2 ring-[#081b3b]/10' : 'border-slate-200'}`}>
+                                        <span className="flex items-center justify-between">
+                                            <span className="text-[13px] font-semibold text-slate-500">{label}</span>
+                                            <span className={`w-8 h-8 rounded-lg flex items-center justify-center ${chip}`}><Icon size={15} /></span>
+                                        </span>
+                                        <span className="mt-2 block text-2xl font-bold tracking-tight text-[#081b3b]"><AnimatedNumber value={n} /></span>
+                                        <span className="mt-2 block h-1 rounded-full bg-slate-100 overflow-hidden"><span className={`block h-full rounded-full ${bar}`} style={{ width: `${share}%` }} /></span>
                                     </button>
                                 );
                             })}

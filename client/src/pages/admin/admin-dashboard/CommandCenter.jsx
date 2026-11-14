@@ -53,7 +53,7 @@ function Donut({ parts, total }) {
  * The "command center" row of the admin home: what has been happening, where the papers sit, the ones you pinned, and one-tap
  * shortcuts. Everything is computed from the papers and exams already loaded on the page.
  */
-export default function CommandCenter({ papers, exams, pinned, onTogglePin, onOpenPaper, go }) {
+export default function CommandCenter({ papers, exams, pinned, onTogglePin, onOpenPaper, go, side = false }) {
     const parts = useMemo(() => {
         const counts = { NEET: 0, JEE: 0, CET: 0, OTHER: 0 };
         papers.forEach((p) => { const e = examOf(p); counts[e.includes('NEET') ? 'NEET' : e.includes('JEE') ? 'JEE' : e.includes('CET') ? 'CET' : 'OTHER'] += 1; });
@@ -81,7 +81,7 @@ export default function CommandCenter({ papers, exams, pinned, onTogglePin, onOp
     return (
         <section className="space-y-5" aria-label="Command center">
             {/* one-tap shortcuts */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-3">
+            {!side && <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-3">
                 {shortcuts.map(({ label, Icon, to, tone }, i) => (
                     <motion.button key={label} type="button" onClick={() => go(to)} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} whileHover={{ y: -3 }} whileTap={{ scale: 0.97 }}
                         transition={{ ...SPRING.soft, delay: i * 0.04 }}
@@ -91,11 +91,11 @@ export default function CommandCenter({ papers, exams, pinned, onTogglePin, onOp
                         <ArrowUpRight size={16} className="ml-auto text-slate-300 group-hover:text-[#081b3b] transition-colors" />
                     </motion.button>
                 ))}
-            </div>
+            </div>}
 
-            <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
+            <div className={side ? 'grid grid-cols-1 gap-5' : 'grid grid-cols-1 xl:grid-cols-3 gap-5'}>
                 {/* papers by exam */}
-                <div className="surface p-6">
+                <div className="surface p-5">
                     <div className="flex items-center justify-between mb-4">
                         <h4 className="text-base font-extrabold text-[#081b3b] flex items-center gap-2"><Sparkles size={17} className="text-amber-500" /> Papers by exam</h4>
                     </div>
@@ -113,7 +113,7 @@ export default function CommandCenter({ papers, exams, pinned, onTogglePin, onOp
                 </div>
 
                 {/* activity */}
-                <div className="surface p-6">
+                <div className="surface p-5">
                     <h4 className="text-base font-extrabold text-[#081b3b] flex items-center gap-2 mb-4"><Clock size={17} className="text-amber-500" /> Recent activity</h4>
                     {activity.length === 0 ? (
                         <p className="text-sm text-slate-400 font-medium py-6 text-center">Nothing yet — saved papers and commissioned exams show up here.</p>
@@ -138,7 +138,7 @@ export default function CommandCenter({ papers, exams, pinned, onTogglePin, onOp
                 </div>
 
                 {/* pinned */}
-                <div className="surface p-6">
+                <div className="surface p-5">
                     <h4 className="text-base font-extrabold text-[#081b3b] flex items-center gap-2 mb-4"><Star size={17} className="text-amber-500 fill-amber-400" /> Pinned papers</h4>
                     {pinnedPapers.length === 0 ? (
                         <div className="py-6 text-center">

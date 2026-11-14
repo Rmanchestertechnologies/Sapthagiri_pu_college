@@ -7,12 +7,9 @@ import { SPRING } from '../../ui/motion';
  * Faculty home: two primary actions up front, the rest as one consistent set of cards (one icon set, one shape,
  * one hover behaviour). `hasOmr` adds the OMR card only for people the admin has given OMR access.
  */
-const PRIMARY = [
-    { to: '/teacher/create-paper', title: 'Create a paper', desc: 'Pick a subject, chapters and question mix, then watch the paper assemble.', Icon: FilePlus2, cta: 'Start the wizard' },
-    { to: '/teacher/commissioned-exam', title: 'Commissioned exam', desc: 'Build the official exam the admin has set up for your department.', Icon: ClipboardList, cta: 'Open exam', badge: 'Official' },
-];
-
 const SECONDARY = [
+    { to: '/teacher/create-paper', title: 'Create a paper', desc: 'Step-by-step wizard', Icon: FilePlus2, tone: 'emerald' },
+    { to: '/teacher/commissioned-exam', title: 'Commissioned exam', desc: 'Official multi-step exam', Icon: ClipboardList, tone: 'sky' },
     { to: '/teacher/dashboard/add-question', title: 'Question bank', desc: 'Add and manage questions', Icon: Database, tone: 'indigo' },
     { to: '/teacher/dashboard/assignments', title: 'Assignments', desc: 'Practice sheets and keys', Icon: NotebookPen, tone: 'amber' },
     { to: '/teacher/dashboard/saved-papers', title: 'Saved papers', desc: 'Your drafts and finished papers', Icon: FolderOpen, tone: 'sky' },
@@ -36,27 +33,6 @@ export default function ModuleGrid({ hasOmr = false }) {
     const secondary = hasOmr ? [...SECONDARY, OMR] : SECONDARY;
     return (
         <motion.div variants={container} initial="hidden" animate="show" className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {PRIMARY.map(({ to, title, desc, Icon, cta, badge }) => (
-                    <motion.div key={to} variants={item} whileHover={{ y: -3 }} whileTap={{ scale: 0.985 }} transition={SPRING.press}>
-                        <Link to={to} className="group relative block overflow-hidden rounded-3xl bg-gradient-to-br from-navy to-[#0b2a6b] text-white p-6 shadow-xl border border-gold/40">
-                            <span aria-hidden="true" className="absolute -right-10 -top-10 w-40 h-40 rounded-full bg-gold/10 group-hover:bg-gold/20 transition-colors" />
-                            <div className="relative flex items-start justify-between gap-4">
-                                <div className="w-12 h-12 rounded-2xl bg-gold text-navy flex items-center justify-center shadow-md group-hover:rotate-6 transition-transform">
-                                    <Icon size={24} strokeWidth={2.2} />
-                                </div>
-                                {badge && <span className="bg-gold text-navy text-[10px] font-black uppercase tracking-widest rounded-full px-2.5 py-1">{badge}</span>}
-                            </div>
-                            <h2 className="relative mt-5 text-xl font-black tracking-tight">{title}</h2>
-                            <p className="relative mt-1.5 text-sm text-white/70 font-medium leading-relaxed max-w-sm">{desc}</p>
-                            <span className="relative mt-5 inline-flex items-center gap-1.5 text-xs font-black uppercase tracking-widest text-gold">
-                                {cta} <ArrowUpRight size={14} className="group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
-                            </span>
-                        </Link>
-                    </motion.div>
-                ))}
-            </div>
-
             <div className="grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-3 gap-3">
                 {secondary.map(({ to, title, desc, Icon, tone }) => (
                     <motion.div key={to} variants={item} whileHover={{ y: -2 }} whileTap={{ scale: 0.985 }} transition={SPRING.press}>
