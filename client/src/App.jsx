@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { AuthProvider, AuthContext } from './context/AuthContext';
 import { LoadingProvider, useLoading } from './context/LoadingContext';
 import { setLoadingCallback } from './api';
+import MaintenanceGate from './maintenance/MaintenanceGate';
 
 // Each page is its own chunk: the app used to ship as one ~2 MB script that every lab terminal had to download
 // before the first screen could appear.
@@ -62,6 +63,7 @@ function App() {
     <LoadingProvider>
         <AuthProvider>
             <ApiLoaderLinker>
+                <MaintenanceGate>
                 <Router>
                     <Suspense fallback={<AppLoadingSpinner />}>
                     <Routes>
@@ -129,6 +131,7 @@ function App() {
                     </Routes>
                     </Suspense>
                 </Router>
+                </MaintenanceGate>
             </ApiLoaderLinker>
         </AuthProvider>
     </LoadingProvider>

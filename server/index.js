@@ -11,6 +11,7 @@ const cookieParser = require('cookie-parser');
 const helmet = require('helmet');
 const { apiLimiter, examLimiter } = require('./middleware/rateLimiter');
 const errorHandler = require('./middleware/errorHandler');
+const maintenance = require('./services/maintenance');
 const { parseAllowedOrigins, isOriginAllowed } = require('./services/accessRules');
 
 // ── Routes
@@ -127,6 +128,35 @@ app.get('/api/health', async (req, res) => {
         timestamp: new Date().toISOString()
     });
 });
+
+// Public: is the site in maintenance? (the website polls this to show "updates going on" and to come back by itself)
+app.get('/api/maintenance', async (req, res) => {
+    const s = await maintenance.getState();
+    res.set('Cache-Control', 'no-store');
+    res.json({ on: s.on, message: s.message, until: s.until });
+});
+
+// Public: browser errors land in the server log (so problems on a teacher's screen are visible in Render's logs).
+// Small body, per-address budget, never stores anything, never fails the page that sent it.
+const clientLogHits = new Map();
+app.post('/api/client-log', (req, res) => {
+    const ip = req.ip || 'unknown';
+    const now = Date.now();
+    const rec = clientLogHits.get(ip) || { n: 0, at: now };
+    if (now - rec.at > 60000) { rec.n = 0; rec.at = now; }
+    rec.n += 1;
+    clientLogHits.set(ip, rec);
+    if (clientLogHits.size > 5000) clientLogHits.clear();
+    if (rec.n <= 20) {
+        const b = req.body || {};
+        const clip = (v, n) => String(v == null ? '' : v).replace(/[\r\n]+/g, ' ').slice(0, n);
+        console.error(`[CLIENT ERROR] ${clip(b.kind, 20)} | ${clip(b.message, 300)} | page=${clip(b.page, 120)} | build=${clip(b.build, 20)} | ${clip(b.stack, 400)}`);
+    }
+    res.status(204).end();
+});
+
+// While maintenance is ON every other API call answers 503 {maintenance:true,message} (admins, sign-in and in-progress exam sittings are exempt)
+app.use('/api', maintenance.maintenanceGate());
 
 // ─────────────────────────────────────────────────────────────────────────────
 // API Routes

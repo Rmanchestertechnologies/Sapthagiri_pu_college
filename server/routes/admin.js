@@ -6,6 +6,7 @@ const pool = require('../config/postgres');
 const auth = require('../middleware/auth');
 const checkRole = require('../middleware/role');
 const supabaseQuestions = require('../services/supabaseQuestions');
+const maintenance = require('../services/maintenance');
 
 // ─────────────────────────────────────────────────────────────────────────────
 // @route   GET /api/admin
@@ -14,6 +15,27 @@ const supabaseQuestions = require('../services/supabaseQuestions');
 // ─────────────────────────────────────────────────────────────────────────────
 router.get('/', [auth, checkRole(['admin'])], async (req, res) => {
     res.json({ msg: 'Sapthagiri Admin portal accessible', role: req.user.role });
+});
+
+// ───────────────────────────────────────
+// @route   GET/PUT /api/admin/maintenance
+// @desc    Read / switch maintenance mode ("updates going on" screen for everyone except admins)
+// @access  Admin
+// ───────────────────────────────────────
+router.get('/maintenance', [auth, checkRole(['admin'])], async (req, res) => {
+    res.json(await maintenance.getState({ force: true }));
+});
+router.put('/maintenance', [auth, checkRole(['admin'])], async (req, res) => {
+    try {
+        const { on, message, minutes } = req.body || {};
+        if (typeof on !== 'boolean') return res.status(400).json({ msg: 'Send {"on": true|false}.' });
+        const state = await maintenance.setState({ on, message, minutes });
+        console.log(`[MAINTENANCE] ${on ? 'ON' : 'OFF'} by admin ${req.user.id}${state.until ? ` until ${state.until}` : ''}`);
+        res.json(state);
+    } catch (err) {
+        console.error('Maintenance switch error:', err.message);
+        res.status(500).json({ msg: 'Could not change maintenance mode. Nothing was changed.' });
+    }
 });
 
 // ─────────────────────────────────────────────────────────────────────────────

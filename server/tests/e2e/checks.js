@@ -61,6 +61,29 @@ const call = async (method, path, { token, session, body, raw } = {}) => {
   const againAll = await call('DELETE', '/api/exams/commissioned/all', { token: admin });
   ok(againAll.status === 200 && againAll.data.deleted === 0, 'delete all commissioned: running it again deletes nothing');
 
+  // ── OMR paper list must work for an account that has no papers yet (it used to fail with a ReferenceError from old MongoDB code)
+  const omrEmpty = await call('GET', '/api/omr/papers', { token: admin });
+  ok(omrEmpty.status === 200 && Array.isArray(omrEmpty.data.papers), 'OMR: the paper list answers 200 even when there are no papers', String(omrEmpty.status) + ' ' + JSON.stringify(omrEmpty.data).slice(0, 80));
+
+  // ── maintenance mode: "updates going on" for everyone except admins, switchable without a restart
+  ok((await call('GET', '/api/maintenance')).data.on === false, 'maintenance: off by default (public status)');
+  const mOn = await call('PUT', '/api/admin/maintenance', { token: admin, body: { on: true, message: 'Updating the question bank.' } });
+  ok(mOn.status === 200 && mOn.data.on === true, 'maintenance: admin can switch it on', JSON.stringify(mOn.data));
+  const mTeacher = await call('GET', '/api/papers', { token: teacher1 });
+  ok(mTeacher.status === 503 && mTeacher.data.maintenance === true && /Updating/.test(mTeacher.data.message), 'maintenance: a teacher gets the maintenance answer (503)', JSON.stringify(mTeacher.data));
+  ok((await call('GET', '/api/papers', { token: admin })).status === 200, 'maintenance: an admin keeps working');
+  ok((await call('GET', '/api/health')).status === 200, 'maintenance: health check still answers');
+  ok((await call('GET', '/api/maintenance')).data.on === true, 'maintenance: public status shows it is on');
+  ok((await call('POST', '/api/auth/login', { body: { email: 'sapthagiripucollegedvg@gmail.com', password: 'local-test-admin-pass' } })).status === 200, 'maintenance: signing in still works');
+  ok((await call('PUT', '/api/admin/maintenance', { token: teacher1, body: { on: false } })).status === 503, 'maintenance: a teacher cannot switch it off (and is not let through)');
+  const mOff = await call('PUT', '/api/admin/maintenance', { token: admin, body: { on: false } });
+  ok(mOff.status === 200 && mOff.data.on === false, 'maintenance: admin switches it off');
+  ok((await call('GET', '/api/papers', { token: teacher1 })).status === 200, 'maintenance: teachers work again straight away');
+  const mTimed = await call('PUT', '/api/admin/maintenance', { token: admin, body: { on: true, minutes: 30 } });
+  ok(mTimed.data.on === true && !!mTimed.data.until, 'maintenance: a timed switch-on carries an end time', JSON.stringify(mTimed.data));
+  await call('PUT', '/api/admin/maintenance', { token: admin, body: { on: false } });
+  ok((await call('POST', '/api/client-log', { body: { kind: 'error', message: 'e2e probe', page: '/x' } })).status === 204, 'client-log: browser errors are accepted');
+
   // ── papers: save, ownership, update, export ──────────────────────────────
   const paperBody = (title, questions, extra = {}) => ({ title, subject: 'Physics', examType: 'NEET', classes: ['12'], questions: questions.map(q => q._id), questionObjects: questions, totalQuestions: questions.length, status: 'Draft', ...extra });
   const saved = await call('POST', '/api/papers', { token: teacher1, body: paperBody('E2E Physics Paper', qs.slice(0, 8), { metadata: { pqrsSeed: 'seed-e2e-1' } }) });

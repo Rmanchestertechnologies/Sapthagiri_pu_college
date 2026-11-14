@@ -1,4 +1,5 @@
 import React from 'react';
+import { reportClientError } from '../maintenance/reportErrors';
 
 class ErrorBoundary extends React.Component {
     constructor(props) {
@@ -12,6 +13,7 @@ class ErrorBoundary extends React.Component {
 
     componentDidCatch(error, errorInfo) {
         console.error('[CRITICAL ERROR CAUGHT BY BOUNDARY]', error, errorInfo);
+        reportClientError('boundary', error);
     }
 
     handleGoHome = () => {

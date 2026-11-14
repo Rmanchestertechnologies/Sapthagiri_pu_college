@@ -76,8 +76,24 @@ api.interceptors.response.use(
 
         return response;
     },
-    (error) => {
+    async (error) => {
         loadingCallback(false);
+        // The server says it is in maintenance: show the maintenance screen right away (everything else keeps its own error handling)
+        if (error.response && error.response.status === 503 && error.response.data && error.response.data.maintenance) {
+            window.dispatchEvent(new CustomEvent('app:maintenance', { detail: { message: error.response.data.message, until: error.response.data.until } }));
+            return Promise.reject(error);
+        }
+        // Safe reads (GET) are retried a few times when the host is restarting or the connection blips: 502/503/504 or no answer at all.
+        // Writes are never retried here, so nothing can be saved or deleted twice.
+        const cfg = error.config;
+        const transient = !error.response || [502, 503, 504].includes(error.response.status);
+        if (cfg && transient && String(cfg.method || 'get').toLowerCase() === 'get' && !cfg.__noRetry) {
+            cfg.__retries = (cfg.__retries || 0) + 1;
+            if (cfg.__retries <= 3) {
+                await new Promise(r => setTimeout(r, 600 * Math.pow(2, cfg.__retries - 1)));
+                return api(cfg);
+            }
+        }
         // A rejected exam-session token must not log a student out or bounce them to the staff login page.
         const isStudentCall = Boolean(error.config?.headers?.['x-session-token']);
         if (error.response && error.response.status === 401 && !isStudentCall) {

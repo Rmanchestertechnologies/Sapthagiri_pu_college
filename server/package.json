@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "Sapthagiri PU College Davanagere - Assessment Platform API",
   "main": "index.js",
+  "engines": { "node": ">=20 <26" },
   "scripts": {
     "start": "node index.js",
     "dev": "nodemon index.js",

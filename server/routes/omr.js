@@ -197,26 +197,6 @@ router.get('/papers', [auth, requireOmrAccess], async (req, res) => {
             console.warn('[OMR] Postgres papers fetch notice:', pgErr.message);
         }
 
-        // Fallback to Mongo if empty
-        if (papersList.length === 0 && Paper) {
-            try {
-                const query = user.role === 'admin' ? {} : { teacherId: user.id };
-                const mPapers = await Paper.find(query).sort({ createdAt: -1 }).limit(50).lean();
-                papersList = mPapers.map(p => ({
-                    id: String(p._id),
-                    _id: String(p._id),
-                    title: p.title || 'Untitled Paper',
-                    subject: p.subject || 'General',
-                    classes: p.classes || [],
-                    questionCount: Array.isArray(p.questions) ? p.questions.length : 0,
-                    status: p.status || 'Approved',
-                    createdAt: p.createdAt
-                }));
-            } catch (mErr) {
-                console.warn('[OMR] Mongo papers fetch notice:', mErr.message);
-            }
-        }
-
         return res.json({ papers: papersList });
     } catch (err) {
         console.error('[OMR] Error fetching papers:', err.message);

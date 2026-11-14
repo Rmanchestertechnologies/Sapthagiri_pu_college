@@ -130,8 +130,10 @@ button:not(:disabled):active { transform: scale(0.97); }
 .app-surface .fixed.inset-0 > :is(.rounded-2xl, .rounded-3xl).bg-white { box-shadow: var(--shadow-3); border: 1px solid rgba(255, 255, 255, 0.6); }
 
 /* entrance for page content */
-@keyframes page-rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
-.page-rise { animation: page-rise 0.35s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+/* Opacity only, and no fill: an element that is (or was) animating `transform` becomes the containing block of every `position: fixed`
+   dialog inside it, which made dialogs open clipped, off-centre and underneath the header. This must stay transform-free. */
+@keyframes page-rise { from { opacity: 0; } to { opacity: 1; } }
+.page-rise { animation: page-rise 0.3s ease-out backwards; }
 @media (prefers-reduced-motion: reduce) { .page-rise { animation: none; } }
 
 /* page titles written in capitals in the markup read better in normal case at large sizes */

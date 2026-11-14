@@ -42,6 +42,7 @@ import GrandTestList from './GrandTestList';
 import PreviousYearPapers from './PreviousYearPapers';
 import ExamBlueprints from './ExamBlueprints';
 import AdminQuestionBank from './AdminQuestionBank';
+import SystemSettings from './SystemSettings';
 import AssignmentGenerator from '../teacher/AssignmentGenerator';
 import PaperAnalysisModal from '../../components/PaperAnalysisModal';
 import MathRenderer from '../../components/MathRenderer';
@@ -1288,6 +1289,7 @@ const AdminDashboard = () => (
         <Routes>
             <Route path="/" element={<DashboardHome />} />
             <Route path="commissioned-exams" element={<DashboardHome view="commissioned" />} />
+            <Route path="system" element={<SystemSettings />} />
             <Route path="create-paper" element={<CommissionedExam />} />
             <Route path="omr/*" element={<TeacherOmr />} />
             <Route path="cbt-exams" element={<ExamManagement />} />

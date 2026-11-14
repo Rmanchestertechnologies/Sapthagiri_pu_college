@@ -1,7 +1,7 @@
 import { useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence, LayoutGroup } from 'framer-motion';
-import { LayoutDashboard, FilePlus2, ClipboardList, ScanLine, Zap, BarChart3, Database, Trophy, Archive, Ruler, FileText, Menu, LogOut, ChevronLeft, ChevronsLeft, ChevronsRight, X, Search, Command, Plus, Keyboard } from 'lucide-react';
+import { LayoutDashboard, FilePlus2, ClipboardList, ScanLine, Zap, BarChart3, Database, Trophy, Archive, Ruler, FileText, Menu, LogOut, ChevronLeft, ChevronsLeft, ChevronsRight, X, Search, Command, Plus, Keyboard, Settings2 } from 'lucide-react';
 import { AuthContext } from '../../../context/AuthContext';
 import { AdminNotificationBell } from './AdminNotificationBell';
 import { SPRING, CommandPalette, useCommandShortcut } from '../../../ui/motion';
@@ -28,6 +28,12 @@ export const ADMIN_NAV = [
             { title: 'Document Templates', path: '/admin/dashboard/upload-template', Icon: FileText, desc: 'Paper formatting templates' },
         ],
     },
+    {
+        group: 'System',
+        items: [
+            { title: 'System', path: '/admin/dashboard/system', Icon: Settings2, desc: 'Maintenance mode and health' },
+        ],
+    },
 ];
 
 const isActivePath = (pathname, itemPath, home) => (itemPath === home
@@ -36,6 +42,7 @@ const isActivePath = (pathname, itemPath, home) => (itemPath === home
 
 export function pageTitleFor(pathname) {
     if (pathname.includes('create-paper')) return 'Create Question Paper';
+    if (pathname.includes('/system')) return 'System';
     if (pathname.includes('commissioned-exams')) return 'Commissioned Exams';
     if (pathname.includes('omr')) return 'OMR Sheet Evaluation';
     if (pathname.includes('cbt-exams')) return 'CBT Online Exams';
