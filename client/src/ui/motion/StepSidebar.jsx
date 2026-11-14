@@ -31,8 +31,8 @@ export function StepSidebar({ steps, position, onSelect, summary = {} }) {
                 </div>
             </div>
 
-            <aside className="hidden lg:block no-print">
-                <div className="sticky top-24 space-y-4">
+            <aside className="hidden lg:block lg:self-stretch no-print">
+                <div className="sticky top-24 space-y-4 max-h-[calc(100vh-7rem)] overflow-y-auto overscroll-contain pb-2 pr-1 -mr-1">
                     <nav aria-label="Progress" className="surface p-4">
                         <p className="eyebrow mb-3 px-1">Your steps</p>
                         <LayoutGroup id="wizard-side">

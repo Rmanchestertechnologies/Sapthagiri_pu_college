@@ -269,7 +269,7 @@ export function PortalShell({ cfg, children }) {
             </AnimatePresence>
 
             <div className="transition-[padding] duration-300" style={showSidebar ? { paddingLeft: sidebarW } : undefined}>
-                <header className="glass sticky top-0 z-20 no-print border-x-0 border-t-0 rounded-none">
+                <header className="glass sticky top-0 z-40 no-print border-x-0 border-t-0 rounded-none">
                     <div className="px-4 sm:px-8 py-3 flex items-center justify-between gap-3">
                         <div className="flex items-center gap-3 min-w-0">
                             <button type="button" onClick={() => setDrawer(true)} aria-label="Open menu"

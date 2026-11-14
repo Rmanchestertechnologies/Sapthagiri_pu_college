@@ -200,3 +200,9 @@ button:not(:disabled):active { transform: scale(0.97); }
   border-radius: 24px; border-bottom-width: 0 !important; box-shadow: var(--shadow-3); outline: 1px solid rgba(15, 23, 42, 0.06);
 }
 .app-surface .fixed.inset-0 h2.uppercase, .app-surface .fixed.inset-0 h3.uppercase { text-transform: none; letter-spacing: -0.01em; }
+
+/* ───── sticky top bars must never let the page show through them while scrolling ───── */
+header.glass { background: #ffffff !important; backdrop-filter: none !important; -webkit-backdrop-filter: none !important; border-bottom: 1px solid var(--hairline) !important; box-shadow: 0 1px 0 rgba(15, 23, 42, 0.04), 0 8px 20px -14px rgba(15, 23, 42, 0.25); }
+/* anchors and scrollIntoView stop below the bar instead of under it */
+html { scroll-padding-top: 5.5rem; }
+[id$="-section"], section[id] { scroll-margin-top: 5.5rem; }
