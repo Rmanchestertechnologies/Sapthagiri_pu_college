@@ -175,11 +175,13 @@ export default function A4PaperEngine({
                         style={{
                             '--wm-opacity': watermarkOpacity,
                             '--wm-width': `${watermarkWidthPx}px`,
-                            position: 'fixed',
+                            // on screen the emblem stays on the sheet; the print rules below pin it to every printed page (position: fixed !important)
+                            position: 'absolute',
                             top: 0,
                             left: 0,
-                            width: '100vw',
-                            height: '100vh',
+                            width: '100%',
+                            height: '100%',
+                            overflow: 'hidden',
                             pointerEvents: 'none',
                             zIndex: 0,
                             display: 'flex',

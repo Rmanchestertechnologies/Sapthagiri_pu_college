@@ -20,6 +20,7 @@
 import { useState, useEffect, useContext, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, LayoutGroup } from 'framer-motion';
+import { Check, XCircle, ArrowLeft, BarChart3, KeyRound, Lightbulb, FileText, SlidersHorizontal, Download, Timer, Save } from 'lucide-react';
 import { AuthContext } from '../../context/AuthContext';
 import api from '../../api';
 import { downloadFile } from '../../utils/downloadFile';
@@ -268,92 +269,94 @@ const AdminPaperPreview = () => {
             {/* ── TOP ACTION BAR & SET SELECTOR ── */}
             <div className="no-print space-y-4">
                 {/* title row */}
-                <div className="surface p-6 flex flex-col lg:flex-row lg:items-start justify-between gap-5">
-                    <div className="min-w-0">
-                        <div className="flex items-center gap-2 mb-2 flex-wrap">
-                            <span className="rounded-full bg-[#1e1b4b] text-indigo-400 text-[10px] font-extrabold uppercase tracking-[0.14em] px-3 py-1">{selectedPaper.subject || 'Assessment'}</span>
-                            <span className="rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-extrabold uppercase tracking-[0.14em] px-3 py-1">{selectedPaper.questions?.length || 0} questions</span>
-                            <span className={`rounded-full text-[10px] font-extrabold uppercase tracking-[0.14em] px-3 py-1 border ${
-                                (selectedPaper.status || 'Pending Approval') === 'Approved' ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                                    : selectedPaper.status === 'Rejected' ? 'bg-red-50 text-red-700 border-red-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>
+                <div className="surface relative overflow-hidden p-6 flex flex-col lg:flex-row lg:items-start justify-between gap-5">
+                    <div aria-hidden className="pointer-events-none absolute -right-16 -top-20 h-56 w-56 rounded-full bg-[radial-gradient(closest-side,rgba(214,184,120,0.28),transparent)]" />
+                    <div className="relative min-w-0">
+                        <div className="flex items-center gap-2 mb-3 flex-wrap">
+                            <span className="rounded-full bg-[#1e1b4b] text-[#e8d4a2] text-[10.5px] font-bold uppercase tracking-[0.14em] px-3 py-1">{selectedPaper.subject || 'Assessment'}</span>
+                            <span className="rounded-full bg-indigo-50 text-indigo-700 text-[10.5px] font-bold uppercase tracking-[0.14em] px-3 py-1">{selectedPaper.questions?.length || 0} questions</span>
+                            <span className={`inline-flex items-center gap-1.5 rounded-full text-[10.5px] font-bold uppercase tracking-[0.14em] px-3 py-1 ${
+                                (selectedPaper.status || 'Pending Approval') === 'Approved' ? 'bg-emerald-50 text-emerald-700'
+                                    : selectedPaper.status === 'Rejected' ? 'bg-rose-50 text-rose-700' : 'bg-amber-50 text-amber-700'}`}>
+                                <span className={`h-1.5 w-1.5 rounded-full ${(selectedPaper.status || 'Pending Approval') === 'Approved' ? 'bg-emerald-500' : selectedPaper.status === 'Rejected' ? 'bg-rose-500' : 'bg-amber-500 animate-pulse'}`} />
                                 {selectedPaper.status || 'Pending Approval'}
                             </span>
                         </div>
-                        <h2 className="text-2xl sm:text-3xl font-extrabold text-[#1e1b4b] tracking-tight break-words">{selectedPaper.title || 'Question Paper Preview'}</h2>
+                        <h2 className="font-display text-[26px] sm:text-[32px] leading-tight text-[#1e1b4b] tracking-tight break-words">{selectedPaper.title || 'Question Paper Preview'}</h2>
                     </div>
-                    <div className="flex items-center gap-2 flex-wrap">
+                    <div className="relative flex items-center gap-2 flex-wrap">
                         {(selectedPaper.status || 'Pending Approval') !== 'Approved' && (
                             <button onClick={() => handleSetStatus('Approved')} disabled={savingStatus}
-                                className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold uppercase tracking-wider px-4 py-2.5 shadow-sm disabled:opacity-50 cursor-pointer">Approve</button>
+                                className="inline-flex h-10 items-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-[13px] font-bold px-4 shadow-[0_10px_20px_-10px_rgba(5,150,105,0.8)] disabled:opacity-50 cursor-pointer"><Check size={16} /> Approve</button>
                         )}
                         {selectedPaper.status !== 'Rejected' && (
                             <button onClick={() => handleSetStatus('Rejected')} disabled={savingStatus}
-                                className="rounded-xl bg-white border border-red-200 text-red-600 hover:bg-red-50 text-xs font-extrabold uppercase tracking-wider px-4 py-2.5 disabled:opacity-50 cursor-pointer">Reject</button>
+                                className="inline-flex h-10 items-center gap-2 rounded-xl bg-white border border-rose-200 text-rose-600 hover:bg-rose-50 text-[13px] font-bold px-4 disabled:opacity-50 cursor-pointer"><XCircle size={16} /> Reject</button>
                         )}
                         <button onClick={() => navigate('/admin/dashboard')}
-                            className="rounded-xl bg-white border border-slate-200 text-slate-600 hover:text-[#1e1b4b] hover:border-slate-300 text-xs font-extrabold uppercase tracking-wider px-4 py-2.5 cursor-pointer">← Back</button>
+                            className="inline-flex h-10 items-center gap-2 rounded-xl bg-white border border-slate-200 text-slate-600 hover:text-[#1e1b4b] hover:border-slate-300 text-[13px] font-bold px-4 cursor-pointer"><ArrowLeft size={16} /> Back</button>
                     </div>
                 </div>
 
                 {/* tools row: documents on the left, layout and download on the right */}
-                <div className="surface p-3 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-                    <div className="flex items-center gap-1.5 flex-wrap">
+                <div className="surface p-2.5 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+                    <div className="flex items-center gap-1 flex-wrap">
                         {[
-                            { label: 'Analysis', icon: '📊', on: () => setShowAnalysisModal(true) },
-                            { label: `Answer key · Set ${activeSet}`, icon: '🔑', on: () => setShowAnswerKeyModal(true) },
-                            { label: `Solutions · Set ${activeSet}`, icon: '💡', on: () => setShowSolutionsModal(true) },
-                            { label: 'Export Word', icon: '📝', on: handleDownloadWord },
+                            { label: 'Analysis', Icon: BarChart3, tone: 'text-indigo-500', on: () => setShowAnalysisModal(true) },
+                            { label: `Answer key · Set ${activeSet}`, Icon: KeyRound, tone: 'text-amber-600', on: () => setShowAnswerKeyModal(true) },
+                            { label: `Solutions · Set ${activeSet}`, Icon: Lightbulb, tone: 'text-emerald-600', on: () => setShowSolutionsModal(true) },
+                            { label: 'Export Word', Icon: FileText, tone: 'text-sky-600', on: handleDownloadWord },
                         ].map(b => (
                             <button key={b.label} onClick={b.on}
-                                className="rounded-xl px-3.5 py-2.5 text-xs font-extrabold text-slate-700 hover:bg-slate-100 flex items-center gap-2 cursor-pointer"><span>{b.icon}</span>{b.label}</button>
+                                className="inline-flex h-10 items-center gap-2 rounded-xl px-3.5 text-[13px] font-bold text-slate-700 hover:bg-slate-100 cursor-pointer transition"><b.Icon size={16} className={b.tone} />{b.label}</button>
                         ))}
                     </div>
                     <div className="flex items-center gap-2 flex-wrap">
                         <button onClick={() => setShowAlignment(!showAlignment)} aria-pressed={showAlignment}
-                            className={`rounded-xl px-4 py-2.5 text-xs font-extrabold flex items-center gap-2 border cursor-pointer ${showAlignment ? 'bg-amber-50 border-indigo-300 text-amber-800' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'}`}>
-                            <span>⚙️</span> {showAlignment ? 'Hide layout tools' : 'Layout tools'}
+                            className={`inline-flex h-10 items-center gap-2 rounded-xl px-4 text-[13px] font-bold border cursor-pointer transition ${showAlignment ? 'bg-indigo-50 border-indigo-300 text-indigo-700' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'}`}>
+                            <SlidersHorizontal size={16} /> {showAlignment ? 'Hide layout tools' : 'Layout tools'}
                         </button>
                         <button onClick={handleDownloadAllSets}
-                            className="rounded-xl bg-gradient-to-r from-[#1e1b4b] to-[#312e81] text-indigo-400 px-4 py-2.5 text-xs font-extrabold uppercase tracking-wider shadow-md hover:shadow-lg flex items-center gap-2 cursor-pointer"><span>⬇</span> Download Set {activeSet} (PDF)</button>
+                            className="inline-flex h-10 items-center gap-2 rounded-xl bg-[#1e1b4b] hover:bg-[#312e81] text-white px-4 text-[13px] font-bold shadow-[0_12px_24px_-12px_rgba(30,27,75,0.8)] cursor-pointer transition"><Download size={16} className="text-[#d6b878]" /> Download Set {activeSet} (PDF)</button>
                     </div>
                 </div>
 
                 {/* paper details strip */}
                 <div className="surface p-4 flex flex-col xl:flex-row xl:items-center justify-between gap-4">
                     <div className="flex items-center gap-3 min-w-0">
-                        <span className="w-10 h-10 shrink-0 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center text-lg">⏱️</span>
+                        <span className="w-10 h-10 shrink-0 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center"><Timer size={19} /></span>
                         <div className="min-w-0">
-                            <h4 className="text-sm font-extrabold text-[#1e1b4b]">Duration and marks</h4>
+                            <h4 className="text-[14px] font-bold text-[#1e1b4b]">Duration and marks</h4>
                             <p className="text-xs text-slate-500 font-medium">Changes update the preview, headers, exports and answer key.</p>
                         </div>
                     </div>
                     <div className="flex items-end gap-3 flex-wrap">
                         <label className="block">
-                            <span className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 mb-1">Duration</span>
+                            <span className="block text-[10.5px] font-bold uppercase tracking-wider text-slate-500 mb-1">Duration</span>
                             <input type="text" value={editableDuration} placeholder="e.g. 80 Mins"
                                 onChange={(e) => { setEditableDuration(e.target.value); setSettings(s => ({ ...s, duration: e.target.value })); }}
-                                className="w-32 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold text-[#1e1b4b] outline-none focus:border-indigo-500 focus:bg-white" />
+                                className="h-10 w-32 rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-[#1e1b4b] outline-none transition focus:border-indigo-400 focus:ring-4 focus:ring-indigo-100" />
                         </label>
                         <label className="block">
-                            <span className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 mb-1">Max marks</span>
+                            <span className="block text-[10.5px] font-bold uppercase tracking-wider text-slate-500 mb-1">Max marks</span>
                             <input type="number" min="1" value={editableMarks} placeholder="e.g. 60"
                                 onChange={(e) => { const raw = e.target.value; setEditableMarks(raw); setSettings(s => ({ ...s, totalMarks: raw === '' ? '' : (parseInt(raw, 10) || 0) })); }}
                                 onBlur={() => { if (editableMarks === '' || isNaN(editableMarks) || Number(editableMarks) < 1) { setEditableMarks('70'); setSettings(s => ({ ...s, totalMarks: 70 })); } }}
-                                className="w-24 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold text-[#1e1b4b] outline-none focus:border-indigo-500 focus:bg-white" />
+                                className="h-10 w-24 rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-[#1e1b4b] outline-none transition focus:border-indigo-400 focus:ring-4 focus:ring-indigo-100" />
                         </label>
                         <label className="block">
-                            <span className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 mb-1">Start Q.#</span>
+                            <span className="block text-[10.5px] font-bold uppercase tracking-wider text-slate-500 mb-1">Start Q.#</span>
                             <input type="number" min="1" value={settings.startQNo !== undefined ? settings.startQNo : 1} placeholder="1"
                                 onChange={(e) => { const raw = e.target.value; setSettings(s => ({ ...s, startQNo: raw === '' ? '' : (parseInt(raw, 10) || 0) })); }}
                                 onBlur={() => { if (settings.startQNo === '' || isNaN(settings.startQNo) || Number(settings.startQNo) < 1) setSettings(s => ({ ...s, startQNo: 1 })); }}
-                                className="w-20 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold text-[#1e1b4b] outline-none focus:border-indigo-500 focus:bg-white" />
+                                className="h-10 w-20 rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-[#1e1b4b] outline-none transition focus:border-indigo-400 focus:ring-4 focus:ring-indigo-100" />
                         </label>
                         <button type="button" onClick={handleSaveHeaderDetails} disabled={savingHeader}
-                            className="rounded-xl bg-[#1e1b4b] text-indigo-400 hover:bg-[#312e81] px-4 py-2.5 text-xs font-extrabold uppercase tracking-wider disabled:opacity-50 cursor-pointer flex items-center gap-2">
-                            <span>{savingHeader ? '⏳' : '💾'}</span><span>{savingHeader ? 'Saving…' : 'Save'}</span>
+                            className="inline-flex h-10 items-center gap-2 rounded-xl bg-[#1e1b4b] text-white hover:bg-[#312e81] px-4 text-[13px] font-bold disabled:opacity-50 cursor-pointer transition">
+                            <Save size={15} className="text-[#d6b878]" /><span>{savingHeader ? 'Saving…' : 'Save'}</span>
                         </button>
                         {headerSavedNotice && (
-                            <span className="text-xs font-bold text-emerald-700 flex items-center gap-1 bg-emerald-50 px-2.5 py-2 rounded-xl border border-emerald-200"><span>✓</span> {headerSavedNotice}</span>
+                            <span className="text-xs font-bold text-emerald-700 flex items-center gap-1.5 bg-emerald-50 px-3 h-10 rounded-xl"><Check size={14} /> {headerSavedNotice}</span>
                         )}
                     </div>
                 </div>
@@ -365,8 +368,8 @@ const AdminPaperPreview = () => {
                         <div className="inline-flex items-center gap-1 rounded-2xl bg-slate-200/70 p-1">
                             {['P', 'Q', 'R', 'S'].map(setKey => (
                                 <button key={setKey} onClick={() => setActiveSet(setKey)} aria-pressed={activeSet === setKey}
-                                    className={`relative rounded-xl px-4 py-2 text-xs font-extrabold cursor-pointer ${activeSet === setKey ? 'text-[#1e1b4b]' : 'text-slate-500 hover:text-slate-700'}`}>
-                                    {activeSet === setKey && <motion.span layoutId="set-pill" transition={{ type: 'spring', stiffness: 420, damping: 32 }} className="absolute inset-0 rounded-xl bg-white shadow" />}
+                                    className={`relative rounded-xl px-5 py-2 text-[13px] font-bold cursor-pointer ${activeSet === setKey ? 'text-[#1e1b4b]' : 'text-slate-500 hover:text-slate-700'}`}>
+                                    {activeSet === setKey && <motion.span layoutId="set-pill" transition={{ type: 'spring', stiffness: 420, damping: 32 }} className="absolute inset-0 rounded-xl bg-white shadow-[0_1px_2px_rgba(15,23,42,0.12),0_0_0_1px_rgba(99,102,241,0.15)]" />}
                                     <span className="relative">Set {setKey}</span>
                                 </button>
                             ))}
