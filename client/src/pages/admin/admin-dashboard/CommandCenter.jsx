@@ -53,7 +53,7 @@ function Donut({ parts, total }) {
  * The "command center" row of the admin home: what has been happening, where the papers sit, the ones you pinned, and one-tap
  * shortcuts. Everything is computed from the papers and exams already loaded on the page.
  */
-export default function CommandCenter({ papers, exams, pinned, onTogglePin, onOpenPaper, go, side = false }) {
+export default function CommandCenter({ papers, exams, pinned, onTogglePin, onOpenPaper, go, side = false, showShortcuts = true }) {
     const parts = useMemo(() => {
         const counts = { NEET: 0, JEE: 0, CET: 0, OTHER: 0 };
         papers.forEach((p) => { const e = examOf(p); counts[e.includes('NEET') ? 'NEET' : e.includes('JEE') ? 'JEE' : e.includes('CET') ? 'CET' : 'OTHER'] += 1; });
@@ -81,7 +81,7 @@ export default function CommandCenter({ papers, exams, pinned, onTogglePin, onOp
     return (
         <section className="space-y-5" aria-label="Command center">
             {/* one-tap shortcuts */}
-            {!side && <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-3">
+            {!side && showShortcuts && <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-3">
                 {shortcuts.map(({ label, Icon, to, tone }, i) => (
                     <motion.button key={label} type="button" onClick={() => go(to)} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} whileHover={{ y: -3 }} whileTap={{ scale: 0.97 }}
                         transition={{ ...SPRING.soft, delay: i * 0.04 }}

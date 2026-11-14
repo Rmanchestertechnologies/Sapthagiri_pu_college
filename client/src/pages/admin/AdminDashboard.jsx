@@ -52,7 +52,7 @@ import { AdminAssignmentWrapper } from './admin-dashboard/AdminAssignmentWrapper
 import { AdminShell } from './admin-dashboard/AdminShell';
 import CommandCenter from './admin-dashboard/CommandCenter';
 
-const DashboardHome = () => {
+const DashboardHome = ({ view = 'home' }) => {
     const { user, logout } = useContext(AuthContext);
     const navigate = useNavigate();
 
@@ -162,6 +162,7 @@ const DashboardHome = () => {
 
     // Expandable Box States (One box when clicked the four will open)
     const [isExamSubjectsOpen, setIsExamSubjectsOpen] = useState(false);
+    useEffect(() => { if (view === 'commissioned') setIsExamSubjectsOpen(true); }, [view]);
     const [isSavedPapersOpen, setIsSavedPapersOpen] = useState(true);
     const [paperView, setPaperView] = useState('list');
     const [pinned, setPinned] = useState(() => {
@@ -491,6 +492,7 @@ const DashboardHome = () => {
 
     return (
         <div className="animate-fade-in-up space-y-8">
+            {view === 'home' && (<>
 
             {/* ── GREETING + KEY NUMBERS ── */}
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
@@ -509,12 +511,12 @@ const DashboardHome = () => {
 
             <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
                 {[
-                    { label: 'Commissioned exams', value: totalExamsCount, Icon: ClipboardList, tone: 'bg-amber-50 text-amber-600', hint: activeExam ? `${activeExam.examType || 'CET'} active` : 'None active yet' },
+                    { label: 'Commissioned exams', value: totalExamsCount, Icon: ClipboardList, tone: 'bg-amber-50 text-amber-600', hint: activeExam ? `${activeExam.examType || 'CET'} active · open the list` : 'None active yet', to: '/admin/dashboard/commissioned-exams' },
                     { label: 'Saved papers', value: allPapers.length, Icon: FolderOpen, tone: 'bg-indigo-50 text-indigo-600', hint: `${getSavedCategoryCount('NEET')} NEET · ${getSavedCategoryCount('JEE')} JEE · ${getSavedCategoryCount('CET')} CET` },
                     { label: 'Questions ready', value: totalReadyQuestions, Icon: Database, tone: 'bg-emerald-50 text-emerald-600', hint: 'Compiled for commissioned exams' },
                     { label: 'Departments pending', value: (activeExam?.subjectAssignments || []).filter(sa => !(sa.questionsCount > 0 || sa.submittedPaperId)).length, Icon: Target, tone: 'bg-rose-50 text-rose-600', hint: 'Waiting for a subject paper' },
-                ].map(({ label, value, Icon, tone, hint }) => (
-                    <div key={label} className="rounded-2xl bg-white border border-slate-200/80 p-4 sm:p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+                ].map(({ label, value, Icon, tone, hint, to }) => (
+                    <div key={label} onClick={to ? () => navigate(to) : undefined} className={`rounded-2xl bg-white border border-slate-200/80 p-4 sm:p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04)] ${to ? 'cursor-pointer hover:shadow-md hover:border-slate-300 transition-shadow' : ''}`}>
                         <div className="flex items-center justify-between">
                             <span className="text-[13px] font-semibold text-slate-500">{label}</span>
                             <span className={`w-9 h-9 rounded-xl flex items-center justify-center ${tone}`}><Icon size={17} /></span>
@@ -525,8 +527,11 @@ const DashboardHome = () => {
                 ))}
             </div>
 
-            <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_360px] gap-6 items-start">
-                <div className="min-w-0">
+            <CommandCenter showShortcuts={false} papers={allPapers} exams={commissionedExams} pinned={pinned} onTogglePin={togglePin}
+                onOpenPaper={(p) => navigate(`/admin/dashboard/preview/${p._id || p.id}`)} go={navigate} />
+            </>)}
+
+            {view === 'commissioned' && (<>
             {/* ── COMMISSIONED EXAMS (per-subject targets of each commissioned exam) ── */}
             <section id="commissioned-exams-section" className="space-y-5">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -540,10 +545,15 @@ const DashboardHome = () => {
                             <p className="text-sm text-slate-500 font-medium mt-0.5">Track every department's progress towards each commissioned exam and open the subject papers.</p>
                         </div>
                     </div>
+                    {view !== 'commissioned' ? (
                     <button type="button" onClick={() => setIsExamSubjectsOpen(!isExamSubjectsOpen)} aria-expanded={isExamSubjectsOpen}
                         className="self-start md:self-auto h-11 rounded-xl border border-slate-200 bg-white px-4 text-xs font-extrabold uppercase tracking-wider text-slate-600 hover:text-[#081b3b] hover:border-slate-300 flex items-center gap-2 cursor-pointer">
                         {isExamSubjectsOpen ? 'Hide departments' : 'View 4 subjects & switch exam'} <ChevronDown size={15} className={`transition-transform ${isExamSubjectsOpen ? 'rotate-180' : ''}`} />
                     </button>
+                    ) : (
+                        <button type="button" onClick={() => setShowCommissionModal(true)}
+                            className="self-start md:self-auto h-10 px-4 rounded-xl bg-[#081b3b] hover:bg-[#0d2a5e] text-white text-[13px] font-semibold flex items-center gap-2 cursor-pointer shadow-sm"><Zap size={15} className="text-amber-400" /> Commission exam</button>
+                    )}
                 </div>
 
                 {!isExamSubjectsOpen && activeExam && (() => {
@@ -748,15 +758,11 @@ const DashboardHome = () => {
                     </div>
                 )}
             </section>
+            </>)}
 
-                </div>
-                <aside className="min-w-0">
-                    <CommandCenter side papers={allPapers} exams={commissionedExams} pinned={pinned} onTogglePin={togglePin}
-                        onOpenPaper={(p) => navigate(`/admin/dashboard/preview/${p._id || p.id}`)} go={navigate} />
-                </aside>
-            </div>
 
             {/* ── SAVED PAPERS LIBRARY (organised by competitive exam and by subject) ── */}
+            {view === 'home' && (
             <section id="saved-papers-section" className="space-y-5">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div className="flex items-center gap-4 min-w-0">
@@ -1002,6 +1008,7 @@ const DashboardHome = () => {
                     </>
                 )}
             </section>
+            )}
 
             {/* ── MODAL: CREATE & COMMISSION EXAM ── */}
             {showCommissionModal && (
@@ -1228,6 +1235,7 @@ const AdminDashboard = () => (
     <AdminShell>
         <Routes>
             <Route path="/" element={<DashboardHome />} />
+            <Route path="commissioned-exams" element={<DashboardHome view="commissioned" />} />
             <Route path="create-paper" element={<CommissionedExam />} />
             <Route path="omr/*" element={<TeacherOmr />} />
             <Route path="cbt-exams" element={<ExamManagement />} />

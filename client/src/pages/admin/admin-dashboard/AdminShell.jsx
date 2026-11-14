@@ -1,7 +1,7 @@
 import { useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence, LayoutGroup } from 'framer-motion';
-import { LayoutDashboard, FilePlus2, ScanLine, Zap, BarChart3, Database, Trophy, Archive, Ruler, FileText, Menu, LogOut, ChevronLeft, ChevronsLeft, ChevronsRight, X, Search, Command, Plus, Keyboard } from 'lucide-react';
+import { LayoutDashboard, FilePlus2, ClipboardList, ScanLine, Zap, BarChart3, Database, Trophy, Archive, Ruler, FileText, Menu, LogOut, ChevronLeft, ChevronsLeft, ChevronsRight, X, Search, Command, Plus, Keyboard } from 'lucide-react';
 import { AuthContext } from '../../../context/AuthContext';
 import { AdminNotificationBell } from './AdminNotificationBell';
 import { SPRING, CommandPalette, useCommandShortcut } from '../../../ui/motion';
@@ -12,6 +12,7 @@ export const ADMIN_NAV = [
         items: [
             { title: 'Executive Overview', path: '/admin/dashboard', Icon: LayoutDashboard, desc: 'Delegation and readiness' },
             { title: 'Create Question Paper', path: '/admin/dashboard/create-paper', Icon: FilePlus2, desc: 'Single or mixed-subject papers' },
+            { title: 'Commissioned Exams', path: '/admin/dashboard/commissioned-exams', Icon: ClipboardList, desc: 'Department targets for each exam' },
             { title: 'OMR Evaluation & Scanner', path: '/admin/dashboard/omr', Icon: ScanLine, desc: 'Scan OMR sheets, merit lists' },
             { title: 'CBT Online Exams', path: '/admin/dashboard/cbt-exams', Icon: Zap, desc: 'Manage and monitor online exams' },
             { title: 'Results & Scorecards', path: '/admin/dashboard/results', Icon: BarChart3, desc: 'Student scores and analytics' },
@@ -35,6 +36,7 @@ const isActivePath = (pathname, itemPath, home) => (itemPath === home
 
 export function pageTitleFor(pathname) {
     if (pathname.includes('create-paper')) return 'Create Question Paper';
+    if (pathname.includes('commissioned-exams')) return 'Commissioned Exams';
     if (pathname.includes('omr')) return 'OMR Sheet Evaluation';
     if (pathname.includes('cbt-exams')) return 'CBT Online Exams';
     if (pathname.includes('results')) return 'Result Scorecards';
