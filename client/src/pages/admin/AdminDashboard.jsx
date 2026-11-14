@@ -52,6 +52,7 @@ import api from '../../api';
 import { AdminAssignmentWrapper } from './admin-dashboard/AdminAssignmentWrapper';
 import { AdminShell } from './admin-dashboard/AdminShell';
 import CommandCenter from './admin-dashboard/CommandCenter';
+import DraftsStrip from '../../ui/DraftsStrip';
 
 const DashboardHome = ({ view = 'home' }) => {
     const { user, logout } = useContext(AuthContext);
@@ -530,7 +531,7 @@ const DashboardHome = ({ view = 'home' }) => {
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
                 <div>
                     <p className="text-xs font-semibold text-slate-500 flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />{new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })} · Academic session 2025–26</p>
-                    <h2 className="mt-1 text-[26px] sm:text-3xl font-bold tracking-tight text-[#1e1b4b] !normal-case">{(() => { const h = new Date().getHours(); return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening'; })()}, Admin</h2>
+                    <h2 className="font-display mt-1 text-[28px] sm:text-[34px] tracking-tight text-[#1e1b4b] !normal-case">{(() => { const h = new Date().getHours(); return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening'; })()}, Admin</h2>
                     <p className="mt-1 text-sm text-slate-500">Here is where every department stands across your commissioned exams and saved papers.</p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2.5">
@@ -553,11 +554,13 @@ const DashboardHome = ({ view = 'home' }) => {
                             <span className="text-[13px] font-semibold text-slate-500">{label}</span>
                             <span className={`w-9 h-9 rounded-xl flex items-center justify-center ${tone}`}><Icon size={17} /></span>
                         </div>
-                        <p className="mt-3 text-3xl font-bold tracking-tight text-[#1e1b4b]"><AnimatedNumber value={value} /></p>
+                        <p className="font-display mt-3 text-[34px] leading-none tracking-tight text-[#1e1b4b]"><AnimatedNumber value={value} /></p>
                         <p className="mt-1 text-xs text-slate-400 font-medium truncate">{hint}</p>
                     </div>
                 ))}
             </div>
+
+            <DraftsStrip />
 
             <CommandCenter showShortcuts={false} papers={allPapers} exams={commissionedExams} pinned={pinned} onTogglePin={togglePin}
                 onOpenPaper={(p) => navigate(`/admin/dashboard/preview/${p._id || p.id}`)} go={navigate} />

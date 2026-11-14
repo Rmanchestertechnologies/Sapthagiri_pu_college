@@ -184,7 +184,7 @@ button:not(:disabled):active { transform: scale(0.97); }
 .app-surface .text-\[9px\]:not(.a4-print-document *, .a4-engine-wrapper *), .app-surface .text-\[8px\]:not(.a4-print-document *, .a4-engine-wrapper *) { font-size: 10.5px; }
 
 /* a touch more definition for card edges and the page canvas */
-:root { --hairline: rgba(15, 23, 42, 0.11); --canvas: #f3f5fa; }
+:root { --hairline: rgba(15, 23, 42, 0.11); --canvas: #f6f4ef; }
 
 /* the older pages tint text with a slash-opacity of the brand colours (text-slate/40, text-navy/40): lift them to readable greys */
 .app-surface .text-slate\/20, .app-surface .text-slate\/30, .app-surface .text-slate\/40, .app-surface .text-slate\/50,
@@ -206,3 +206,45 @@ header.glass { background: #ffffff !important; backdrop-filter: none !important;
 /* anchors and scrollIntoView stop below the bar instead of under it */
 html { scroll-padding-top: 5.5rem; }
 [id$="-section"], section[id] { scroll-margin-top: 5.5rem; }
+
+
+/* ───────────── Luxe layer: serif display type, warm ivory canvas, champagne accents, depth ───────────── */
+:root {
+  --champagne: #d6b878;
+  --champagne-deep: #a8843f;
+  --display-serif: 'Fraunces', 'Playfair Display', Georgia, 'Times New Roman', serif;
+  --ivory: #f6f4ef;
+  --shadow-luxe: 0 1px 0 rgba(255, 255, 255, 0.9) inset, 0 24px 48px -28px rgba(30, 27, 75, 0.35), 0 8px 18px -10px rgba(60, 45, 20, 0.12);
+}
+.font-display { font-family: var(--display-serif); font-optical-sizing: auto; letter-spacing: -0.02em; font-weight: 600; }
+
+/* warm paper-like canvas with a champagne glow and a faint indigo shadow */
+body {
+  background-color: var(--ivory);
+  background-image:
+    radial-gradient(900px 540px at 6% -10%, rgba(214, 184, 120, 0.22), transparent 62%),
+    radial-gradient(1100px 640px at 100% 0%, rgba(99, 102, 241, 0.07), transparent 58%),
+    radial-gradient(800px 500px at 50% 110%, rgba(214, 184, 120, 0.10), transparent 60%);
+  background-attachment: fixed;
+}
+
+/* cards: warm hairline, light-from-above edge, deeper soft shadow, gentle lift on hover */
+.surface { background: #fffefb; border: 1px solid rgba(90, 70, 30, 0.12); box-shadow: var(--shadow-luxe); transition: box-shadow .25s ease, transform .25s ease, border-color .25s ease; }
+.surface:hover { border-color: rgba(168, 132, 63, 0.35); }
+
+/* primary dark buttons get a sheen and an inner highlight - they feel like a physical key */
+button[class*="bg-[#1e1b4b]"]:not(:disabled), a[class*="bg-[#1e1b4b]"], button.bg-indigo-600:not(:disabled), a.bg-indigo-600 {
+  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0) 46%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25), inset 0 -1px 0 rgba(0, 0, 0, 0.18), 0 12px 24px -14px rgba(30, 27, 75, 0.7);
+}
+button.bg-indigo-600:not(:disabled):hover, button[class*="bg-[#1e1b4b]"]:not(:disabled):hover { transform: translateY(-1px); }
+
+/* a hairline of champagne under the portal bar */
+header.glass { box-shadow: 0 1px 0 rgba(214, 184, 120, 0.45), 0 10px 24px -16px rgba(30, 27, 75, 0.3) !important; }
+
+/* selection and focus pick up the champagne */
+::selection { background: rgba(214, 184, 120, 0.45); }
+
+@media (prefers-reduced-motion: no-preference) {
+  .surface:hover { transform: translateY(-1px); }
+}

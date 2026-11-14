@@ -2,7 +2,7 @@ import { useState, useEffect, useContext, useMemo, useRef, useCallback } from 'r
 import { Check, Zap, Edit3, Target, Scale, X, Plus, Minus, Search, CheckCircle2, ArrowLeft, Command } from 'lucide-react';
 import { AuthContext } from '../../context/AuthContext';
 import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
-import api from '../../api';
+import api, { API_URL } from '../../api';
 import MathRenderer from '../../components/MathRenderer';
 import PaperRenderer, { DEFAULT_SETTINGS } from '../../components/PaperRenderer';
 import A4AnswerKey from '../../components/A4AnswerKey';
@@ -917,6 +917,7 @@ export default function CommissionedExam() {
             if (newId) setSavedPaperId(String(newId));
             setSealShow(true);
             island.show('success', `Saved to your papers${newId ? ` · #${newId}` : ''}`);
+            clearDraft();
         } catch (err) {
             console.error('Error saving paper:', err);
             island.show('error', 'Could not save the paper. Check the details and try again.');
@@ -1101,6 +1102,119 @@ export default function CommissionedExam() {
         { id: 'dash', label: 'Leave the wizard (dashboard)', hint: 'exit', run: () => navigate(homePath) },
     ];
 
+    // ───────────── automatic draft saving ─────────────
+    // Everything chosen so far is kept on the server about 1.5 s after each change, so a closed laptop, a power cut or another
+    // computer never loses an unfinished paper. On the next visit the teacher is offered "Continue" or "Start fresh".
+    const draftKey = (paramExamId && paramSubject) ? `block_${paramExamId}_${String(paramSubject).replace(/[^A-Za-z0-9]/g, '')}` : 'free';
+    const draftEnabled = !paramPaperId; // a paper that is already saved is edited in place and needs no draft
+    const [draftOffer, setDraftOffer] = useState(null);      // { state, meta, updatedAt } waiting for the teacher's choice
+    const [draftReady, setDraftReady] = useState(false);     // saving starts only after the offer is answered
+    const [draftStatus, setDraftStatus] = useState('idle');  // idle | saving | saved | error
+    const [draftRestoredTick, setDraftRestoredTick] = useState(0);
+    const draftTimer = useRef(null);
+    const lastSent = useRef('');
+    const pending = useRef(null);
+
+    const draftSnapshot = useMemo(() => ({
+        currentStep, selectedExamPattern, selectedSubject, selectedClass, examTitle, fetchMode,
+        selectedChapters, selectedConcepts, chapterQuotas, targetQuestionCount, typeAllocations, difficultyDistribution,
+        selectedQuestions, savedPaperId,
+    }), [currentStep, selectedExamPattern, selectedSubject, selectedClass, examTitle, fetchMode, selectedChapters, selectedConcepts,
+        chapterQuotas, targetQuestionCount, typeAllocations, difficultyDistribution, selectedQuestions, savedPaperId]);
+
+    const hasProgress = (snap) => (snap.selectedChapters && snap.selectedChapters.length > 0) || (snap.selectedQuestions && snap.selectedQuestions.length > 0) || (snap.currentStep || 1) > 2;
+
+    const sendDraft = useCallback(async (snap, keepalive = false) => {
+        const text = JSON.stringify(snap);
+        if (text === lastSent.current) return;
+        setDraftStatus('saving');
+        const meta = {
+            title: snap.examTitle || `${snap.selectedExamPattern || ''} ${snap.selectedSubject || ''}`.trim() || 'Unfinished paper',
+            subject: snap.selectedSubject, examType: snap.selectedExamPattern, step: snap.currentStep,
+            questions: (snap.selectedQuestions || []).length, resumeUrl: `${routeLocation.pathname}${routeLocation.search}`,
+        };
+        try {
+            if (keepalive) {
+                await fetch(`${API_URL}/api/drafts/${draftKey}`, { method: 'PUT', keepalive: true, credentials: 'include',
+                    headers: { 'content-type': 'application/json', Authorization: `Bearer ${localStorage.getItem('token') || ''}` }, body: JSON.stringify({ state: snap, meta }) });
+            } else {
+                await api.put(`/api/drafts/${draftKey}`, { state: snap, meta });
+            }
+            lastSent.current = text;
+            setDraftStatus('saved');
+        } catch {
+            setDraftStatus('error');
+        }
+    }, [draftKey, routeLocation.pathname, routeLocation.search]);
+
+    const clearDraft = useCallback(async () => {
+        clearTimeout(draftTimer.current);
+        pending.current = null;
+        lastSent.current = '';
+        setDraftStatus('idle');
+        try { await api.delete(`/api/drafts/${draftKey}`); } catch { /* nothing to remove */ }
+    }, [draftKey]);
+
+    // on arrival: is there an unfinished draft for this context?
+    useEffect(() => {
+        if (!draftEnabled) { setDraftReady(false); return undefined; }
+        let alive = true;
+        api.get(`/api/drafts/${draftKey}`).then((res) => {
+            if (!alive) return;
+            if (res.data?.state && hasProgress(res.data.state)) setDraftOffer(res.data);
+            else setDraftReady(true);
+        }).catch(() => { if (alive) setDraftReady(true); });
+        return () => { alive = false; };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [draftKey, draftEnabled]);
+
+    const applyDraft = (d) => {
+        const st = d.state || {};
+        if (st.selectedExamPattern) setSelectedExamPattern(st.selectedExamPattern);
+        if (st.selectedSubject) setSelectedSubject(st.selectedSubject);
+        if (st.selectedClass) setSelectedClass(st.selectedClass);
+        if (st.examTitle !== undefined) setExamTitle(st.examTitle);
+        if (st.fetchMode) setFetchMode(st.fetchMode);
+        if (Array.isArray(st.selectedChapters)) setSelectedChapters(st.selectedChapters);
+        if (Array.isArray(st.selectedConcepts)) setSelectedConcepts(st.selectedConcepts);
+        if (st.chapterQuotas) setChapterQuotas(st.chapterQuotas);
+        if (st.targetQuestionCount) setTargetQuestionCount(st.targetQuestionCount);
+        if (st.typeAllocations) setTypeAllocations(st.typeAllocations);
+        if (st.difficultyDistribution) setDifficultyDistribution(st.difficultyDistribution);
+        if (Array.isArray(st.selectedQuestions)) setSelectedQuestions(st.selectedQuestions);
+        if (st.savedPaperId) setSavedPaperId(st.savedPaperId);
+        if (st.currentStep) setCurrentStep(st.currentStep);
+        lastSent.current = JSON.stringify(st);
+        setDraftOffer(null);
+        setDraftReady(true);
+        setDraftRestoredTick(n => n + 1);
+    };
+    const discardDraft = async () => { await clearDraft(); setDraftOffer(null); setDraftReady(true); };
+
+    // after a draft is restored, load the chapters / concepts of its subject so the later steps have their lists
+    useEffect(() => {
+        if (draftRestoredTick > 0 && selectedSubject) fetchMetadata(selectedSubject);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [draftRestoredTick]);
+
+    // keep the draft up to date (debounced) ...
+    useEffect(() => {
+        if (!draftEnabled || !draftReady || !hasProgress(draftSnapshot)) return undefined;
+        pending.current = draftSnapshot;
+        clearTimeout(draftTimer.current);
+        draftTimer.current = setTimeout(() => { sendDraft(draftSnapshot); pending.current = null; }, 1500);
+        return () => clearTimeout(draftTimer.current);
+    }, [draftSnapshot, draftEnabled, draftReady, sendDraft]);
+
+    // ... and flush at once when the tab is hidden or closed
+    useEffect(() => {
+        const flush = () => { if (pending.current && draftEnabled && draftReady) { clearTimeout(draftTimer.current); sendDraft(pending.current, true); pending.current = null; } };
+        const onHide = () => { if (document.visibilityState === 'hidden') flush(); };
+        document.addEventListener('visibilitychange', onHide);
+        window.addEventListener('pagehide', flush);
+        return () => { document.removeEventListener('visibilitychange', onHide); window.removeEventListener('pagehide', flush); };
+    }, [draftEnabled, draftReady, sendDraft]);
+
     // what the left column shows: a line under each finished step, and the "your paper" card
     const stepSummaries = {
         1: [selectedExamPattern, selectedSubject].filter(Boolean).join(' · '),
@@ -1141,16 +1255,45 @@ export default function CommissionedExam() {
                             <h1 className="text-base sm:text-lg font-extrabold text-[#1e1b4b] truncate">{examTitle ? examTitle : 'Question Paper Generator'}</h1>
                         </div>
                     </div>
+                    <div className="flex items-center gap-3">
+                    {draftEnabled && draftReady && draftStatus !== 'idle' && (
+                        <span className={`hidden md:inline-flex items-center gap-1.5 text-xs font-semibold ${draftStatus === 'error' ? 'text-red-700' : 'text-slate-600'}`} role="status">
+                            <span className={`w-2 h-2 rounded-full ${draftStatus === 'saved' ? 'bg-emerald-500' : draftStatus === 'saving' ? 'bg-amber-400 animate-pulse' : 'bg-red-500'}`} />
+                            {draftStatus === 'saved' ? 'Draft saved' : draftStatus === 'saving' ? 'Saving draft…' : 'Draft not saved — will retry'}
+                        </span>
+                    )}
                     <button type="button" onClick={() => setPaletteOpen(true)}
                         className="hidden sm:flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-500 hover:text-[#1e1b4b] hover:border-slate-300 cursor-pointer">
                         <Command size={14} /> Quick jump <kbd className="rounded border border-slate-200 bg-slate-50 px-1.5 text-[10px]">Ctrl K</kbd>
                     </button>
+                    </div>
                 </div>
             </header>
 
             {/* Centered Step-Transition Loader (Centered on screen, never persists after load) */}
             <StatusIsland status={stepLoading ? { state: 'working', message: loadingMessage || 'Loading…' } : island.status} />
             <PaperSeal show={sealShow} onDone={() => setSealShow(false)} />
+            {draftOffer && (
+                <div className="fixed inset-0 z-[90] flex items-center justify-center p-4 bg-slate-950/55 backdrop-blur-sm no-print">
+                    <div role="alertdialog" aria-label="Continue your unfinished paper" className="w-full max-w-md rounded-3xl bg-white shadow-2xl ring-1 ring-black/5 p-6">
+                        <div className="flex items-start gap-3.5">
+                            <span className="w-12 h-12 shrink-0 rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white flex items-center justify-center shadow-lg shadow-indigo-500/30"><Command size={22} /></span>
+                            <div>
+                                <h3 className="text-lg font-bold text-[#1e1b4b]">Continue where you left off?</h3>
+                                <p className="mt-1 text-sm text-slate-600">
+                                    You have an unfinished paper{draftOffer.meta?.title ? <> — <strong>{draftOffer.meta.title}</strong></> : ''}
+                                    {draftOffer.meta?.step ? `, at step ${draftOffer.meta.step}` : ''}{draftOffer.meta?.questions ? ` with ${draftOffer.meta.questions} questions picked` : ''}.
+                                    {draftOffer.updatedAt ? ` Last saved ${new Date(draftOffer.updatedAt).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}.` : ''}
+                                </p>
+                            </div>
+                        </div>
+                        <div className="mt-6 flex justify-end gap-2.5">
+                            <button type="button" onClick={discardDraft} className="h-11 px-5 rounded-xl border border-slate-300 bg-white text-sm font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer">Start fresh</button>
+                            <button type="button" onClick={() => applyDraft(draftOffer)} className="h-11 px-6 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold cursor-pointer">Continue</button>
+                        </div>
+                    </div>
+                </div>
+            )}
             <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} commands={paletteCommands} />
             <AnimatePresence>
                 {!stepLoading && (currentStep === 4 || currentStep === 5) && fetchMode === 'auto' && (

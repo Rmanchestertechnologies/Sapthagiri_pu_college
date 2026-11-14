@@ -98,6 +98,20 @@ const call = async (method, path, { token, session, body, raw } = {}) => {
   ok(Array.isArray(allPapersNow.data) && allPapersNow.data.some(p => /E2E NEET Flow - Grand/.test(p.title) && /NEET/i.test(p.examType || p.exam_type || '')), 'flow: the merged paper is listed in Saved Papers under NEET');
   await call('DELETE', '/api/exams/commissioned/all', { token: admin });
 
+  // ── wizard drafts: unfinished work survives a closed laptop, and is private to its owner
+  const draftBody = { state: { currentStep: 4, selectedChapters: ['Atoms', 'Current Electricity'], chapterQuotas: { Atoms: 20 } }, meta: { title: 'NEET Physics', step: 4, resumeUrl: '/teacher/create-paper' } };
+  ok((await call('PUT', '/api/drafts/free', { token: teacher1, body: draftBody })).status === 200, 'drafts: a teacher saves an unfinished paper');
+  const dGet = await call('GET', '/api/drafts/free', { token: teacher1 });
+  ok(dGet.status === 200 && dGet.data.state.currentStep === 4 && dGet.data.state.selectedChapters.length === 2, 'drafts: it comes back exactly as saved (a later request = laptop closed and reopened)');
+  ok((await call('PUT', '/api/drafts/free', { token: teacher1, body: { state: { currentStep: 5 }, meta: draftBody.meta } })).status === 200 && (await call('GET', '/api/drafts/free', { token: teacher1 })).data.state.currentStep === 5, 'drafts: saving again updates the same draft (no copies)');
+  ok((await call('GET', '/api/drafts/free', { token: teacher2 })).status === 404, 'drafts: another teacher cannot see it');
+  const dList = await call('GET', '/api/drafts', { token: teacher1 });
+  ok(dList.status === 200 && dList.data.length === 1 && dList.data[0].key === 'free' && dList.data[0].meta.title === 'NEET Physics', 'drafts: the list shows my draft with its summary');
+  ok((await call('PUT', '/api/drafts/bad key!', { token: teacher1, body: draftBody })).status === 400, 'drafts: an invalid key is refused');
+  ok((await call('PUT', '/api/drafts/free', { token: teacher1, body: { nope: 1 } })).status === 400, 'drafts: a body without state is refused');
+  ok((await call('GET', '/api/drafts/free')).status === 401, 'drafts: sign-in is required');
+  ok((await call('DELETE', '/api/drafts/free', { token: teacher1 })).status === 200 && (await call('GET', '/api/drafts/free', { token: teacher1 })).status === 404, 'drafts: deleting removes it');
+
   // ── OMR paper list must work for an account that has no papers yet (it used to fail with a ReferenceError from old MongoDB code)
   const omrEmpty = await call('GET', '/api/omr/papers', { token: admin });
   ok(omrEmpty.status === 200 && Array.isArray(omrEmpty.data.papers), 'OMR: the paper list answers 200 even when there are no papers', String(omrEmpty.status) + ' ' + JSON.stringify(omrEmpty.data).slice(0, 80));

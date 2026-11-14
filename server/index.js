@@ -27,6 +27,7 @@ const notificationRoutes = require('./routes/notifications.js');
 const examRoutes = require('./routes/exams.js');
 const labRoutes = require('./routes/lab.js');
 const omrRoutes = require('./routes/omr.js');
+const draftRoutes = require('./routes/drafts.js');
 
 dotenv.config();
 
@@ -175,6 +176,7 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/exams', examRoutes);
 app.use('/api/lab', labRoutes);
 app.use('/api/omr', omrRoutes);
+app.use('/api/drafts', draftRoutes);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 404 handler

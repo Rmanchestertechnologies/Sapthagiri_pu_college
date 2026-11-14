@@ -120,7 +120,7 @@ function SidebarBody({ onNavigate, onClose, cfg, collapsed = false, onToggle, on
                                             <button type="button" onClick={() => onNavigate(path)} aria-current={active ? 'page' : undefined} title={slim ? title : desc}
                                                 className={`relative w-full h-9 flex items-center ${slim ? 'justify-center' : 'gap-3 px-2.5'} rounded-lg text-left cursor-pointer transition-colors ${active ? 'text-white' : 'text-white/60 hover:text-white hover:bg-white/[0.05]'}`}>
                                                 {active && <motion.span layoutId={`${cfg.id}-nav-pill`} transition={SPRING.soft} className="absolute inset-0 rounded-lg bg-white/[0.09]" />}
-                                                {active && !slim && <motion.span layoutId={`${cfg.id}-nav-bar`} transition={SPRING.soft} className="absolute left-0 top-2 bottom-2 w-[3px] rounded-r-full bg-indigo-400" />}
+                                                {active && !slim && <motion.span layoutId={`${cfg.id}-nav-bar`} transition={SPRING.soft} className="absolute left-0 top-2 bottom-2 w-[3px] rounded-r-full bg-[#d6b878]" />}
                                                 <Icon size={17} strokeWidth={2} className={`relative shrink-0 ${active ? 'text-indigo-400' : ''}`} />
                                                 {!slim && <span className="relative text-[13.5px] font-medium truncate">{title}</span>}
                                             </button>
@@ -151,7 +151,7 @@ function SidebarBody({ onNavigate, onClose, cfg, collapsed = false, onToggle, on
 
             {/* user */}
             <div className={`border-t border-white/[0.07] ${slim ? 'px-2 py-3 flex flex-col items-center gap-2' : 'px-3 py-3 flex items-center gap-2.5'}`}>
-                <span className="relative w-8 h-8 shrink-0 rounded-full bg-indigo-400 text-[#13113a] text-[11px] font-bold flex items-center justify-center">
+                <span className="relative w-8 h-8 shrink-0 rounded-full bg-gradient-to-br from-[#ead9b0] to-[#c9a35f] text-[#13113a] text-[11px] font-bold flex items-center justify-center">
                     {cfg.user.initials}
                     <span className="absolute -bottom-px -right-px w-2.5 h-2.5 rounded-full bg-emerald-400 ring-2 ring-[#13113a]" aria-hidden="true" />
                 </span>
