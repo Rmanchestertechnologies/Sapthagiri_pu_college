@@ -360,7 +360,7 @@ const AdminPaperPreview = () => {
 
                 {/* paper set switcher: one pill glides between P Q R S */}
                 <div className="flex items-center gap-3 flex-wrap">
-                    <span className="eyebrow !text-slate-500">Paper set</span>
+                    <span className="eyebrow !text-slate-600">Paper set</span>
                     <LayoutGroup id="set-switch">
                         <div className="inline-flex items-center gap-1 rounded-2xl bg-slate-200/70 p-1">
                             {['P', 'Q', 'R', 'S'].map(setKey => (

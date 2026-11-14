@@ -149,3 +149,43 @@ button:not(:disabled):active { transform: scale(0.97); }
 }
 .page-hero-actions button:first-child:hover:not(:disabled) { background: #0d2a5e !important; }
 
+
+/* ───────────── Contrast pass (WCAG AA) ─────────────
+   Measured on the real screens: light-grey captions, amber text and white-on-green buttons were below 4.5:1. These rules lift them
+   without changing layout. The question paper (.a4-print-document) is excluded. */
+.app-surface .text-slate-400:not(.a4-print-document *, .a4-engine-wrapper *),
+.app-surface .text-gray-400:not(.a4-print-document *, .a4-engine-wrapper *) { color: #5b6b80; }
+.app-surface .text-slate-500:not(.a4-print-document *, .a4-engine-wrapper *),
+.app-surface .text-gray-500:not(.a4-print-document *, .a4-engine-wrapper *) { color: #475569; }
+.app-surface .text-amber-600:not(.a4-print-document *, .a4-engine-wrapper *) { color: #b45309; }
+.app-surface .text-emerald-600:not(.a4-print-document *, .a4-engine-wrapper *) { color: #047857; }
+.app-surface .text-red-500:not(.a4-print-document *, .a4-engine-wrapper *), .app-surface .text-rose-500:not(.a4-print-document *, .a4-engine-wrapper *) { color: #dc2626; }
+
+/* white-on-colour buttons: use the 700 shades so the label reads clearly */
+.app-surface .bg-emerald-500:not(.a4-print-document *), .app-surface .bg-emerald-600:not(.a4-print-document *) { background-color: #047857; }
+.app-surface .bg-emerald-600:hover:not(.a4-print-document *), .app-surface .hover\:bg-emerald-700:hover:not(.a4-print-document *) { background-color: #065f46; }
+.app-surface .bg-red-500:not(.a4-print-document *):not(.rounded-full), .app-surface .bg-red-600:not(.a4-print-document *):not(.rounded-full) { background-color: #b91c1c; }
+.app-surface .bg-blue-600:not(.a4-print-document *), .app-surface .bg-indigo-600:not(.a4-print-document *) { background-color: #1d4ed8; }
+
+/* muted text on the dark panels (sidebar, wizard card, banners) */
+.app-surface .text-white\/30, .app-surface .text-white\/35, .app-surface .text-white\/40, .app-surface .text-white\/45 { color: rgba(255, 255, 255, 0.66); }
+.app-surface .text-white\/50, .app-surface .text-white\/55 { color: rgba(255, 255, 255, 0.74); }
+.app-surface .text-white\/60, .app-surface .text-white\/65 { color: rgba(255, 255, 255, 0.8); }
+
+/* eyebrow labels: dark amber on light, bright amber on dark */
+.eyebrow { color: #b45309; }
+.text-white .eyebrow, .bg-\[\#050e1f\] .eyebrow, .eyebrow-dark { color: #fcd34d; }
+
+/* readable minimum sizes for the smallest labels */
+.app-surface .text-\[11px\]:not(.a4-print-document *, .a4-engine-wrapper *) { font-size: 12px; }
+.app-surface .text-\[10px\]:not(.a4-print-document *, .a4-engine-wrapper *) { font-size: 11.5px; }
+.app-surface .text-\[9px\]:not(.a4-print-document *, .a4-engine-wrapper *), .app-surface .text-\[8px\]:not(.a4-print-document *, .a4-engine-wrapper *) { font-size: 10.5px; }
+
+/* a touch more definition for card edges and the page canvas */
+:root { --hairline: rgba(15, 23, 42, 0.11); --canvas: #f3f5fa; }
+
+/* the older pages tint text with a slash-opacity of the brand colours (text-slate/40, text-navy/40): lift them to readable greys */
+.app-surface .text-slate\/20, .app-surface .text-slate\/30, .app-surface .text-slate\/40, .app-surface .text-slate\/50,
+.app-surface .text-navy\/30, .app-surface .text-navy\/40, .app-surface .text-navy\/50 { color: #5b6b80; }
+.app-surface .text-slate\/60, .app-surface .text-slate\/70, .app-surface .text-navy\/60, .app-surface .text-navy\/70 { color: #475569; }
+.app-surface .bg-white .text-gold\/70, .app-surface .bg-gray-50 .text-gold\/70 { color: #b45309; }

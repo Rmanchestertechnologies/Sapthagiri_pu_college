@@ -593,7 +593,7 @@ const DashboardHome = ({ view = 'home' }) => {
                             <>
                                 {/* exam switcher */}
                                 <div>
-                                    <p className="eyebrow !text-slate-500 mb-2.5">Select assessment</p>
+                                    <p className="eyebrow !text-slate-600 mb-2.5">Select assessment</p>
                                     <div className="flex items-stretch gap-3 overflow-x-auto pb-3 -mx-1 px-1">
                                         {commissionedExams.map((exam) => {
                                             const examKey = exam._id || exam.id;

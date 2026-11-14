@@ -62,7 +62,7 @@ export const AdminNotificationBell = () => {
             >
                 <span className="text-base">🔔</span>
                 {unreadCount > 0 && (
-                    <span className="absolute -top-1 -right-1 bg-rose-500 text-white font-black text-[9px] w-4 h-4 rounded-full flex items-center justify-center animate-pulse border border-white">
+                    <span className="absolute -top-1 -right-1 bg-rose-700 text-white font-black text-[9px] w-4 h-4 rounded-full flex items-center justify-center animate-pulse border border-white">
                         {unreadCount > 9 ? '9+' : unreadCount}
                     </span>
                 )}
