@@ -13,6 +13,7 @@ import { AuthContext } from '../../context/AuthContext';
 import { useNavigate, Routes, Route } from 'react-router-dom';
 import AddQuestion from './AddQuestion';
 import ModuleGrid from './ModuleGrid';
+import FacultyToday from './FacultyToday';
 import { PortalShell } from '../admin/admin-dashboard/AdminShell';
 import { LayoutDashboard, ClipboardList, FilePlus2, NotebookPen, Database, FolderOpen, Trophy, Archive, ScanLine, Image as ImageIcon } from 'lucide-react';
 import SavedPapers from './SavedPapers';
@@ -305,13 +306,7 @@ const TeacherDashboardHome = () => {
 
     return (
         <div className="animate-fade-in-up">
-            <div className="mb-5 bg-white p-5 sm:p-6 rounded-2xl shadow-xs border-l-4 border-navy relative overflow-hidden">
-                <div className="absolute top-0 right-0 w-28 h-28 bg-gold/5 rounded-full -mr-12 -mt-12"></div>
-                <h3 className="font-black text-xl text-navy mb-1.5">Welcome to your Workspace</h3>
-                <p className="text-slate/70 font-medium text-xs max-w-2xl leading-relaxed">
-                    Access your subject's question bank, generate standardized institutional papers, and complete assigned exam papers for your department.
-                </p>
-            </div>
+            <FacultyToday />
 
             {/* ── ASSIGNMENTS & NOTIFICATIONS SECTION ── */}
             <TeacherAssignmentsSection />
@@ -372,6 +367,11 @@ const TeacherDashboard = () => {
         user: { initials: user?.subject ? user.subject.substring(0, 2).toUpperCase() : 'FC', name: user?.name || 'Faculty member', sub: `${user?.subject || 'PCMB'} department` },
         actions: [{ title: 'Institutional Templates', Icon: ImageIcon, desc: 'Approved header graphics', run: () => setShowTemplateCart(true) }],
         topRight: null,
+        quickActions: [
+            { title: 'Create a paper', desc: 'Step-by-step wizard', Icon: FilePlus2, to: '/teacher/create-paper' },
+            { title: 'Commissioned exam', desc: 'Official multi-step exam', Icon: ClipboardList, to: '/teacher/commissioned-exam' },
+            { title: 'New assignment', desc: 'Practice sheet and key', Icon: NotebookPen, to: '/teacher/dashboard/assignments' },
+        ],
     };
 
     return (

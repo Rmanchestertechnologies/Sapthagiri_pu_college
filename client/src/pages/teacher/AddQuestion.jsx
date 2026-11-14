@@ -4,6 +4,8 @@ import api from '../../api';
 import { optionLabel, stripQBPTags } from '../../utils/sanitize';
 import MathRenderer from '../../components/MathRenderer';
 import { readSheetAsObjects } from '../../utils/xlsxImport';
+import PageShell from '../../ui/PageShell';
+import { BookOpenCheck } from 'lucide-react';
 
 const AddQuestion = () => {
     const navigate = useNavigate();
@@ -270,20 +272,14 @@ const AddQuestion = () => {
     };
 
     return (
-        <div className="bg-surface p-10 rounded-[2.5rem] shadow-sm border border-gray-100 animate-fade-in-up">
-            <div className="flex justify-between items-center mb-10 pb-8 border-b border-gray-100">
-                <div>
-                    <h2 className="text-3xl font-black text-navy tracking-tight mb-2 uppercase">Institutional Repository</h2>
-                    <p className="text-[10px] font-black text-slate/40 uppercase tracking-[0.2em] ml-1">Academic Question Bank Management</p>
-                </div>
-                <div className="flex gap-3 items-center">
-                    <button
+        <PageShell icon={BookOpenCheck} tone="rose" title="Institutional Repository" subtitle="Academic Question Bank Management" actions={<>
+                <button
                         onClick={() => { setImportResult(null); setImportFile(null); setShowImportModal(true); }}
                         className="bg-white border-2 border-gray-100 text-navy px-5 py-3 rounded-2xl font-black text-xs uppercase tracking-widest hover:border-navy transition shadow-sm cursor-pointer"
                     >
                         ⬆ Import Excel / CSV
                     </button>
-                    <button 
+                <button 
                         onClick={() => {
                             if (showForm) {
                                 setShowForm(false);
@@ -317,14 +313,8 @@ const AddQuestion = () => {
                     >
                         {showForm ? '← View Repository' : '+ New Question'}
                     </button>
-                    <button
-                        onClick={() => navigate('/teacher/dashboard')}
-                        className="bg-white border-2 border-gray-100 text-slate-600 px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-widest hover:border-navy hover:text-navy transition shadow-sm cursor-pointer"
-                    >
-                        ← Back
-                    </button>
-                </div>
-            </div>
+            </>}>
+
 
             {showForm ? (
                 <div className="max-w-3xl mx-auto bg-gray-50/50 p-10 rounded-[2.5rem] border border-gray-100 shadow-inner">
@@ -923,7 +913,7 @@ const AddQuestion = () => {
                     </form>
                 </div>
             )}
-        </div>
+        </PageShell>
     );
 };
 

@@ -1,7 +1,7 @@
 import { useContext, useState, useEffect } from 'react';
 import { AuthContext } from '../../context/AuthContext';
 import { useNavigate, Routes, Route } from 'react-router-dom';
-import { Trash2, Eye, Clock, ChevronDown, Search, AlertCircle, FilePlus2, Zap, ClipboardList, Database, Target, ArrowRight, FolderOpen, Pencil, Check, ArrowDownUp, Folder, LayoutGrid, List, X, Trophy, BookOpen, BarChart3, Atom, FlaskConical, Sigma, Dna, Leaf, PawPrint } from 'lucide-react';
+import { Trash2, Eye, Clock, ChevronDown, Search, AlertCircle, FilePlus2, Zap, ClipboardList, Database, Target, ArrowRight, FolderOpen, Pencil, Check, ArrowDownUp, Star, Folder, LayoutGrid, List, X, Trophy, BookOpen, BarChart3, Atom, FlaskConical, Sigma, Dna, Leaf, PawPrint } from 'lucide-react';
 import { motion, LayoutGroup } from 'framer-motion';
 import { AnimatedNumber, SPRING } from '../../ui/motion';
 
@@ -50,6 +50,7 @@ import CommissionedExam from '../teacher/CommissionedExam';
 import api from '../../api';
 import { AdminAssignmentWrapper } from './admin-dashboard/AdminAssignmentWrapper';
 import { AdminShell } from './admin-dashboard/AdminShell';
+import CommandCenter from './admin-dashboard/CommandCenter';
 
 const DashboardHome = () => {
     const { user, logout } = useContext(AuthContext);
@@ -163,6 +164,16 @@ const DashboardHome = () => {
     const [isExamSubjectsOpen, setIsExamSubjectsOpen] = useState(false);
     const [isSavedPapersOpen, setIsSavedPapersOpen] = useState(true);
     const [paperView, setPaperView] = useState('grid');
+    const [pinned, setPinned] = useState(() => {
+        try { return new Set(JSON.parse(localStorage.getItem('pinned-papers') || '[]').map(String)); } catch { return new Set(); }
+    });
+    const togglePin = (id) => setPinned(prev => {
+        const next = new Set(prev);
+        const key = String(id);
+        if (next.has(key)) next.delete(key); else next.add(key);
+        try { localStorage.setItem('pinned-papers', JSON.stringify([...next])); } catch { /* storage unavailable */ }
+        return next;
+    });
     const [paperSort, setPaperSort] = useState('newest');
     const [visiblePapers, setVisiblePapers] = useState(9);
     const [savedPapersCategory, setSavedPapersCategory] = useState('ALL');
@@ -552,6 +563,9 @@ const DashboardHome = () => {
                     </div>
                 </div>
             </div>
+
+            <CommandCenter papers={allPapers} exams={commissionedExams} pinned={pinned} onTogglePin={togglePin}
+                onOpenPaper={(p) => navigate(`/admin/dashboard/preview/${p._id || p.id}`)} go={navigate} />
 
             {/* ── COMMISSIONED EXAMS (per-subject targets of each commissioned exam) ── */}
             <section id="commissioned-exams-section" className="space-y-5">
@@ -959,6 +973,8 @@ const DashboardHome = () => {
                                                         <span className={`hidden sm:inline text-[11px] font-extrabold px-2.5 py-1 rounded-full border uppercase ${accent.chip}`}>{examLabel}</span>
                                                         <button type="button" onClick={(e) => { e.stopPropagation(); open(); }} className="h-9 px-4 rounded-xl bg-[#081b3b] text-amber-300 text-xs font-extrabold uppercase tracking-wider flex items-center gap-1.5 cursor-pointer"><Eye size={14} /> View</button>
                                                         <button type="button" onClick={openStats} title="View paper analysis" className="h-9 px-3 rounded-xl bg-amber-50 text-[#081b3b] border border-amber-200 text-xs font-extrabold cursor-pointer">Stats</button>
+                                                        <button type="button" onClick={(e) => { e.stopPropagation(); togglePin(pId); }} aria-pressed={pinned.has(String(pId))} title={pinned.has(String(pId)) ? 'Unpin' : 'Pin to dashboard'} aria-label="Pin paper"
+                                                            className={`w-9 h-9 rounded-xl flex items-center justify-center cursor-pointer hover:bg-amber-50 ${pinned.has(String(pId)) ? 'text-amber-500' : 'text-slate-300 hover:text-amber-500'}`}><Star size={17} className={pinned.has(String(pId)) ? 'fill-amber-400' : ''} /></button>
                                                         <button type="button" disabled={isDeleting} onClick={(e) => handleDeletePaper(e, p)} title="Delete paper" aria-label="Delete paper"
                                                             className="w-9 h-9 rounded-xl flex items-center justify-center text-slate-400 hover:text-red-600 hover:bg-red-50 disabled:opacity-50 cursor-pointer">{isDeleting ? <span className="animate-spin text-xs">⏳</span> : <Trash2 className="w-4 h-4" />}</button>
                                                     </motion.div>
@@ -976,8 +992,12 @@ const DashboardHome = () => {
                                                                 <span className={`text-[11px] font-extrabold px-2.5 py-1 rounded-full border uppercase tracking-wide ${accent.chip}`}>{examLabel}</span>
                                                                 <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 flex items-center gap-1.5"><SubIcon size={12} />{p.subject || 'All Subjects'}</span>
                                                             </div>
+                                                            <div className="flex items-center -mr-2 -mt-1 shrink-0">
+                                                            <button type="button" onClick={(e) => { e.stopPropagation(); togglePin(pId); }} aria-pressed={pinned.has(String(pId))} title={pinned.has(String(pId)) ? 'Unpin' : 'Pin to dashboard'} aria-label="Pin paper"
+                                                                className={`w-9 h-9 rounded-xl flex items-center justify-center cursor-pointer hover:bg-amber-50 ${pinned.has(String(pId)) ? 'text-amber-500' : 'text-slate-300 hover:text-amber-500'}`}><Star size={17} className={pinned.has(String(pId)) ? 'fill-amber-400' : ''} /></button>
                                                             <button type="button" disabled={isDeleting} onClick={(e) => handleDeletePaper(e, p)} title="Delete paper" aria-label="Delete paper"
-                                                                className="w-9 h-9 -mr-2 -mt-1 shrink-0 rounded-xl flex items-center justify-center text-slate-300 hover:text-red-600 hover:bg-red-50 disabled:opacity-50 cursor-pointer">{isDeleting ? <span className="animate-spin text-xs">⏳</span> : <Trash2 className="w-4 h-4" />}</button>
+                                                                className="w-9 h-9 shrink-0 rounded-xl flex items-center justify-center text-slate-300 hover:text-red-600 hover:bg-red-50 disabled:opacity-50 cursor-pointer">{isDeleting ? <span className="animate-spin text-xs">⏳</span> : <Trash2 className="w-4 h-4" />}</button>
+                                                            </div>
                                                         </div>
                                                         <h5 className="mt-4 text-lg font-extrabold text-[#081b3b] leading-snug line-clamp-2 group-hover:text-blue-700 transition-colors" title={p.title || 'Untitled Question Paper'}>{p.title || 'Untitled Question Paper'}</h5>
 

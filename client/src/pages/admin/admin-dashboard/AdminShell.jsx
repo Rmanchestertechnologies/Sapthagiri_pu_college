@@ -1,7 +1,7 @@
 import { useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence, LayoutGroup } from 'framer-motion';
-import { LayoutDashboard, FilePlus2, ScanLine, Zap, BarChart3, Database, Trophy, Archive, Ruler, FileText, Menu, LogOut, ChevronLeft, ChevronsLeft, ChevronsRight, X, Search, Command } from 'lucide-react';
+import { LayoutDashboard, FilePlus2, ScanLine, Zap, BarChart3, Database, Trophy, Archive, Ruler, FileText, Menu, LogOut, ChevronLeft, ChevronsLeft, ChevronsRight, X, Search, Command, Plus, Keyboard } from 'lucide-react';
 import { AuthContext } from '../../../context/AuthContext';
 import { AdminNotificationBell } from './AdminNotificationBell';
 import { SPRING, CommandPalette, useCommandShortcut } from '../../../ui/motion';
@@ -184,6 +184,8 @@ export function PortalShell({ cfg, children }) {
     const wide = useIsDesktop();
     const [drawer, setDrawer] = useState(false);
     const [palette, setPalette] = useState(false);
+    const [quick, setQuick] = useState(false);
+    const [help, setHelp] = useState(false);
     const [collapsed, setCollapsed] = useState(() => {
         try { return localStorage.getItem('portal-sidebar-collapsed') === '1'; } catch { return false; }
     });
@@ -205,6 +207,19 @@ export function PortalShell({ cfg, children }) {
     });
     const togglePalette = useCallback(() => setPalette(o => !o), []);
     useCommandShortcut(togglePalette);
+    // "?" shows the shortcuts, "[" collapses the sidebar, Esc closes menus - never while typing in a field
+    useEffect(() => {
+        const onKey = (e) => {
+            const el = e.target;
+            const typing = el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable);
+            if (e.key === 'Escape') { setHelp(false); setQuick(false); return; }
+            if (typing || e.ctrlKey || e.metaKey || e.altKey) return;
+            if (e.key === '?') { e.preventDefault(); setHelp(h => !h); }
+            else if (e.key === '[') { toggleCollapsed(); }
+        };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+    });
 
     const go = (path) => { navigate(path); setDrawer(false); };
     const commands = useMemo(() => [
@@ -239,6 +254,28 @@ export function PortalShell({ cfg, children }) {
 
             <CommandPalette open={palette} onClose={() => setPalette(false)} commands={commands} />
 
+            <AnimatePresence>
+                {help && (
+                    <motion.div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-slate-950/50 backdrop-blur-sm no-print" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onMouseDown={() => setHelp(false)}>
+                        <motion.div role="dialog" aria-label="Keyboard shortcuts" onMouseDown={(e) => e.stopPropagation()} initial={{ y: 16, scale: 0.97, opacity: 0 }} animate={{ y: 0, scale: 1, opacity: 1 }} exit={{ y: 10, scale: 0.97, opacity: 0 }} transition={SPRING.island}
+                            className="w-full max-w-md rounded-3xl bg-white shadow-2xl border border-slate-200 p-6">
+                            <div className="flex items-center justify-between mb-4">
+                                <h3 className="text-lg font-extrabold text-[#081b3b] flex items-center gap-2"><Keyboard size={19} className="text-amber-500" /> Keyboard shortcuts</h3>
+                                <button type="button" onClick={() => setHelp(false)} aria-label="Close" className="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center cursor-pointer"><X size={16} /></button>
+                            </div>
+                            <ul className="divide-y divide-slate-100">
+                                {[['Ctrl / Cmd + K', 'Search or jump to any section'], ['?', 'Show this list'], ['[', 'Collapse or expand the sidebar'], ['Esc', 'Close menus and dialogs']].map(([k, d]) => (
+                                    <li key={k} className="flex items-center justify-between gap-4 py-3 text-sm">
+                                        <span className="text-slate-600 font-semibold">{d}</span>
+                                        <kbd className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-extrabold text-[#081b3b] whitespace-nowrap">{k}</kbd>
+                                    </li>
+                                ))}
+                            </ul>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
             <div className="transition-[padding] duration-300" style={showSidebar ? { paddingLeft: sidebarW + 24 } : undefined}>
                 <header className="glass sticky top-0 z-20 no-print border-x-0 border-t-0 rounded-none">
                     <div className="px-4 sm:px-8 py-3 flex items-center justify-between gap-3">
@@ -258,6 +295,31 @@ export function PortalShell({ cfg, children }) {
                             <button type="button" onClick={() => setPalette(true)} className="hidden md:flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-500 hover:text-[#081b3b] hover:border-slate-300 cursor-pointer">
                                 <Search size={14} /> Search <kbd className="rounded border border-slate-200 bg-slate-50 px-1.5 text-[10px]">Ctrl K</kbd>
                             </button>
+                            {cfg.quickActions && cfg.quickActions.length > 0 && (
+                                <div className="relative">
+                                    <button type="button" onClick={() => setQuick(q => !q)} aria-haspopup="menu" aria-expanded={quick}
+                                        className="h-10 pl-3 pr-4 rounded-xl bg-gradient-to-r from-[#081b3b] to-[#0d2a5e] text-amber-300 text-xs font-extrabold uppercase tracking-wider flex items-center gap-1.5 shadow-lg shadow-blue-950/20 cursor-pointer"><Plus size={16} strokeWidth={3} /> New</button>
+                                    <AnimatePresence>
+                                        {quick && (
+                                            <>
+                                                <div className="fixed inset-0 z-30" onClick={() => setQuick(false)} />
+                                                <motion.div role="menu" initial={{ opacity: 0, y: -6, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -6, scale: 0.97 }} transition={SPRING.island}
+                                                    className="absolute right-0 mt-2 w-72 z-40 rounded-2xl bg-white border border-slate-200 shadow-2xl p-2">
+                                                    {cfg.quickActions.map(({ title, desc, Icon, to, run }) => (
+                                                        <button key={title} type="button" role="menuitem" onClick={() => { setQuick(false); if (run) run(); else navigate(to); }}
+                                                            className="w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-left hover:bg-amber-50 cursor-pointer">
+                                                            <span className="w-10 h-10 rounded-xl bg-[#081b3b] text-amber-300 flex items-center justify-center shrink-0"><Icon size={18} /></span>
+                                                            <span className="min-w-0"><span className="block text-sm font-extrabold text-[#081b3b]">{title}</span><span className="block text-xs text-slate-500 truncate">{desc}</span></span>
+                                                        </button>
+                                                    ))}
+                                                </motion.div>
+                                            </>
+                                        )}
+                                    </AnimatePresence>
+                                </div>
+                            )}
+                            <button type="button" onClick={() => setHelp(true)} aria-label="Keyboard shortcuts" title="Keyboard shortcuts (?)"
+                                className="hidden sm:flex w-10 h-10 rounded-xl border border-slate-200 bg-white text-slate-500 hover:text-[#081b3b] hover:border-slate-300 items-center justify-center cursor-pointer"><Keyboard size={17} /></button>
                             {cfg.topRight}
                         </div>
                     </div>
@@ -273,6 +335,11 @@ export function AdminShell({ children }) {
         id: 'admin', home: '/admin/dashboard', portal: 'Admin portal', nav: ADMIN_NAV, titleFor: pageTitleFor,
         user: { initials: 'AD', name: 'Admin console', sub: 'Davanagere campus' },
         topRight: <AdminNotificationBell />,
+        quickActions: [
+            { title: 'Create question paper', desc: 'Open the paper wizard', Icon: FilePlus2, to: '/admin/dashboard/create-paper' },
+            { title: 'Scan OMR sheets', desc: 'Evaluate and rank', Icon: ScanLine, to: '/admin/dashboard/omr' },
+            { title: 'Add to question bank', desc: 'Browse and manage questions', Icon: Database, to: '/admin/dashboard/questions' },
+        ],
     };
     return <PortalShell cfg={cfg}>{children}</PortalShell>;
 }

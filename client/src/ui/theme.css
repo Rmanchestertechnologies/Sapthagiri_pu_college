@@ -136,3 +136,15 @@ button:not(:disabled):active { transform: scale(0.97); }
 
 /* page titles written in capitals in the markup read better in normal case at large sizes */
 .app-surface :is(h1, h2).uppercase:is(.text-2xl, .text-3xl, .text-4xl):not(.a4-print-document *, .a4-engine-wrapper *) { text-transform: none; font-size: 1.65rem; line-height: 1.2; }
+
+/* ───── hero actions (PageShell): existing buttons placed on the dark banner ───── */
+.page-hero-actions button {
+  background: rgba(255, 255, 255, 0.12) !important; color: #fff !important; border: 1px solid rgba(255, 255, 255, 0.28) !important;
+  border-radius: 14px !important; padding: 11px 18px !important; font-size: 12px !important; font-weight: 800 !important; letter-spacing: 0.06em !important;
+  text-transform: uppercase !important; box-shadow: none !important; background-image: none !important; transform: none; backdrop-filter: blur(6px);
+}
+.page-hero-actions button:hover:not(:disabled) { background: rgba(255, 255, 255, 0.22) !important; transform: translateY(-1px); }
+.page-hero-actions button:first-child, .page-hero-actions > div > button:first-child {
+  background: linear-gradient(90deg, #fbbf24, #f59e0b) !important; color: #081b3b !important; border-color: transparent !important;
+  box-shadow: 0 12px 24px -12px rgba(245, 158, 11, 0.8) !important;
+}

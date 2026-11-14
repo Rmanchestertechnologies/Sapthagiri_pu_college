@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import api from '../../api';
 import { optionLabel, isOptionCorrect, getResolvedAnswerLabel } from '../../utils/sanitize';
 import MathRenderer from '../../components/MathRenderer';
+import PageShell from '../../ui/PageShell';
+import { Database } from 'lucide-react';
 
 
 const MultiSelectCheckbox = ({ label, options, selectedValues, onChange, disabled }) => {
@@ -211,19 +213,8 @@ const AdminQuestionBank = () => {
     };
 
     return (
-        <div className="bg-surface p-5 sm:p-10 rounded-[2.5rem] shadow-sm border border-gray-100 animate-fade-in-up space-y-8">
-            <div className="flex justify-between items-center pb-4 border-b border-gray-100 flex-wrap gap-4">
-                <div>
-                    <h2 className="text-3xl font-black text-navy uppercase tracking-tight mb-2">Unified Question Bank</h2>
-                    <p className="text-[10px] font-black text-slate/40 uppercase tracking-[0.2em] ml-1">Central Repository Control & Taxonomy Mapping</p>
-                </div>
-                <button
-                    onClick={() => navigate('/admin/dashboard')}
-                    className="hidden sm:inline-block bg-white border-2 border-gray-100 text-slate/40 px-8 py-3 rounded-2xl font-black text-xs uppercase tracking-widest hover:border-navy hover:text-navy transition shadow-sm cursor-pointer"
-                >
-                    ← Back
-                </button>
-            </div>
+        <PageShell icon={Database} tone="indigo" title="Unified Question Bank" subtitle="Central Repository Control & Taxonomy Mapping" >
+
 
             {/* Filter Bar */}
             <div className="grid grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5 gap-4 p-6 bg-slate-50 rounded-3xl border border-slate-100">
@@ -436,7 +427,7 @@ const AdminQuestionBank = () => {
                     </div>
                 )}
             </div>
-        </div>
+        </PageShell>
     );
 };
 

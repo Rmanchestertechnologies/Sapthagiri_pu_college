@@ -3,6 +3,8 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import api from '../../api';
 import { optionLabel } from '../../utils/sanitize';
 import MathRenderer from '../../components/MathRenderer';
+import PageShell from '../../ui/PageShell';
+import { Trophy } from 'lucide-react';
 
 const GrandTestList = () => {
     const navigate = useNavigate();
@@ -274,27 +276,15 @@ const GrandTestList = () => {
     };
 
     return (
-        <div className="bg-surface p-5 sm:p-10 rounded-[2.5rem] shadow-sm border border-gray-100 animate-fade-in-up space-y-8">
-            <div className="flex justify-between items-center pb-6 border-b border-gray-100 flex-wrap gap-4">
-                <div>
-                    <h2 className="text-3xl font-black text-navy uppercase tracking-tight mb-2">Grand Test Panels</h2>
-                    <p className="text-[10px] font-black text-slate/40 uppercase tracking-[0.2em] ml-1">Institutional Grand Test & Paper Management</p>
-                </div>
-                <div className="flex items-center gap-3">
-                    <button 
+        <PageShell icon={Trophy} tone="amber" title="Grand Test Panels" subtitle="Institutional Grand Test & Paper Management" actions={<>
+                <button 
                         onClick={() => setShowCreateModal(true)} 
                         className="bg-navy text-gold px-8 py-3 rounded-2xl font-black text-xs uppercase tracking-widest hover:scale-105 active:scale-95 transition-all shadow-lg cursor-pointer"
                     >
                         + Create Grand Test
                     </button>
-                    <button 
-                        onClick={() => navigate(location.pathname.startsWith('/teacher') ? '/teacher/dashboard' : '/admin/dashboard')} 
-                        className="hidden sm:inline-block bg-white border-2 border-gray-100 text-slate/40 px-8 py-3 rounded-2xl font-black text-xs uppercase tracking-widest hover:border-navy hover:text-navy transition shadow-sm cursor-pointer"
-                    >
-                        ← Back
-                    </button>
-                </div>
-            </div>
+            </>}>
+
 
             {/* List & Details View Split */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -757,7 +747,7 @@ const GrandTestList = () => {
                     </div>
                 </div>
             )}
-        </div>
+        </PageShell>
     );
 };
 
