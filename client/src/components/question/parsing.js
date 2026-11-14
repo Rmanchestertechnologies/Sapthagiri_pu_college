@@ -213,8 +213,9 @@ export function parseMatchFromText(q) {
                 right: rightItems[i] || ''
             });
         }
+        // cut only at a column heading that starts a line, so "Match the laws in Column I with Column II." stays whole
         let intro = cleanQuestionText(rawText)
-            .replace(/(?:\*\*|\b)(?:Column|List)\s*[-:]?\s*(?:I|1|A)\b[\s\S]*$/i, '')
+            .replace(/(?:^|\n)\s*(?:\*\*)?(?:Column|List)\s*[-:]?\s*(?:I|1|A)\b[\s\S]*$/i, '')
             .trim();
         return {
             introText: intro || 'Match Column I with Column II:',
@@ -232,8 +233,9 @@ export function parseMatchFromText(q) {
                 right: rightItems[i] || ''
             });
         }
+        // cut only at a column heading that starts a line, so "Match the laws in Column I with Column II." stays whole
         let intro = cleanQuestionText(rawText)
-            .replace(/(?:\*\*|\b)(?:Column|List)\s*[-:]?\s*(?:I|1|A)\b[\s\S]*$/i, '')
+            .replace(/(?:^|\n)\s*(?:\*\*)?(?:Column|List)\s*[-:]?\s*(?:I|1|A)\b[\s\S]*$/i, '')
             .trim();
         return {
             introText: intro || 'Match Column I with Column II:',
@@ -296,7 +298,9 @@ export function parseMatchFromText(q) {
 
     const cleanItem = (s) => {
         if (!s) return '';
-        return cleanStatementText(s)
+        // run the label strip twice: "(a) A. Newton" carries two labels
+        const stripLabel = (t) => t.replace(/^(?:[\(\[](?:[A-Ea-e1-8]|i{1,4}|iv|v|vi{0,3}|ix|x|[p-tP-T])[\)\]]|(?:[A-Ea-e1-8]|i{1,4}|iv|v|vi{0,3}|ix|x|[p-tP-T])[\)\.:\-](?=\s))\s*/, '');
+        return stripLabel(cleanStatementText(s))
             // a bracketed label "(A)" / "[2]" is always a label; a bare one ("A.", "1)", "p-") only when whitespace follows it,
             // otherwise "1.5 eV", "p-nitrophenol", "2-butene" would lose their first characters
             .replace(/^(?:[\(\[](?:[A-Ea-e1-8]|i{1,4}|iv|v|vi{0,3}|ix|x|[p-tP-T])[\)\]]|(?:[A-Ea-e1-8]|i{1,4}|iv|v|vi{0,3}|ix|x|[p-tP-T])[\)\.:\-](?=\s))\s*/, '')

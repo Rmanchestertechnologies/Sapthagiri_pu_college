@@ -38,8 +38,8 @@ export function BodyMatchFollowing({
                      optionSpacing === '15' ? '15px' : '3px';
     const shouldHideOptions = hideOptions || displayMode === '5. Only Questions with No Options';
 
-    const effectivePerLine = Number(optionsPerLine) || (optionsLayout === '4' ? 4 : (optionsLayout === '2col' ? 2 : (optionsLayout === 'stacked' ? 1 : (isTwoCol ? 2 : 4))));
-    const gridColsClass = effectivePerLine === 4 ? 'grid-cols-4' : (effectivePerLine === 2 ? 'grid-cols-2' : 'grid-cols-1');
+    let effectivePerLine = Number(optionsPerLine) || (optionsLayout === '4' ? 4 : (optionsLayout === '2col' ? 2 : (optionsLayout === 'stacked' ? 1 : (isTwoCol ? 2 : 4))));
+    let gridColsClass = effectivePerLine === 4 ? 'grid-cols-4' : (effectivePerLine === 2 ? 'grid-cols-2' : 'grid-cols-1');
 
     // 1. Recover candidate options
     let rawCandidateOpts = [];
@@ -79,8 +79,14 @@ export function BodyMatchFollowing({
             leftKeys.map((k, i) => `${k}-(${(i + 3) % pairCount + 1})`).join(', '),
         ];
     }
+    // Match codes such as "A-(4), B-(2), C-(3), D-(1)" are long: four across would break them mid-code, so they go two across
+    // (unless the teacher chose a layout explicitly).
+    if (!Number(optionsPerLine) && optionsLayout === 'line' && effectivePerLine === 4 && opts.some(o => String(typeof o === 'object' ? (o.text || '') : o).length > 20)) {
+        gridColsClass = 'grid-cols-2'; effectivePerLine = 2;
+    }
     const rawQText = cleanQuestionText(pairs.length > 0 ? (introText || '') : (q.questionText || q.question || ''))
-        .replace(/(?:\*\*|\b)(?:Column|List)\s*[-:]?\s*(?:I|1|A)\b[\s\S]*$/i, '')
+        // only a column heading that starts a line is cut ("Column I" inside the sentence stays part of the instruction)
+        .replace(/(?:^|\n)\s*(?:\*\*)?(?:Column|List)\s*[-:]?\s*(?:I|1|A)\b[\s\S]*$/i, '')
         .trim();
     const { cleanText: qText, diagramUrl: imageUrl } = extractDiagramFromText(rawQText, q.imageUrl || q.image_url);
     const labels = getQuestionOptionLabels(q, optionFormat);

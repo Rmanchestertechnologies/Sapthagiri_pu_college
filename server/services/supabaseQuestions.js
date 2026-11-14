@@ -79,6 +79,70 @@ function extractDifficulty(solutionText, questionText) {
     return 'medium';
 }
 
+const ROMAN_TO_NUM = { i: 1, ii: 2, iii: 3, iv: 4, v: 5, vi: 6, vii: 7, viii: 8 };
+
+/** "4", "iv", "(iv)", "r" -> 4 (null if it is none of those) */
+function matchTokenToNumber(token) {
+    const t = String(token == null ? '' : token).replace(/[()\s.]/g, '').toLowerCase();
+    if (/^[1-8]$/.test(t)) return parseInt(t, 10);
+    if (ROMAN_TO_NUM[t]) return ROMAN_TO_NUM[t];
+    if (/^[p-w]$/.test(t)) return t.charCodeAt(0) - 111; // p=1, q=2, r=3, s=4 ...
+    return null;
+}
+
+/**
+ * The right matching of a match-the-following question as an array of numbers (index = left item), or null when it
+ * cannot be read. Sources: the stored key text "A → 4; B → 2; C → 3; D → 1" or QBP_DATA.matchOptions {A:["4"], ...}.
+ */
+function parseMatchMapping(keyText, matchOptions, pairCount) {
+    const out = [];
+    const fromText = String(keyText || '');
+    const re = /\(?([A-Fa-f])\)?\s*(?:→|->|=>|=|:|–|—|-)\s*\(?([ivxIVX]+|[1-8]|[p-wP-W])\)?/g;
+    let m;
+    while ((m = re.exec(fromText)) !== null) {
+        const n = matchTokenToNumber(m[2]);
+        if (n != null) out[m[1].toUpperCase().charCodeAt(0) - 65] = n;
+    }
+    if (out.length < 2 && matchOptions && typeof matchOptions === 'object') {
+        out.length = 0;
+        for (const k of Object.keys(matchOptions)) {
+            const v = Array.isArray(matchOptions[k]) ? matchOptions[k][0] : matchOptions[k];
+            const n = matchTokenToNumber(v);
+            if (/^[A-Fa-f]$/.test(k) && n != null) out[k.toUpperCase().charCodeAt(0) - 65] = n;
+        }
+    }
+    const count = Math.max(pairCount || 0, out.length);
+    if (out.length < 2 || count > 8) return null;
+    const mapping = [];
+    for (let i = 0; i < count; i++) {
+        if (out[i] == null) return null;
+        mapping.push(out[i]);
+    }
+    return mapping;
+}
+
+/**
+ * Four match-code choices "A-(4), B-(2), ..." : the true mapping and three different wrong ones (rotations / swaps of it),
+ * the true one at a position that depends only on the question id so it is stable between loads.
+ */
+function buildMatchChoices(mapping, seed) {
+    const fmt = map => map.map((n, i) => `${String.fromCharCode(65 + i)}-(${n})`).join(', ');
+    const seen = new Set([fmt(mapping)]);
+    const wrong = [];
+    const push = map => { const s = fmt(map); if (!seen.has(s) && wrong.length < 3) { seen.add(s); wrong.push(s); } };
+    const n = mapping.length;
+    for (let r = 1; r < n; r++) push(mapping.map((_, i) => mapping[(i + r) % n]));
+    for (let i = 0; i < n - 1; i++) { const c = [...mapping]; [c[i], c[i + 1]] = [c[i + 1], c[i]]; push(c); }
+    for (let i = 0; i < n; i++) for (let j = i + 2; j < n; j++) { const c = [...mapping]; [c[i], c[j]] = [c[j], c[i]]; push(c); }
+    while (wrong.length < 3) wrong.push(fmt(mapping.map((v, i) => ((v + i + wrong.length) % n) + 1)) + ' ');
+    let h = 0;
+    for (const ch of String(seed)) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+    const correctIndex = h % 4;
+    const options = [...wrong];
+    options.splice(correctIndex, 0, fmt(mapping));
+    return { options: options.map(o => o.trim()), correctIndex };
+}
+
 function isUuid(str) {
     return typeof str === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
 }
@@ -165,8 +229,12 @@ function mapSupabaseToQuestion(row, usageMap = null) {
         }
         return merged;
     }
-    colA = cleanColumnList(colA);
-    colB = cleanColumnList(colB);
+    // Items are stored as "A. Newton's First Law" / "1. F = ma"; the label is added again when the column is shown, so it is
+    // removed here (a bracketed label always; a bare "A." / "1)" only when whitespace follows, so "1.5 eV" and "p-nitrophenol" stay).
+    const LABEL = /^(?:[\(\[](?:[A-Ea-e1-8]|i{1,3}|iv|v|vi{0,3}|[p-tP-T])[\)\]]|(?:[A-Ea-e1-8]|i{1,3}|iv|v|vi{0,3}|[p-tP-T])[\)\.:\-](?=\s))\s*/;
+    const stripItemLabel = s => { let t = String(s == null ? '' : s).trim(); for (let i = 0; i < 2; i++) t = t.replace(LABEL, ''); return t.trim(); };
+    colA = cleanColumnList(colA).map(stripItemLabel).filter(Boolean);
+    colB = cleanColumnList(colB).map(stripItemLabel).filter(Boolean);
 
     // 2. Options Extraction
     let rawOptions = [];
@@ -200,10 +268,11 @@ function mapSupabaseToQuestion(row, usageMap = null) {
         } catch (e) {}
     }
 
-    // Fallback: extract matchOptions from QBP_DATA if options still empty
+    // QBP_DATA.matchOptions is {A:["4"], B:["2"], ...}: the right match for each left item, not four choices. It is used to
+    // build the choices further down; only a map of ready-made option strings counts as options here.
     if (rawOptions.length === 0 && qbpData && qbpData.matchOptions && typeof qbpData.matchOptions === 'object') {
         const mo = qbpData.matchOptions;
-        const moArr = [mo.A || mo.a, mo.B || mo.b, mo.C || mo.c, mo.D || mo.d].filter(Boolean);
+        const moArr = [mo.A || mo.a, mo.B || mo.b, mo.C || mo.c, mo.D || mo.d].filter(v => typeof v === 'string' && v.trim().length > 3);
         if (moArr.length >= 2) rawOptions.push(...moArr);
     }
 
@@ -376,14 +445,21 @@ function mapSupabaseToQuestion(row, usageMap = null) {
     );
     const hasLetteredStatements = /(?:statements?|consider the following)[\s\S]*?(?:^|\r?\n)\s*(?:\([A-Da-d]\)|[A-Da-d][\.:\)])\s+[\s\S]*?(?:^|\r?\n)\s*(?:\([B-Db-d]\)|[B-Db-d][\.:\)])\s+/i.test(cleanQuestion);
     const hasRomanStatements = /(?:statements?|consider the following)[\s\S]*?(?:^|\r?\n)\s*(?:\([ivx]+\)|[ivx]+[\.:\)])\s+[\s\S]*?(?:^|\r?\n)\s*(?:\([ivx]+\)|[ivx]+[\.:\)])\s+/i.test(cleanQuestion);
-    const isStatement = (
-        effectiveQType === 'statement_based' ||
-        effectiveQType.includes('statement') || 
-        Boolean(statement1 && statement2) ||
-        (/Statement\s*[-–—]?\s*(?:I|1)\b/i.test(cleanQuestion) && /Statement\s*[-–—]?\s*(?:II|2)\b/i.test(cleanQuestion)) ||
-        hasLetteredStatements ||
-        hasRomanStatements
+    // A question that has two columns (or says "match") is a match question even when its items are lettered A, B, C - the
+    // lettered/roman "statements" patterns below would otherwise steal it and give it Statement I/II options.
+    const hasMatchSignal = (
+        effectiveQType.includes('match') ||
+        colA.length > 0 ||
+        /(?:Column|List)\s*[-:]?\s*I\b[\s\S]*(?:Column|List)\s*[-:]?\s*II\b/i.test(cleanQuestion) ||
+        /Match (?:List|the following|Column|the laws|the items)/i.test(cleanQuestion)
     );
+    const hasExplicitStatements = (
+        effectiveQType === 'statement_based' ||
+        effectiveQType.includes('statement') ||
+        Boolean(statement1 && statement2) ||
+        (/Statement\s*[-–—]?\s*(?:I|1)\b/i.test(cleanQuestion) && /Statement\s*[-–—]?\s*(?:II|2)\b/i.test(cleanQuestion))
+    );
+    const isStatement = hasExplicitStatements || (!hasMatchSignal && (hasLetteredStatements || hasRomanStatements));
     const isMatch = (
         effectiveQType === 'match' ||
         effectiveQType.includes('match') || 
@@ -421,6 +497,7 @@ function mapSupabaseToQuestion(row, usageMap = null) {
         type = 'MCQ';
     }
 
+    let matchKeyUnknown = false;
     // Default standard options for Assertion-Reason & Statement questions if options still empty
     if (type === 'ASSERTION_REASON' && options.length === 0) {
         const isStatementType = /Statement\s*(?:I|1)/i.test(cleanQuestion);
@@ -447,15 +524,20 @@ function mapSupabaseToQuestion(row, usageMap = null) {
             'Statement I is incorrect but Statement II is correct'
         ];
     } else if (type === 'MATCH_FOLLOWING' && options.length === 0) {
+        // The bank stores the right matching ("A → 4; B → 2; ...") but no choices. Build real match-code choices around it:
+        // the true mapping plus three wrong ones, with the true one at a stable (per-question) position - never a generic
+        // "A-(i), B-(ii)" ladder that is not tied to the question.
         const pairCount = matchPairs.length || colA.length || 4;
-        const leftKeys = Array.from({ length: pairCount }, (_, idx) => String.fromCharCode(65 + idx));
-        const roman = ['i', 'ii', 'iii', 'iv', 'v', 'vi'];
-        options = [
-            leftKeys.map((k, i) => `${k}-(${roman[i] || (i + 1)})`).join(', '),
-            leftKeys.map((k, i) => `${k}-(${roman[(i + 1) % pairCount] || ((i + 1) % pairCount + 1)})`).join(', '),
-            leftKeys.map((k, i) => `${k}-(${roman[(i + 2) % pairCount] || ((i + 2) % pairCount + 1)})`).join(', '),
-            leftKeys.map((k, i) => `${k}-(${roman[(i + 3) % pairCount] || ((i + 3) % pairCount + 1)})`).join(', ')
-        ];
+        const mapping = parseMatchMapping(correctOption, qbpData && qbpData.matchOptions, pairCount);
+        if (mapping) {
+            const built = buildMatchChoices(mapping, String(row.id || ''));
+            options = built.options;
+            correctOption = 'ABCD'[built.correctIndex];
+        } else {
+            matchKeyUnknown = true;
+            const leftKeys = Array.from({ length: pairCount }, (_, idx) => String.fromCharCode(65 + idx));
+            options = [0, 1, 2, 3].map(shift => leftKeys.map((k, i) => `${k}-(${((i + shift) % pairCount) + 1})`).join(', '));
+        }
     } else if (type === 'MCQ' && options.length === 0) {
         // If still no options and not numerical, treat as numerical / free-response
         type = 'NUMERICAL';
@@ -490,6 +572,13 @@ function mapSupabaseToQuestion(row, usageMap = null) {
             if (text != null && String(text).trim()) answer = typeof text === 'string' && slots ? cleanDifficultyTags(text) : text;
             else if (effectiveQType !== 'true_false') keyProblem = keyProblem || 'KEY_EMPTY_OPTION';
         }
+    }
+
+    if (matchKeyUnknown && !keyProblem) keyProblem = 'MATCH_KEY_UNKNOWN';
+    // Two options that read exactly the same make the question unanswerable (a student cannot tell A from C).
+    if (!keyProblem && options.length >= 2 && type !== 'TRUE_FALSE') {
+        const norm = o => String(o).replace(/\s+/g, '').toLowerCase();
+        if (new Set(options.map(norm)).size < options.length) keyProblem = 'DUPLICATE_OPTIONS';
     }
 
     // An assertion-reason question whose Reason is missing (the bank text stops after "Reason:") cannot be answered.

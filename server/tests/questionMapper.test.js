@@ -81,3 +81,56 @@ describe('paper generation skips questions with a bad key and says so', () => {
         expect(res.warnings.join(' ')).toMatch(/2 bank question\(s\) whose marked correct option is empty/);
     });
 });
+
+describe('question mapper: match-the-following questions', () => {
+    const colA = ["A. Newton's First Law", "B. Newton's Second Law", "C. Newton's Third Law", 'D. Conservation of Momentum'];
+    const colB = ['1. Momentum stays constant', '2. F = ma', '3. Action and reaction', '4. A body stays at rest or in uniform motion'];
+    const qbp = Buffer.from(JSON.stringify({ columnA: colA, columnB: colB, matchOptions: { A: ['4'], B: ['2'], C: ['3'], D: ['1'] } })).toString('base64');
+    const matchRow = {
+        ...base, id: '4da7bf96-cd86-4d08-9065-4277a721b956', q_type: 'mcq',
+        question: 'The statements correspond to laws.\nMatch the laws in Column I with Column II.\nA. First\nB. Second\nC. Third\nD. Momentum',
+        correct_option: 'A → 4; B → 2; C → 3; D → 1',
+        solution_text: `Explanation.\n[QBP_TYPE:match]\n[QBP_DATA:${qbp}]`,
+    };
+
+    test('is typed MATCH_FOLLOWING (not statement-based) and gets real match codes with the right key', () => {
+        const q = mapSupabaseToQuestion(matchRow);
+        expect(q.type).toBe('MATCH_FOLLOWING');
+        expect(q.options).toHaveLength(4);
+        expect(new Set(q.options).size).toBe(4);
+        expect(q.options.some(o => /Statement/i.test(o))).toBe(false);
+        expect(q.answer).toBe('A-(4), B-(2), C-(3), D-(1)');
+        expect(q.options['ABCD'.indexOf(q.correct_option)]).toBe('A-(4), B-(2), C-(3), D-(1)');
+        expect(q.keyProblem).toBeNull();
+    });
+
+    test('column items no longer carry their own "A." / "1." label', () => {
+        const q = mapSupabaseToQuestion(matchRow);
+        expect(q.columnA[0]).toBe("Newton's First Law");
+        expect(q.columnB[1]).toBe('F = ma');
+        expect(q.questionText).not.toMatch(/\(a\)\s*A\./i);
+    });
+
+    test('roman / p-q-r keys are turned into numbers; the key position is stable per question', () => {
+        const a = mapSupabaseToQuestion({ ...matchRow, correct_option: 'A → iv; B → ii; C → iii; D → i' });
+        expect(a.answer).toBe('A-(4), B-(2), C-(3), D-(1)');
+        expect(mapSupabaseToQuestion(matchRow).correct_option).toBe(mapSupabaseToQuestion(matchRow).correct_option);
+    });
+
+    test('an unreadable key is flagged instead of guessed', () => {
+        const q = mapSupabaseToQuestion({ ...matchRow, correct_option: 'A', solution_text: '[QBP_TYPE:match]' });
+        expect(q.keyProblem).toBe('MATCH_KEY_UNKNOWN');
+    });
+
+    test('a genuine two-statement question is still statement-based', () => {
+        const q = mapSupabaseToQuestion({ ...base, q_type: 'statement_based', question: 'Statement I: Heat is energy.\nStatement II: Work is energy.\nChoose the correct answer.', opt_a: 'a', opt_b: 'b', opt_c: 'c', opt_d: 'd', correct_option: 'A' });
+        expect(q.type).toBe('STATEMENT_BASED');
+    });
+});
+
+describe('question mapper: duplicate options', () => {
+    test('two options that read the same are flagged', () => {
+        const q = mapSupabaseToQuestion({ ...base, opt_a: '$7,6$', opt_b: '$7,6$', opt_c: '$6,4$', opt_d: '$7,4$', correct_option: 'A' });
+        expect(q.keyProblem).toBe('DUPLICATE_OPTIONS');
+    });
+});

@@ -25,7 +25,9 @@ const KATEX_CONFIG = {
         'aria-hidden', 'aria-label', 'role', 'tabindex', 'focusable',
         'mathvariant', 'display', 'xmlns',
         // SVG attrs
-        'viewBox', 'x', 'y', 'd', 'fill', 'stroke', 'stroke-width',
+        // KaTeX draws the radical sign (and long arrows / braces) as SVG that only shows when it is
+        // cropped with preserveAspectRatio="xMinYMin slice" - without it the √ scales away to nothing.
+        'viewBox', 'preserveAspectRatio', 'x', 'y', 'd', 'fill', 'stroke', 'stroke-width',
         'transform', 'clip-path', 'mask', 'id', 'href', 'xlink:href',
     ],
     FORBID_TAGS: ['script', 'object', 'embed', 'link', 'iframe', 'form', 'input'],
