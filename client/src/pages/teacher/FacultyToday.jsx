@@ -69,7 +69,7 @@ export default function FacultyToday() {
                         <button type="button" onClick={() => navigate('/teacher/dashboard/saved-papers')}
                             className="h-12 px-5 rounded-2xl bg-white/10 hover:bg-white/20 border border-white/20 text-white text-xs font-extrabold uppercase tracking-wider flex items-center gap-2 cursor-pointer"><FolderOpen size={16} /> Saved papers</button>
                     </div>
-                    <dl className="mt-7 grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <dl className="mt-7 grid grid-cols-2 2xl:grid-cols-4 gap-3">
                         {stats.map(({ label, value, Icon: StatIcon }) => (
                             <div key={label} className="rounded-2xl bg-white/[0.07] border border-white/10 px-3.5 py-3">
                                 <dt className="flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-wider text-white/50"><StatIcon size={12} /> {label}</dt>
