@@ -4,14 +4,14 @@
  */
 
 :root {
-  --ink: #081b3b;
-  --ink-2: #0d2a5e;
-  --saffron: #f59e0b;
+  --ink: #1e1b4b;
+  --ink-2: #312e81;
+  --saffron: #6366f1;
   --canvas: #f6f7fb;
   --hairline: rgba(15, 23, 42, 0.08);
   --shadow-1: 0 1px 2px rgba(15, 23, 42, 0.05), 0 1px 1px rgba(15, 23, 42, 0.03);
   --shadow-2: 0 4px 14px -4px rgba(15, 23, 42, 0.12), 0 2px 4px rgba(15, 23, 42, 0.04);
-  --shadow-3: 0 18px 40px -14px rgba(8, 27, 59, 0.28), 0 6px 14px -6px rgba(15, 23, 42, 0.12);
+  --shadow-3: 0 18px 40px -14px rgba(30, 27, 75, 0.28), 0 6px 14px -6px rgba(15, 23, 42, 0.12);
   --display: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif;
 }
 
@@ -19,8 +19,8 @@
 body {
   background-color: var(--canvas);
   background-image:
-    radial-gradient(900px 520px at 8% -8%, rgba(245, 158, 11, 0.10), transparent 60%),
-    radial-gradient(1000px 600px at 100% 0%, rgba(13, 42, 94, 0.08), transparent 55%);
+    radial-gradient(900px 520px at 8% -8%, rgba(99, 102, 241, 0.10), transparent 60%),
+    radial-gradient(1000px 600px at 100% 0%, rgba(49, 46, 129, 0.08), transparent 55%);
   background-attachment: fixed;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
@@ -31,7 +31,7 @@ h1, h2, h3, h4 { font-family: var(--display); letter-spacing: -0.015em; }
 .a4-print-document h1, .a4-print-document h2, .a4-print-document h3, .a4-print-document h4,
 .a4-engine-wrapper h1, .a4-engine-wrapper h2, .a4-engine-wrapper h3, .a4-engine-wrapper h4 { font-family: inherit; letter-spacing: inherit; }
 
-::selection { background: rgba(245, 158, 11, 0.3); }
+::selection { background: rgba(99, 102, 241, 0.3); }
 
 /* one consistent keyboard focus ring */
 :where(button, a, input, select, textarea, [role="button"], summary):focus-visible {
@@ -61,12 +61,12 @@ button:not(:disabled):active { transform: scale(0.97); }
   transition: box-shadow 0.18s ease, border-color 0.18s ease, background-color 0.18s ease;
 }
 :where(input[type="text"], input[type="email"], input[type="password"], input[type="number"], input[type="search"], select, textarea):focus {
-  box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.16);
+  box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.16);
 }
 
 /* reusable pieces for new code */
 .glass { background: rgba(255, 255, 255, 0.72); backdrop-filter: blur(14px) saturate(160%); -webkit-backdrop-filter: blur(14px) saturate(160%); border: 1px solid rgba(255, 255, 255, 0.6); box-shadow: var(--shadow-2); }
-.glass-dark { background: rgba(8, 27, 59, 0.78); backdrop-filter: blur(14px) saturate(150%); -webkit-backdrop-filter: blur(14px) saturate(150%); border: 1px solid rgba(255, 255, 255, 0.08); }
+.glass-dark { background: rgba(30, 27, 75, 0.78); backdrop-filter: blur(14px) saturate(150%); -webkit-backdrop-filter: blur(14px) saturate(150%); border: 1px solid rgba(255, 255, 255, 0.08); }
 .surface { background: #fff; border: 1px solid var(--hairline); border-radius: 22px; box-shadow: var(--shadow-1); }
 .eyebrow { font-size: 10.5px; font-weight: 800; letter-spacing: 0.16em; text-transform: uppercase; color: var(--saffron); }
 
@@ -100,11 +100,11 @@ button:not(:disabled):active { transform: scale(0.97); }
 /* primary buttons: navy + gold become a gradient with a soft lift on hover */
 .app-surface button.bg-navy.text-gold:not(.a4-print-document *, :disabled),
 .app-surface a.bg-navy.text-gold:not(.a4-print-document *) {
-  background-image: linear-gradient(90deg, #081b3b, #0d2a5e);
-  box-shadow: 0 10px 22px -12px rgba(8, 27, 59, 0.6);
+  background-image: linear-gradient(90deg, #1e1b4b, #312e81);
+  box-shadow: 0 10px 22px -12px rgba(30, 27, 75, 0.6);
 }
 .app-surface button.bg-navy.text-gold:not(.a4-print-document *, :disabled):hover { transform: translateY(-1px); }
-.app-surface button.bg-gold.text-navy:not(.a4-print-document *, :disabled) { box-shadow: 0 10px 22px -12px rgba(245, 158, 11, 0.7); }
+.app-surface button.bg-gold.text-navy:not(.a4-print-document *, :disabled) { box-shadow: 0 10px 22px -12px rgba(99, 102, 241, 0.7); }
 
 /* tables: calm header, row hover, rounded container */
 .app-surface table:not(.a4-print-document *, .a4-engine-wrapper *) { border-collapse: separate; border-spacing: 0; }
@@ -141,15 +141,15 @@ button:not(:disabled):active { transform: scale(0.97); }
 
 /* ───── page header actions (PageShell): existing buttons in a compact, calm style ───── */
 .page-hero-actions button {
-  background: #fff !important; color: #081b3b !important; border: 1px solid #e2e8f0 !important; border-radius: 12px !important;
+  background: #fff !important; color: #1e1b4b !important; border: 1px solid #e2e8f0 !important; border-radius: 12px !important;
   padding: 0 16px !important; height: 40px; font-size: 13px !important; font-weight: 600 !important; letter-spacing: 0 !important;
   text-transform: none !important; box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05) !important; background-image: none !important; transform: none;
 }
 .page-hero-actions button:hover:not(:disabled) { border-color: #cbd5e1 !important; box-shadow: 0 4px 10px -4px rgba(15, 23, 42, 0.15) !important; }
 .page-hero-actions button:first-child, .page-hero-actions > div > button:first-child {
-  background: #081b3b !important; color: #fff !important; border-color: #081b3b !important;
+  background: #1e1b4b !important; color: #fff !important; border-color: #1e1b4b !important;
 }
-.page-hero-actions button:first-child:hover:not(:disabled) { background: #0d2a5e !important; }
+.page-hero-actions button:first-child:hover:not(:disabled) { background: #312e81 !important; }
 
 
 /* ───────────── Contrast pass (WCAG AA) ─────────────
@@ -174,9 +174,9 @@ button:not(:disabled):active { transform: scale(0.97); }
 .app-surface .text-white\/50, .app-surface .text-white\/55 { color: rgba(255, 255, 255, 0.74); }
 .app-surface .text-white\/60, .app-surface .text-white\/65 { color: rgba(255, 255, 255, 0.8); }
 
-/* eyebrow labels: dark amber on light, bright amber on dark */
-.eyebrow { color: #b45309; }
-.text-white .eyebrow, .bg-\[\#050e1f\] .eyebrow, .eyebrow-dark { color: #fcd34d; }
+/* eyebrow labels: indigo on light, pale indigo on dark */
+.eyebrow { color: #4f46e5; }
+.text-white .eyebrow, .bg-\[\#0c0b2c\] .eyebrow, .eyebrow-dark { color: #c7d2fe; }
 
 /* readable minimum sizes for the smallest labels */
 .app-surface .text-\[11px\]:not(.a4-print-document *, .a4-engine-wrapper *) { font-size: 12px; }
@@ -191,3 +191,12 @@ button:not(:disabled):active { transform: scale(0.97); }
 .app-surface .text-navy\/30, .app-surface .text-navy\/40, .app-surface .text-navy\/50 { color: #5b6b80; }
 .app-surface .text-slate\/60, .app-surface .text-slate\/70, .app-surface .text-navy\/60, .app-surface .text-navy\/70 { color: #475569; }
 .app-surface .bg-white .text-gold\/70, .app-surface .bg-gray-50 .text-gold\/70 { color: #b45309; }
+
+/* the pale accent token reads on dark surfaces; on white and light-grey cards the same names use the deeper indigo */
+.app-surface .bg-white .text-gold:not(.bg-navy, [class*="bg-[#"], button), .app-surface .bg-gray-50 .text-gold:not(.bg-navy, button), .app-surface .bg-slate-50 .text-gold:not(.bg-navy, button), .app-surface .surface .text-gold:not(.bg-navy, button), .app-surface .bg-surface .text-gold:not(.bg-navy, button) { color: #4f46e5; }
+
+/* ───── dialogs: one modern frame for every older modal ───── */
+.app-surface .fixed.inset-0 > div[class*="rounded-[2.5rem]"], .app-surface .fixed.inset-0 > div[class*="rounded-3xl"][class*="bg-white"] {
+  border-radius: 24px; border-bottom-width: 0 !important; box-shadow: var(--shadow-3); outline: 1px solid rgba(15, 23, 42, 0.06);
+}
+.app-surface .fixed.inset-0 h2.uppercase, .app-surface .fixed.inset-0 h3.uppercase { text-transform: none; letter-spacing: -0.01em; }

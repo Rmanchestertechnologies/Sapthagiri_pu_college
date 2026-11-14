@@ -165,7 +165,7 @@ const CreateTeacher = () => {
                                     </button>
                                     <button
                                         onClick={() => handleResetPassword(teacher)}
-                                        className="bg-amber-50 border border-amber-300 text-amber-800 px-3.5 py-2 rounded-xl text-xs font-black uppercase tracking-wider hover:bg-amber-100 transition-all cursor-pointer"
+                                        className="bg-amber-50 border border-indigo-300 text-amber-800 px-3.5 py-2 rounded-xl text-xs font-black uppercase tracking-wider hover:bg-amber-100 transition-all cursor-pointer"
                                         title="Change this teacher's password"
                                     >
                                         🔑 Reset Pass

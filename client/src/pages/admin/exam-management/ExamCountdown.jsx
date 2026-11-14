@@ -60,7 +60,7 @@ export function ExamCountdown({ startTime, endTime, status, onZero }) {
     };
 
     if (status === 'scheduled') {
-        return <div style={{ color: '#f59e0b', fontSize: 13, fontWeight: 600, marginTop: 6 }}>⏳ Starts in: {timeLeft}</div>;
+        return <div style={{ color: '#6366f1', fontSize: 13, fontWeight: 600, marginTop: 6 }}>⏳ Starts in: {timeLeft}</div>;
     }
     if (status === 'live') {
         return <div style={{ color: '#10b981', fontSize: 13, fontWeight: 600, marginTop: 6 }}>🟢 Live (Ends in: {timeLeft})</div>;

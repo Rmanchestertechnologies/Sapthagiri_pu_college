@@ -462,7 +462,7 @@ export default function ChapterBlueprintMatrix({
                                     <span>Section A (MCQs/AR/Diag):</span>
                                     <span className="bg-emerald-200 px-2 py-0.5 rounded-full">{secATotal} / 20</span>
                                 </div>
-                                <div className="bg-amber-50 border border-amber-300 px-3 py-1 rounded-xl flex items-center gap-1.5 text-xs font-black text-amber-900">
+                                <div className="bg-amber-50 border border-indigo-300 px-3 py-1 rounded-xl flex items-center gap-1.5 text-xs font-black text-amber-900">
                                     <span>Section B (Numericals):</span>
                                     <span className="bg-amber-200 px-2 py-0.5 rounded-full">{secBTotal} / 5</span>
                                 </div>
@@ -488,7 +488,7 @@ export default function ChapterBlueprintMatrix({
                                 <span>✓</span> Target Match: Exactly {targetQs} Questions ({targetMarks} Marks) Allocated!
                             </span>
                         ) : qsDifference < 0 ? (
-                            <span className="bg-amber-100 text-amber-900 border border-amber-300 px-4 py-1.5 rounded-xl font-black text-xs uppercase tracking-wider inline-flex items-center gap-1.5 shadow-xs">
+                            <span className="bg-amber-100 text-amber-900 border border-indigo-300 px-4 py-1.5 rounded-xl font-black text-xs uppercase tracking-wider inline-flex items-center gap-1.5 shadow-xs">
                                 <span>⚠️</span> Under Target: {Math.abs(qsDifference)} Questions Remaining ({grandTotalQs}/{targetQs} Qs)
                             </span>
                         ) : (
@@ -617,7 +617,7 @@ export default function ChapterBlueprintMatrix({
                                                 </span>
                                             )}
                                             {isJEE && stats.secB > 0 && (
-                                                <span className="bg-amber-100 text-amber-900 border border-amber-300 text-[10px] font-black px-2 py-1 rounded-xl">
+                                                <span className="bg-amber-100 text-amber-900 border border-indigo-300 text-[10px] font-black px-2 py-1 rounded-xl">
                                                     {stats.secB} Num (Sec B)
                                                 </span>
                                             )}
@@ -772,7 +772,7 @@ export default function ChapterBlueprintMatrix({
                                 <td className="p-2 text-center">{totalMCQ}</td>
                                 <td className="p-2 text-center">{totalAR}</td>
                                 <td className="p-2 text-center">{totalStmt}</td>
-                                <td className="p-2 text-center text-amber-300">{totalNum}</td>
+                                <td className="p-2 text-center text-indigo-300">{totalNum}</td>
                                 <td className="p-2 text-center">{totalDiag}</td>
                                 <td className="p-2 text-center">{totalMatch}</td>
                                 <td className="p-3 text-center bg-gold text-navy text-sm font-black">{grandTotalQs}</td>

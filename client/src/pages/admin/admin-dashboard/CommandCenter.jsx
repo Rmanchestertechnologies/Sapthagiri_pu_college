@@ -42,7 +42,7 @@ function Donut({ parts, total }) {
                 })}
             </svg>
             <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-3xl font-extrabold text-[#081b3b]"><AnimatedNumber value={total} /></span>
+                <span className="text-3xl font-extrabold text-[#1e1b4b]"><AnimatedNumber value={total} /></span>
                 <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">papers</span>
             </div>
         </div>
@@ -74,7 +74,7 @@ export default function CommandCenter({ papers, exams, pinned, onTogglePin, onOp
         { label: 'New paper', Icon: FilePlus2, to: '/admin/dashboard/create-paper', tone: 'from-emerald-500 to-teal-600' },
         { label: 'Scan OMR', Icon: ScanLine, to: '/admin/dashboard/omr', tone: 'from-sky-500 to-blue-600' },
         { label: 'Question bank', Icon: Database, to: '/admin/dashboard/questions', tone: 'from-indigo-500 to-violet-600' },
-        { label: 'Online exams', Icon: Zap, to: '/admin/dashboard/cbt-exams', tone: 'from-amber-400 to-orange-500' },
+        { label: 'Online exams', Icon: Zap, to: '/admin/dashboard/cbt-exams', tone: 'from-cyan-500 to-teal-600' },
         { label: 'Results', Icon: BarChart3, to: '/admin/dashboard/results', tone: 'from-rose-500 to-pink-600' },
     ];
 
@@ -87,8 +87,8 @@ export default function CommandCenter({ papers, exams, pinned, onTogglePin, onOp
                         transition={{ ...SPRING.soft, delay: i * 0.04 }}
                         className="group relative overflow-hidden rounded-2xl bg-white border border-slate-200 p-4 flex items-center gap-3 text-left cursor-pointer hover:shadow-lg hover:shadow-blue-950/10">
                         <span className={`w-11 h-11 shrink-0 rounded-xl bg-gradient-to-br ${tone} text-white flex items-center justify-center shadow-lg`}><Icon size={20} /></span>
-                        <span className="font-extrabold text-[#081b3b] text-sm">{label}</span>
-                        <ArrowUpRight size={16} className="ml-auto text-slate-300 group-hover:text-[#081b3b] transition-colors" />
+                        <span className="font-extrabold text-[#1e1b4b] text-sm">{label}</span>
+                        <ArrowUpRight size={16} className="ml-auto text-slate-300 group-hover:text-[#1e1b4b] transition-colors" />
                     </motion.button>
                 ))}
             </div>}
@@ -97,7 +97,7 @@ export default function CommandCenter({ papers, exams, pinned, onTogglePin, onOp
                 {/* papers by exam */}
                 <div className="surface p-5">
                     <div className="flex items-center justify-between mb-4">
-                        <h4 className="text-base font-extrabold text-[#081b3b] flex items-center gap-2"><Sparkles size={17} className="text-amber-500" /> Papers by exam</h4>
+                        <h4 className="text-base font-extrabold text-[#1e1b4b] flex items-center gap-2"><Sparkles size={17} className="text-indigo-500" /> Papers by exam</h4>
                     </div>
                     <div className="flex items-center gap-6 flex-wrap">
                         <Donut parts={parts} total={papers.length} />
@@ -105,7 +105,7 @@ export default function CommandCenter({ papers, exams, pinned, onTogglePin, onOp
                             {parts.map(s => (
                                 <li key={s.key} className="flex items-center justify-between gap-3 text-sm">
                                     <span className="flex items-center gap-2 font-bold text-slate-600"><span className="w-3 h-3 rounded-full" style={{ background: s.colour }} />{s.label}</span>
-                                    <span className="font-extrabold text-[#081b3b]">{s.n}</span>
+                                    <span className="font-extrabold text-[#1e1b4b]">{s.n}</span>
                                 </li>
                             ))}
                         </ul>
@@ -114,7 +114,7 @@ export default function CommandCenter({ papers, exams, pinned, onTogglePin, onOp
 
                 {/* activity */}
                 <div className="surface p-5">
-                    <h4 className="text-base font-extrabold text-[#081b3b] flex items-center gap-2 mb-4"><Clock size={17} className="text-amber-500" /> Recent activity</h4>
+                    <h4 className="text-base font-extrabold text-[#1e1b4b] flex items-center gap-2 mb-4"><Clock size={17} className="text-indigo-500" /> Recent activity</h4>
                     {activity.length === 0 ? (
                         <p className="text-sm text-slate-400 font-medium py-6 text-center">Nothing yet — saved papers and commissioned exams show up here.</p>
                     ) : (
@@ -126,7 +126,7 @@ export default function CommandCenter({ papers, exams, pinned, onTogglePin, onOp
                                             {a.kind === 'exam' ? <ClipboardList size={16} /> : <FileText size={16} />}
                                         </span>
                                         <span className="min-w-0 flex-1">
-                                            <span className="block text-sm font-extrabold text-[#081b3b] truncate group-hover:text-blue-700">{a.title}</span>
+                                            <span className="block text-sm font-extrabold text-[#1e1b4b] truncate group-hover:text-blue-700">{a.title}</span>
                                             <span className="block text-xs text-slate-500 font-medium truncate">{a.sub}</span>
                                         </span>
                                         <span className="text-[11px] font-bold text-slate-400 shrink-0 pt-0.5">{when(a.at)}</span>
@@ -139,11 +139,11 @@ export default function CommandCenter({ papers, exams, pinned, onTogglePin, onOp
 
                 {/* pinned */}
                 <div className="surface p-5">
-                    <h4 className="text-base font-extrabold text-[#081b3b] flex items-center gap-2 mb-4"><Star size={17} className="text-amber-500 fill-amber-400" /> Pinned papers</h4>
+                    <h4 className="text-base font-extrabold text-[#1e1b4b] flex items-center gap-2 mb-4"><Star size={17} className="text-indigo-500 fill-indigo-400" /> Pinned papers</h4>
                     {pinnedPapers.length === 0 ? (
                         <div className="py-6 text-center">
-                            <span className="mx-auto w-12 h-12 rounded-2xl bg-amber-50 text-amber-500 flex items-center justify-center mb-3"><Star size={22} /></span>
-                            <p className="text-sm font-bold text-[#081b3b]">Keep your key papers one tap away</p>
+                            <span className="mx-auto w-12 h-12 rounded-2xl bg-amber-50 text-indigo-500 flex items-center justify-center mb-3"><Star size={22} /></span>
+                            <p className="text-sm font-bold text-[#1e1b4b]">Keep your key papers one tap away</p>
                             <p className="text-xs text-slate-500 mt-1">Click the star on any saved paper to pin it here.</p>
                         </div>
                     ) : (
@@ -153,10 +153,10 @@ export default function CommandCenter({ papers, exams, pinned, onTogglePin, onOp
                                 return (
                                     <li key={id} className="group flex items-center gap-3 rounded-2xl bg-slate-50 hover:bg-amber-50 px-3 py-2.5 transition-colors">
                                         <button type="button" onClick={() => onOpenPaper(p)} className="min-w-0 flex-1 text-left cursor-pointer">
-                                            <span className="block text-sm font-extrabold text-[#081b3b] truncate">{p.title || 'Untitled paper'}</span>
+                                            <span className="block text-sm font-extrabold text-[#1e1b4b] truncate">{p.title || 'Untitled paper'}</span>
                                             <span className="block text-xs text-slate-500 font-medium truncate">{p.subject || 'Paper'} · {examOf(p)} · {p.questions?.length || 0} Qs</span>
                                         </button>
-                                        <button type="button" onClick={() => onTogglePin(id)} aria-label="Unpin" title="Unpin" className="w-8 h-8 rounded-lg text-amber-500 hover:bg-white flex items-center justify-center cursor-pointer"><Star size={16} className="fill-amber-400" /></button>
+                                        <button type="button" onClick={() => onTogglePin(id)} aria-label="Unpin" title="Unpin" className="w-8 h-8 rounded-lg text-indigo-500 hover:bg-white flex items-center justify-center cursor-pointer"><Star size={16} className="fill-indigo-400" /></button>
                                     </li>
                                 );
                             })}

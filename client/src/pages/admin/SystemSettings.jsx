@@ -70,7 +70,7 @@ export default function SystemSettings() {
                         <div className="flex items-center gap-3">
                             <span className={`w-11 h-11 rounded-xl flex items-center justify-center ${on ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>{on ? <Wrench size={20} /> : <Power size={20} />}</span>
                             <div>
-                                <h3 className="text-lg font-bold text-[#081b3b]">Maintenance mode</h3>
+                                <h3 className="text-lg font-bold text-[#1e1b4b]">Maintenance mode</h3>
                                 <p className="text-sm text-slate-600">Show an “updates going on” screen while you update the site.</p>
                             </div>
                         </div>
@@ -84,13 +84,13 @@ export default function SystemSettings() {
                     <label className="block">
                         <span className="block text-sm font-semibold text-slate-700 mb-1.5">Message shown to visitors</span>
                         <textarea value={message} onChange={(e) => setMessage(e.target.value)} maxLength={300} rows={3}
-                            className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-800 outline-none focus:border-amber-500 resize-none" />
+                            className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-800 outline-none focus:border-indigo-500 resize-none" />
                         <span className="block mt-1 text-xs text-slate-500">{message.length}/300 characters</span>
                     </label>
 
                     <label className="block max-w-xs">
                         <span className="block text-sm font-semibold text-slate-700 mb-1.5">How long</span>
-                        <select value={minutes} onChange={(e) => setMinutes(Number(e.target.value))} className="w-full h-11 rounded-xl border border-slate-300 px-3 text-sm font-semibold text-slate-800 outline-none focus:border-amber-500 bg-white">
+                        <select value={minutes} onChange={(e) => setMinutes(Number(e.target.value))} className="w-full h-11 rounded-xl border border-slate-300 px-3 text-sm font-semibold text-slate-800 outline-none focus:border-indigo-500 bg-white">
                             {DURATIONS.map(d => <option key={d.value} value={d.value}>{d.label}</option>)}
                         </select>
                         <span className="block mt-1 text-xs text-slate-500">A timed switch-on turns itself off, so it can never be forgotten.</span>
@@ -102,7 +102,7 @@ export default function SystemSettings() {
                     <div className="flex flex-wrap gap-3 pt-1">
                         {!on ? (
                             <button type="button" disabled={busy || state === null} onClick={() => change(true)}
-                                className="h-11 px-5 rounded-xl bg-amber-500 hover:bg-amber-600 text-[#081b3b] text-sm font-bold flex items-center gap-2 disabled:opacity-50 cursor-pointer"><Wrench size={16} /> {busy ? 'Switching on…' : 'Turn on maintenance'}</button>
+                                className="h-11 px-5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold flex items-center gap-2 disabled:opacity-50 cursor-pointer"><Wrench size={16} /> {busy ? 'Switching on…' : 'Turn on maintenance'}</button>
                         ) : (
                             <button type="button" disabled={busy || fromEnv} onClick={() => change(false)}
                                 className="h-11 px-5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-sm font-bold flex items-center gap-2 disabled:opacity-50 cursor-pointer"><Power size={16} /> {busy ? 'Going live…' : 'Turn off — go live'}</button>
@@ -111,7 +111,7 @@ export default function SystemSettings() {
                     </div>
 
                     <div className="rounded-2xl bg-slate-50 border border-slate-200 p-4 text-sm text-slate-700 space-y-1.5">
-                        <p className="font-bold text-[#081b3b] flex items-center gap-2"><ShieldCheck size={16} className="text-emerald-600" /> What people see</p>
+                        <p className="font-bold text-[#1e1b4b] flex items-center gap-2"><ShieldCheck size={16} className="text-emerald-600" /> What people see</p>
                         <p>• <strong>You (admin)</strong> keep full access, so you can keep working and switch it off.</p>
                         <p>• <strong>Teachers and visitors</strong> see the “updates going on” screen. It checks by itself and reopens the site the moment you turn maintenance off.</p>
                         <p>• <strong>Students already inside an exam</strong> can keep saving and can still submit. Nobody loses an exam.</p>
@@ -120,7 +120,7 @@ export default function SystemSettings() {
 
                 <motion.aside initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ ...SPRING.soft, delay: 0.05 }} className="surface p-6">
                     <div className="flex items-center justify-between mb-4">
-                        <h3 className="text-base font-bold text-[#081b3b] flex items-center gap-2"><Activity size={17} className="text-amber-600" /> System health</h3>
+                        <h3 className="text-base font-bold text-[#1e1b4b] flex items-center gap-2"><Activity size={17} className="text-amber-600" /> System health</h3>
                         <button type="button" onClick={load} aria-label="Refresh" className="w-9 h-9 rounded-lg hover:bg-slate-100 text-slate-500 flex items-center justify-center cursor-pointer"><RefreshCw size={16} /></button>
                     </div>
                     {!health ? <p className="text-sm text-slate-500">Checking…</p> : (

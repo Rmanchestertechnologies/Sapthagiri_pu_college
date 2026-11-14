@@ -8,18 +8,18 @@
 
 @theme {
   /* SAPTHAGIRI PU COLLEGE COLOR THEME */
-  --color-primary: #081B3B;       /* Deep Imperial Navy */
-  --color-primary-hover: #06152E; /* Darker Navy */
+  --color-primary: #1e1b4b;       /* Deep indigo ink */
+  --color-primary-hover: #13113a; /* Darker ink */
   
-  --color-secondary: #f59e0b;       /* Bright Royal Gold */
-  --color-secondary-hover: #d97706; /* Rich Amber Gold */
+  --color-secondary: #6366f1;       /* Indigo accent */
+  --color-secondary-hover: #4f46e5; /* Deep indigo accent */
   
   --color-accent: #e2e8f0;          /* Clean Slate */
   --color-background: #f8fafc;      /* Light Crisp Gray Background */
   --color-surface: #ffffff;         /* Pure White Surface */
 
-  --color-navy: #081B3B;
-  --color-gold: #f59e0b;
+  --color-navy: #1e1b4b;
+  --color-gold: #a5b4fc;
   --color-slate: #0f172a;
 
   /* UNIVERSAL TYPOGRAPHY */

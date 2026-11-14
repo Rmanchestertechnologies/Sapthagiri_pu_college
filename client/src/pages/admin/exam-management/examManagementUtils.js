@@ -2,7 +2,7 @@ export const EXAM_TYPES = ['JEE', 'NEET', 'CET'];
 
 export const STATUS_COLORS = {
     draft: '#6b7280',
-    scheduled: '#f59e0b',
+    scheduled: '#6366f1',
     live: '#10b981',
     ended: '#ef4444'
 };

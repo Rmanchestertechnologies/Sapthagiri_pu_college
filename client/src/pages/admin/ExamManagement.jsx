@@ -250,8 +250,8 @@ export default function ExamManagement() {
                         style={{
                             padding: '10px 18px',
                             background: '#071328',
-                            color: '#fbbf24',
-                            border: '1.5px solid #f59e0b',
+                            color: '#a5b4fc',
+                            border: '1.5px solid #6366f1',
                             borderRadius: '12px',
                             fontWeight: 800,
                             fontSize: '12px',

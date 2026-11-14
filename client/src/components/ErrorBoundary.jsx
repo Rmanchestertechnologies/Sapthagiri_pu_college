@@ -45,7 +45,7 @@ class ErrorBoundary extends React.Component {
                         <div className="w-20 h-20 bg-red-50 text-red-600 rounded-3xl flex items-center justify-center text-3xl mx-auto mb-6 shadow-inner">
                             <span>⚠️</span>
                         </div>
-                        <h2 className="text-2xl font-black text-[#081B3B] mb-2 uppercase tracking-tight">Sapthagiri PU College</h2>
+                        <h2 className="text-2xl font-black text-[#1e1b4b] mb-2 uppercase tracking-tight">Sapthagiri PU College</h2>
                         <p className="text-sm text-slate-600 font-medium mb-6 leading-relaxed">
                             A display or state sync error occurred in this view. You can return to your dashboard or refresh the page.
                         </p>

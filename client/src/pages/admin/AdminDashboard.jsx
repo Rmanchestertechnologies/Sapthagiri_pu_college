@@ -12,7 +12,7 @@ const SUBJECT_TONES = {
     Mathematics: { bar: 'from-violet-400 to-purple-500', tile: 'bg-violet-50 text-violet-600', wash: 'from-violet-50 to-white' },
     Biology: { bar: 'from-rose-400 to-pink-500', tile: 'bg-rose-50 text-rose-600', wash: 'from-rose-50 to-white' },
     Botany: { bar: 'from-lime-400 to-green-500', tile: 'bg-lime-50 text-lime-700', wash: 'from-lime-50 to-white' },
-    Zoology: { bar: 'from-orange-400 to-amber-500', tile: 'bg-orange-50 text-orange-600', wash: 'from-orange-50 to-white' },
+    Zoology: { bar: 'from-orange-400 to-indigo-500', tile: 'bg-orange-50 text-orange-600', wash: 'from-orange-50 to-white' },
 };
 
 /** A circular progress gauge that fills with a spring. */
@@ -20,7 +20,7 @@ function ProgressRing({ pct = 0, size = 64, stroke = 6, dark = false }) {
     const r = (size - stroke) / 2;
     const c = 2 * Math.PI * r;
     const v = Math.max(0, Math.min(100, pct));
-    const colour = v >= 100 ? '#10b981' : '#f59e0b';
+    const colour = v >= 100 ? '#10b981' : '#6366f1';
     return (
         <span className="relative inline-flex shrink-0 items-center justify-center" style={{ width: size, height: size }} role="img" aria-label={`${v}% complete`}>
             <svg width={size} height={size} className="-rotate-90">
@@ -28,7 +28,7 @@ function ProgressRing({ pct = 0, size = 64, stroke = 6, dark = false }) {
                 <motion.circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={colour} strokeWidth={stroke} strokeLinecap="round" strokeDasharray={c}
                     initial={{ strokeDashoffset: c }} animate={{ strokeDashoffset: c * (1 - v / 100) }} transition={{ type: 'spring', stiffness: 90, damping: 22 }} />
             </svg>
-            <span className={`absolute text-[11px] font-extrabold ${dark ? 'text-white' : 'text-[#081b3b]'}`}>{v}%</span>
+            <span className={`absolute text-[11px] font-extrabold ${dark ? 'text-white' : 'text-[#1e1b4b]'}`}>{v}%</span>
         </span>
     );
 }
@@ -115,7 +115,7 @@ const DashboardHome = ({ view = 'home' }) => {
             subtitle: 'Animal Sciences',
             badgeBg: 'bg-amber-50 text-amber-800 border-amber-200',
             iconBg: 'bg-amber-600 text-white',
-            borderAccent: 'border-amber-100 hover:border-amber-300',
+            borderAccent: 'border-amber-100 hover:border-indigo-300',
             headerBg: 'bg-gradient-to-r from-amber-50/80 via-orange-50/30 to-white'
         }
     };
@@ -516,14 +516,14 @@ const DashboardHome = ({ view = 'home' }) => {
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
                 <div>
                     <p className="text-xs font-semibold text-slate-500 flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />{new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })} · Academic session 2025–26</p>
-                    <h2 className="mt-1 text-[26px] sm:text-3xl font-bold tracking-tight text-[#081b3b] !normal-case">{(() => { const h = new Date().getHours(); return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening'; })()}, Admin</h2>
+                    <h2 className="mt-1 text-[26px] sm:text-3xl font-bold tracking-tight text-[#1e1b4b] !normal-case">{(() => { const h = new Date().getHours(); return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening'; })()}, Admin</h2>
                     <p className="mt-1 text-sm text-slate-500">Here is where every department stands across your commissioned exams and saved papers.</p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2.5">
                     <button id="admin-quick-commission-btn" onClick={() => setShowCommissionModal(true)}
-                        className="h-10 px-4 rounded-xl bg-white border border-slate-200 hover:border-slate-300 text-[#081b3b] text-[13px] font-semibold flex items-center gap-2 cursor-pointer shadow-sm"><Zap size={15} className="text-amber-500" /> Commission exam</button>
+                        className="h-10 px-4 rounded-xl bg-white border border-slate-200 hover:border-slate-300 text-[#1e1b4b] text-[13px] font-semibold flex items-center gap-2 cursor-pointer shadow-sm"><Zap size={15} className="text-indigo-500" /> Commission exam</button>
                     <button onClick={() => navigate('/admin/dashboard/create-paper')}
-                        className="h-10 px-4 rounded-xl bg-[#081b3b] hover:bg-[#0d2a5e] text-white text-[13px] font-semibold flex items-center gap-2 cursor-pointer shadow-sm"><FilePlus2 size={15} className="text-amber-400" /> Create question paper</button>
+                        className="h-10 px-4 rounded-xl bg-[#1e1b4b] hover:bg-[#312e81] text-white text-[13px] font-semibold flex items-center gap-2 cursor-pointer shadow-sm"><FilePlus2 size={15} className="text-indigo-400" /> Create question paper</button>
                 </div>
             </div>
 
@@ -539,7 +539,7 @@ const DashboardHome = ({ view = 'home' }) => {
                             <span className="text-[13px] font-semibold text-slate-500">{label}</span>
                             <span className={`w-9 h-9 rounded-xl flex items-center justify-center ${tone}`}><Icon size={17} /></span>
                         </div>
-                        <p className="mt-3 text-3xl font-bold tracking-tight text-[#081b3b]"><AnimatedNumber value={value} /></p>
+                        <p className="mt-3 text-3xl font-bold tracking-tight text-[#1e1b4b]"><AnimatedNumber value={value} /></p>
                         <p className="mt-1 text-xs text-slate-400 font-medium truncate">{hint}</p>
                     </div>
                 ))}
@@ -557,7 +557,7 @@ const DashboardHome = ({ view = 'home' }) => {
                         <span className="w-11 h-11 shrink-0 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center"><ClipboardList size={20} /></span>
                         <div className="min-w-0">
                             <div className="flex items-center gap-2.5 flex-wrap">
-                                <h3 className="text-xl font-bold text-[#081b3b] tracking-tight">Commissioned Exams</h3>
+                                <h3 className="text-xl font-bold text-[#1e1b4b] tracking-tight">Commissioned Exams</h3>
                                 <span className="rounded-full bg-amber-100 text-amber-800 text-xs font-extrabold px-3 py-1"><AnimatedNumber value={commissionedExams.length} /> registered</span>
                             </div>
                             <p className="text-sm text-slate-500 font-medium mt-0.5">Track every department's progress towards each commissioned exam and open the subject papers.</p>
@@ -565,12 +565,12 @@ const DashboardHome = ({ view = 'home' }) => {
                     </div>
                     {view !== 'commissioned' ? (
                     <button type="button" onClick={() => setIsExamSubjectsOpen(!isExamSubjectsOpen)} aria-expanded={isExamSubjectsOpen}
-                        className="self-start md:self-auto h-11 rounded-xl border border-slate-200 bg-white px-4 text-xs font-extrabold uppercase tracking-wider text-slate-600 hover:text-[#081b3b] hover:border-slate-300 flex items-center gap-2 cursor-pointer">
+                        className="self-start md:self-auto h-11 rounded-xl border border-slate-200 bg-white px-4 text-xs font-extrabold uppercase tracking-wider text-slate-600 hover:text-[#1e1b4b] hover:border-slate-300 flex items-center gap-2 cursor-pointer">
                         {isExamSubjectsOpen ? 'Hide departments' : 'View 4 subjects & switch exam'} <ChevronDown size={15} className={`transition-transform ${isExamSubjectsOpen ? 'rotate-180' : ''}`} />
                     </button>
                     ) : (
                         <button type="button" onClick={() => setShowCommissionModal(true)}
-                            className="self-start md:self-auto h-10 px-4 rounded-xl bg-[#081b3b] hover:bg-[#0d2a5e] text-white text-[13px] font-semibold flex items-center gap-2 cursor-pointer shadow-sm"><Zap size={15} className="text-amber-400" /> Commission exam</button>
+                            className="self-start md:self-auto h-10 px-4 rounded-xl bg-[#1e1b4b] hover:bg-[#312e81] text-white text-[13px] font-semibold flex items-center gap-2 cursor-pointer shadow-sm"><Zap size={15} className="text-indigo-400" /> Commission exam</button>
                     )}
                     {view === 'commissioned' && commissionedExams.length > 0 && (
                         <button type="button" onClick={() => { setDeleteAllError(''); setDeleteAllOpen(true); }}
@@ -584,17 +584,17 @@ const DashboardHome = ({ view = 'home' }) => {
                     const ta = activeExam.totalQuestionsAdded !== undefined ? activeExam.totalQuestionsAdded : sa.reduce((sum, x) => sum + (x.questionsCount || (x.submittedPaperId?.questions?.length || 0)), 0);
                     const pc = tt > 0 ? Math.min(100, Math.round((ta / tt) * 100)) : 0;
                     return (
-                        <button type="button" onClick={() => setIsExamSubjectsOpen(true)} className="w-full text-left surface p-4 flex items-center gap-4 hover:shadow-lg hover:border-amber-300 transition-all cursor-pointer group">
+                        <button type="button" onClick={() => setIsExamSubjectsOpen(true)} className="w-full text-left surface p-4 flex items-center gap-4 hover:shadow-lg hover:border-indigo-300 transition-all cursor-pointer group">
                             <ProgressRing pct={pc} size={56} stroke={6} />
                             <span className="min-w-0 flex-1">
                                 <span className="flex items-center gap-2 flex-wrap">
-                                    <span className="rounded-full bg-[#081b3b] text-amber-300 text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-1">{activeExam.examType || 'CET'}</span>
-                                    <span className="text-lg font-extrabold text-[#081b3b] truncate">{activeExam.title}</span>
+                                    <span className="rounded-full bg-[#1e1b4b] text-indigo-300 text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-1">{activeExam.examType || 'CET'}</span>
+                                    <span className="text-lg font-extrabold text-[#1e1b4b] truncate">{activeExam.title}</span>
                                     <span className="rounded-full bg-slate-100 text-slate-600 text-[11px] font-bold px-2.5 py-1">{activeExam.classes && activeExam.classes.length > 1 ? 'Class 11 & 12' : `Class ${activeExam.classes?.[0] || '12'}`}</span>
                                 </span>
                                 <span className="block text-xs text-slate-500 font-semibold mt-1">{ta} of {tt} questions compiled · Physics • Chemistry • Maths • Biology</span>
                             </span>
-                            <ArrowRight size={18} className="text-slate-300 group-hover:text-[#081b3b] group-hover:translate-x-1 transition-all shrink-0" />
+                            <ArrowRight size={18} className="text-slate-300 group-hover:text-[#1e1b4b] group-hover:translate-x-1 transition-all shrink-0" />
                         </button>
                     );
                 })()}
@@ -606,16 +606,16 @@ const DashboardHome = ({ view = 'home' }) => {
                         ) : commissionedExams.length === 0 ? (
                             <div className="p-12 border-2 border-dashed border-slate-300 rounded-3xl bg-white text-center">
                                 <div className="w-14 h-14 mx-auto rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mb-4"><ClipboardList size={26} /></div>
-                                <h4 className="font-extrabold text-lg text-[#081b3b] mb-1">No Commissioned Exams Yet</h4>
+                                <h4 className="font-extrabold text-lg text-[#1e1b4b] mb-1">No Commissioned Exams Yet</h4>
                                 <p className="text-sm text-slate-500 mb-5">Create your first standardized exam to open subject question targets.</p>
                                 <button onClick={() => setShowCommissionModal(true)}
-                                    className="bg-amber-400 hover:bg-amber-300 text-[#081b3b] px-6 py-3 rounded-2xl font-extrabold text-xs uppercase tracking-widest shadow-lg shadow-amber-500/25 cursor-pointer">+ Create Exam</button>
+                                    className="bg-indigo-400 hover:bg-indigo-300 text-[#1e1b4b] px-6 py-3 rounded-2xl font-extrabold text-xs uppercase tracking-widest shadow-lg shadow-indigo-500/25 cursor-pointer">+ Create Exam</button>
                             </div>
                         ) : (
                             <>
                                 {/* one tab per commissioned exam, named after the exam */}
                                 <LayoutGroup id="exam-tabs">
-                                    <div role="tablist" aria-label="Commissioned exams" className="flex items-end gap-1 overflow-x-auto border-b border-slate-200">
+                                    <div role="tablist" aria-label="Commissioned exams" className="inline-flex max-w-full items-center gap-1 overflow-x-auto rounded-2xl bg-slate-100 p-1.5">
                                         {commissionedExams.map((exam) => {
                                             const examKey = exam._id || exam.id;
                                             const isSelected = ((activeExam?._id || activeExam?.id) === examKey);
@@ -627,11 +627,11 @@ const DashboardHome = ({ view = 'home' }) => {
                                             const overallPct = totalTarget > 0 ? Math.min(100, Math.round((totalAdded / totalTarget) * 100)) : 0;
                                             return (
                                                 <button key={examKey} role="tab" aria-selected={isSelected} onClick={() => setSelectedExamId(examKey)}
-                                                    className={`relative shrink-0 flex items-center gap-2.5 px-4 py-3 text-sm font-semibold cursor-pointer transition-colors ${isSelected ? 'text-[#081b3b]' : 'text-slate-500 hover:text-[#081b3b]'}`}>
-                                                    <span className={`text-[11px] font-bold uppercase tracking-wide rounded-md px-1.5 py-0.5 ${isSelected ? 'bg-[#081b3b] text-amber-300' : 'bg-slate-100 text-slate-600'}`}>{exam.examType || 'CET'}</span>
-                                                    <span className="max-w-[220px] truncate" title={exam.title}>{exam.title}</span>
-                                                    <span className={`text-[11px] font-bold rounded-full px-2 py-0.5 ${overallPct >= 100 ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>{overallPct}%</span>
-                                                    {isSelected && <motion.span layoutId="exam-tab-underline" transition={SPRING.soft} className="absolute left-0 right-0 -bottom-px h-[3px] rounded-t-full bg-amber-500" />}
+                                                    className={`relative shrink-0 flex items-center gap-2.5 rounded-xl px-4 py-2.5 text-sm font-semibold cursor-pointer transition-colors ${isSelected ? 'text-[#1e1b4b]' : 'text-slate-600 hover:text-[#1e1b4b]'}`}>
+                                                    {isSelected && <motion.span layoutId="exam-tab-pill" transition={SPRING.soft} className="absolute inset-0 rounded-xl bg-white shadow-md shadow-indigo-900/10 ring-1 ring-black/5" />}
+                                                    <span className={`relative text-[11px] font-bold uppercase tracking-wide rounded-md px-1.5 py-0.5 ${isSelected ? 'bg-indigo-600 text-white' : 'bg-white text-slate-600'}`}>{exam.examType || 'CET'}</span>
+                                                    <span className="relative max-w-[220px] truncate" title={exam.title}>{exam.title}</span>
+                                                    <span className={`relative text-[11px] font-bold rounded-full px-2 py-0.5 ${overallPct >= 100 ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-700'}`}>{overallPct}%</span>
                                                 </button>
                                             );
                                         })}
@@ -650,18 +650,18 @@ const DashboardHome = ({ view = 'home' }) => {
                                     return (
                                         <div className="space-y-5">
                                             {/* active exam banner */}
-                                            <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#081b3b] via-[#0b2552] to-[#123a7a] text-white p-6 sm:p-7 shadow-[0_24px_60px_-30px_rgba(8,27,59,0.6)]">
-                                                <span aria-hidden="true" className="absolute -right-12 -top-12 w-56 h-56 rounded-full bg-amber-400/15 blur-2xl" />
+                                            <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#1e1b4b] via-[#2b2a6e] to-[#3730a3] text-white p-6 sm:p-7 shadow-[0_24px_60px_-30px_rgba(30,27,75,0.6)]">
+                                                <span aria-hidden="true" className="absolute -right-12 -top-12 w-56 h-56 rounded-full bg-indigo-400/15 blur-2xl" />
                                                 <div className="relative flex flex-col xl:flex-row xl:items-center justify-between gap-6">
                                                     <div className="min-w-0 flex-1">
                                                         <div className="flex items-center gap-2 mb-2 flex-wrap">
-                                                            <span className="rounded-full bg-amber-400 text-[#081b3b] text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-1">{exam.examType || 'CET'}</span>
+                                                            <span className="rounded-full bg-indigo-400 text-[#1e1b4b] text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-1">{exam.examType || 'CET'}</span>
                                                             <span className="rounded-full bg-white/10 text-white/80 text-[11px] font-bold px-2.5 py-1">{exam.classes && exam.classes.length > 1 ? 'Class 11 & 12' : `Class ${exam.classes?.[0] || '12'}`}</span>
                                                         </div>
                                                         <h4 className="text-2xl font-extrabold tracking-tight truncate">{exam.title}</h4>
                                                         <div className="mt-4 max-w-md">
                                                             <div className="flex justify-between text-xs font-bold text-white/70 mb-1.5"><span>Total readiness</span><span>{totalAdded} / {totalTarget} · {overallPct}%</span></div>
-                                                            <div className="h-2.5 rounded-full bg-white/15 overflow-hidden"><motion.div className="h-full rounded-full bg-gradient-to-r from-amber-300 to-emerald-400" initial={{ width: 0 }} animate={{ width: `${overallPct}%` }} transition={{ type: 'spring', stiffness: 120, damping: 24 }} /></div>
+                                                            <div className="h-2.5 rounded-full bg-white/15 overflow-hidden"><motion.div className="h-full rounded-full bg-gradient-to-r from-indigo-300 to-emerald-400" initial={{ width: 0 }} animate={{ width: `${overallPct}%` }} transition={{ type: 'spring', stiffness: 120, damping: 24 }} /></div>
                                                         </div>
                                                     </div>
                                                     <div className="flex items-center gap-2 flex-wrap">
@@ -669,7 +669,7 @@ const DashboardHome = ({ view = 'home' }) => {
                                                             className="h-11 px-5 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-white text-xs font-extrabold uppercase tracking-wider flex items-center gap-2 shadow-lg shadow-emerald-900/30 disabled:opacity-60 cursor-pointer"
                                                             title="Merge all completed subject papers into a single grand assessment paper"><Zap size={15} /> {merging ? 'Merging...' : 'Merge All Subjects'}</button>
                                                         <button onClick={() => setSelectedViewExam(exam)} className="h-11 px-4 rounded-2xl bg-white/10 hover:bg-white/20 border border-white/20 text-white text-xs font-extrabold uppercase tracking-wider flex items-center gap-2 cursor-pointer"><Eye size={15} /> View Full Paper</button>
-                                                        <button onClick={() => setSelectedAnalysisExam(exam)} className="h-11 px-4 rounded-2xl bg-amber-400 hover:bg-amber-300 text-[#081b3b] text-xs font-extrabold uppercase tracking-wider flex items-center gap-2 cursor-pointer"><BarChart3 size={15} /> Analysis</button>
+                                                        <button onClick={() => setSelectedAnalysisExam(exam)} className="h-11 px-4 rounded-2xl bg-indigo-400 hover:bg-indigo-300 text-[#1e1b4b] text-xs font-extrabold uppercase tracking-wider flex items-center gap-2 cursor-pointer"><BarChart3 size={15} /> Analysis</button>
                                                         <button onClick={() => handleDeleteExam(exam._id || exam.id)} className="h-11 px-4 rounded-2xl bg-rose-500/15 hover:bg-rose-500 text-rose-200 hover:text-white border border-rose-400/30 text-xs font-extrabold flex items-center gap-2 cursor-pointer"><Trash2 size={15} /> Delete</button>
                                                     </div>
                                                 </div>
@@ -716,7 +716,7 @@ const DashboardHome = ({ view = 'home' }) => {
                                                                 <div className="flex items-center justify-between gap-3">
                                                                     <div className="flex items-center gap-3 min-w-0">
                                                                         <span className={`w-11 h-11 shrink-0 rounded-2xl flex items-center justify-center ${tone.tile}`}><SubIcon size={22} /></span>
-                                                                        <h5 className="text-base font-extrabold text-[#081b3b] truncate">{subName}</h5>
+                                                                        <h5 className="text-base font-extrabold text-[#1e1b4b] truncate">{subName}</h5>
                                                                     </div>
                                                                     <span className={`shrink-0 text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-1 rounded-full ${isReady ? 'bg-emerald-100 text-emerald-800' : count > 0 ? 'bg-blue-100 text-blue-800' : 'bg-amber-100 text-amber-800'}`}>
                                                                         {isReady ? 'Ready' : count > 0 ? 'In progress' : 'Pending'}
@@ -726,7 +726,7 @@ const DashboardHome = ({ view = 'home' }) => {
                                                                 <div className="mt-5 flex items-center gap-4">
                                                                     <ProgressRing pct={pct} size={76} stroke={7} />
                                                                     <div className="min-w-0">
-                                                                        <p className="text-2xl font-extrabold text-[#081b3b] leading-none"><AnimatedNumber value={count} /><span className="text-sm font-bold text-slate-400"> / {target}</span></p>
+                                                                        <p className="text-2xl font-extrabold text-[#1e1b4b] leading-none"><AnimatedNumber value={count} /><span className="text-sm font-bold text-slate-400"> / {target}</span></p>
                                                                         <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mt-1">Questions</p>
                                                                         <p className="text-[11px] font-bold text-amber-600 mt-1">{isJEE ? '20 Sec A + 5 Sec B' : `${target} Qs quota`}</p>
                                                                     </div>
@@ -745,10 +745,10 @@ const DashboardHome = ({ view = 'home' }) => {
                                                                 {submittedPaperId ? (
                                                                     <div className="flex items-center gap-2">
                                                                         <button type="button" onClick={() => navigate(`/admin/dashboard/preview/${submittedPaperId}`)} title="View & Download PDF in single subject form"
-                                                                            className="flex-1 h-11 rounded-2xl bg-gradient-to-r from-[#081b3b] to-[#0d2a5e] text-amber-300 text-xs font-extrabold uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-blue-950/20 cursor-pointer"><Eye size={15} /> View / PDF</button>
+                                                                            className="flex-1 h-11 rounded-2xl bg-gradient-to-r from-[#1e1b4b] to-[#312e81] text-indigo-300 text-xs font-extrabold uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-blue-950/20 cursor-pointer"><Eye size={15} /> View / PDF</button>
                                                                         <button type="button" title="Edit questions for this subject"
                                                                             onClick={() => navigate(`/admin/dashboard/create-paper?examId=${exam._id || exam.id}&paperId=${submittedPaperId}&subject=${subName}&examType=${exam.examType || 'CET'}&examTitle=${encodeURIComponent(exam.title)}&classes=${encodeURIComponent(exam.classes ? (exam.classes.includes('11') && exam.classes.includes('12') ? 'Both' : exam.classes[0]) : '12')}`)}
-                                                                            className="h-11 px-4 rounded-2xl bg-slate-100 hover:bg-slate-200 text-[#081b3b] text-xs font-extrabold flex items-center gap-1.5 cursor-pointer"><Pencil size={14} /> Edit</button>
+                                                                            className="h-11 px-4 rounded-2xl bg-slate-100 hover:bg-slate-200 text-[#1e1b4b] text-xs font-extrabold flex items-center gap-1.5 cursor-pointer"><Pencil size={14} /> Edit</button>
                                                                     </div>
                                                                 ) : (
                                                                     <button type="button"
@@ -779,7 +779,7 @@ const DashboardHome = ({ view = 'home' }) => {
                         <span className="w-11 h-11 shrink-0 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center"><FolderOpen size={20} /></span>
                         <div className="min-w-0">
                             <div className="flex items-center gap-2.5 flex-wrap">
-                                <h3 className="text-xl font-bold text-[#081b3b] tracking-tight">Saved Papers</h3>
+                                <h3 className="text-xl font-bold text-[#1e1b4b] tracking-tight">Saved Papers</h3>
                                 <span className="rounded-full bg-amber-100 text-amber-800 text-xs font-extrabold px-3 py-1"><AnimatedNumber value={allPapers.length} /> total</span>
                             </div>
                             <p className="text-sm text-slate-500 font-medium mt-0.5">Every question paper your faculty has saved, ready to open, analyse or export.</p>
@@ -790,12 +790,12 @@ const DashboardHome = ({ view = 'home' }) => {
                             <div className="inline-flex rounded-xl bg-slate-200/70 p-1" role="group" aria-label="Layout">
                                 {[['grid', LayoutGrid, 'Grid'], ['list', List, 'List']].map(([key, Icon, label]) => (
                                     <button key={key} type="button" onClick={() => setPaperView(key)} aria-pressed={paperView === key} aria-label={`${label} view`} title={`${label} view`}
-                                        className={`w-10 h-9 rounded-lg flex items-center justify-center cursor-pointer ${paperView === key ? 'bg-white text-[#081b3b] shadow' : 'text-slate-500 hover:text-slate-700'}`}><Icon size={17} /></button>
+                                        className={`w-10 h-9 rounded-lg flex items-center justify-center cursor-pointer ${paperView === key ? 'bg-white text-[#1e1b4b] shadow' : 'text-slate-500 hover:text-slate-700'}`}><Icon size={17} /></button>
                                 ))}
                             </div>
                         )}
                         <button type="button" onClick={() => setIsSavedPapersOpen(!isSavedPapersOpen)} aria-expanded={isSavedPapersOpen}
-                            className="h-11 rounded-xl border border-slate-200 bg-white px-4 text-xs font-extrabold uppercase tracking-wider text-slate-600 hover:text-[#081b3b] hover:border-slate-300 flex items-center gap-2 cursor-pointer">
+                            className="h-11 rounded-xl border border-slate-200 bg-white px-4 text-xs font-extrabold uppercase tracking-wider text-slate-600 hover:text-[#1e1b4b] hover:border-slate-300 flex items-center gap-2 cursor-pointer">
                             {isSavedPapersOpen ? 'Hide' : 'Show'} <ChevronDown size={15} className={`transition-transform ${isSavedPapersOpen ? 'rotate-180' : ''}`} />
                         </button>
                     </div>
@@ -815,12 +815,12 @@ const DashboardHome = ({ view = 'home' }) => {
                                 const on = savedPapersCategory === key;
                                 return (
                                     <button key={key} type="button" onClick={() => { setSavedPapersCategory(key); setVisiblePapers(9); }} aria-pressed={on}
-                                        className={`rounded-2xl p-4 text-left bg-white border transition-all cursor-pointer hover:shadow-md ${on ? 'border-[#081b3b] ring-2 ring-[#081b3b]/10' : 'border-slate-200'}`}>
+                                        className={`rounded-2xl p-4 text-left bg-white border transition-all cursor-pointer hover:shadow-md ${on ? 'border-[#1e1b4b] ring-2 ring-[#1e1b4b]/10' : 'border-slate-200'}`}>
                                         <span className="flex items-center justify-between">
                                             <span className="text-[13px] font-semibold text-slate-500">{label}</span>
                                             <span className={`w-8 h-8 rounded-lg flex items-center justify-center ${chip}`}><Icon size={15} /></span>
                                         </span>
-                                        <span className="mt-2 block text-2xl font-bold tracking-tight text-[#081b3b]"><AnimatedNumber value={n} /></span>
+                                        <span className="mt-2 block text-2xl font-bold tracking-tight text-[#1e1b4b]"><AnimatedNumber value={n} /></span>
                                         <span className="mt-2 block h-1 rounded-full bg-slate-100 overflow-hidden"><span className={`block h-full rounded-full ${bar}`} style={{ width: `${share}%` }} /></span>
                                     </button>
                                 );
@@ -834,7 +834,7 @@ const DashboardHome = ({ view = 'home' }) => {
                                 <Search size={18} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
                                 <input type="text" value={savedPapersSearch} onChange={(e) => setSavedPapersSearch(e.target.value)}
                                     placeholder="Search saved papers by title, subject or exam…"
-                                    className="w-full h-12 rounded-2xl border border-slate-200 bg-slate-50 pl-11 pr-11 text-sm font-semibold text-[#081b3b] placeholder:text-slate-400 outline-none focus:border-amber-400 focus:bg-white" />
+                                    className="w-full h-12 rounded-2xl border border-slate-200 bg-slate-50 pl-11 pr-11 text-sm font-semibold text-[#1e1b4b] placeholder:text-slate-400 outline-none focus:border-indigo-400 focus:bg-white" />
                                 {savedPapersSearch && (
                                     <button type="button" onClick={() => setSavedPapersSearch('')} aria-label="Clear search"
                                         className="absolute right-3 top-1/2 -translate-y-1/2 w-7 h-7 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 flex items-center justify-center cursor-pointer"><X size={15} /></button>
@@ -843,7 +843,7 @@ const DashboardHome = ({ view = 'home' }) => {
                             <label className="relative flex items-center gap-2 h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-xs font-extrabold uppercase tracking-wider text-slate-500 cursor-pointer">
                                 <ArrowDownUp size={15} />
                                 <select value={paperSort} onChange={(e) => { setPaperSort(e.target.value); setVisiblePapers(9); }} aria-label="Sort papers"
-                                    className="bg-transparent text-[#081b3b] font-extrabold outline-none cursor-pointer pr-1">
+                                    className="bg-transparent text-[#1e1b4b] font-extrabold outline-none cursor-pointer pr-1">
                                     <option value="newest">Newest first</option>
                                     <option value="oldest">Oldest first</option>
                                     <option value="questions">Most questions</option>
@@ -857,10 +857,10 @@ const DashboardHome = ({ view = 'home' }) => {
                                         const on = savedPapersCategory === key;
                                         return (
                                             <button key={key} type="button" onClick={() => setSavedPapersCategory(key)} aria-pressed={on}
-                                                className={`relative rounded-xl px-3.5 h-10 flex items-center gap-2 text-[13px] font-bold cursor-pointer ${on ? 'text-amber-300' : 'text-slate-600 hover:bg-slate-100'}`}>
-                                                {on && <motion.span layoutId="paper-chip" transition={SPRING.bouncy} className="absolute inset-0 rounded-xl bg-[#081b3b] shadow-lg shadow-blue-950/25" />}
+                                                className={`relative rounded-xl px-3.5 h-10 flex items-center gap-2 text-[13px] font-bold cursor-pointer ${on ? 'text-indigo-300' : 'text-slate-600 hover:bg-slate-100'}`}>
+                                                {on && <motion.span layoutId="paper-chip" transition={SPRING.bouncy} className="absolute inset-0 rounded-xl bg-[#1e1b4b] shadow-lg shadow-blue-950/25" />}
                                                 <Icon size={15} className="relative" /><span className="relative">{label}</span>
-                                                <span className={`relative rounded-full px-1.5 text-[11px] font-extrabold ${on ? 'bg-white/15 text-amber-200' : 'bg-slate-100 text-slate-500'}`}>{key === 'ALL' ? allPapers.length : getSavedCategoryCount(key)}</span>
+                                                <span className={`relative rounded-full px-1.5 text-[11px] font-extrabold ${on ? 'bg-white/15 text-indigo-200' : 'bg-slate-100 text-slate-500'}`}>{key === 'ALL' ? allPapers.length : getSavedCategoryCount(key)}</span>
                                             </button>
                                         );
                                     })}
@@ -870,10 +870,10 @@ const DashboardHome = ({ view = 'home' }) => {
                                         const SubIcon = SUBJECT_ICONS[sub] || BookOpen;
                                         return (
                                             <button key={sub} type="button" onClick={() => setSavedPapersCategory(sub)} aria-pressed={on}
-                                                className={`relative rounded-xl px-3.5 h-10 flex items-center gap-2 text-[13px] font-bold cursor-pointer ${on ? 'text-amber-300' : 'text-slate-600 hover:bg-slate-100'}`}>
-                                                {on && <motion.span layoutId="paper-chip" transition={SPRING.bouncy} className="absolute inset-0 rounded-xl bg-[#081b3b] shadow-lg shadow-blue-950/25" />}
+                                                className={`relative rounded-xl px-3.5 h-10 flex items-center gap-2 text-[13px] font-bold cursor-pointer ${on ? 'text-indigo-300' : 'text-slate-600 hover:bg-slate-100'}`}>
+                                                {on && <motion.span layoutId="paper-chip" transition={SPRING.bouncy} className="absolute inset-0 rounded-xl bg-[#1e1b4b] shadow-lg shadow-blue-950/25" />}
                                                 <SubIcon size={15} className="relative" /><span className="relative">{sub}</span>
-                                                <span className={`relative rounded-full px-1.5 text-[11px] font-extrabold ${on ? 'bg-white/15 text-amber-200' : 'bg-slate-100 text-slate-500'}`}>{getSavedCategoryCount(sub)}</span>
+                                                <span className={`relative rounded-full px-1.5 text-[11px] font-extrabold ${on ? 'bg-white/15 text-indigo-200' : 'bg-slate-100 text-slate-500'}`}>{getSavedCategoryCount(sub)}</span>
                                             </button>
                                         );
                                     })}
@@ -906,14 +906,14 @@ const DashboardHome = ({ view = 'home' }) => {
                                 return (
                                     <div className="py-16 px-4 text-center rounded-3xl bg-white border border-dashed border-slate-300">
                                         <div className="w-14 h-14 mx-auto rounded-2xl bg-slate-100 flex items-center justify-center text-slate-400 mb-4"><AlertCircle className="w-7 h-7" /></div>
-                                        <h5 className="font-extrabold text-base text-[#081b3b]">
+                                        <h5 className="font-extrabold text-base text-[#1e1b4b]">
                                             {savedPapersSearch.trim() ? `No papers match “${savedPapersSearch}” in ${savedPapersCategory}` : `No papers saved under ${savedPapersCategory}`}
                                         </h5>
                                         <p className="text-sm text-slate-500 mt-1 max-w-md mx-auto">
                                             {isIndividual ? `Only papers created purely for ${savedPapersCategory} appear here. NEET, JEE and CET papers are kept in their own exam categories.` : `There are currently no papers cataloged under ${savedPapersCategory}.`}
                                         </p>
                                         <button type="button" onClick={() => { setSavedPapersCategory('ALL'); setSavedPapersSearch(''); }}
-                                            className="mt-5 px-5 py-2.5 rounded-xl bg-[#081b3b] text-amber-300 text-xs font-extrabold uppercase tracking-wider cursor-pointer">View all saved papers ({allPapers.length})</button>
+                                            className="mt-5 px-5 py-2.5 rounded-xl bg-[#1e1b4b] text-indigo-300 text-xs font-extrabold uppercase tracking-wider cursor-pointer">View all saved papers ({allPapers.length})</button>
                                     </div>
                                 );
                             }
@@ -953,14 +953,14 @@ const DashboardHome = ({ view = 'home' }) => {
                                                         <span className={`absolute left-0 top-0 bottom-0 w-1.5 bg-gradient-to-b ${accent.bar}`} aria-hidden="true" />
                                                         <span className="w-10 h-10 shrink-0 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center"><SubIcon size={19} /></span>
                                                         <span className="min-w-0 flex-1">
-                                                            <span className="block font-extrabold text-[#081b3b] truncate" title={p.title || 'Untitled Question Paper'}>{p.title || 'Untitled Question Paper'}</span>
+                                                            <span className="block font-extrabold text-[#1e1b4b] truncate" title={p.title || 'Untitled Question Paper'}>{p.title || 'Untitled Question Paper'}</span>
                                                             <span className="block text-xs text-slate-500 font-semibold truncate">{p.subject || 'All Subjects'} · {p.classes?.length ? `Class ${p.classes.join(', ')}` : 'Class 12'} · {qCount} questions · {dt.date}</span>
                                                         </span>
                                                         <span className={`hidden sm:inline text-[11px] font-extrabold px-2.5 py-1 rounded-full border uppercase ${accent.chip}`}>{examLabel}</span>
-                                                        <button type="button" onClick={(e) => { e.stopPropagation(); open(); }} className="h-9 px-4 rounded-xl bg-[#081b3b] text-amber-300 text-xs font-extrabold uppercase tracking-wider flex items-center gap-1.5 cursor-pointer"><Eye size={14} /> View</button>
-                                                        <button type="button" onClick={openStats} title="View paper analysis" className="h-9 px-3 rounded-xl bg-amber-50 text-[#081b3b] border border-amber-200 text-xs font-extrabold cursor-pointer">Stats</button>
+                                                        <button type="button" onClick={(e) => { e.stopPropagation(); open(); }} className="h-9 px-4 rounded-xl bg-[#1e1b4b] text-indigo-300 text-xs font-extrabold uppercase tracking-wider flex items-center gap-1.5 cursor-pointer"><Eye size={14} /> View</button>
+                                                        <button type="button" onClick={openStats} title="View paper analysis" className="h-9 px-3 rounded-xl bg-amber-50 text-[#1e1b4b] border border-amber-200 text-xs font-extrabold cursor-pointer">Stats</button>
                                                         <button type="button" onClick={(e) => { e.stopPropagation(); togglePin(pId); }} aria-pressed={pinned.has(String(pId))} title={pinned.has(String(pId)) ? 'Unpin' : 'Pin to dashboard'} aria-label="Pin paper"
-                                                            className={`w-9 h-9 rounded-xl flex items-center justify-center cursor-pointer hover:bg-amber-50 ${pinned.has(String(pId)) ? 'text-amber-500' : 'text-slate-300 hover:text-amber-500'}`}><Star size={17} className={pinned.has(String(pId)) ? 'fill-amber-400' : ''} /></button>
+                                                            className={`w-9 h-9 rounded-xl flex items-center justify-center cursor-pointer hover:bg-amber-50 ${pinned.has(String(pId)) ? 'text-indigo-500' : 'text-slate-300 hover:text-indigo-500'}`}><Star size={17} className={pinned.has(String(pId)) ? 'fill-indigo-400' : ''} /></button>
                                                         <button type="button" disabled={isDeleting} onClick={(e) => handleDeletePaper(e, p)} title="Delete paper" aria-label="Delete paper"
                                                             className="w-9 h-9 rounded-xl flex items-center justify-center text-slate-400 hover:text-red-600 hover:bg-red-50 disabled:opacity-50 cursor-pointer">{isDeleting ? <span className="animate-spin text-xs">⏳</span> : <Trash2 className="w-4 h-4" />}</button>
                                                     </motion.div>
@@ -980,25 +980,25 @@ const DashboardHome = ({ view = 'home' }) => {
                                                             </div>
                                                             <div className="flex items-center -mr-2 -mt-1 shrink-0">
                                                             <button type="button" onClick={(e) => { e.stopPropagation(); togglePin(pId); }} aria-pressed={pinned.has(String(pId))} title={pinned.has(String(pId)) ? 'Unpin' : 'Pin to dashboard'} aria-label="Pin paper"
-                                                                className={`w-9 h-9 rounded-xl flex items-center justify-center cursor-pointer hover:bg-amber-50 ${pinned.has(String(pId)) ? 'text-amber-500' : 'text-slate-300 hover:text-amber-500'}`}><Star size={17} className={pinned.has(String(pId)) ? 'fill-amber-400' : ''} /></button>
+                                                                className={`w-9 h-9 rounded-xl flex items-center justify-center cursor-pointer hover:bg-amber-50 ${pinned.has(String(pId)) ? 'text-indigo-500' : 'text-slate-300 hover:text-indigo-500'}`}><Star size={17} className={pinned.has(String(pId)) ? 'fill-indigo-400' : ''} /></button>
                                                             <button type="button" disabled={isDeleting} onClick={(e) => handleDeletePaper(e, p)} title="Delete paper" aria-label="Delete paper"
                                                                 className="w-9 h-9 shrink-0 rounded-xl flex items-center justify-center text-slate-300 hover:text-red-600 hover:bg-red-50 disabled:opacity-50 cursor-pointer">{isDeleting ? <span className="animate-spin text-xs">⏳</span> : <Trash2 className="w-4 h-4" />}</button>
                                                             </div>
                                                         </div>
-                                                        <h5 className="mt-4 text-lg font-extrabold text-[#081b3b] leading-snug line-clamp-2 group-hover:text-blue-700 transition-colors" title={p.title || 'Untitled Question Paper'}>{p.title || 'Untitled Question Paper'}</h5>
+                                                        <h5 className="mt-4 text-lg font-extrabold text-[#1e1b4b] leading-snug line-clamp-2 group-hover:text-blue-700 transition-colors" title={p.title || 'Untitled Question Paper'}>{p.title || 'Untitled Question Paper'}</h5>
 
                                                         <dl className="mt-5 grid grid-cols-3 gap-2 text-center">
-                                                            <div className="rounded-2xl bg-slate-50 py-2.5"><dt className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Questions</dt><dd className="text-lg font-extrabold text-[#081b3b]">{qCount}</dd></div>
-                                                            <div className="rounded-2xl bg-slate-50 py-2.5"><dt className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Class</dt><dd className="text-lg font-extrabold text-[#081b3b]">{p.classes?.length ? p.classes.join(', ') : '12'}</dd></div>
-                                                            <div className="rounded-2xl bg-slate-50 py-2.5 px-1"><dt className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Saved</dt><dd className="text-[13px] font-extrabold text-[#081b3b] leading-tight pt-1">{dt.date}</dd></div>
+                                                            <div className="rounded-2xl bg-slate-50 py-2.5"><dt className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Questions</dt><dd className="text-lg font-extrabold text-[#1e1b4b]">{qCount}</dd></div>
+                                                            <div className="rounded-2xl bg-slate-50 py-2.5"><dt className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Class</dt><dd className="text-lg font-extrabold text-[#1e1b4b]">{p.classes?.length ? p.classes.join(', ') : '12'}</dd></div>
+                                                            <div className="rounded-2xl bg-slate-50 py-2.5 px-1"><dt className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Saved</dt><dd className="text-[13px] font-extrabold text-[#1e1b4b] leading-tight pt-1">{dt.date}</dd></div>
                                                         </dl>
                                                         {dt.time && <p className="mt-2.5 text-[11px] text-slate-400 font-semibold flex items-center gap-1.5"><Clock size={12} /> {dt.time}</p>}
                                                     </div>
                                                     <div className="relative px-5 pb-5 flex items-center gap-2">
                                                         <button type="button" onClick={(e) => { e.stopPropagation(); open(); }}
-                                                            className="flex-1 h-11 rounded-2xl bg-gradient-to-r from-[#081b3b] to-[#0d2a5e] text-amber-300 text-xs font-extrabold uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-blue-950/20 cursor-pointer"><Eye size={15} /> View paper</button>
+                                                            className="flex-1 h-11 rounded-2xl bg-gradient-to-r from-[#1e1b4b] to-[#312e81] text-indigo-300 text-xs font-extrabold uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-blue-950/20 cursor-pointer"><Eye size={15} /> View paper</button>
                                                         <button type="button" onClick={openStats} title="View paper analysis"
-                                                            className="h-11 px-4 rounded-2xl bg-amber-50 hover:bg-amber-100 text-[#081b3b] border border-amber-200 text-xs font-extrabold flex items-center gap-1.5 cursor-pointer"><BarChart3 size={15} /> Stats</button>
+                                                            className="h-11 px-4 rounded-2xl bg-amber-50 hover:bg-amber-100 text-[#1e1b4b] border border-amber-200 text-xs font-extrabold flex items-center gap-1.5 cursor-pointer"><BarChart3 size={15} /> Stats</button>
                                                     </div>
                                                 </motion.div>
                                             );
@@ -1007,7 +1007,7 @@ const DashboardHome = ({ view = 'home' }) => {
                                     {sortedPapers.length > shownPapers.length && (
                                         <div className="mt-6 flex justify-center">
                                             <button type="button" onClick={() => setVisiblePapers(v => v + 9)}
-                                                className="h-12 px-8 rounded-2xl bg-white border border-slate-200 hover:border-slate-300 hover:shadow-md text-xs font-extrabold uppercase tracking-wider text-[#081b3b] flex items-center gap-2 cursor-pointer">
+                                                className="h-12 px-8 rounded-2xl bg-white border border-slate-200 hover:border-slate-300 hover:shadow-md text-xs font-extrabold uppercase tracking-wider text-[#1e1b4b] flex items-center gap-2 cursor-pointer">
                                                 Show more <span className="rounded-full bg-slate-100 px-2 py-0.5 text-slate-500">{sortedPapers.length - shownPapers.length} left</span>
                                             </button>
                                         </div>
@@ -1027,7 +1027,7 @@ const DashboardHome = ({ view = 'home' }) => {
                         <div className="flex items-start gap-3">
                             <span className="w-11 h-11 shrink-0 rounded-xl bg-red-100 text-red-600 flex items-center justify-center"><Trash2 size={20} /></span>
                             <div>
-                                <h3 className="text-lg font-bold text-[#081b3b]">Delete all {commissionedExams.length} commissioned exam{commissionedExams.length === 1 ? '' : 's'}?</h3>
+                                <h3 className="text-lg font-bold text-[#1e1b4b]">Delete all {commissionedExams.length} commissioned exam{commissionedExams.length === 1 ? '' : 's'}?</h3>
                                 <p className="mt-1 text-sm text-slate-600">They are removed from the database for good, together with the student sittings of those exams. This cannot be undone.</p>
                             </div>
                         </div>
@@ -1049,131 +1049,101 @@ const DashboardHome = ({ view = 'home' }) => {
                 </div>
             )}
 
-            {/* ── MODAL: CREATE & COMMISSION EXAM ── */}
-            {showCommissionModal && (
-                <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 backdrop-blur-sm p-4 overflow-y-auto">
-                    <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-3xl max-h-[92vh] flex flex-col border-b-8 border-gold animate-fade-in-up overflow-hidden my-auto">
-                        <div className="flex justify-between items-center p-8 border-b border-gray-100 bg-gray-50/60">
-                            <div>
-                                <span className="text-[10px] font-black text-gold uppercase tracking-[0.2em] bg-navy px-3 py-1 rounded-full">Admin Commissioning Engine</span>
-                                <h2 className="text-2xl font-black text-navy mt-2 uppercase tracking-tight">Create & Delegate Exam Assignment</h2>
-                                <p className="text-xs text-gray-500 font-medium mt-1">Set the exam title and configure standardized subject question targets.</p>
-                            </div>
-                            <button onClick={() => setShowCommissionModal(false)} className="text-slate/30 hover:text-red-500 bg-white rounded-full w-10 h-10 flex items-center justify-center text-xl font-bold border border-gray-100 shadow transition">✕</button>
-                        </div>
-
-                        <form onSubmit={handleCommissionSubmit} className="p-8 overflow-y-auto space-y-6">
-                            {/* Exam Title */}
-                            <div>
-                                <label className="block text-xs font-black text-navy uppercase tracking-wider mb-2">
-                                    Exam Title / Assessment Name <span className="text-red-500">*</span>
-                                </label>
-                                <input
-                                    type="text"
-                                    required
-                                    placeholder="e.g. CET MOCK 1 or NEET GRAND TEST 2026"
-                                    value={commissionForm.title}
-                                    onChange={e => setCommissionForm({ ...commissionForm, title: e.target.value })}
-                                    className="w-full border-2 border-gray-200 focus:border-navy rounded-2xl px-5 py-3.5 text-base font-bold text-navy outline-none bg-gray-50/50"
-                                />
-                            </div>
-
-                            {/* Exam Preset & Target Class */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-xs font-black text-navy uppercase tracking-wider mb-2">Exam Preset</label>
-                                    <select
-                                        value={commissionForm.examType}
-                                        onChange={e => {
-                                            const val = e.target.value;
-                                            const defaultTarget = val === 'JEE' ? 25 : val === 'NEET' ? 45 : 60;
-                                            setCommissionForm({ ...commissionForm, examType: val, targetPerSubject: defaultTarget });
-                                        }}
-                                        className="w-full border-2 border-gray-200 focus:border-navy rounded-2xl px-4 py-3 text-sm font-bold text-navy outline-none bg-white cursor-pointer"
-                                    >
-                                        <option value="CET">CET (4 Subjects: Physics, Chemistry, Maths, Biology - 60 Qs each)</option>
-                                        <option value="NEET">NEET (4 Subjects: Physics, Chemistry, Botany, Zoology - 45 Qs each)</option>
-                                        <option value="JEE">JEE (3 Subjects: Physics, Chemistry, Mathematics - 25 Qs each [20 MCQs + 5 Numerical])</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-black text-navy uppercase tracking-wider mb-2">Target Class</label>
-                                    <select
-                                        value={
-                                            (Array.isArray(commissionForm.classes) && (
-                                                (commissionForm.classes.includes('11') && commissionForm.classes.includes('12')) ||
-                                                commissionForm.classes.includes('Both')
-                                            ))
-                                                ? 'Both'
-                                                : (commissionForm.classes[0] || '12')
-                                        }
-                                        onChange={e => {
-                                            const val = e.target.value;
-                                            if (val === 'Both') {
-                                                setCommissionForm({ ...commissionForm, classes: ['11', '12'] });
-                                            } else {
-                                                setCommissionForm({ ...commissionForm, classes: [val] });
-                                            }
-                                        }}
-                                        className="w-full border-2 border-gray-200 focus:border-navy rounded-2xl px-4 py-3 text-sm font-bold text-navy outline-none bg-white cursor-pointer"
-                                    >
-                                        <option value="12">Class 12</option>
-                                        <option value="11">Class 11</option>
-                                        <option value="Both">Both Class 11 & 12</option>
-                                    </select>
-                                </div>
-                            </div>
-
-                            {/* Multi-Subject Structure & Quotas */}
-                            <div className="bg-slate-50 border border-slate-200 rounded-3xl p-6 space-y-3">
-                                <h4 className="text-xs font-black text-navy uppercase tracking-widest flex items-center gap-2">
-                                    <span>🎯</span> Standardized Multi-Subject Structure
-                                </h4>
-                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
-                                    <div className={`p-4 rounded-2xl border transition ${
-                                        commissionForm.examType === 'CET' ? 'bg-amber-50/60 border-amber-300 ring-2 ring-amber-100' : 'bg-white border-slate-200'
-                                    }`}>
-                                        <div className="font-black text-navy text-sm">CET (PCMB)</div>
-                                        <div className="text-slate-500 text-xs mt-1">4 Subjects: Physics, Chemistry, Maths, Biology</div>
-                                        <div className="text-amber-700 font-extrabold text-xs mt-2">60 Questions each (240 Qs Total)</div>
-                                    </div>
-                                    <div className={`p-4 rounded-2xl border transition ${
-                                        commissionForm.examType === 'NEET' ? 'bg-amber-50/60 border-amber-300 ring-2 ring-amber-100' : 'bg-white border-slate-200'
-                                    }`}>
-                                        <div className="font-black text-navy text-sm">NEET (PCBZ)</div>
-                                        <div className="text-slate-500 text-xs mt-1">4 Subjects: Physics, Chemistry, Botany, Zoology</div>
-                                        <div className="text-amber-700 font-extrabold text-xs mt-2">45 Questions each (180 Qs Total)</div>
-                                    </div>
-                                    <div className={`p-4 rounded-2xl border transition ${
-                                        commissionForm.examType === 'JEE' ? 'bg-amber-50/60 border-amber-300 ring-2 ring-amber-100' : 'bg-white border-slate-200'
-                                    }`}>
-                                        <div className="font-black text-navy text-sm">JEE Main (PCM)</div>
-                                        <div className="text-slate-500 text-xs mt-1">3 Subjects: Physics, Chemistry, Mathematics</div>
-                                        <div className="text-amber-700 font-extrabold text-xs mt-2">25 Qs each (20 Sec A + 5 Sec B = 75 Qs)</div>
+            {/* ── DIALOG: COMMISSION AN EXAM ── */}
+            {showCommissionModal && (() => {
+                const PRESETS = [
+                    { key: 'CET', name: 'CET', tag: 'PCMB', subjects: ['Physics', 'Chemistry', 'Mathematics', 'Biology'], each: 60, note: '60 questions per subject', Icon: Trophy, tone: 'from-amber-400 to-orange-500' },
+                    { key: 'NEET', name: 'NEET', tag: 'PCBZ', subjects: ['Physics', 'Chemistry', 'Botany', 'Zoology'], each: 45, note: '45 questions per subject', Icon: Target, tone: 'from-teal-400 to-emerald-500' },
+                    { key: 'JEE', name: 'JEE Main', tag: 'PCM', subjects: ['Physics', 'Chemistry', 'Mathematics'], each: 25, note: '25 per subject · 20 Section A + 5 Section B', Icon: Zap, tone: 'from-indigo-400 to-violet-500' },
+                ];
+                const preset = PRESETS.find(x => x.key === commissionForm.examType) || PRESETS[0];
+                const classValue = (Array.isArray(commissionForm.classes) && ((commissionForm.classes.includes('11') && commissionForm.classes.includes('12')) || commissionForm.classes.includes('Both')))
+                    ? 'Both' : (commissionForm.classes[0] || '12');
+                const setClass = (val) => setCommissionForm({ ...commissionForm, classes: val === 'Both' ? ['11', '12'] : [val] });
+                const pickPreset = (p) => setCommissionForm({ ...commissionForm, examType: p.key, targetPerSubject: p.each });
+                const total = preset.subjects.length * preset.each;
+                return (
+                    <div className="fixed inset-0 z-[90] flex items-center justify-center p-4 bg-slate-950/55 backdrop-blur-sm" onMouseDown={() => setShowCommissionModal(false)}>
+                        <motion.div role="dialog" aria-modal="true" aria-label="Commission an exam" onMouseDown={(e) => e.stopPropagation()}
+                            initial={{ opacity: 0, y: 18, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={SPRING.island}
+                            className="w-full max-w-2xl max-h-[92vh] flex flex-col rounded-3xl bg-white shadow-2xl ring-1 ring-black/5 overflow-hidden">
+                            <header className="flex items-start justify-between gap-4 px-7 pt-6 pb-5 border-b border-slate-100">
+                                <div className="flex items-center gap-3.5">
+                                    <span className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white flex items-center justify-center shadow-lg shadow-indigo-500/30"><Zap size={22} /></span>
+                                    <div>
+                                        <h2 className="text-xl font-bold text-[#1e1b4b] tracking-tight !normal-case">Commission an exam</h2>
+                                        <p className="text-sm text-slate-600">Name it, pick the type — a block for each subject is created for you.</p>
                                     </div>
                                 </div>
-                            </div>
+                                <button type="button" onClick={() => setShowCommissionModal(false)} aria-label="Close" className="w-9 h-9 shrink-0 rounded-xl text-slate-500 hover:bg-slate-100 flex items-center justify-center cursor-pointer"><X size={18} /></button>
+                            </header>
 
-                            {/* Submit & Dispatch */}
-                            <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
-                                <button
-                                    type="button"
-                                    onClick={() => setShowCommissionModal(false)}
-                                    className="px-6 py-3 rounded-xl border border-gray-200 text-gray-600 font-bold text-xs hover:bg-gray-100 transition cursor-pointer"
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    type="submit"
-                                    className="px-8 py-3 rounded-xl bg-gold text-navy font-black text-xs uppercase tracking-widest hover:scale-105 transition shadow-lg cursor-pointer flex items-center gap-2"
-                                >
-                                    <span>⚡</span> Commission Exam Now
-                                </button>
-                            </div>
-                        </form>
+                            <form onSubmit={handleCommissionSubmit} className="flex flex-col min-h-0">
+                                <div className="px-7 py-6 overflow-y-auto space-y-6">
+                                    <label className="block">
+                                        <span className="block text-sm font-semibold text-slate-800 mb-2">Exam name <span className="text-red-600">*</span></span>
+                                        <input type="text" required autoFocus placeholder="e.g. CET Mock Test 1 · NEET Grand Test 2026"
+                                            value={commissionForm.title} onChange={e => setCommissionForm({ ...commissionForm, title: e.target.value })}
+                                            className="w-full h-12 rounded-xl border border-slate-300 px-4 text-[15px] font-medium text-slate-900 placeholder:text-slate-400 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/15" />
+                                    </label>
+
+                                    <fieldset>
+                                        <legend className="text-sm font-semibold text-slate-800 mb-2">Exam type</legend>
+                                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3" role="radiogroup">
+                                            {PRESETS.map((p) => {
+                                                const on = commissionForm.examType === p.key;
+                                                return (
+                                                    <button key={p.key} type="button" role="radio" aria-checked={on} onClick={() => pickPreset(p)}
+                                                        className={`relative text-left rounded-2xl border-2 p-4 transition-all cursor-pointer ${on ? 'border-indigo-500 bg-indigo-50/70 shadow-md shadow-indigo-500/10' : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm'}`}>
+                                                        <span className={`w-9 h-9 rounded-xl bg-gradient-to-br ${p.tone} text-white flex items-center justify-center`}><p.Icon size={17} /></span>
+                                                        <span className="mt-3 flex items-baseline gap-2"><span className="text-base font-bold text-[#1e1b4b]">{p.name}</span><span className="text-xs font-semibold text-slate-500">{p.tag}</span></span>
+                                                        <span className="mt-1 block text-xs text-slate-600">{p.note}</span>
+                                                        <span className="mt-2 block text-xs font-bold text-indigo-700">{p.subjects.length} subjects · {p.subjects.length * p.each} questions</span>
+                                                        {on && <span className="absolute top-3 right-3 w-6 h-6 rounded-full bg-indigo-600 text-white flex items-center justify-center"><Check size={14} strokeWidth={3} /></span>}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    </fieldset>
+
+                                    <fieldset>
+                                        <legend className="text-sm font-semibold text-slate-800 mb-2">Class</legend>
+                                        <div className="inline-flex p-1 rounded-xl bg-slate-100" role="radiogroup">
+                                            {[['11', 'Class 11'], ['12', 'Class 12'], ['Both', 'Both 11 & 12']].map(([val, label]) => (
+                                                <button key={val} type="button" role="radio" aria-checked={classValue === val} onClick={() => setClass(val)}
+                                                    className={`h-10 px-5 rounded-lg text-sm font-semibold cursor-pointer transition-all ${classValue === val ? 'bg-white text-[#1e1b4b] shadow' : 'text-slate-600 hover:text-slate-900'}`}>{label}</button>
+                                            ))}
+                                        </div>
+                                    </fieldset>
+
+                                    <div className="rounded-2xl bg-slate-50 border border-slate-200 p-4">
+                                        <p className="text-sm font-semibold text-slate-800 mb-3">Subject blocks that will be created</p>
+                                        <div className="flex flex-wrap gap-2">
+                                            {preset.subjects.map((s) => {
+                                                const Ico = SUBJECT_ICONS[s] || BookOpen;
+                                                const tone = SUBJECT_TONES[s] || SUBJECT_TONES.Biology;
+                                                return (
+                                                    <span key={s} className="inline-flex items-center gap-2 rounded-xl bg-white border border-slate-200 pl-1.5 pr-3 py-1.5 text-sm font-semibold text-slate-800">
+                                                        <span className={`w-7 h-7 rounded-lg flex items-center justify-center ${tone.tile}`}><Ico size={15} /></span>{s}<span className="text-xs font-medium text-slate-500">{preset.each} Qs</span>
+                                                    </span>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <footer className="flex items-center justify-between gap-4 px-7 py-4 border-t border-slate-100 bg-slate-50/70">
+                                    <p className="text-sm text-slate-600"><span className="font-bold text-[#1e1b4b]">{preset.subjects.length} blocks</span> · {total} questions in total</p>
+                                    <div className="flex gap-2.5">
+                                        <button type="button" onClick={() => setShowCommissionModal(false)} className="h-11 px-5 rounded-xl border border-slate-300 bg-white text-sm font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer">Cancel</button>
+                                        <button type="submit" className="h-11 px-6 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold flex items-center gap-2 shadow-lg shadow-indigo-600/25 cursor-pointer"><Zap size={16} /> Commission exam</button>
+                                    </div>
+                                </footer>
+                            </form>
+                        </motion.div>
                     </div>
-                </div>
-            )}
+                );
+            })()}
 
             {/* ── MODAL: VIEW FULL EXAM PAPER (PREVIEW QUESTIONS) ── */}
             {selectedViewExam && (

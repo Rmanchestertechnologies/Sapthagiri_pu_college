@@ -78,7 +78,7 @@ function SidebarBody({ onNavigate, onClose, cfg, collapsed = false, onToggle, on
     const slim = collapsed && !onClose; // the drawer is always full width
 
     return (
-        <div className="h-full flex flex-col text-white bg-[#0a1630]">
+        <div className="h-full flex flex-col text-white bg-[#13113a]">
             {/* brand + collapse */}
             <div className={`flex items-center ${slim ? 'flex-col gap-3 px-2 pt-4 pb-2' : 'justify-between gap-2 px-4 pt-4 pb-2'}`}>
                 <button type="button" onClick={() => onNavigate(cfg.home)} className="flex items-center gap-2.5 min-w-0 text-left cursor-pointer" aria-label="Home">
@@ -120,8 +120,8 @@ function SidebarBody({ onNavigate, onClose, cfg, collapsed = false, onToggle, on
                                             <button type="button" onClick={() => onNavigate(path)} aria-current={active ? 'page' : undefined} title={slim ? title : desc}
                                                 className={`relative w-full h-9 flex items-center ${slim ? 'justify-center' : 'gap-3 px-2.5'} rounded-lg text-left cursor-pointer transition-colors ${active ? 'text-white' : 'text-white/60 hover:text-white hover:bg-white/[0.05]'}`}>
                                                 {active && <motion.span layoutId={`${cfg.id}-nav-pill`} transition={SPRING.soft} className="absolute inset-0 rounded-lg bg-white/[0.09]" />}
-                                                {active && !slim && <motion.span layoutId={`${cfg.id}-nav-bar`} transition={SPRING.soft} className="absolute left-0 top-2 bottom-2 w-[3px] rounded-r-full bg-amber-400" />}
-                                                <Icon size={17} strokeWidth={2} className={`relative shrink-0 ${active ? 'text-amber-400' : ''}`} />
+                                                {active && !slim && <motion.span layoutId={`${cfg.id}-nav-bar`} transition={SPRING.soft} className="absolute left-0 top-2 bottom-2 w-[3px] rounded-r-full bg-indigo-400" />}
+                                                <Icon size={17} strokeWidth={2} className={`relative shrink-0 ${active ? 'text-indigo-400' : ''}`} />
                                                 {!slim && <span className="relative text-[13.5px] font-medium truncate">{title}</span>}
                                             </button>
                                         </li>
@@ -151,9 +151,9 @@ function SidebarBody({ onNavigate, onClose, cfg, collapsed = false, onToggle, on
 
             {/* user */}
             <div className={`border-t border-white/[0.07] ${slim ? 'px-2 py-3 flex flex-col items-center gap-2' : 'px-3 py-3 flex items-center gap-2.5'}`}>
-                <span className="relative w-8 h-8 shrink-0 rounded-full bg-amber-400 text-[#0a1630] text-[11px] font-bold flex items-center justify-center">
+                <span className="relative w-8 h-8 shrink-0 rounded-full bg-indigo-400 text-[#13113a] text-[11px] font-bold flex items-center justify-center">
                     {cfg.user.initials}
-                    <span className="absolute -bottom-px -right-px w-2.5 h-2.5 rounded-full bg-emerald-400 ring-2 ring-[#0a1630]" aria-hidden="true" />
+                    <span className="absolute -bottom-px -right-px w-2.5 h-2.5 rounded-full bg-emerald-400 ring-2 ring-[#13113a]" aria-hidden="true" />
                 </span>
                 {!slim && <span className="min-w-0 flex-1 leading-tight"><span className="block text-[13px] font-semibold truncate">{cfg.user.name}</span><span className="block text-[11px] text-white/40 truncate">{cfg.user.sub}</span></span>}
                 <button type="button" onClick={() => { logout(); navigate('/'); }} aria-label="Sign out" title="Sign out"
@@ -227,7 +227,7 @@ export function PortalShell({ cfg, children }) {
                     initial={false} animate={{ width: sidebarW }} transition={SPRING.soft}>
                     <SidebarBody onNavigate={go} cfg={cfg} collapsed={collapsed} onToggle={toggleCollapsed} onSearch={() => setPalette(true)} />
                     <button type="button" onClick={toggleCollapsed} aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'} title={`${collapsed ? 'Expand' : 'Collapse'} sidebar ([)`}
-                        className="absolute -right-3 top-[22px] z-10 w-6 h-6 rounded-full bg-white border border-slate-200 text-slate-500 hover:text-[#081b3b] shadow-sm flex items-center justify-center cursor-pointer">
+                        className="absolute -right-3 top-[22px] z-10 w-6 h-6 rounded-full bg-white border border-slate-200 text-slate-500 hover:text-[#1e1b4b] shadow-sm flex items-center justify-center cursor-pointer">
                         {collapsed ? <ChevronsRight size={13} /> : <ChevronsLeft size={13} />}
                     </button>
                 </motion.aside>
@@ -252,14 +252,14 @@ export function PortalShell({ cfg, children }) {
                         <motion.div role="dialog" aria-label="Keyboard shortcuts" onMouseDown={(e) => e.stopPropagation()} initial={{ y: 16, scale: 0.97, opacity: 0 }} animate={{ y: 0, scale: 1, opacity: 1 }} exit={{ y: 10, scale: 0.97, opacity: 0 }} transition={SPRING.island}
                             className="w-full max-w-md rounded-3xl bg-white shadow-2xl border border-slate-200 p-6">
                             <div className="flex items-center justify-between mb-4">
-                                <h3 className="text-lg font-extrabold text-[#081b3b] flex items-center gap-2"><Keyboard size={19} className="text-amber-500" /> Keyboard shortcuts</h3>
+                                <h3 className="text-lg font-extrabold text-[#1e1b4b] flex items-center gap-2"><Keyboard size={19} className="text-indigo-500" /> Keyboard shortcuts</h3>
                                 <button type="button" onClick={() => setHelp(false)} aria-label="Close" className="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center cursor-pointer"><X size={16} /></button>
                             </div>
                             <ul className="divide-y divide-slate-100">
                                 {[['Ctrl / Cmd + K', 'Search or jump to any section'], ['?', 'Show this list'], ['[', 'Collapse or expand the sidebar'], ['Esc', 'Close menus and dialogs']].map(([k, d]) => (
                                     <li key={k} className="flex items-center justify-between gap-4 py-3 text-sm">
                                         <span className="text-slate-600 font-semibold">{d}</span>
-                                        <kbd className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-extrabold text-[#081b3b] whitespace-nowrap">{k}</kbd>
+                                        <kbd className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-extrabold text-[#1e1b4b] whitespace-nowrap">{k}</kbd>
                                     </li>
                                 ))}
                             </ul>
@@ -273,24 +273,24 @@ export function PortalShell({ cfg, children }) {
                     <div className="px-4 sm:px-8 py-3 flex items-center justify-between gap-3">
                         <div className="flex items-center gap-3 min-w-0">
                             <button type="button" onClick={() => setDrawer(true)} aria-label="Open menu"
-                                className={`w-10 h-10 shrink-0 rounded-xl bg-[#081b3b] text-amber-400 flex items-center justify-center cursor-pointer ${showSidebar ? 'hidden' : ''}`}><Menu size={19} /></button>
+                                className={`w-10 h-10 shrink-0 rounded-xl bg-[#1e1b4b] text-indigo-400 flex items-center justify-center cursor-pointer ${showSidebar ? 'hidden' : ''}`}><Menu size={19} /></button>
                             {!atHome && (
                                 <button type="button" onClick={() => navigate(cfg.home)} aria-label="Back to dashboard" title="Back to dashboard"
-                                    className="w-10 h-10 shrink-0 rounded-xl bg-white border border-slate-200 text-slate-600 hover:text-[#081b3b] flex items-center justify-center cursor-pointer"><ChevronLeft size={18} /></button>
+                                    className="w-10 h-10 shrink-0 rounded-xl bg-white border border-slate-200 text-slate-600 hover:text-[#1e1b4b] flex items-center justify-center cursor-pointer"><ChevronLeft size={18} /></button>
                             )}
                             <div className="min-w-0">
                                 <p className="eyebrow">{cfg.portal}</p>
-                                <h1 className="text-lg font-extrabold text-[#081b3b] truncate">{cfg.titleFor(location.pathname)}</h1>
+                                <h1 className="text-lg font-extrabold text-[#1e1b4b] truncate">{cfg.titleFor(location.pathname)}</h1>
                             </div>
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
-                            <button type="button" onClick={() => setPalette(true)} className="hidden md:flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-500 hover:text-[#081b3b] hover:border-slate-300 cursor-pointer">
+                            <button type="button" onClick={() => setPalette(true)} className="hidden md:flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-500 hover:text-[#1e1b4b] hover:border-slate-300 cursor-pointer">
                                 <Search size={14} /> Search <kbd className="rounded border border-slate-200 bg-slate-50 px-1.5 text-[10px]">Ctrl K</kbd>
                             </button>
                             {cfg.quickActions && cfg.quickActions.length > 0 && (
                                 <div className="relative">
                                     <button type="button" onClick={() => setQuick(q => !q)} aria-haspopup="menu" aria-expanded={quick}
-                                        className="h-10 pl-3 pr-4 rounded-xl bg-gradient-to-r from-[#081b3b] to-[#0d2a5e] text-amber-300 text-xs font-extrabold uppercase tracking-wider flex items-center gap-1.5 shadow-lg shadow-blue-950/20 cursor-pointer"><Plus size={16} strokeWidth={3} /> New</button>
+                                        className="h-10 pl-3 pr-4 rounded-xl bg-gradient-to-r from-[#1e1b4b] to-[#312e81] text-indigo-300 text-xs font-extrabold uppercase tracking-wider flex items-center gap-1.5 shadow-lg shadow-blue-950/20 cursor-pointer"><Plus size={16} strokeWidth={3} /> New</button>
                                     <AnimatePresence>
                                         {quick && (
                                             <>
@@ -300,8 +300,8 @@ export function PortalShell({ cfg, children }) {
                                                     {cfg.quickActions.map(({ title, desc, Icon, to, run }) => (
                                                         <button key={title} type="button" role="menuitem" onClick={() => { setQuick(false); if (run) run(); else navigate(to); }}
                                                             className="w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-left hover:bg-amber-50 cursor-pointer">
-                                                            <span className="w-10 h-10 rounded-xl bg-[#081b3b] text-amber-300 flex items-center justify-center shrink-0"><Icon size={18} /></span>
-                                                            <span className="min-w-0"><span className="block text-sm font-extrabold text-[#081b3b]">{title}</span><span className="block text-xs text-slate-500 truncate">{desc}</span></span>
+                                                            <span className="w-10 h-10 rounded-xl bg-[#1e1b4b] text-indigo-300 flex items-center justify-center shrink-0"><Icon size={18} /></span>
+                                                            <span className="min-w-0"><span className="block text-sm font-extrabold text-[#1e1b4b]">{title}</span><span className="block text-xs text-slate-500 truncate">{desc}</span></span>
                                                         </button>
                                                     ))}
                                                 </motion.div>
@@ -311,7 +311,7 @@ export function PortalShell({ cfg, children }) {
                                 </div>
                             )}
                             <button type="button" onClick={() => setHelp(true)} aria-label="Keyboard shortcuts" title="Keyboard shortcuts (?)"
-                                className="hidden sm:flex w-10 h-10 rounded-xl border border-slate-200 bg-white text-slate-500 hover:text-[#081b3b] hover:border-slate-300 items-center justify-center cursor-pointer"><Keyboard size={17} /></button>
+                                className="hidden sm:flex w-10 h-10 rounded-xl border border-slate-200 bg-white text-slate-500 hover:text-[#1e1b4b] hover:border-slate-300 items-center justify-center cursor-pointer"><Keyboard size={17} /></button>
                             {cfg.topRight}
                         </div>
                     </div>

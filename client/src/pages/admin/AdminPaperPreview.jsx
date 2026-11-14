@@ -271,7 +271,7 @@ const AdminPaperPreview = () => {
                 <div className="surface p-6 flex flex-col lg:flex-row lg:items-start justify-between gap-5">
                     <div className="min-w-0">
                         <div className="flex items-center gap-2 mb-2 flex-wrap">
-                            <span className="rounded-full bg-[#081b3b] text-amber-400 text-[10px] font-extrabold uppercase tracking-[0.14em] px-3 py-1">{selectedPaper.subject || 'Assessment'}</span>
+                            <span className="rounded-full bg-[#1e1b4b] text-indigo-400 text-[10px] font-extrabold uppercase tracking-[0.14em] px-3 py-1">{selectedPaper.subject || 'Assessment'}</span>
                             <span className="rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-extrabold uppercase tracking-[0.14em] px-3 py-1">{selectedPaper.questions?.length || 0} questions</span>
                             <span className={`rounded-full text-[10px] font-extrabold uppercase tracking-[0.14em] px-3 py-1 border ${
                                 (selectedPaper.status || 'Pending Approval') === 'Approved' ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
@@ -279,7 +279,7 @@ const AdminPaperPreview = () => {
                                 {selectedPaper.status || 'Pending Approval'}
                             </span>
                         </div>
-                        <h2 className="text-2xl sm:text-3xl font-extrabold text-[#081b3b] tracking-tight break-words">{selectedPaper.title || 'Question Paper Preview'}</h2>
+                        <h2 className="text-2xl sm:text-3xl font-extrabold text-[#1e1b4b] tracking-tight break-words">{selectedPaper.title || 'Question Paper Preview'}</h2>
                     </div>
                     <div className="flex items-center gap-2 flex-wrap">
                         {(selectedPaper.status || 'Pending Approval') !== 'Approved' && (
@@ -291,7 +291,7 @@ const AdminPaperPreview = () => {
                                 className="rounded-xl bg-white border border-red-200 text-red-600 hover:bg-red-50 text-xs font-extrabold uppercase tracking-wider px-4 py-2.5 disabled:opacity-50 cursor-pointer">Reject</button>
                         )}
                         <button onClick={() => navigate('/admin/dashboard')}
-                            className="rounded-xl bg-white border border-slate-200 text-slate-600 hover:text-[#081b3b] hover:border-slate-300 text-xs font-extrabold uppercase tracking-wider px-4 py-2.5 cursor-pointer">← Back</button>
+                            className="rounded-xl bg-white border border-slate-200 text-slate-600 hover:text-[#1e1b4b] hover:border-slate-300 text-xs font-extrabold uppercase tracking-wider px-4 py-2.5 cursor-pointer">← Back</button>
                     </div>
                 </div>
 
@@ -310,11 +310,11 @@ const AdminPaperPreview = () => {
                     </div>
                     <div className="flex items-center gap-2 flex-wrap">
                         <button onClick={() => setShowAlignment(!showAlignment)} aria-pressed={showAlignment}
-                            className={`rounded-xl px-4 py-2.5 text-xs font-extrabold flex items-center gap-2 border cursor-pointer ${showAlignment ? 'bg-amber-50 border-amber-300 text-amber-800' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'}`}>
+                            className={`rounded-xl px-4 py-2.5 text-xs font-extrabold flex items-center gap-2 border cursor-pointer ${showAlignment ? 'bg-amber-50 border-indigo-300 text-amber-800' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'}`}>
                             <span>⚙️</span> {showAlignment ? 'Hide layout tools' : 'Layout tools'}
                         </button>
                         <button onClick={handleDownloadAllSets}
-                            className="rounded-xl bg-gradient-to-r from-[#081b3b] to-[#0d2a5e] text-amber-400 px-4 py-2.5 text-xs font-extrabold uppercase tracking-wider shadow-md hover:shadow-lg flex items-center gap-2 cursor-pointer"><span>⬇</span> Download Set {activeSet} (PDF)</button>
+                            className="rounded-xl bg-gradient-to-r from-[#1e1b4b] to-[#312e81] text-indigo-400 px-4 py-2.5 text-xs font-extrabold uppercase tracking-wider shadow-md hover:shadow-lg flex items-center gap-2 cursor-pointer"><span>⬇</span> Download Set {activeSet} (PDF)</button>
                     </div>
                 </div>
 
@@ -323,7 +323,7 @@ const AdminPaperPreview = () => {
                     <div className="flex items-center gap-3 min-w-0">
                         <span className="w-10 h-10 shrink-0 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center text-lg">⏱️</span>
                         <div className="min-w-0">
-                            <h4 className="text-sm font-extrabold text-[#081b3b]">Duration and marks</h4>
+                            <h4 className="text-sm font-extrabold text-[#1e1b4b]">Duration and marks</h4>
                             <p className="text-xs text-slate-500 font-medium">Changes update the preview, headers, exports and answer key.</p>
                         </div>
                     </div>
@@ -332,24 +332,24 @@ const AdminPaperPreview = () => {
                             <span className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 mb-1">Duration</span>
                             <input type="text" value={editableDuration} placeholder="e.g. 80 Mins"
                                 onChange={(e) => { setEditableDuration(e.target.value); setSettings(s => ({ ...s, duration: e.target.value })); }}
-                                className="w-32 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold text-[#081b3b] outline-none focus:border-amber-500 focus:bg-white" />
+                                className="w-32 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold text-[#1e1b4b] outline-none focus:border-indigo-500 focus:bg-white" />
                         </label>
                         <label className="block">
                             <span className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 mb-1">Max marks</span>
                             <input type="number" min="1" value={editableMarks} placeholder="e.g. 60"
                                 onChange={(e) => { const raw = e.target.value; setEditableMarks(raw); setSettings(s => ({ ...s, totalMarks: raw === '' ? '' : (parseInt(raw, 10) || 0) })); }}
                                 onBlur={() => { if (editableMarks === '' || isNaN(editableMarks) || Number(editableMarks) < 1) { setEditableMarks('70'); setSettings(s => ({ ...s, totalMarks: 70 })); } }}
-                                className="w-24 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold text-[#081b3b] outline-none focus:border-amber-500 focus:bg-white" />
+                                className="w-24 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold text-[#1e1b4b] outline-none focus:border-indigo-500 focus:bg-white" />
                         </label>
                         <label className="block">
                             <span className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 mb-1">Start Q.#</span>
                             <input type="number" min="1" value={settings.startQNo !== undefined ? settings.startQNo : 1} placeholder="1"
                                 onChange={(e) => { const raw = e.target.value; setSettings(s => ({ ...s, startQNo: raw === '' ? '' : (parseInt(raw, 10) || 0) })); }}
                                 onBlur={() => { if (settings.startQNo === '' || isNaN(settings.startQNo) || Number(settings.startQNo) < 1) setSettings(s => ({ ...s, startQNo: 1 })); }}
-                                className="w-20 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold text-[#081b3b] outline-none focus:border-amber-500 focus:bg-white" />
+                                className="w-20 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold text-[#1e1b4b] outline-none focus:border-indigo-500 focus:bg-white" />
                         </label>
                         <button type="button" onClick={handleSaveHeaderDetails} disabled={savingHeader}
-                            className="rounded-xl bg-[#081b3b] text-amber-400 hover:bg-[#0d2a5e] px-4 py-2.5 text-xs font-extrabold uppercase tracking-wider disabled:opacity-50 cursor-pointer flex items-center gap-2">
+                            className="rounded-xl bg-[#1e1b4b] text-indigo-400 hover:bg-[#312e81] px-4 py-2.5 text-xs font-extrabold uppercase tracking-wider disabled:opacity-50 cursor-pointer flex items-center gap-2">
                             <span>{savingHeader ? '⏳' : '💾'}</span><span>{savingHeader ? 'Saving…' : 'Save'}</span>
                         </button>
                         {headerSavedNotice && (
@@ -365,7 +365,7 @@ const AdminPaperPreview = () => {
                         <div className="inline-flex items-center gap-1 rounded-2xl bg-slate-200/70 p-1">
                             {['P', 'Q', 'R', 'S'].map(setKey => (
                                 <button key={setKey} onClick={() => setActiveSet(setKey)} aria-pressed={activeSet === setKey}
-                                    className={`relative rounded-xl px-4 py-2 text-xs font-extrabold cursor-pointer ${activeSet === setKey ? 'text-[#081b3b]' : 'text-slate-500 hover:text-slate-700'}`}>
+                                    className={`relative rounded-xl px-4 py-2 text-xs font-extrabold cursor-pointer ${activeSet === setKey ? 'text-[#1e1b4b]' : 'text-slate-500 hover:text-slate-700'}`}>
                                     {activeSet === setKey && <motion.span layoutId="set-pill" transition={{ type: 'spring', stiffness: 420, damping: 32 }} className="absolute inset-0 rounded-xl bg-white shadow" />}
                                     <span className="relative">Set {setKey}</span>
                                 </button>

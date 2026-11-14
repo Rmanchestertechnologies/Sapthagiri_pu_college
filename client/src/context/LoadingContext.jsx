@@ -46,12 +46,12 @@ export const LoadingProvider = ({ children }) => {
                             padding: '24px 36px',
                             borderRadius: '24px',
                             boxShadow: '0 12px 36px rgba(0, 31, 109, 0.18)',
-                            border: '2px solid rgba(245, 158, 11, 0.4)',
+                            border: '2px solid rgba(99, 102, 241, 0.4)',
                         }}
                     >
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                             <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: '#001f6d', animation: 'sap-bounce 0.6s infinite alternate' }} />
-                            <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: '#f59e0b', animation: 'sap-bounce 0.6s infinite alternate 0.2s' }} />
+                            <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: '#6366f1', animation: 'sap-bounce 0.6s infinite alternate 0.2s' }} />
                             <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: '#0284c7', animation: 'sap-bounce 0.6s infinite alternate 0.4s' }} />
                         </div>
                         <span style={{ fontSize: '12px', fontWeight: 800, color: '#001f6d', textTransform: 'uppercase', letterSpacing: '0.08em' }}>

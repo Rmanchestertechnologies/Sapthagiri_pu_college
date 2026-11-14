@@ -382,7 +382,7 @@ const AssignmentGenerator = () => {
                             <button
                                 onClick={() => setShowSettings(!showSettings)}
                                 className={`px-4 py-2 rounded-xl font-black text-xs uppercase tracking-wider transition border cursor-pointer ${
-                                    showSettings ? 'bg-amber-500 text-white' : 'bg-white text-gray-700 border-gray-300'
+                                    showSettings ? 'bg-indigo-500 text-white' : 'bg-white text-gray-700 border-gray-300'
                                 }`}
                             >
                                 <span>⚙️</span> Layout Settings
@@ -453,7 +453,7 @@ const AssignmentGenerator = () => {
 
                     {/* Swap Active Banner */}
                     {swappingIndex !== null && (
-                        <div className="bg-amber-500 text-navy p-4 rounded-2xl shadow-lg border-2 border-gold flex items-center justify-between gap-3 animate-pulse">
+                        <div className="bg-indigo-500 text-navy p-4 rounded-2xl shadow-lg border-2 border-gold flex items-center justify-between gap-3 animate-pulse">
                             <div className="flex items-center gap-3">
                                 <span className="text-2xl">🔄</span>
                                 <div>
@@ -790,7 +790,7 @@ const AssignmentGenerator = () => {
                                             onClick={() => handleQuestionClick(q)}
                                             className={`p-5 rounded-2xl border-2 transition cursor-pointer flex items-start gap-4 ${
                                                 swappingIndex !== null
-                                                    ? 'border-amber-400 bg-amber-50/60 hover:bg-amber-100 hover:border-amber-500 shadow-md'
+                                                    ? 'border-indigo-400 bg-amber-50/60 hover:bg-amber-100 hover:border-indigo-500 shadow-md'
                                                     : isSelected
                                                     ? 'border-navy bg-blue-50/40 shadow-sm ring-1 ring-navy/20'
                                                     : 'border-gray-200 bg-white hover:border-gray-300 hover:shadow-xs'

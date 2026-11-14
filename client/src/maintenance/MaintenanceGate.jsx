@@ -62,12 +62,12 @@ export function MaintenanceScreen({ message, until, checking, onRetry, mode }) {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [until]);
     return (
-        <div className="min-h-screen relative overflow-hidden flex items-center justify-center p-6 bg-[#050e1f] text-white font-sans" role="alert" aria-live="polite">
-            <div className="absolute -top-32 -left-24 w-[28rem] h-[28rem] rounded-full bg-amber-500/20 blur-3xl" aria-hidden="true" />
+        <div className="min-h-screen relative overflow-hidden flex items-center justify-center p-6 bg-[#0c0b2c] text-white font-sans" role="alert" aria-live="polite">
+            <div className="absolute -top-32 -left-24 w-[28rem] h-[28rem] rounded-full bg-indigo-500/20 blur-3xl" aria-hidden="true" />
             <div className="absolute -bottom-40 -right-24 w-[30rem] h-[30rem] rounded-full bg-sky-500/15 blur-3xl" aria-hidden="true" />
             <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ type: 'spring', stiffness: 220, damping: 26 }}
                 className="relative w-full max-w-lg text-center">
-                <span className="mx-auto w-20 h-20 rounded-3xl bg-white p-2 shadow-2xl ring-2 ring-amber-400/60 block">
+                <span className="mx-auto w-20 h-20 rounded-3xl bg-white p-2 shadow-2xl ring-2 ring-indigo-400/60 block">
                     <img src="/SapthagiriLogo.jpg" alt="Sapthagiri PU College" className="w-full h-full object-contain rounded-2xl" />
                 </span>
                 <h1 className="mt-7 text-3xl sm:text-4xl font-extrabold tracking-tight">Updates are going on</h1>
@@ -75,7 +75,7 @@ export function MaintenanceScreen({ message, until, checking, onRetry, mode }) {
                     {message || 'We are making some updates. The site will be back shortly.'}
                 </p>
                 <div className="mt-8 mx-auto w-full max-w-xs h-1.5 rounded-full bg-white/10 overflow-hidden" aria-hidden="true">
-                    <motion.span className="block h-full w-1/3 rounded-full bg-gradient-to-r from-amber-300 to-amber-500"
+                    <motion.span className="block h-full w-1/3 rounded-full bg-gradient-to-r from-indigo-300 to-indigo-500"
                         animate={{ x: ['-100%', '300%'] }} transition={{ repeat: Infinity, duration: 1.6, ease: 'easeInOut' }} />
                 </div>
                 <p className="mt-4 text-sm text-white/55 flex items-center justify-center gap-2">

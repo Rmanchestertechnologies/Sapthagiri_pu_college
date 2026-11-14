@@ -1130,18 +1130,18 @@ export default function CommissionedExam() {
                     <div className="flex items-center gap-3 min-w-0">
                         <button
                             onClick={() => currentStep > 1 ? handleBackStep() : navigate(homePath)}
-                            className="w-10 h-10 shrink-0 rounded-xl bg-white border border-slate-200 text-slate-600 hover:text-[#081b3b] hover:border-slate-300 flex items-center justify-center cursor-pointer"
+                            className="w-10 h-10 shrink-0 rounded-xl bg-white border border-slate-200 text-slate-600 hover:text-[#1e1b4b] hover:border-slate-300 flex items-center justify-center cursor-pointer"
                             aria-label={currentStep > 1 ? 'Previous step' : 'Back'}
                         >
                             <ArrowLeft size={18} />
                         </button>
                         <div className="min-w-0">
                             <p className="eyebrow">Exam generator</p>
-                            <h1 className="text-base sm:text-lg font-extrabold text-[#081b3b] truncate">{examTitle ? examTitle : 'Question Paper Generator'}</h1>
+                            <h1 className="text-base sm:text-lg font-extrabold text-[#1e1b4b] truncate">{examTitle ? examTitle : 'Question Paper Generator'}</h1>
                         </div>
                     </div>
                     <button type="button" onClick={() => setPaletteOpen(true)}
-                        className="hidden sm:flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-500 hover:text-[#081b3b] hover:border-slate-300 cursor-pointer">
+                        className="hidden sm:flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-500 hover:text-[#1e1b4b] hover:border-slate-300 cursor-pointer">
                         <Command size={14} /> Quick jump <kbd className="rounded border border-slate-200 bg-slate-50 px-1.5 text-[10px]">Ctrl K</kbd>
                     </button>
                 </div>
@@ -1223,7 +1223,7 @@ export default function CommissionedExam() {
                                         key={pattern.id}
                                         onClick={() => setSelectedExamPattern(pattern.id)}
                                         className={`bg-white rounded-3xl p-6 border-2 transition-all cursor-pointer flex flex-col justify-between shadow-sm hover:shadow-xl hover:-translate-y-0.5 ${
-                                            isSelected ? 'border-amber-400 ring-4 ring-amber-400/20' : 'border-slate-200 hover:border-slate-300'
+                                            isSelected ? 'border-indigo-400 ring-4 ring-indigo-400/20' : 'border-slate-200 hover:border-slate-300'
                                         }`}
                                     >
                                         <div>
@@ -1298,7 +1298,7 @@ export default function CommissionedExam() {
                                         >
                                             <div>
                                                 <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center mb-3 group-hover:scale-110 transition">
-                                                    <Zap className="w-6 h-6 fill-amber-500" />
+                                                    <Zap className="w-6 h-6 fill-indigo-500" />
                                                 </div>
                                                 <h4 className="text-base font-black text-navy mb-1 group-hover:text-gold transition">
                                                     ⚡ Auto Fetch Mode
@@ -1374,7 +1374,7 @@ export default function CommissionedExam() {
                                         }`}
                                         title="Automatically balance and sample questions based on chapter quotas and question types"
                                     >
-                                        <Zap className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
+                                        <Zap className="w-3.5 h-3.5 text-indigo-500 fill-indigo-500" />
                                         <span>Auto Fetch</span>
                                     </button>
                                     <button
@@ -1859,7 +1859,7 @@ export default function CommissionedExam() {
                                             value={difficultyDistribution[key]}
                                             onChange={(e) => handleDifficultyChange(key, e.target.value)}
                                             className="w-full mt-1.5 cursor-pointer accent-current"
-                                            style={{ accentColor: color === 'emerald' ? '#10b981' : color === 'amber' ? '#f59e0b' : '#ef4444' }}
+                                            style={{ accentColor: color === 'emerald' ? '#10b981' : color === 'amber' ? '#6366f1' : '#ef4444' }}
                                         />
                                         <span className={`text-[10px] font-bold text-${color}-700`}>
                                             ~{Math.round((difficultyDistribution[key] / 100) * totalTypeQuestions)} Qs
@@ -1891,7 +1891,7 @@ export default function CommissionedExam() {
                                 onClick={() => executeFetch()}
                                 className="bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs uppercase tracking-wider px-8 py-3 rounded-xl shadow-lg transition cursor-pointer flex items-center gap-2"
                             >
-                                <Zap className="w-4 h-4 text-amber-300 fill-amber-300" />
+                                <Zap className="w-4 h-4 text-indigo-300 fill-indigo-300" />
                                 <span>Execute Auto Fetch & Preview →</span>
                             </button>
                         </div>
@@ -2068,7 +2068,7 @@ export default function CommissionedExam() {
                                         onClick={() => setManualShowSelectedOnly(prev => !prev)}
                                         className={`text-xs font-bold px-3 py-1.5 rounded-xl transition cursor-pointer flex items-center gap-1.5 border ${
                                             manualShowSelectedOnly
-                                                ? 'bg-amber-100 text-amber-900 border-amber-300 shadow-xs'
+                                                ? 'bg-amber-100 text-amber-900 border-indigo-300 shadow-xs'
                                                 : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-100'
                                         }`}
                                     >
@@ -2273,7 +2273,7 @@ export default function CommissionedExam() {
                         {/* Auto Fetch result. Shown ONLY when the paper is really short of what was asked (so a short paper is never silent);
                             a complete paper shows nothing, and the technical notes (difficulty mix, type counts, skipped rows) stay out of sight. */}
                         {fetchMode === 'auto' && generationReport && !generationReport.complete && (
-                            <div className={`max-w-4xl mx-auto rounded-2xl border p-4 text-xs ${generationReport.complete && generationReport.warnings.length === 0 ? 'bg-emerald-50 border-emerald-200 text-emerald-900' : 'bg-amber-50 border-amber-300 text-amber-900'}`}>
+                            <div className={`max-w-4xl mx-auto rounded-2xl border p-4 text-xs ${generationReport.complete && generationReport.warnings.length === 0 ? 'bg-emerald-50 border-emerald-200 text-emerald-900' : 'bg-amber-50 border-indigo-300 text-amber-900'}`}>
                                 <div className="flex items-start justify-between gap-3">
                                     <p className="font-black">
                                         {generationReport.complete
@@ -2286,7 +2286,7 @@ export default function CommissionedExam() {
                                 </div>
                                 <div className="mt-2 flex flex-wrap gap-1.5">
                                     {Object.entries(generationReport.chapters).map(([ch, r]) => (
-                                        <span key={ch} className={`px-2 py-1 rounded-lg border font-semibold ${r.delivered < r.requested ? 'bg-white border-amber-400 text-amber-900' : 'bg-white/70 border-emerald-200'}`}>
+                                        <span key={ch} className={`px-2 py-1 rounded-lg border font-semibold ${r.delivered < r.requested ? 'bg-white border-indigo-400 text-amber-900' : 'bg-white/70 border-emerald-200'}`}>
                                             {ch}: {r.delivered}/{r.requested}
                                         </span>
                                     ))}

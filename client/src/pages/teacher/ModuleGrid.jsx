@@ -20,7 +20,7 @@ const OMR = { to: '/teacher/dashboard/omr', title: 'OMR evaluation', desc: 'Scan
 
 const TONES = {
     indigo: 'bg-indigo-50 text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white',
-    amber: 'bg-amber-50 text-amber-600 group-hover:bg-amber-500 group-hover:text-white',
+    amber: 'bg-amber-50 text-amber-600 group-hover:bg-indigo-500 group-hover:text-white',
     sky: 'bg-sky-50 text-sky-600 group-hover:bg-sky-600 group-hover:text-white',
     rose: 'bg-rose-50 text-rose-600 group-hover:bg-rose-600 group-hover:text-white',
     emerald: 'bg-emerald-50 text-emerald-600 group-hover:bg-emerald-600 group-hover:text-white',

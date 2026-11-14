@@ -29,7 +29,7 @@ export default function BridgeApp() {
     const getScoreColor = (correct, total) => {
         const pct = total > 0 ? (correct / total) * 100 : 0;
         if (pct >= 70) return '#10b981';
-        if (pct >= 40) return '#f59e0b';
+        if (pct >= 40) return '#6366f1';
         return '#ef4444';
     };
 
@@ -147,7 +147,7 @@ const styles = {
     resultsHeader: { background: '#1e1b4b', color: '#fff', padding: '20px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
     examTitle: { margin: 0, fontSize: 18, fontWeight: 700 },
     examMeta: { display: 'flex', alignItems: 'center', gap: 12, fontSize: 14, color: '#94a3b8' },
-    typeBadge: { background: '#f59e0b', color: '#000', borderRadius: 6, padding: '3px 10px', fontSize: 13, fontWeight: 700 },
+    typeBadge: { background: '#6366f1', color: '#000', borderRadius: 6, padding: '3px 10px', fontSize: 13, fontWeight: 700 },
     tableWrap: { overflowX: 'auto' },
     table: { width: '100%', borderCollapse: 'collapse', fontSize: 14 },
     thead: { background: '#f8fafc' },

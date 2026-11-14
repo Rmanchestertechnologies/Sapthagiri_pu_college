@@ -38,14 +38,14 @@ const ApiLoaderLinker = ({ children }) => {
 const AppLoadingSpinner = () => (
     <div className="min-h-screen bg-[#071328] flex flex-col items-center justify-center p-6 font-sans animate-fade-in relative overflow-hidden">
         {/* Background decorative glow */}
-        <div className="absolute w-96 h-96 bg-amber-500/10 rounded-full blur-3xl pointer-events-none"></div>
+        <div className="absolute w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
         
-        <div className="w-20 h-20 rounded-3xl bg-white shadow-2xl flex items-center justify-center p-2 mb-5 border-2 border-amber-400/40 relative z-10">
+        <div className="w-20 h-20 rounded-3xl bg-white shadow-2xl flex items-center justify-center p-2 mb-5 border-2 border-indigo-400/40 relative z-10">
             <img src="/SapthagiriLogo.jpg" alt="Sapthagiri PU College" className="w-full h-full object-contain rounded-2xl" />
         </div>
-        <div className="w-9 h-9 border-4 border-slate-700 border-t-amber-400 rounded-full animate-spin mb-4"></div>
+        <div className="w-9 h-9 border-4 border-slate-700 border-t-indigo-400 rounded-full animate-spin mb-4"></div>
         <h3 className="text-base font-black text-white uppercase tracking-widest text-center">Sapthagiri PU College</h3>
-        <p className="text-[11px] text-amber-400/90 font-bold uppercase tracking-wider mt-1">Davanagere • The Land of Opportunity</p>
+        <p className="text-[11px] text-indigo-400/90 font-bold uppercase tracking-wider mt-1">Davanagere • The Land of Opportunity</p>
         <p className="text-[10px] text-slate-400 uppercase tracking-widest mt-2">Loading Portal...</p>
     </div>
 );

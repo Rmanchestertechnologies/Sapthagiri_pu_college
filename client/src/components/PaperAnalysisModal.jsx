@@ -394,7 +394,7 @@ const PaperAnalysisModal = ({ isOpen, onClose, paperTitle = 'Assessment Paper', 
                                         categories={subjects}
                                         series={[
                                             { name: 'Easy', color: '#10b981', data: subjects.map(s => diffData.subjects[s]?.easy || 0) },
-                                            { name: 'Medium', color: '#f59e0b', data: subjects.map(s => diffData.subjects[s]?.medium || 0) },
+                                            { name: 'Medium', color: '#6366f1', data: subjects.map(s => diffData.subjects[s]?.medium || 0) },
                                             { name: 'Hard', color: '#ef4444', data: subjects.map(s => diffData.subjects[s]?.hard || 0) },
                                         ]}
                                     />
@@ -404,7 +404,7 @@ const PaperAnalysisModal = ({ isOpen, onClose, paperTitle = 'Assessment Paper', 
                                         title="Overall Paper Difficulty"
                                         data={[
                                             { label: 'Easy', value: diffData.grand.easy, color: '#10b981' },
-                                            { label: 'Medium', value: diffData.grand.medium, color: '#f59e0b' },
+                                            { label: 'Medium', value: diffData.grand.medium, color: '#6366f1' },
                                             { label: 'Hard', value: diffData.grand.hard, color: '#ef4444' },
                                         ]}
                                     />

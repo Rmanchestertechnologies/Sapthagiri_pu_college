@@ -601,7 +601,7 @@ const SavedPapers = () => {
                                         flexDirection: 'column',
                                         justifyContent: 'space-between',
                                         gap: '12px',
-                                        borderLeft: '6px solid #f59e0b',
+                                        borderLeft: '6px solid #6366f1',
                                     }}
                                 >
                                     <div>

@@ -8,13 +8,13 @@ const SPRING = { type: 'spring', stiffness: 420, damping: 34 };
 
 /** A tiny page sketch: where the picture (solid block) sits relative to the text lines. */
 function PlacementGlyph({ kind, active }) {
-    const img = active ? '#f59e0b' : '#94a3b8';
+    const img = active ? '#6366f1' : '#94a3b8';
     const line = active ? '#cbd5e1' : '#e2e8f0';
     const rect = (x, y, w, h, fill, r = 1.5) => <rect x={x} y={y} width={w} height={h} rx={r} fill={fill} />;
     const lines = (x, y, w, n) => Array.from({ length: n }).map((_, i) => <rect key={`${x}-${y}-${i}`} x={x} y={y + i * 5} width={i === n - 1 ? w * 0.6 : w} height="2.4" rx="1.2" fill={line} />);
     return (
         <svg width="38" height="30" viewBox="0 0 38 30" aria-hidden="true">
-            <rect x="0.5" y="0.5" width="37" height="29" rx="4" fill="#fff" stroke={active ? '#f59e0b' : '#e2e8f0'} />
+            <rect x="0.5" y="0.5" width="37" height="29" rx="4" fill="#fff" stroke={active ? '#6366f1' : '#e2e8f0'} />
             {kind === 'Left' && <>{rect(4, 5, 11, 11, img)}{lines(18, 5, 16, 4)}{lines(4, 20, 30, 1)}</>}
             {kind === 'Right' && <>{rect(23, 5, 11, 11, img)}{lines(4, 5, 16, 4)}{lines(4, 20, 30, 1)}</>}
             {kind === 'Top' && <>{rect(11, 4, 16, 9, img)}{lines(4, 17, 30, 2)}</>}
@@ -29,7 +29,7 @@ function Section({ icon: Icon, title, right, children }) {
         <section className="mb-5">
             <div className="flex items-center justify-between mb-2.5">
                 <h3 className="flex items-center gap-2 text-[11px] font-extrabold uppercase text-slate-700" style={{ fontFamily: 'inherit', letterSpacing: '0.12em' }}>
-                    <Icon size={14} className="text-amber-500" /> {title}
+                    <Icon size={14} className="text-indigo-500" /> {title}
                 </h3>
                 {right}
             </div>
@@ -78,7 +78,7 @@ export function QuestionGearPopup({
     const align = String(imageAlignment || '').toLowerCase();
 
     const chip = (active) => `flex-1 rounded-xl py-2 text-xs font-extrabold border transition-colors ${active
-        ? 'bg-[#081b3b] text-amber-400 border-[#081b3b] shadow-md'
+        ? 'bg-[#1e1b4b] text-indigo-400 border-[#1e1b4b] shadow-md'
         : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300 hover:bg-slate-50'}`;
 
     const panel = (
@@ -90,14 +90,14 @@ export function QuestionGearPopup({
             style={{
                 position: 'fixed', top: 0, right: 0, bottom: 0, width: `min(${PANEL_WIDTH}px, 92vw)`, zIndex: 2147483000,
                 background: 'rgba(255,255,255,0.94)', backdropFilter: 'blur(18px)', WebkitBackdropFilter: 'blur(18px)',
-                borderLeft: '1px solid rgba(15,23,42,0.08)', boxShadow: '-24px 0 48px -20px rgba(8,27,59,0.35)',
+                borderLeft: '1px solid rgba(15,23,42,0.08)', boxShadow: '-24px 0 48px -20px rgba(30,27,75,0.35)',
                 overflowY: 'auto', color: '#0f172a', fontFamily: 'Inter, system-ui, sans-serif',
             }}
             onClick={(e) => e.stopPropagation()}
         >
-            <header className="sticky top-0 z-10 flex items-center justify-between gap-3 px-5 py-4 bg-gradient-to-r from-[#081b3b] to-[#0d2a5e] text-white">
+            <header className="sticky top-0 z-10 flex items-center justify-between gap-3 px-5 py-4 bg-gradient-to-r from-[#1e1b4b] to-[#312e81] text-white">
                 <div className="min-w-0">
-                    <p className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-amber-400">Question display</p>
+                    <p className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-indigo-400">Question display</p>
                     <p className="text-sm font-bold truncate">Question {displayNum} · live preview on the page</p>
                 </div>
                 <button type="button" onClick={onClose} aria-label="Close settings" className="w-8 h-8 shrink-0 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center">
@@ -112,7 +112,7 @@ export function QuestionGearPopup({
                             const active = align === a.toLowerCase();
                             return (
                                 <button key={a} type="button" onClick={() => onAlignmentChange && onAlignmentChange(a)} aria-pressed={active}
-                                    className={`flex flex-col items-center gap-1 rounded-xl border p-1.5 pb-1 transition-all ${active ? 'border-amber-400 bg-amber-50 shadow-sm' : 'border-slate-200 bg-white hover:border-slate-300'}`}>
+                                    className={`flex flex-col items-center gap-1 rounded-xl border p-1.5 pb-1 transition-all ${active ? 'border-indigo-400 bg-amber-50 shadow-sm' : 'border-slate-200 bg-white hover:border-slate-300'}`}>
                                     <PlacementGlyph kind={a} active={active} />
                                     <span className={`text-[9.5px] font-extrabold uppercase tracking-wide ${active ? 'text-amber-700' : 'text-slate-500'}`}>{a}</span>
                                 </button>
@@ -125,17 +125,17 @@ export function QuestionGearPopup({
                     <div className="flex gap-1.5 p-1 rounded-2xl bg-slate-100">
                         {[1, 2, 4].map((n) => (
                             <button key={n} type="button" onClick={() => onOptionsPerLineChange && onOptionsPerLineChange(n)} aria-pressed={Number(optionsPerLine) === n}
-                                className={`flex-1 rounded-xl py-2 text-xs font-extrabold transition-all ${Number(optionsPerLine) === n ? 'bg-white text-[#081b3b] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                                className={`flex-1 rounded-xl py-2 text-xs font-extrabold transition-all ${Number(optionsPerLine) === n ? 'bg-white text-[#1e1b4b] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
                                 {n === 1 ? '1 · stacked' : n === 2 ? '2 · grid' : '4 · in a row'}
                             </button>
                         ))}
                     </div>
                 </Section>
 
-                <Section icon={Maximize2} title="Image scale" right={<span className="text-xs font-extrabold text-[#081b3b] bg-amber-100 rounded-lg px-2 py-0.5">{scale}%</span>}>
+                <Section icon={Maximize2} title="Image scale" right={<span className="text-xs font-extrabold text-[#1e1b4b] bg-amber-100 rounded-lg px-2 py-0.5">{scale}%</span>}>
                     <input type="range" min="50" max="250" step="5" value={scale} aria-label="Image scale"
                         onChange={(e) => onSizeScaleChange && onSizeScaleChange(Number(e.target.value))}
-                        className="w-full accent-amber-500 cursor-pointer" />
+                        className="w-full accent-indigo-500 cursor-pointer" />
                     <div className="mt-2 flex gap-1.5">
                         {[50, 75, 100, 150, 250].map((v) => (
                             <button key={v} type="button" onClick={() => onSizeScaleChange && onSizeScaleChange(v)} className={chip(scale === v)}>{v}</button>
@@ -146,15 +146,15 @@ export function QuestionGearPopup({
                 <Section icon={MoveVertical} title="Image height" right={<span className="text-xs font-extrabold text-slate-600 bg-slate-100 rounded-lg px-2 py-0.5">{height}px</span>}>
                     <div className="flex items-center gap-2">
                         <button type="button" onClick={() => onDiagramSizeDelta && onDiagramSizeDelta(-10)} aria-label="10 pixels shorter"
-                            className="w-11 h-11 rounded-2xl border border-slate-200 bg-white flex items-center justify-center hover:bg-[#081b3b] hover:text-amber-400 hover:border-[#081b3b]"><Minus size={17} strokeWidth={3} /></button>
+                            className="w-11 h-11 rounded-2xl border border-slate-200 bg-white flex items-center justify-center hover:bg-[#1e1b4b] hover:text-indigo-400 hover:border-[#1e1b4b]"><Minus size={17} strokeWidth={3} /></button>
                         <div className="flex-1 grid grid-cols-4 gap-1.5">
                             {[-100, -50, 50, 100].map((d) => (
                                 <button key={d} type="button" onClick={() => onDiagramSizeDelta && onDiagramSizeDelta(d)}
-                                    className="rounded-xl border border-slate-200 bg-white py-2 text-[11px] font-extrabold text-slate-600 hover:border-amber-400 hover:text-amber-700">{d > 0 ? `+${d}` : d}</button>
+                                    className="rounded-xl border border-slate-200 bg-white py-2 text-[11px] font-extrabold text-slate-600 hover:border-indigo-400 hover:text-amber-700">{d > 0 ? `+${d}` : d}</button>
                             ))}
                         </div>
                         <button type="button" onClick={() => onDiagramSizeDelta && onDiagramSizeDelta(10)} aria-label="10 pixels taller"
-                            className="w-11 h-11 rounded-2xl border border-slate-200 bg-white flex items-center justify-center hover:bg-[#081b3b] hover:text-amber-400 hover:border-[#081b3b]"><Plus size={17} strokeWidth={3} /></button>
+                            className="w-11 h-11 rounded-2xl border border-slate-200 bg-white flex items-center justify-center hover:bg-[#1e1b4b] hover:text-indigo-400 hover:border-[#1e1b4b]"><Plus size={17} strokeWidth={3} /></button>
                     </div>
                 </Section>
             </div>
@@ -165,7 +165,7 @@ export function QuestionGearPopup({
                         <RotateCcw size={14} /> Reset
                     </button>
                 )}
-                <button type="button" onClick={onClose} className="flex-1 flex items-center justify-center gap-1.5 rounded-2xl bg-[#081b3b] py-2.5 text-xs font-extrabold uppercase tracking-wide text-amber-400 hover:bg-[#0d2a5e]">
+                <button type="button" onClick={onClose} className="flex-1 flex items-center justify-center gap-1.5 rounded-2xl bg-[#1e1b4b] py-2.5 text-xs font-extrabold uppercase tracking-wide text-indigo-400 hover:bg-[#312e81]">
                     <Check size={15} strokeWidth={3} /> Done
                 </button>
             </footer>

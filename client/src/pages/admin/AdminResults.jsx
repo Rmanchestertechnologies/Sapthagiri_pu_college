@@ -89,7 +89,7 @@ export default function AdminResults() {
 
     const getScoreColor = (score) => {
         if (score >= 300) return '#10b981';
-        if (score >= 150) return '#f59e0b';
+        if (score >= 150) return '#6366f1';
         return '#ef4444';
     };
 
@@ -568,28 +568,28 @@ export default function AdminResults() {
 
 const styles = {
     container: { padding: '24px', fontFamily: 'Inter, sans-serif', maxWidth: 1200, margin: '0 auto' },
-    title: { fontSize: 26, fontWeight: 800, color: '#081b3b', marginBottom: 20, letterSpacing: '-0.02em', fontFamily: "'Plus Jakarta Sans', Inter, sans-serif" },
+    title: { fontSize: 26, fontWeight: 800, color: '#1e1b4b', marginBottom: 20, letterSpacing: '-0.02em', fontFamily: "'Plus Jakarta Sans', Inter, sans-serif" },
     msg: { background: '#ecfdf5', border: '1px solid #6ee7b7', color: '#065f46', padding: '10px 16px', borderRadius: 8, marginBottom: 16, display: 'flex', justifyContent: 'space-between' },
     closeMsg: { background: 'none', border: 'none', cursor: 'pointer', fontSize: 16 },
     toolbar: { display: 'flex', gap: 12, marginBottom: 20, alignItems: 'center' },
     select: { flex: 1, padding: '11px 14px', border: '1px solid #cbd5e1', borderRadius: 12, fontSize: 14, maxWidth: 400, background: '#f8fafc' },
-    keyBtn: { background: 'linear-gradient(90deg,#081b3b,#0d2a5e)', color: '#fbbf24', border: 'none', borderRadius: 12, padding: '11px 22px', cursor: 'pointer', fontWeight: 800 },
+    keyBtn: { background: 'linear-gradient(90deg,#1e1b4b,#312e81)', color: '#a5b4fc', border: 'none', borderRadius: 12, padding: '11px 22px', cursor: 'pointer', fontWeight: 800 },
     keyBox: { background: '#1e1b4b', color: '#a5b4fc', borderRadius: 8, padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, fontFamily: 'monospace', fontSize: 13 },
     keyText: { wordBreak: 'break-all' },
-    copyBtn: { background: '#fbbf24', color: '#081b3b', border: 'none', borderRadius: 8, padding: '6px 12px', cursor: 'pointer', marginLeft: 12, flexShrink: 0, fontWeight: 800 },
+    copyBtn: { background: '#a5b4fc', color: '#1e1b4b', border: 'none', borderRadius: 8, padding: '6px 12px', cursor: 'pointer', marginLeft: 12, flexShrink: 0, fontWeight: 800 },
     loading: { textAlign: 'center', color: '#9ca3af', padding: 40 },
     empty: { textAlign: 'center', color: '#9ca3af', padding: 60 },
     summary: { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 24 },
-    summaryCard: { background: '#fff', border: '1px solid rgba(15,23,42,0.06)', borderRadius: 20, padding: '22px', textAlign: 'center', boxShadow: '0 16px 34px -24px rgba(8,27,59,0.35)' },
-    summaryNum: { fontSize: 34, fontWeight: 800, color: '#081b3b' },
+    summaryCard: { background: '#fff', border: '1px solid rgba(15,23,42,0.06)', borderRadius: 20, padding: '22px', textAlign: 'center', boxShadow: '0 16px 34px -24px rgba(30,27,75,0.35)' },
+    summaryNum: { fontSize: 34, fontWeight: 800, color: '#1e1b4b' },
     summaryLabel: { fontSize: 13, color: '#6b7280', marginTop: 4 },
-    tableWrap: { overflowX: 'auto', borderRadius: 18, border: '1px solid rgba(15,23,42,0.06)', background: '#fff', boxShadow: '0 16px 34px -26px rgba(8,27,59,0.3)' },
+    tableWrap: { overflowX: 'auto', borderRadius: 18, border: '1px solid rgba(15,23,42,0.06)', background: '#fff', boxShadow: '0 16px 34px -26px rgba(30,27,75,0.3)' },
     table: { width: '100%', borderCollapse: 'collapse', fontSize: 14 },
     thead: { background: '#f1f5f9' },
     th: { padding: '13px 16px', textAlign: 'left', fontWeight: 800, color: '#475569', borderBottom: '1px solid #e2e8f0', whiteSpace: 'nowrap', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.08em' },
     td: { padding: '12px 14px', borderBottom: '1px solid #f1f5f9', verticalAlign: 'top' },
     sourceBadge: { borderRadius: 6, padding: '3px 8px', fontSize: 12, fontWeight: 600 },
-    analyticsSection: { background: '#fff', border: '1px solid rgba(15,23,42,0.06)', borderRadius: 20, padding: '24px', marginBottom: 24, boxShadow: '0 16px 34px -26px rgba(8,27,59,0.3)' },
+    analyticsSection: { background: '#fff', border: '1px solid rgba(15,23,42,0.06)', borderRadius: 20, padding: '24px', marginBottom: 24, boxShadow: '0 16px 34px -26px rgba(30,27,75,0.3)' },
     analyticsTitle: { fontSize: 16, fontWeight: 700, color: '#1e293b', marginBottom: 16, marginTop: 0 },
     chartLegend: { display: 'flex', gap: 16, marginBottom: 16, fontSize: 13, color: '#6b7280' },
     legendItem: { display: 'flex', alignItems: 'center', gap: 6 },

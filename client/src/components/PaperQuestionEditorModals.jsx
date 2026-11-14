@@ -186,8 +186,8 @@ function EditQuestionModalInner({
                     <div className="flex items-center justify-between pb-3 border-b border-slate-200">
                         {/* Left: Level Badge (Image 2 style) */}
                         <div className="flex items-center gap-2">
-                            <span className="text-xs font-black uppercase text-amber-900 bg-amber-100 border border-amber-300 px-3.5 py-1 rounded-full flex items-center gap-1.5 shadow-2xs">
-                                <span className="text-amber-500">●</span> Level: {difficulty}
+                            <span className="text-xs font-black uppercase text-amber-900 bg-amber-100 border border-indigo-300 px-3.5 py-1 rounded-full flex items-center gap-1.5 shadow-2xs">
+                                <span className="text-indigo-500">●</span> Level: {difficulty}
                             </span>
                             <div className="flex items-center bg-slate-100 p-0.5 rounded-xl border border-slate-200">
                                 {['Easy', 'Medium', 'Hard'].map((lvl) => (
@@ -340,7 +340,7 @@ function EditQuestionModalInner({
                             </div>
                         </div>
                     ) : (
-                        <div className="p-4 bg-amber-50/60 border-2 border-amber-300 rounded-2xl space-y-2">
+                        <div className="p-4 bg-amber-50/60 border-2 border-indigo-300 rounded-2xl space-y-2">
                             <label className="text-xs font-black text-amber-950 uppercase tracking-wider block">
                                 Correct Numerical Answer Value
                             </label>
@@ -349,7 +349,7 @@ function EditQuestionModalInner({
                                 value={numAnswer}
                                 onChange={e => setNumAnswer(e.target.value)}
                                 placeholder="Enter numerical answer, e.g. 25, 4.5, -10"
-                                className="w-full sm:w-64 p-2.5 text-xs font-mono font-bold bg-white border border-amber-300 rounded-xl outline-none focus:border-amber-600"
+                                className="w-full sm:w-64 p-2.5 text-xs font-mono font-bold bg-white border border-indigo-300 rounded-xl outline-none focus:border-amber-600"
                             />
                         </div>
                     )}
@@ -630,7 +630,7 @@ function SwapQuestionModalInner({
                 {/* Body (Scrollable) */}
                 <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
                     {/* Currently In Paper Preview */}
-                    <div className="p-4 bg-amber-50/70 border-2 border-amber-300 rounded-2xl">
+                    <div className="p-4 bg-amber-50/70 border-2 border-indigo-300 rounded-2xl">
                         <div className="flex items-center justify-between mb-2">
                             <span className="text-[10px] font-black uppercase tracking-widest text-amber-900 bg-amber-200/80 px-2 py-0.5 rounded">
                                 Currently in Paper (Q#{displayNum})
@@ -847,7 +847,7 @@ function SwapQuestionModalInner({
                                                 type="button"
                                                 onClick={() => handleSelectQuestion(cand)}
                                                 disabled={swappedSuccess}
-                                                className="px-4 py-1.5 bg-gold hover:bg-amber-400 text-navy font-black text-xs uppercase tracking-wider rounded-xl shadow-xs transition hover:scale-105 cursor-pointer flex items-center gap-1.5 flex-shrink-0 disabled:opacity-50"
+                                                className="px-4 py-1.5 bg-gold hover:bg-indigo-400 text-navy font-black text-xs uppercase tracking-wider rounded-xl shadow-xs transition hover:scale-105 cursor-pointer flex items-center gap-1.5 flex-shrink-0 disabled:opacity-50"
                                             >
                                                 <span>✓</span> Select & Swap
                                             </button>

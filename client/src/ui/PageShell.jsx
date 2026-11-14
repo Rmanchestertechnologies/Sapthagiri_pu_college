@@ -22,7 +22,7 @@ export default function PageShell({ icon: Icon, title, subtitle, actions, tone =
                 <div className="flex items-center gap-3.5 min-w-0">
                     {Icon && <span className={`w-11 h-11 shrink-0 rounded-xl flex items-center justify-center ${chip}`}><Icon size={20} /></span>}
                     <div className="min-w-0">
-                        <h2 className="text-2xl font-bold tracking-tight text-[#081b3b] !normal-case !text-[1.6rem]">{title}</h2>
+                        <h2 className="text-2xl font-bold tracking-tight text-[#1e1b4b] !normal-case !text-[1.6rem]">{title}</h2>
                         {subtitle && <p className="mt-0.5 text-sm text-slate-500 font-medium">{subtitle}</p>}
                     </div>
                 </div>
