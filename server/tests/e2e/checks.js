@@ -61,6 +61,22 @@ const call = async (method, path, { token, session, body, raw } = {}) => {
   const againAll = await call('DELETE', '/api/exams/commissioned/all', { token: admin });
   ok(againAll.status === 200 && againAll.data.deleted === 0, 'delete all commissioned: running it again deletes nothing');
 
+  // ── a commissioned exam's subject block is filled ONLY by a paper created from that block, never by a look-alike title
+  const exNA = await call('POST', '/api/exams/commission', { token: admin, body: { title: 'E2E Block Rule', examType: 'CET', classes: ['12'], duration_minutes: 180,
+    subjectAssignments: ['Physics', 'Chemistry'].map(subject => ({ subject, teacherId: 'sapthagiri-admin', teacherName: 'Admin', targetQuestions: 60, status: 'Pending' })) } });
+  const exId = exNA.data?.exam?._id || exNA.data?.exam?.id;
+  const stray = await call('POST', '/api/papers', { token: admin, body: { title: 'E2E Block Rule - Physics practice', subject: 'Physics', examType: 'CET', classes: ['12'], questions: [], questionObjects: [], status: 'Draft' } });
+  ok(stray.status === 200 || stray.status === 201, 'block rule: a paper whose title contains the exam name can be saved', String(stray.status));
+  const lookCommissioned = async () => (await call('GET', '/api/exams/commissioned', { token: admin })).data.find(e => String(e._id || e.id) === String(exId));
+  let blk = await lookCommissioned();
+  ok(blk && blk.subjectAssignments.every(sa => !sa.submittedPaperId), 'block rule: that look-alike paper did NOT fill any subject block', JSON.stringify(blk?.subjectAssignments?.map(s => !!s.submittedPaperId)));
+  const own = await call('POST', '/api/papers', { token: admin, body: { title: 'Physics block paper', subject: 'Physics', examType: 'CET', classes: ['12'], examId: exId, questions: [], questionObjects: [], status: 'Draft' } });
+  ok(own.status === 200 || own.status === 201, 'block rule: a paper created from the Physics block is saved', String(own.status));
+  blk = await lookCommissioned();
+  const phy = blk?.subjectAssignments?.find(s => s.subject === 'Physics'); const chem = blk?.subjectAssignments?.find(s => s.subject === 'Chemistry');
+  ok(!!phy?.submittedPaperId && !chem?.submittedPaperId, 'block rule: only the Physics block is filled, Chemistry stays empty');
+  await call('DELETE', '/api/exams/commissioned/all', { token: admin });
+
   // ── OMR paper list must work for an account that has no papers yet (it used to fail with a ReferenceError from old MongoDB code)
   const omrEmpty = await call('GET', '/api/omr/papers', { token: admin });
   ok(omrEmpty.status === 200 && Array.isArray(omrEmpty.data.papers), 'OMR: the paper list answers 200 even when there are no papers', String(omrEmpty.status) + ' ' + JSON.stringify(omrEmpty.data).slice(0, 80));

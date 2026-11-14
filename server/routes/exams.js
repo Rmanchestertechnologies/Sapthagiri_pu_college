@@ -115,9 +115,9 @@ router.get('/my-assignments', auth, async (req, res) => {
                             sa.status = 'Completed';
                         }
                     } else {
-                        // Fallback: match by title & subject
+                        // Only a paper created from this exam's subject block counts (its examId points here). No guessing by title.
                         const matchedPaper = allPapers.find(p =>
-                            p.title && p.title.toLowerCase().includes(ex.title.toLowerCase()) &&
+                            p.examId && String(p.examId) === String(ex._id || ex.id) && !p.isMerged &&
                             (p.subject || '').toLowerCase().includes((sa.subject || '').toLowerCase())
                         );
                         if (matchedPaper) {
@@ -155,8 +155,9 @@ router.get('/commissioned', [auth, checkRole(['admin'])], async (req, res) => {
                         paper = allPapers.find(p => String(p._id || p.id) === String(sa.submittedPaperId));
                     }
                     if (!paper) {
-                        paper = allPapers.find(p => 
-                            p.title && p.title.toLowerCase().includes(exam.title.toLowerCase()) &&
+                        // Only a paper created from this exam's subject block (examId) fills the block - never a title look-alike.
+                        paper = allPapers.find(p =>
+                            p.examId && String(p.examId) === String(exam._id || exam.id) && !p.isMerged &&
                             (p.subject || '').toLowerCase().includes((sa.subject || '').toLowerCase())
                         );
                     }

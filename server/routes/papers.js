@@ -197,13 +197,11 @@ router.post('/', [auth, checkRole(['admin', 'teacher'])], async (req, res) => {
 
         const paper = await storage.savePaper(paperData);
 
-        // If linked to an exam via examId or matching title, update OnlineExam's subjectAssignment
+        // A paper joins a commissioned exam ONLY when it was created from that exam's subject block (examId). It is never attached
+        // because its title happens to contain the exam's name: papers must not end up inside an exam by themselves.
         let exam = null;
         if (examId) {
             exam = await storage.getExamById(examId);
-        } else if (paper.title) {
-            const exams = await storage.getExams();
-            exam = exams.find(e => e && e.title && paper && paper.title && paper.title.toLowerCase().includes(e.title.toLowerCase()));
         }
 
         if (exam) {

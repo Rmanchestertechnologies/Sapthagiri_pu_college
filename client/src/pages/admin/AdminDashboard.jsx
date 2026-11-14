@@ -421,16 +421,9 @@ const DashboardHome = ({ view = 'home' }) => {
                     }
                 }
                 if (!submittedPaper) {
-                    submittedPaper = allPapers.find(p => {
-                        const matchesExam = (p.examId && String(p.examId) === String(exam._id || exam.id)) ||
-                                            (p.title && p.title.toLowerCase().includes(exam.title.toLowerCase()));
-                        const pSub = (p.subject || '').toLowerCase();
-                        const curSub = subName.toLowerCase();
-                        const matchesSub = pSub.includes(curSub) || curSub.includes(pSub) ||
-                                            (curSub.includes('math') && pSub.includes('math')) ||
-                                            (curSub.includes('bio') && pSub.includes('bio'));
-                        return matchesExam && matchesSub;
-                    });
+                    // Only a paper created from this exam's subject block (its examId points here) is merged - never a look-alike title.
+                    submittedPaper = allPapers.find(p => p.examId && String(p.examId) === String(exam._id || exam.id) && !p.isMerged &&
+                        String(p.subject || '').toLowerCase().includes(String(subName || '').toLowerCase()));
                 }
                 if (submittedPaper && (submittedPaper._id || submittedPaper.id)) {
                     paperIds.push(submittedPaper._id || submittedPaper.id);
@@ -700,16 +693,9 @@ const DashboardHome = ({ view = 'home' }) => {
                                                         }
                                                     }
                                                     if (!submittedPaper) {
-                                                        submittedPaper = allPapers.find(p => {
-                                                            const matchesExam = (p.examId && String(p.examId) === String(exam._id || exam.id)) ||
-                                                                                (p.title && p.title.toLowerCase().includes(exam.title.toLowerCase()));
-                                                            const pSub = (p.subject || '').toLowerCase();
-                                                            const curSub = subName.toLowerCase();
-                                                            const matchesSub = pSub.includes(curSub) || curSub.includes(pSub) ||
-                                                                               (curSub.includes('math') && pSub.includes('math')) ||
-                                                                               (curSub.includes('bio') && pSub.includes('bio'));
-                                                            return matchesExam && matchesSub;
-                                                        });
+                                                        // Only a paper created from this block (its examId points to this exam) fills it - never a look-alike title.
+                                                        submittedPaper = allPapers.find(p => p.examId && String(p.examId) === String(exam._id || exam.id) && !p.isMerged &&
+                                                            String(p.subject || '').toLowerCase().includes(subName.toLowerCase()));
                                                     }
 
                                                     const submittedPaperId = submittedPaper ? (submittedPaper._id || submittedPaper.id) : null;

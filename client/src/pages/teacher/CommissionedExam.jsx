@@ -1,7 +1,7 @@
 import { useState, useEffect, useContext, useMemo, useRef, useCallback } from 'react';
 import { Check, Zap, Edit3, Target, Scale, X, Plus, Minus, Search, CheckCircle2, ArrowLeft, Command } from 'lucide-react';
 import { AuthContext } from '../../context/AuthContext';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import api from '../../api';
 import MathRenderer from '../../components/MathRenderer';
 import PaperRenderer, { DEFAULT_SETTINGS } from '../../components/PaperRenderer';
@@ -19,7 +19,13 @@ export { getQCategory, isCetQ } from './commissioned/examPatterns';
 export default function CommissionedExam() {
     const { user } = useContext(AuthContext);
     const navigate = useNavigate();
+    const routeLocation = useLocation();
     const [searchParams] = useSearchParams();
+    // Inside the admin portal the wizard sits under the portal's own top bar, so it must not draw a second sticky bar over it,
+    // and "back" / "done" go to the admin screens, not the faculty ones.
+    const embedded = routeLocation.pathname.startsWith('/admin/dashboard');
+    const homePath = embedded ? '/admin/dashboard' : '/teacher/dashboard';
+    const savedPapersPath = embedded ? '/admin/dashboard' : '/teacher/dashboard/saved-papers';
 
     // Query params
     const paramExamType = searchParams.get('examType');
@@ -623,7 +629,7 @@ export default function CommissionedExam() {
         } else if (currentStep === 2) {
             setCurrentStep(1);
         } else {
-            navigate('/teacher/dashboard');
+            navigate(homePath);
         }
     };
 
@@ -899,6 +905,8 @@ export default function CommissionedExam() {
                 status: 'Draft',
                 settings,
                 metadata: { pqrsSeed },
+                // set only when the paper is created from a commissioned exam's subject block: this is what fills that block
+                ...(paramExamId ? { examId: paramExamId } : {}),
             };
 
             const res = savedPaperId
@@ -968,7 +976,7 @@ export default function CommissionedExam() {
             await api.post('/api/papers', masterPaper);
             setShowMergeModal(false);
             alert(`Master Exam compiled successfully with ${mergedQuestions.length} questions across ${papersToMerge.length} subjects!`);
-            navigate(`/teacher/dashboard/saved-papers`);
+            navigate(savedPapersPath);
         } catch (err) {
             console.error('Error merging exam:', err);
             alert('Failed to merge exam papers.');
@@ -1089,7 +1097,7 @@ export default function CommissionedExam() {
         })),
         { id: 'back', label: 'Go back one step', hint: 'back', run: () => handleBackStep() },
         { id: 'save', label: 'Save paper as draft', hint: 'save', hidden: !(selectedQuestions && selectedQuestions.length), run: () => handleSaveDraft() },
-        { id: 'dash', label: 'Leave the wizard (dashboard)', hint: 'exit', run: () => navigate('/teacher/dashboard') },
+        { id: 'dash', label: 'Leave the wizard (dashboard)', hint: 'exit', run: () => navigate(homePath) },
     ];
 
     // what the left column shows: a line under each finished step, and the "your paper" card
@@ -1117,13 +1125,13 @@ export default function CommissionedExam() {
         <MotionRoot>
         <div className="min-h-screen flex flex-col font-sans">
             {/* Top bar: back, where you are, and the quick-jump hint. Progress lives in the left column. */}
-            <header className="glass sticky top-0 z-40 no-print border-x-0 border-t-0 rounded-none">
-                <div className="max-w-[1400px] mx-auto px-4 md:px-8 py-3 flex items-center justify-between gap-3">
+            <header className={`no-print ${embedded ? 'mb-5' : 'glass sticky top-0 z-40 border-x-0 border-t-0 rounded-none'}`}>
+                <div className={`${embedded ? 'w-full' : 'max-w-[1400px] mx-auto px-4 md:px-8 py-3'} flex items-center justify-between gap-3`}>
                     <div className="flex items-center gap-3 min-w-0">
                         <button
-                            onClick={() => currentStep > 1 ? handleBackStep() : navigate('/teacher/dashboard')}
+                            onClick={() => currentStep > 1 ? handleBackStep() : navigate(homePath)}
                             className="w-10 h-10 shrink-0 rounded-xl bg-white border border-slate-200 text-slate-600 hover:text-[#081b3b] hover:border-slate-300 flex items-center justify-center cursor-pointer"
-                            aria-label="Back"
+                            aria-label={currentStep > 1 ? 'Previous step' : 'Back'}
                         >
                             <ArrowLeft size={18} />
                         </button>
