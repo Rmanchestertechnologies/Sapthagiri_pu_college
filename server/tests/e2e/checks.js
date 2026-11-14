@@ -47,6 +47,20 @@ const call = async (method, path, { token, session, body, raw } = {}) => {
     typeAllocations: { mcq: 45 }, difficultyDistribution: { easy: 30, medium: 50, hard: 20 } } });
   ok(genBig.status === 200 && genBig.data.total === 45 && genBig.data.complete, 'AutoFetch: NEET paper of 45 from two chapters is complete (exam-tag fallback)', JSON.stringify(genBig.data?.distributionReport).slice(0, 200));
 
+  // ── commissioned exams: "delete all" removes them from the database for good
+  const mkExam = (title) => call('POST', '/api/exams/commission', { token: admin, body: { title, examType: 'CET', classes: ['12'], duration_minutes: 180,
+    subjectAssignments: ['Physics', 'Chemistry', 'Mathematics', 'Biology'].map(subject => ({ subject, teacherId: 'sapthagiri-admin', teacherName: 'Admin', targetQuestions: 60, status: 'Pending' })) } });
+  const ex1 = await mkExam('E2E Delete All A'); const ex2 = await mkExam('E2E Delete All B');
+  ok(ex1.status === 200 && ex2.status === 200, 'commissioned exams: two exams created');
+  const delAllNoAuth = await call('DELETE', '/api/exams/commissioned/all', { token: teacher1 });
+  ok(delAllNoAuth.status === 403, 'delete all commissioned: a teacher is refused', String(delAllNoAuth.status));
+  const delAll = await call('DELETE', '/api/exams/commissioned/all', { token: admin });
+  ok(delAll.status === 200 && delAll.data.deleted >= 2, 'delete all commissioned: exams deleted', JSON.stringify(delAll.data));
+  const afterAll = await call('GET', '/api/exams/commissioned', { token: admin });
+  ok(afterAll.status === 200 && !afterAll.data.some(e => /E2E Delete All/.test(e.title)), 'delete all commissioned: nothing of them is left in the database');
+  const againAll = await call('DELETE', '/api/exams/commissioned/all', { token: admin });
+  ok(againAll.status === 200 && againAll.data.deleted === 0, 'delete all commissioned: running it again deletes nothing');
+
   // ── papers: save, ownership, update, export ──────────────────────────────
   const paperBody = (title, questions, extra = {}) => ({ title, subject: 'Physics', examType: 'NEET', classes: ['12'], questions: questions.map(q => q._id), questionObjects: questions, totalQuestions: questions.length, status: 'Draft', ...extra });
   const saved = await call('POST', '/api/papers', { token: teacher1, body: paperBody('E2E Physics Paper', qs.slice(0, 8), { metadata: { pqrsSeed: 'seed-e2e-1' } }) });

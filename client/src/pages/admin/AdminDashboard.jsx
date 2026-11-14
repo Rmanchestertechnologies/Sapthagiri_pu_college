@@ -311,7 +311,7 @@ const DashboardHome = ({ view = 'home' }) => {
             ]);
             setAllTeachers(Array.isArray(teachersRes.data) ? teachersRes.data : []);
             setTeachersLoading(false);
-            const examsList = Array.isArray(examsRes.data) ? examsRes.data : [];
+            const examsList = (Array.isArray(examsRes.data) ? examsRes.data : []).filter(e => Array.isArray(e.subjectAssignments) && e.subjectAssignments.length > 0);
             setCommissionedExams(examsList);
             const papersList = Array.isArray(papersRes.data) ? papersRes.data : [];
             setAllPapers(papersList);
@@ -389,6 +389,7 @@ const DashboardHome = ({ view = 'home' }) => {
             if (res.data?.exam?._id) setSelectedExamId(res.data.exam._id);
             else if (res.data?._id) setSelectedExamId(res.data._id);
             fetchData();
+            navigate('/admin/dashboard/commissioned-exams');
         } catch (err) {
             console.error('Commission error:', err);
             const msg =
@@ -479,6 +480,29 @@ const DashboardHome = ({ view = 'home' }) => {
         }
     };
 
+    // delete every commissioned exam at once (hard delete on the server - nothing is kept)
+    const [deleteAllOpen, setDeleteAllOpen] = useState(false);
+    const [deleteAllWithPapers, setDeleteAllWithPapers] = useState(false);
+    const [deleteAllConfirmText, setDeleteAllConfirmText] = useState('');
+    const [deletingAll, setDeletingAll] = useState(false);
+    const [deleteAllError, setDeleteAllError] = useState('');
+    const handleDeleteAllExams = async () => {
+        setDeletingAll(true);
+        setDeleteAllError('');
+        try {
+            await api.delete(`/api/exams/commissioned/all${deleteAllWithPapers ? '?deletePapers=1' : ''}`);
+            setDeleteAllOpen(false);
+            setDeleteAllConfirmText('');
+            setDeleteAllWithPapers(false);
+            setSelectedExamId(null);
+            await fetchData();
+        } catch (err) {
+            setDeleteAllError(err.response?.data?.msg || 'Could not delete the exams. Nothing was changed - please try again.');
+        } finally {
+            setDeletingAll(false);
+        }
+    };
+
     const activeExam = commissionedExams.find(e => (e._id || e.id) === selectedExamId) || commissionedExams[0];
 
     const totalExamsCount = commissionedExams.length;
@@ -554,6 +578,10 @@ const DashboardHome = ({ view = 'home' }) => {
                         <button type="button" onClick={() => setShowCommissionModal(true)}
                             className="self-start md:self-auto h-10 px-4 rounded-xl bg-[#081b3b] hover:bg-[#0d2a5e] text-white text-[13px] font-semibold flex items-center gap-2 cursor-pointer shadow-sm"><Zap size={15} className="text-amber-400" /> Commission exam</button>
                     )}
+                    {view === 'commissioned' && commissionedExams.length > 0 && (
+                        <button type="button" onClick={() => { setDeleteAllError(''); setDeleteAllOpen(true); }}
+                            className="self-start md:self-auto h-10 px-4 rounded-xl bg-white border border-red-200 hover:bg-red-50 text-red-700 text-[13px] font-semibold flex items-center gap-2 cursor-pointer"><Trash2 size={15} /> Delete all</button>
+                    )}
                 </div>
 
                 {!isExamSubjectsOpen && activeExam && (() => {
@@ -591,10 +619,9 @@ const DashboardHome = ({ view = 'home' }) => {
                             </div>
                         ) : (
                             <>
-                                {/* exam switcher */}
-                                <div>
-                                    <p className="eyebrow !text-slate-600 mb-2.5">Select assessment</p>
-                                    <div className="flex items-stretch gap-3 overflow-x-auto pb-3 -mx-1 px-1">
+                                {/* one tab per commissioned exam, named after the exam */}
+                                <LayoutGroup id="exam-tabs">
+                                    <div role="tablist" aria-label="Commissioned exams" className="flex items-end gap-1 overflow-x-auto border-b border-slate-200">
                                         {commissionedExams.map((exam) => {
                                             const examKey = exam._id || exam.id;
                                             const isSelected = ((activeExam?._id || activeExam?.id) === examKey);
@@ -605,21 +632,17 @@ const DashboardHome = ({ view = 'home' }) => {
                                                 : subAssignments.reduce((sum, sa) => sum + (sa.questionsCount || (sa.submittedPaperId?.questions?.length || 0)), 0);
                                             const overallPct = totalTarget > 0 ? Math.min(100, Math.round((totalAdded / totalTarget) * 100)) : 0;
                                             return (
-                                                <button key={examKey} onClick={() => setSelectedExamId(examKey)} aria-pressed={isSelected}
-                                                    className={`relative shrink-0 w-[250px] text-left rounded-2xl p-4 flex items-center gap-3 cursor-pointer transition-all ${isSelected
-                                                        ? 'bg-gradient-to-br from-[#081b3b] to-[#123a7a] text-white shadow-xl shadow-blue-950/25 ring-2 ring-amber-400'
-                                                        : 'bg-white border border-slate-200 text-slate-700 hover:border-slate-300 hover:shadow-md'}`}>
-                                                    <ProgressRing pct={overallPct} size={48} stroke={5} dark={isSelected} />
-                                                    <span className="min-w-0">
-                                                        <span className={`inline-block text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-md mb-1 ${isSelected ? 'bg-amber-400/20 text-amber-300' : 'bg-slate-100 text-[#081b3b]'}`}>{exam.examType || 'CET'}</span>
-                                                        <span className="block text-sm font-extrabold leading-tight truncate" title={exam.title}>{exam.title}</span>
-                                                        <span className={`block text-[11px] font-semibold ${isSelected ? 'text-white/60' : 'text-slate-400'}`}>{totalAdded} / {totalTarget} questions</span>
-                                                    </span>
+                                                <button key={examKey} role="tab" aria-selected={isSelected} onClick={() => setSelectedExamId(examKey)}
+                                                    className={`relative shrink-0 flex items-center gap-2.5 px-4 py-3 text-sm font-semibold cursor-pointer transition-colors ${isSelected ? 'text-[#081b3b]' : 'text-slate-500 hover:text-[#081b3b]'}`}>
+                                                    <span className={`text-[11px] font-bold uppercase tracking-wide rounded-md px-1.5 py-0.5 ${isSelected ? 'bg-[#081b3b] text-amber-300' : 'bg-slate-100 text-slate-600'}`}>{exam.examType || 'CET'}</span>
+                                                    <span className="max-w-[220px] truncate" title={exam.title}>{exam.title}</span>
+                                                    <span className={`text-[11px] font-bold rounded-full px-2 py-0.5 ${overallPct >= 100 ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>{overallPct}%</span>
+                                                    {isSelected && <motion.span layoutId="exam-tab-underline" transition={SPRING.soft} className="absolute left-0 right-0 -bottom-px h-[3px] rounded-t-full bg-amber-500" />}
                                                 </button>
                                             );
                                         })}
                                     </div>
-                                </div>
+                                </LayoutGroup>
 
                                 {activeExam && (() => {
                                     const exam = activeExam;
@@ -1008,6 +1031,35 @@ const DashboardHome = ({ view = 'home' }) => {
                     </>
                 )}
             </section>
+            )}
+
+            {/* ── DIALOG: DELETE EVERY COMMISSIONED EXAM ── */}
+            {deleteAllOpen && (
+                <div className="fixed inset-0 z-[90] flex items-center justify-center p-4 bg-slate-950/55 backdrop-blur-sm" onMouseDown={() => !deletingAll && setDeleteAllOpen(false)}>
+                    <div role="alertdialog" aria-label="Delete all commissioned exams" onMouseDown={(e) => e.stopPropagation()} className="w-full max-w-md rounded-3xl bg-white shadow-2xl border border-slate-200 p-6">
+                        <div className="flex items-start gap-3">
+                            <span className="w-11 h-11 shrink-0 rounded-xl bg-red-100 text-red-600 flex items-center justify-center"><Trash2 size={20} /></span>
+                            <div>
+                                <h3 className="text-lg font-bold text-[#081b3b]">Delete all {commissionedExams.length} commissioned exam{commissionedExams.length === 1 ? '' : 's'}?</h3>
+                                <p className="mt-1 text-sm text-slate-600">They are removed from the database for good, together with the student sittings of those exams. This cannot be undone.</p>
+                            </div>
+                        </div>
+                        <label className="mt-4 flex items-start gap-2.5 rounded-xl bg-slate-50 border border-slate-200 p-3 text-sm text-slate-700 cursor-pointer">
+                            <input type="checkbox" checked={deleteAllWithPapers} onChange={(e) => setDeleteAllWithPapers(e.target.checked)} className="mt-0.5 w-4 h-4" />
+                            <span><span className="font-semibold">Also delete the subject papers saved for these exams.</span> <span className="text-slate-500">If left unticked, the papers stay in Saved Papers.</span></span>
+                        </label>
+                        <label className="mt-4 block text-sm font-semibold text-slate-700">Type <span className="font-mono font-bold text-red-700">DELETE</span> to confirm
+                            <input type="text" value={deleteAllConfirmText} onChange={(e) => setDeleteAllConfirmText(e.target.value)} autoFocus placeholder="DELETE"
+                                className="mt-1.5 w-full h-11 rounded-xl border border-slate-300 px-3 font-mono text-sm outline-none focus:border-red-500" />
+                        </label>
+                        {deleteAllError && <p role="alert" className="mt-3 text-sm font-semibold text-red-700">{deleteAllError}</p>}
+                        <div className="mt-5 flex justify-end gap-2.5">
+                            <button type="button" disabled={deletingAll} onClick={() => setDeleteAllOpen(false)} className="h-11 px-5 rounded-xl border border-slate-200 text-sm font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer">Cancel</button>
+                            <button type="button" disabled={deletingAll || deleteAllConfirmText.trim() !== 'DELETE'} onClick={handleDeleteAllExams}
+                                className="h-11 px-5 rounded-xl bg-red-700 hover:bg-red-800 text-white text-sm font-bold flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"><Trash2 size={15} /> {deletingAll ? 'Deleting…' : 'Delete all'}</button>
+                        </div>
+                    </div>
+                </div>
             )}
 
             {/* ── MODAL: CREATE & COMMISSION EXAM ── */}

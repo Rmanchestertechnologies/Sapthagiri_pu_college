@@ -662,6 +662,45 @@ router.put('/:id/config', [auth, checkRole(['admin'])], async (req, res) => {
     }
 });
 
+
+// ─────────────────────────────────────────────────
+// ADMIN: Delete ALL commissioned exams (hard delete - nothing is kept in the database)
+// DELETE /api/exams/commissioned/all[?deletePapers=1]
+//   A "commissioned exam" is an online_exams row that carries subject assignments. Merged online (CBT) exams are NOT touched.
+//   With deletePapers=1 the subject papers saved for those exams are deleted as well; without it they stay in Saved Papers.
+// ─────────────────────────────────────────────────
+router.delete('/commissioned/all', [auth, checkRole(['admin'])], async (req, res) => {
+    try {
+        const exams = (await storage.getExams()).filter(e => Array.isArray(e.subjectAssignments) && e.subjectAssignments.length > 0);
+        let papersDeleted = 0;
+        if (String(req.query.deletePapers || '') === '1' && exams.length) {
+            const examIds = new Set(exams.map(e => String(e._id || e.id)));
+            const wanted = new Set();
+            exams.forEach(e => (e.subjectAssignments || []).forEach(sa => {
+                const ref = sa.submittedPaperId && typeof sa.submittedPaperId === 'object' ? (sa.submittedPaperId._id || sa.submittedPaperId.id) : sa.submittedPaperId;
+                if (ref) wanted.add(String(ref));
+            }));
+            const papers = await storage.getPapers();
+            for (const p of papers) {
+                const id = String(p._id || p.id);
+                if (wanted.has(id) || (p.examId && examIds.has(String(p.examId)))) {
+                    await storage.deletePaper(id);
+                    papersDeleted += 1;
+                }
+            }
+        }
+        for (const e of exams) {
+            const id = String(e._id || e.id);
+            await storage.deleteExam(id);
+            await storage.deleteSessionsByExam(id);
+        }
+        res.json({ msg: `${exams.length} commissioned exam(s) deleted`, deleted: exams.length, papersDeleted });
+    } catch (err) {
+        console.error('Delete all commissioned error:', err.message);
+        res.status(500).json({ msg: 'Server Error. Please try again; if it keeps happening, tell the administrator.' });
+    }
+});
+
 // ─────────────────────────────────────────────────────────────────
 // ADMIN: Delete exam
 // DELETE /api/exams/:id
