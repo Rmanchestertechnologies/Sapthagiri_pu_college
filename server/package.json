@@ -14,7 +14,8 @@
     "test:e2e": "node tests/e2e/run.js",
     "dev:sandbox": "node tests/e2e/run.js --serve",
     "test:move": "node tests/e2e/move-check.js",
-    "check:bank": "node scripts/question_bank_math_check.js"
+    "check:bank": "node scripts/question_bank_math_check.js",
+    "export:bank-problems": "node scripts/question_bank_problem_export.js"
   },
   "jest": {
     "testEnvironment": "node",
