@@ -28,6 +28,8 @@ const list = (name) => new Set([...(rendererSource.match(new RegExp(name + ':\\s
 
 (async () => {
     const { normalizeEquation } = await import(pathToFileURL(path.join(clientSrc, 'utils/mathNormalize.js')).href);
+    const L = await import(pathToFileURL(path.join(clientSrc, 'components/question/layout.js')).href);
+    const mathSpans = (t) => [...String(t || '').matchAll(/\$\$[\s\S]*?\$\$|\$[^$\n]+?\$/g)].map(m => m[0].replace(/\s+/g, ' ')).join('\u0001');
     const TAGS = list('ALLOWED_TAGS');
     const ATTRS = list('ALLOWED_ATTR');
 
@@ -64,6 +66,13 @@ const list = (name) => new Set([...(rendererSource.match(new RegExp(name + ':\\s
             }
             if (q.type === 'MATCH_FOLLOWING' && opts.some(o => /Statement I/i.test(o))) bad('MATCH typed with statement options (mapper bug)', id);
             if ([q.questionText, ...opts].some(t => /\[QBP_|\[QPV_|QBP_DATA/i.test(String(t || '')))) bad('internal marker visible', id);
+            // The paper runs every option through the client's cleaner / match-code check before drawing it. Its maths must come
+            // out exactly as stored (a loose match-code check once cut "A \xrightarrow{..}" apart so the reaction printed as code).
+            for (const o of opts) {
+                if (!/[$\\]/.test(o)) continue;
+                if (L.isMatchCodeOption(o)) bad('maths option mistaken for a match code', id);
+                else if (mathSpans(L.cleanOptionText(o)) !== mathSpans(o)) bad('client option cleaning changed the maths', id);
+            }
         }
     }
 
@@ -96,7 +105,7 @@ const list = (name) => new Set([...(rendererSource.match(new RegExp(name + ':\\s
     console.log('\nStructure / data problems (flagged rows are kept out of generated papers):');
     for (const [k, v] of Object.entries(issues).sort((a, b) => b[1] - a[1])) console.log(`  ${String(v).padStart(6)}  ${k}   e.g. ${samples[k][0]}`);
 
-    const codeProblems = dropped + (issues.MAPPER_THROWS || 0) + (issues['MATCH typed with statement options (mapper bug)'] || 0) + (issues['internal marker visible'] || 0);
+    const codeProblems = dropped + (issues.MAPPER_THROWS || 0) + (issues['MATCH typed with statement options (mapper bug)'] || 0) + (issues['internal marker visible'] || 0) + (issues['maths option mistaken for a match code'] || 0) + (issues['client option cleaning changed the maths'] || 0);
     console.log(codeProblems ? `\nFAIL: ${codeProblems} rendering/code problem(s) above.` : '\nOK: nothing the code needs to fix.');
     process.exit(codeProblems ? 1 : 0);
 })().catch(e => { console.error(e); process.exit(2); });

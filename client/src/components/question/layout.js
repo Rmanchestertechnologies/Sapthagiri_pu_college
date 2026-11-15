@@ -444,6 +444,21 @@ const MAPPING_PART = /^\s*\(?\s*([a-hA-H])\s*\)?\s*(?:[-\u2013\u2014:\u2192]|\\t
  * capital letters for Column I and numbers for Column II, e.g. "A-(3), B-(4), C-(1), D-(2)". Anything that is not a plain list of
  * letter-to-item mappings is returned unchanged.
  */
+/**
+ * True only when the WHOLE option is a list of matching codes such as "A-(3), B-(4)" or "p → (iv), q → (iii)".
+ * The old check looked for a letter, a dash/backslash and a digit anywhere in the option, so a chemistry option like
+ * "A \xrightarrow{..}" counted as a match code and was cut apart, which stopped it from rendering.
+ */
+const MATCH_CODE_ITEM = String.raw`\(?[A-Za-z0-9]{1,3}\)?\s*[-–—:→]\s*\(?[0-9ivxIVX]+\)?`;
+const MATCH_CODE_RE = new RegExp(String.raw`^\s*${MATCH_CODE_ITEM}(?:\s*[,;]?\s*${MATCH_CODE_ITEM})*\s*$`);
+export function isMatchCodeOption(opt) {
+    const str = String(opt && typeof opt === 'object' ? (opt.text || opt.option || '') : (opt == null ? '' : opt));
+    // "A \to 2" / "A \rightarrow 2" are still plain codes; any other LaTeX (or a $) means the option is maths
+    const plain = str.replace(/ /g, ' ').replace(/\\(?:long)?(?:right)?arrow\b|\\to\b/g, '→');
+    if (/[$\\]/.test(plain)) return false;
+    return MATCH_CODE_RE.test(plain);
+}
+
 export function harmonizeMatchCode(text) {
     if (typeof text !== 'string') return text;
     const cleaned = text.replace(/\$/g, '').trim();

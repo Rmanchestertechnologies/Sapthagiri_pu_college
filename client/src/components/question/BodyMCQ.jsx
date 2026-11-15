@@ -2,7 +2,7 @@ import React from 'react';
 import MathRenderer from '../MathRenderer';
 import ResizableDiagram from '../ResizableDiagram';
 import { getQuestionOptionLabels, extractOptionsIfMissing } from '../../utils/sanitize';
-import { Q, cleanOptionText, getOptionLabelText, isOptionSelectedCorrect, shouldRenderSideBySide } from './layout';
+import { Q, cleanOptionText, getOptionLabelText, isOptionSelectedCorrect, shouldRenderSideBySide, isMatchCodeOption } from './layout';
 import { cleanQuestionText, extractDiagramFromText } from './parsing';
 
 /**
@@ -67,10 +67,7 @@ export function BodyMCQ({
         }
 
         // Check if options are Match-the-Following mappings e.g. "p → (iv), q → (iii), r → (ii), s → (i)"
-        const isMatchOptions = (options || []).some(opt => {
-            const str = String(typeof opt === 'object' ? (opt.text || opt.option || '') : opt);
-            return /(?:[p-sP-S]|[a-dA-D1-4])\s*[-–—:→\\]\s*\(?[0-9ivxIVX]+\)?/i.test(str);
-        });
+        const isMatchOptions = (options || []).some(isMatchCodeOption);
 
         if (isMatchOptions) {
             // In Single Column Paper (~720px width): 2x2 grid allows full mapping to fit on 1 clean unbroken line
@@ -126,10 +123,6 @@ export function BodyMCQ({
 
     const renderOptions = (forceSingle = false, isSide = false) => {
         if (displayMode === '5. Only Questions with No Options' || options.length === 0) return null;
-        const isMatchOptions = (options || []).some(opt => {
-            const str = String(typeof opt === 'object' ? (opt.text || opt.option || '') : opt);
-            return /(?:[p-sP-S]|[a-dA-D1-4])\s*[-–—:→\\]\s*\(?[0-9ivxIVX]+\)?/i.test(str);
-        });
 
         return (
             <div
@@ -139,7 +132,7 @@ export function BodyMCQ({
                 {options.map((opt, i) => {
                     const rawOpt = typeof opt === 'object' ? (opt.text || opt.optionText || opt.value || opt.option || '') : String(opt || '');
                     let optText = cleanOptionText(rawOpt);
-                    if (isMatchOptions) {
+                    if (isMatchCodeOption(rawOpt)) {
                         // Prevent broken line breaks between pair mappings e.g. "r →" and "(ii)"
                         optText = optText.replace(/([p-sP-Sa-dA-D1-4\)])\s*([→\-–—\\])\s*(\(?[0-9ivxIVX]+\)?)/g, '$1\u00A0$2\u00A0$3');
                     }

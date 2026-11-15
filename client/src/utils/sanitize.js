@@ -99,7 +99,9 @@ export function cleanOptionText(text) {
             str = str.replace(/\}\s*$/, '');
         }
     }
-    str = str.replace(/\\,\s*A\}?/g, ' \\text{ A}');
+    // "0.49\, A" is a value in amperes: set the unit as text. Only a standalone A - "\,A_{2+4}" or "\,A^2" is a symbol in a formula
+    // and must stay as written (a stray closing brace after the unit was already removed above).
+    str = str.replace(/\\,\s*A(?![A-Za-z0-9_^({\\])/g, ' \\text{ A}');
     return str.trim();
 }
 
