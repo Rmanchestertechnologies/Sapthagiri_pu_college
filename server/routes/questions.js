@@ -128,6 +128,12 @@ router.get('/', [auth, checkRole(['admin', 'teacher'])], async (req, res) => {
 
         const result = await supabaseQuestions.getQuestions(filters, page, limit);
 
+        // Questions that cannot print correctly (broken maths, identical options, a key that matches nothing ...) are not offered
+        // for papers. Only the Question Bank's "needs fixing" screens ask for them (includeProblems=true) so they can be corrected.
+        if (req.query.includeProblems !== 'true' && Array.isArray(result.questions)) {
+            result.questions = result.questions.filter(q => !q.keyProblem);
+        }
+
         res.setHeader('X-Total-Count', result.pagination.total);
         res.setHeader('X-Total-Pages', result.pagination.pages);
 

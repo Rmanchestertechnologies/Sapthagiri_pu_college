@@ -30,6 +30,8 @@ const list = (name) => new Set([...(rendererSource.match(new RegExp(name + ':\\s
     const { normalizeEquation } = await import(pathToFileURL(path.join(clientSrc, 'utils/mathNormalize.js')).href);
     const L = await import(pathToFileURL(path.join(clientSrc, 'components/question/layout.js')).href);
     const P = await import(pathToFileURL(path.join(clientSrc, 'utils/mathPipeline.js')).href);
+    const QP = await import(pathToFileURL(path.join(clientSrc, 'utils/questionProblems.js')).href);
+    let printBroken = 0; let falsePositives = 0;
     const PA = await import(pathToFileURL(path.join(clientSrc, 'components/question/parsing.js')).href);
     // Full render test: the text of every field, through the paper's real text -> HTML steps. A field "falls back" when KaTeX
     // rejects its maths (the paper then shows plain text) and "leaks" when raw LaTeX / a stray $ is left in the visible text.
@@ -94,6 +96,11 @@ const list = (name) => new Set([...(rendererSource.match(new RegExp(name + ':\\s
                 if (opts.length < 4) bad(`${q.type}: fewer than 4 options`, id);
                 if (!q.keyProblem && !q.correct_option && !q.answer) bad(`${q.type}: no key`, id);
             }
+            // the server's own print check (which keeps a question out of papers) must never flag a question the client prints fine
+            if (q.keyProblem === 'PRINT_BROKEN') {
+                printBroken++;
+                if (QP.findQuestionProblems({ ...q, keyProblem: null, solutionText: '' }).length === 0) { bad('server excluded a question the client prints fine (false positive)', id); falsePositives++; }
+            }
             // full render test of every part the paper shows for this type
             renderField(id, 'question', PA.cleanQuestionText(q.questionText));
             opts.forEach((o, i) => renderField(id, 'option', L.cleanOptionText(o)));
@@ -146,9 +153,11 @@ const list = (name) => new Set([...(rendererSource.match(new RegExp(name + ':\\s
     console.log(`\nFull render test: ${renderProblemRows.size} of ${rows} questions have a part that does not print cleanly (limit ${MAX_RENDER_ROWS}, i.e. 0.4%).`);
     console.log('  Mostly damaged source text (cut-off or empty equations, an unpaired $); fix those rows in the bank.');
     for (const [k, v] of Object.entries(renderKinds).sort((a, b) => b[1] - a[1]).slice(0, 10)) console.log(`  ${String(v).padStart(5)}  ${k}   e.g. ${renderSamples[k][0]}`);
-    const renderRegression = renderProblemRows.size > MAX_RENDER_ROWS ? 1 : 0;
+    console.log(`\nKept out of papers because a printed part cannot be typeset: ${printBroken} questions (false positives: ${falsePositives}, must be 0).`);
+    const renderRegression = falsePositives > 0 ? 1 : 0;
+    const renderOverLimit = renderProblemRows.size > MAX_RENDER_ROWS ? 1 : 0;
 
-    const codeProblems = renderRegression + dropped + (issues.MAPPER_THROWS || 0) + (issues['MATCH typed with statement options (mapper bug)'] || 0) + (issues['internal marker visible'] || 0) + (issues['maths option mistaken for a match code'] || 0) + (issues['client option cleaning changed the maths'] || 0);
+    const codeProblems = renderRegression + renderOverLimit + dropped + (issues.MAPPER_THROWS || 0) + (issues['MATCH typed with statement options (mapper bug)'] || 0) + (issues['internal marker visible'] || 0) + (issues['maths option mistaken for a match code'] || 0) + (issues['client option cleaning changed the maths'] || 0);
     console.log(codeProblems ? `\nFAIL: ${codeProblems} rendering/code problem(s) above.` : '\nOK: nothing the code needs to fix.');
     process.exit(codeProblems ? 1 : 0);
 })().catch(e => { console.error(e); process.exit(2); });

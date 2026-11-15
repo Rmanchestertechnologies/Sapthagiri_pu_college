@@ -99,6 +99,7 @@ const AddQuestion = () => {
             if (chapterFilter) params.append('chapter', chapterFilter);
             if (typeFilter) params.append('type', typeFilter);
             if (classFilter) params.append('classes', classFilter);
+            params.append('includeProblems', 'true'); // this list is for managing the bank, so broken questions stay visible to be fixed
 
             const res = await api.get(`/api/questions?${params.toString()}`);
             const totalFromHeader = parseInt(res.headers['x-total-count'] || res.headers['X-Total-Count']);

@@ -22,6 +22,7 @@ const OUT = path.resolve(process.cwd(), arg('--out', path.resolve(__dirname, '..
 const clientSrc = path.resolve(__dirname, '../../client/src');
 
 const WHAT = {
+    PRINT_BROKEN: 'A printed part has maths that cannot be typeset (kept out of papers)',
     DUPLICATE_OPTIONS: 'Two or more options read exactly the same',
     AR_INCOMPLETE: 'Assertion-reason question: the Reason (or Assertion) is missing',
     KEY_NOT_AN_OPTION: 'The marked answer is a value that matches none of the options',

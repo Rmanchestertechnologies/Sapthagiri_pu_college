@@ -6,6 +6,7 @@ import { cleanOptionText } from './sanitize.js';
 import { cleanQuestionText } from '../components/question/parsing.js';
 
 export const KEY_PROBLEM_TEXT = {
+    PRINT_BROKEN: 'A printed part has maths that cannot be typeset. It is kept out of papers until corrected.',
     DUPLICATE_OPTIONS: 'Two or more options read exactly the same.',
     AR_INCOMPLETE: 'The Reason (or Assertion) is missing.',
     KEY_NOT_AN_OPTION: 'The marked answer is a value that matches none of the options.',

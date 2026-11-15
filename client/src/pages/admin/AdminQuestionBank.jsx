@@ -178,6 +178,7 @@ const AdminQuestionBank = () => {
             queryParams.append('limit', String(PAGE_SIZE));
             queryParams.append('page', String(targetPage));
             queryParams.append('paginated', 'true');
+            queryParams.append('includeProblems', 'true'); // the bank shows broken questions too, so they can be fixed (papers never get them)
             Object.keys(filters).forEach(key => {
                 if (Array.isArray(filters[key])) {
                     if (filters[key].length > 0) {

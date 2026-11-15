@@ -20,6 +20,7 @@ const {
     getAllPools
 } = require('../config/subjectDatabases');
 const { sanitizeHtml } = require('../utils/sanitize');
+const { questionPrintIsBroken } = require('./printCheck');
 
 const isTest = process.env.NODE_ENV === 'test';
 const memoryTestQuestions = new Map();
@@ -593,6 +594,9 @@ function mapSupabaseToQuestion(row, usageMap = null) {
     }
     if (!keyProblem && type === 'NUMERICAL' && !String(answer == null ? '' : answer).trim()) keyProblem = 'NUMERICAL_NO_ANSWER';
     if (matchKeyUnknown && !keyProblem) keyProblem = 'MATCH_KEY_UNKNOWN';
+    // A printed part (question, option, statement, assertion/reason, match column) whose maths cannot be typeset: the paper would
+    // show plain text or raw LaTeX, so the question is kept out of papers until it is corrected.
+    if (!keyProblem && questionPrintIsBroken({ type, questionText: cleanQuestion, options, statements: dynamicStatements, assertion, reason, columnA: colA, columnB: colB })) keyProblem = 'PRINT_BROKEN';
     // A diagram placeholder that was never filled in would print as the words "[DIAGRAM REQUIRED]".
     if (!keyProblem && !hasDiag && [cleanQuestion, ...options].some(t => /\[DIAGRAM REQUIRED\]/i.test(String(t)))) keyProblem = 'DIAGRAM_MISSING';
     // Two options that read exactly the same make the question unanswerable (a student cannot tell A from C).
