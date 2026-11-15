@@ -4,7 +4,9 @@ import api from '../../api';
 import { optionLabel, isOptionCorrect, getResolvedAnswerLabel } from '../../utils/sanitize';
 import MathRenderer from '../../components/MathRenderer';
 import PageShell from '../../ui/PageShell';
-import { Database } from 'lucide-react';
+import { Database, Wrench, AlertTriangle } from 'lucide-react';
+import FixQuestionModal from '../../components/FixQuestionModal';
+import { findQuestionProblems } from '../../utils/questionProblems';
 
 
 const MultiSelectCheckbox = ({ label, options, selectedValues, onChange, disabled }) => {
@@ -100,6 +102,54 @@ const AdminQuestionBank = () => {
     const [loading, setLoading] = useState(false);
     const [loadError, setLoadError] = useState('');
     const requestId = React.useRef(0);
+
+    // "Needs fixing" mode: the questions listed in /data/question_bank_problems.json (made by `npm run export:bank-problems`),
+    // each loaded fresh and checked again here, so a question that has been corrected drops out of the list by itself.
+    const FIX_PAGE = 20;
+    const [fixMode, setFixMode] = useState(false);
+    const [fixIds, setFixIds] = useState(null);
+    const [fixQuestions, setFixQuestions] = useState([]);
+    const [fixLoaded, setFixLoaded] = useState(0);
+    const [fixLoading, setFixLoading] = useState(false);
+    const [fixError, setFixError] = useState('');
+    const [fixing, setFixing] = useState(null);
+
+    const loadMoreFix = async (ids, from) => {
+        setFixLoading(true); setFixError('');
+        try {
+            const slice = ids.slice(from, from + FIX_PAGE);
+            const results = await Promise.allSettled(slice.map(id => api.get(`/api/questions/${id}`)));
+            const got = results.filter(r => r.status === 'fulfilled').map(r => r.value.data).filter(q => findQuestionProblems(q).length > 0);
+            setFixQuestions(prev => [...prev, ...got]);
+            setFixLoaded(from + slice.length);
+        } catch (err) {
+            setFixError(err.response?.data?.msg || 'Could not load these questions.');
+        } finally { setFixLoading(false); }
+    };
+
+    useEffect(() => {
+        if (!fixMode || fixIds) return;
+        setFixLoading(true);
+        fetch('/data/question_bank_problems.json', { cache: 'no-cache' })
+            .then(r => (r.ok ? r.json() : Promise.reject(new Error('list not found'))))
+            .then(list => {
+                const ids = [...new Set((Array.isArray(list) ? list : []).map(x => x.id).filter(Boolean))];
+                setFixIds(ids);
+                return loadMoreFix(ids, 0);
+            })
+            .catch(() => { setFixError('The list of questions to fix is not available. Run "npm run export:bank-problems" in the server folder and redeploy.'); setFixLoading(false); });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [fixMode]);
+
+    const onFixed = (updated) => {
+        const id = updated._id || updated.id;
+        const stillBad = findQuestionProblems(updated).length > 0;
+        const swap = (list) => list.map(q => ((q._id || q.id) === id ? updated : q));
+        setQuestions(swap);
+        setFixQuestions(list => (stillBad ? swap(list) : list.filter(q => (q._id || q.id) !== id)));
+        setFixing(null);
+    };
+    const shown = fixMode ? fixQuestions : questions;
 
     // Chapter and concept choices come from the metadata endpoint for the chosen subject. This page used to download up to
     // 20 000 full questions (twice, from every database) just to build these lists and then rendered all of them at once,
@@ -213,7 +263,13 @@ const AdminQuestionBank = () => {
     };
 
     return (
-        <PageShell icon={Database} tone="indigo" title="Unified Question Bank" subtitle="Central Repository Control & Taxonomy Mapping" >
+        <PageShell icon={Database} tone="indigo" title="Unified Question Bank" subtitle="Central Repository Control & Taxonomy Mapping"
+            actions={(
+                <button type="button" onClick={() => setFixMode(m => !m)} aria-pressed={fixMode}
+                    className={`inline-flex items-center gap-2 ${fixMode ? '!bg-amber-100 !text-amber-900' : ''}`}>
+                    <Wrench size={15} /> {fixMode ? 'Back to all questions' : 'Needs fixing'}
+                </button>
+            )}>
 
 
             {/* Filter Bar */}
@@ -293,8 +349,17 @@ const AdminQuestionBank = () => {
                     {loading && <span className="ml-3 text-xs font-semibold text-gray-400">Loading…</span>}
                 </p>
                 {loadError && <p className="text-sm font-bold text-red-600" role="alert">{loadError}</p>}
-                {!loading && !loadError && questions.length === 0 && <p className="text-sm text-gray-500">No questions match these filters.</p>}
-                {questions.map(q => (
+                {fixMode && (
+                    <div className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-900">
+                        <p className="font-bold flex items-center gap-2"><Wrench size={16} /> Questions that do not print correctly</p>
+                        <p className="mt-1 text-[13px]">Open <b>Fix</b> on a question, correct the highlighted part and save. Fixed questions leave this list.
+                            {fixIds && <> Showing {fixQuestions.length} still to fix from the first {fixLoaded} of {fixIds.length} listed.</>}</p>
+                        {fixError && <p className="mt-2 font-bold text-red-600" role="alert">{fixError}</p>}
+                    </div>
+                )}
+                {!fixMode && !loading && !loadError && questions.length === 0 && <p className="text-sm text-gray-500">No questions match these filters.</p>}
+                {fixMode && !fixLoading && !fixError && fixQuestions.length === 0 && <p className="text-sm text-emerald-700 font-bold">Nothing left to fix in the loaded questions.</p>}
+                {shown.map(q => { const problems = findQuestionProblems(q); return (
                     <div key={q._id} className="border border-gray-200 p-6 rounded-3xl shadow-sm bg-white relative group hover:shadow-md transition">
                         <div className="absolute top-4 right-4 hidden group-hover:flex gap-2 transition z-10">
                             <button 
@@ -312,6 +377,7 @@ const AdminQuestionBank = () => {
                             >
                                 AI Variant
                             </button>
+                            <button type="button" onClick={() => setFixing(q)} className="text-amber-700 hover:text-amber-900 bg-amber-50 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest">Fix</button>
                             <button 
                                 onClick={() => handleDelete(q._id)} 
                                 className="text-red-500 hover:text-red-700 bg-red-50 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest"
@@ -327,6 +393,15 @@ const AdminQuestionBank = () => {
                             <span className="text-[10px] font-semibold text-gray-600 bg-gray-50 px-3 py-1 rounded-full">Level: {q.level}</span>
                             <span className="text-[10px] font-semibold text-gold bg-navy px-3 py-1 rounded-full uppercase tracking-wider">{q.sourceType} {q.sourceDisplayCode ? `(${q.sourceDisplayCode})` : ''}</span>
                         </div>
+
+                        {problems.length > 0 && (
+                            <div className="mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] text-amber-900">
+                                <AlertTriangle size={14} className="shrink-0" />
+                                <span className="font-bold">Needs fixing:</span>
+                                <span className="min-w-0 flex-1">{problems.slice(0, 2).map(p => `${p.part} - ${p.problem}`).join('  ')}{problems.length > 2 ? ` (+${problems.length - 2} more)` : ''}</span>
+                                <button type="button" onClick={() => setFixing(q)} className="rounded-lg bg-amber-200/70 px-2.5 py-1 text-[11px] font-black uppercase tracking-wider hover:bg-amber-200">Fix</button>
+                            </div>
+                        )}
 
                         {/* Rendering formats based on questionType — Uniform Font & Size, Normal Weight */}
                         {q.type === 'ASSERTION_REASON' ? (
@@ -418,8 +493,13 @@ const AdminQuestionBank = () => {
                             )}
                         </div>
                     </div>
-                ))}
-                {totalPages > 1 && (
+                ); })}
+                {fixMode && fixIds && fixLoaded < fixIds.length && (
+                    <div className="flex justify-center py-4">
+                        <button type="button" disabled={fixLoading} onClick={() => loadMoreFix(fixIds, fixLoaded)} className="px-5 py-2 rounded-xl border border-gray-200 text-xs font-black uppercase tracking-widest disabled:opacity-40">{fixLoading ? 'Loading…' : 'Load the next 20'}</button>
+                    </div>
+                )}
+                {!fixMode && totalPages > 1 && (
                     <div className="flex items-center justify-center gap-4 py-4">
                         <button disabled={page <= 1 || loading} onClick={() => setPage(p => Math.max(1, p - 1))} className="px-5 py-2 rounded-xl border border-gray-200 text-xs font-black uppercase tracking-widest disabled:opacity-40">Previous</button>
                         <span className="text-xs font-bold text-navy">Page {page} / {totalPages}</span>
@@ -427,6 +507,7 @@ const AdminQuestionBank = () => {
                     </div>
                 )}
             </div>
+            {fixing && <FixQuestionModal question={fixing} onClose={() => setFixing(null)} onSaved={onFixed} />}
         </PageShell>
     );
 };

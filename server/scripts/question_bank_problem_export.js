@@ -17,6 +17,7 @@ const { mapSupabaseToQuestion } = require('../services/supabaseQuestions');
 
 const arg = (n, d) => { const i = process.argv.indexOf(n); return i >= 0 && process.argv[i + 1] ? process.argv[i + 1] : d; };
 const ONLY = arg('--db', '');
+const JSON_OUT = path.resolve(__dirname, '../../client/public/data/question_bank_problems.json');
 const OUT = path.resolve(process.cwd(), arg('--out', path.resolve(__dirname, '../../docs/data/question_bank_problems.csv')));
 const clientSrc = path.resolve(__dirname, '../../client/src');
 
@@ -52,7 +53,7 @@ const csv = (v) => `"${String(v == null ? '' : v).replace(/"/g, '""').replace(/\
     const L = await import(pathToFileURL(path.join(clientSrc, 'components/question/layout.js')).href);
     const PA = await import(pathToFileURL(path.join(clientSrc, 'components/question/parsing.js')).href);
     const lines = [['kind', 'database', 'question_id', 'subject', 'class', 'chapter', 'problem', 'part', 'text_of_that_part', 'question_start'].map(csv).join(',')];
-    let render = 0; let flagged = 0;
+    let render = 0; let flagged = 0; const list = [];
     for (const key of Object.keys(DB_CONFIGS)) {
         if (ONLY && key !== ONLY) continue;
         const entry = pools.get(key);
@@ -64,6 +65,7 @@ const csv = (v) => `"${String(v == null ? '' : v).replace(/"/g, '""').replace(/\
             const start = String(row.question || '').slice(0, 120);
             if (q.keyProblem) {
                 flagged++;
+                list.push({ id: row.id, db: key, kind: 'FLAGGED', problem: q.keyProblem });
                 lines.push(['FLAGGED', ...meta, WHAT[q.keyProblem] || q.keyProblem, '', '', start].map(csv).join(','));
             }
             const found = [];
@@ -85,13 +87,17 @@ const csv = (v) => `"${String(v == null ? '' : v).replace(/"/g, '""').replace(/\
                 const k = part.replace(/ \d+$/, '') + problem;
                 if (seen.has(k)) continue; seen.add(k);
                 render++;
+                list.push({ id: row.id, db: key, kind: 'RENDER', part, problem });
                 lines.push(['RENDER', ...meta, problem, part, String(raw).slice(0, 160), start].map(csv).join(','));
             }
         }
     }
     fs.mkdirSync(path.dirname(OUT), { recursive: true });
     fs.writeFileSync(OUT, '﻿' + lines.join('\r\n') + '\r\n', 'utf8');
+    fs.mkdirSync(path.dirname(JSON_OUT), { recursive: true });
+    fs.writeFileSync(JSON_OUT, JSON.stringify(list));
     console.log(`Written ${OUT}`);
+    console.log(`Written ${JSON_OUT} (read by the Question Bank's "Needs fixing" list)`);
     console.log(`RENDER rows: ${render}   FLAGGED rows: ${flagged}   (a question can appear in both)`);
     process.exit(0);
 })().catch(e => { console.error(e); process.exit(1); });

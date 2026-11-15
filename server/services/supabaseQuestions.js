@@ -638,6 +638,8 @@ function mapSupabaseToQuestion(row, usageMap = null) {
         type: type,
         q_type: effectiveQType,
         questionText: cleanQuestion,
+        // the question exactly as stored (questionText has statements / columns pulled out); used by the bank's fix dialog
+        raw_question: row.question || '',
         outroText: statementOutro || null,
         imageUrl: row.image_url || row.imageUrl || null,
         solutionImageUrl: row.solution_image_url || row.solutionImageUrl || null,
@@ -1702,6 +1704,108 @@ async function updateQuestion(id, dto, userId = null, userName = 'Admin') {
 }
 
 /**
+ * The only columns a "fix this question" edit may change, and how each value is checked. Everything else on the row (type,
+ * chapter, hidden match/statement data, difficulty, image, ...) is left exactly as it is - unlike updateQuestion, which
+ * rewrites the whole row from a simplified question and would turn a match or statement question into a plain one.
+ */
+const FIX_FIELDS = {
+    question: { column: 'question', max: 20000 },
+    opt_a: { column: 'opt_a', max: 5000 },
+    opt_b: { column: 'opt_b', max: 5000 },
+    opt_c: { column: 'opt_c', max: 5000 },
+    opt_d: { column: 'opt_d', max: 5000 },
+    assertion: { column: 'assertion', max: 5000 },
+    reason: { column: 'reason', max: 5000 },
+    solution_text: { column: 'solution_text', max: 30000 },
+    correct_option: { column: 'correct_option', max: 40 },
+};
+
+/** Validates the submitted fields; returns { values } (only the allowed, changed fields) or { error }. */
+function validateFixFields(body) {
+    const values = {};
+    for (const [key, spec] of Object.entries(FIX_FIELDS)) {
+        if (body == null || body[key] === undefined) continue;
+        if (typeof body[key] !== 'string') return { error: `${key} must be text.` };
+        if (body[key].length > spec.max) return { error: `${key} is too long (limit ${spec.max} characters).` };
+        values[key] = body[key];
+    }
+    if ('question' in values && !values.question.trim()) return { error: 'The question text cannot be empty.' };
+    if ('correct_option' in values && values.correct_option.trim()) {
+        const k = values.correct_option.trim();
+        const single = /^[A-D1-4](?:\s*[,;&]\s*[A-D])*$/i;                                         // A   or   A, C
+        const pairs = /^(?:[A-F]\s*(?:→|->|=|-)\s*\(?[0-9ivxIVX]+\)?\s*[;,]?\s*)+$/;                  // A → 4; B → 2   (match questions)
+        if (!single.test(k) && !pairs.test(k)) return { error: 'The answer must be A, B, C or D (or a combination such as "A, C"; for a match question "A → 4; B → 2").' };
+    }
+    if (Object.keys(values).length === 0) return { error: 'Nothing to change.' };
+    return { values };
+}
+
+/** The hidden "[QBP_TYPE:..]/[QBP_DATA:..]/[QBP_DIFFICULTY:..]" lines at the end of a stored solution. */
+function extractHiddenMarkers(solutionText) {
+    return (String(solutionText || '').match(/\[QBP_(?:TYPE|DATA|DIFFICULTY):[^\]\r\n]*\]/gi) || []);
+}
+
+/**
+ * Builds the UPDATE for a fix (exported for tests). Text is cleaned like every other save; a changed solution keeps the row's
+ * hidden marker lines so the question keeps its type and match/statement data.
+ */
+function buildFixUpdate(values, existingSolutionText, userId, userName) {
+    const sets = []; const params = [];
+    const add = (column, value) => { params.push(value); sets.push(`${column} = $${params.length}`); };
+    for (const [key, raw] of Object.entries(values)) {
+        let v = sanitizeHtml(String(raw));
+        if (key === 'solution_text') {
+            const markers = extractHiddenMarkers(existingSolutionText);
+            v = [cleanDifficultyTags(v).trim(), ...markers].filter(Boolean).join('\n');
+        } else if (key === 'correct_option') {
+            v = String(raw).trim().toUpperCase();
+        }
+        add(FIX_FIELDS[key].column, v);
+    }
+    add('updated_by', isUuid(userId) ? userId : null);
+    add('updated_by_name', userName || 'User');
+    add('updated_at', new Date().toISOString());
+    return { sets, params };
+}
+
+/** Applies a "fix this question" edit. Returns the question as the app sees it, or null if it does not exist. */
+async function fixQuestionFields(id, body, userId = null, userName = 'User') {
+    const checked = validateFixFields(body);
+    if (checked.error) { const e = new Error(checked.error); e.status = 400; throw e; }
+    const { values } = checked;
+
+    if (isTest && memoryTestQuestions.has(id)) {
+        const existing = memoryTestQuestions.get(id);
+        const map = { question: 'questionText', correct_option: 'correct_option', solution_text: 'solutionText', assertion: 'assertion', reason: 'reason' };
+        const updated = { ...existing };
+        const options = Array.isArray(existing.options) ? [...existing.options] : [];
+        for (const [k, v] of Object.entries(values)) {
+            const m = /^opt_([a-d])$/.exec(k);
+            if (m) options['abcd'.indexOf(m[1])] = v; else updated[map[k]] = v;
+        }
+        updated.options = options;
+        memoryTestQuestions.set(id, updated);
+        return updated;
+    }
+
+    let entry = uuidToDbKey.get(String(id)) ? pools.get(uuidToDbKey.get(String(id))) : null;
+    if (!entry) {
+        for (const e of getAllPools()) {
+            const check = await e.pool.query('SELECT id FROM public.questions WHERE id = $1 LIMIT 1;', [id]);
+            if (check.rows.length > 0) { entry = e; cacheQuestionDb(id, e.key); break; }
+        }
+    }
+    if (!entry) return null;
+
+    const current = await entry.pool.query('SELECT solution_text FROM public.questions WHERE id = $1;', [id]);
+    const { sets, params } = buildFixUpdate(values, current.rows[0] && current.rows[0].solution_text, userId, userName);
+    params.push(id);
+    const res = await entry.pool.query(`UPDATE public.questions SET ${sets.join(', ')} WHERE id = $${params.length} RETURNING *;`, params);
+    metadataCache.clear();
+    return mapSupabaseToQuestion(res.rows[0]);
+}
+
+/**
  * Delete a question from its database.
  */
 async function deleteQuestion(id) {
@@ -1848,6 +1952,9 @@ module.exports = {
     recordQuestionUsage,
     createQuestion,
     updateQuestion,
+    fixQuestionFields,
+    validateFixFields,
+    buildFixUpdate,
     deleteQuestion,
     mapSupabaseToQuestion,
     mapQuestionToSupabase,

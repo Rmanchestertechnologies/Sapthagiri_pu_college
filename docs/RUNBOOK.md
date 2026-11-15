@@ -54,3 +54,10 @@ get an email before anyone complains. Also monitor the Vercel site URL.
 ## 7. Dependency policy
 Do not run `npm update` on a live site. Once a year (off-season): create a branch, update, run `npm test` in `client` and `server`, run `npm run test:e2e` in `server`, deploy to a preview, then merge.
 Node 20–24 is supported (`engines`).
+
+## 8. Question bank health (after every bulk import, and monthly)
+
+1. In `server`: `npm run check:bank` - renders every question the way the paper does. It fails if the code drops or garbles maths, or if more than 0.4% of questions print badly.
+2. `npm run export:bank-problems` - rewrites `docs/data/question_bank_problems.csv` (for Excel) and `client/public/data/question_bank_problems.json` (read by the app), then commit and redeploy the client.
+3. In the app: Admin > Question Bank > **Needs fixing**. Each question shows what is wrong; **Fix** opens an editor with a live preview. Only the text, options, answer and solution can be changed there - the question's type and hidden match/statement data are kept. A corrected question leaves the list on its own.
+4. Questions flagged by step 1 (identical options, key matching no option, ...) are kept out of generated papers until fixed.

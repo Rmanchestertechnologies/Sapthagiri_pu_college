@@ -257,6 +257,26 @@ router.delete('/:id', [auth, checkRole(['admin', 'teacher'])], async (req, res) 
     }
 });
 
+// @route   POST /api/questions/:id/fix
+// @desc    Correct the text, options, answer or solution of one bank question (and nothing else about it)
+// @access  Teacher (own subject) / Admin
+router.post('/:id/fix', [auth, checkRole(['admin', 'teacher'])], async (req, res) => {
+    try {
+        const question = await supabaseQuestions.getQuestionById(req.params.id);
+        if (!question) return res.status(404).json({ msg: 'Question not found.' });
+        if (req.user.role !== 'admin' && !sameSubjectArea(question.subject, req.user.subject)) {
+            return res.status(403).json({ msg: 'Access denied: not authorized to edit this subject question.' });
+        }
+        const updated = await supabaseQuestions.fixQuestionFields(req.params.id, req.body, req.user.id, req.user.name || 'User');
+        if (!updated) return res.status(404).json({ msg: 'Question not found.' });
+        res.json(updated);
+    } catch (err) {
+        if (err.status === 400) return res.status(400).json({ msg: err.message });
+        console.error(err.message);
+        res.status(500).json({ msg: 'Server error fixing question.' });
+    }
+});
+
 // @route   POST /api/questions/update/:id
 // @desc    Update a question in the question bank
 // @access  Teacher / Admin
