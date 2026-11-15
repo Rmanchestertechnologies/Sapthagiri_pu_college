@@ -36,6 +36,12 @@ function normalizeLatex(raw) {
     str = str.replace(/\\\[([\s\S]*?)\\\]/g, '$$$$$1$$$$');
     str = str.replace(/\\\(([\s\S]*?)\\\)/g, '$$$1$$');
 
+    // 3b. A whole text that is a bare formula with no $ and no words ("-\frac{x}{y}+\tan x+c", typical for an option) is wrapped
+    // as one formula; otherwise only the part starting with a known command would be typeset and the rest stay as code.
+    if (!str.includes('$') && /\\(?!text\b|mathrm\b)[a-zA-Z]{2,}/.test(str) && !/[A-Za-z]{5,}/.test(str.replace(/\\[a-zA-Z]+/g, ''))) {
+        return `$${str.trim()}$`;
+    }
+
     // 4. Auto-wrap naked/unwrapped LaTeX commands not already surrounded by $
     const nakedLatexRegex = /(?<!\$)\\(?:dfrac|cfrac|frac|sqrt|pm|times|div|leq|geq|neq|approx|rightarrow|infty|sum|int|partial|theta|alpha|beta|gamma|lambda|omega|Delta|mu|sigma|epsilon|varepsilon|rho|phi|pi|tau|psi|eta|nu|xi|cdot|circ|text|mathrm|mathbf)\b[^{$\n]*(?:\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\})*(?!\$)/g;
     // Only touch text OUTSIDE existing $...$ / $$...$$ segments. The old code wrapped every command that was not

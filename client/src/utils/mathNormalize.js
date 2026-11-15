@@ -54,7 +54,11 @@ export function ensureMathDelimiters(text) {
     // Wrap naked \begin{...}...\end{...} blocks in $$...$$ - but only blocks that are NOT already inside $...$ / $$...$$ maths
     // (a matrix written as "$$ f(x) = \begin{vmatrix} ... \end{vmatrix} $$" used to get wrapped a second time and broke)
     res = res.split(/(\$\$[\s\S]*?\$\$|\$[^$\n]+?\$)/g).map((part, i) => (
-        i % 2 === 1 ? part : part.replace(/\\begin\{(matrix|pmatrix|bmatrix|vmatrix|aligned|align|array|cases)\}([\s\S]*?)\\end\{\1\}/g, '$$\\begin{$1}$2\\end{$1}$$')
+        i % 2 === 1 ? part : part.replace(/\\begin\{(matrix|pmatrix|bmatrix|Bmatrix|vmatrix|Vmatrix|smallmatrix|aligned|align\*?|gather\*?|split|array|cases)\}([\s\S]*?)\\end\{\1\}/g, (_whole, env, body) => {
+            // align / gather / split only work in display maths; the matrix kinds stay inline as before
+            const wrap = /^(?:align|gather|split)/.test(env) ? '$$' : '$';
+            return `${wrap}\\begin{${env}}${body}\\end{${env}}${wrap}`;
+        })
     )).join('');
     // Convert \[...\] to $$...$$
     res = res.replace(/\\\[([\s\S]*?)\\\]/g, '$$$$$1$$$$');
