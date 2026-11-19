@@ -1,7 +1,7 @@
 import React from 'react';
 import MathRenderer from '../MathRenderer';
 import ResizableDiagram from '../ResizableDiagram';
-import { getQuestionOptionLabels, extractOptionsIfMissing } from '../../utils/sanitize';
+import { getQuestionOptionLabels, extractOptionsIfMissing, stripInlineOptions } from '../../utils/sanitize';
 import { Q, cleanOptionText, getOptionLabelText, isOptionSelectedCorrect, shouldRenderSideBySide, isMatchCodeOption } from './layout';
 import { cleanQuestionText, extractDiagramFromText } from './parsing';
 
@@ -24,7 +24,7 @@ export function BodyMCQ({
     imageBelowQuestion = false,
     optionsLayout = 'line',
 }) {
-    const rawQText = cleanQuestionText(q.questionText || q.question || '');
+    const rawQText = cleanQuestionText(stripInlineOptions(q.questionText || q.question || '', q));
     const { cleanText: qText, diagramUrl: imageUrl } = extractDiagramFromText(rawQText, q.imageUrl || q.image_url);
     const rawOptions = extractOptionsIfMissing(q);
     let options = rawOptions.filter(opt => {

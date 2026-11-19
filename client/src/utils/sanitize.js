@@ -108,6 +108,38 @@ export function cleanOptionText(text) {
 /**
  * Safely recovers options if q.options is empty or contains empty strings.
  */
+// Options typed inside the question text: "(1) .. (2) .. (3) .. (4) .." or "(a) .. (b) .. (c) .. (d) ..".
+const INLINE_OPTS_NUM = /(?:^|\n|\s)\(?[1]\)[\.\:\-\s]+([\s\S]*?)(?:^|\n|\s)\(?[2]\)[\.\:\-\s]+([\s\S]*?)(?:^|\n|\s)\(?[3]\)[\.\:\-\s]+([\s\S]*?)(?:^|\n|\s)\(?[4]\)[\.\:\-\s]+([\s\S]*?)(?=(?:\n\s*(?:Answer|Solution|Key|Explanation)|\n\s*\d+\.|$))/i;
+const INLINE_OPTS_ALPHA = /(?:^|\n|\s)\(?[A]\)[\.\:\-\s]+([\s\S]*?)(?:^|\n|\s)\(?[B]\)[\.\:\-\s]+([\s\S]*?)(?:^|\n|\s)\(?[C]\)[\.\:\-\s]+([\s\S]*?)(?:^|\n|\s)\(?[D]\)[\.\:\-\s]+([\s\S]*?)(?=(?:\n\s*(?:Answer|Solution|Key|Explanation)|\n\s*\d+\.|$))/i;
+
+const optionTextOf = (o) => (typeof o === 'object' && o ? (o.text || o.optionText || o.option || o.value || '') : String(o || ''));
+
+/**
+ * When extractOptionsIfMissing took a question's options out of its text, the text still holds them: cut them off so the
+ * question does not print its options twice (once in the text, once as the option list). The text is returned unchanged
+ * when the options come from the options array / option columns, and for match questions (their (A)..(D) are Column I).
+ */
+export function stripInlineOptions(text, q) {
+    if (!text || !q) return text;
+    // numerical answers have no options: "(a) CoCl3.4NH3, (b) ... and (d) ... Number of complexes" is the question itself
+    if (/NUMERICAL|INTEGER/i.test(String(q.type || q.q_type || ''))) return text;
+    const opts = Array.isArray(q.options) ? q.options : [];
+    if (opts.filter(o => optionTextOf(o).trim()).length >= 2) return text;
+    if ([q.opt_a, q.opt_b, q.opt_c, q.opt_d, q.option_a, q.option_b, q.option_c, q.option_d].filter(o => o && String(o).trim()).length >= 2) return text;
+    const all = `${q.questionText || q.question || ''}\n${q.raw_question || ''}\n${q.solution_text || q.solution || ''}`;
+    if (q.type === 'MATCH_FOLLOWING' || q.questionType === 'MATCH_FOLLOWING' || /(?:Column|List)\s*[-:]?\s*(?:I|1|A)\b/i.test(all)) return text;
+    const str = String(text);
+    // the same order extractOptionsIfMissing tries: numbered first, then lettered
+    for (const re of [INLINE_OPTS_NUM, INLINE_OPTS_ALPHA]) {
+        if (!re.test(all)) continue;
+        const m = str.match(re);
+        const kept = m ? str.slice(0, m.index).trimEnd() : str;
+        // never cut a question down to nothing: shown twice is better than not shown
+        return kept.trim() ? kept : str;
+    }
+    return str;
+}
+
 export function extractOptionsIfMissing(q) {
     if (!q) return [];
     let opts = Array.isArray(q.options) ? q.options : [];
@@ -150,12 +182,12 @@ export function extractOptionsIfMissing(q) {
         return validOpts; // Do not falsely parse Column I items as options!
     }
 
-    const optMatchNum = textToSearch.match(/(?:^|\n|\s)\(?[1]\)[\.\:\-\s]+([\s\S]*?)(?:^|\n|\s)\(?[2]\)[\.\:\-\s]+([\s\S]*?)(?:^|\n|\s)\(?[3]\)[\.\:\-\s]+([\s\S]*?)(?:^|\n|\s)\(?[4]\)[\.\:\-\s]+([\s\S]*?)(?=(?:\n\s*(?:Answer|Solution|Key|Explanation)|\n\s*\d+\.|$))/i);
+    const optMatchNum = textToSearch.match(INLINE_OPTS_NUM);
     if (optMatchNum) {
         return [optMatchNum[1].trim(), optMatchNum[2].trim(), optMatchNum[3].trim(), optMatchNum[4].trim()];
     }
 
-    const optMatchAlpha = textToSearch.match(/(?:^|\n|\s)\(?[A]\)[\.\:\-\s]+([\s\S]*?)(?:^|\n|\s)\(?[B]\)[\.\:\-\s]+([\s\S]*?)(?:^|\n|\s)\(?[C]\)[\.\:\-\s]+([\s\S]*?)(?:^|\n|\s)\(?[D]\)[\.\:\-\s]+([\s\S]*?)(?=(?:\n\s*(?:Answer|Solution|Key|Explanation)|\n\s*\d+\.|$))/i);
+    const optMatchAlpha = textToSearch.match(INLINE_OPTS_ALPHA);
     if (optMatchAlpha) {
         return [optMatchAlpha[1].trim(), optMatchAlpha[2].trim(), optMatchAlpha[3].trim(), optMatchAlpha[4].trim()];
     }

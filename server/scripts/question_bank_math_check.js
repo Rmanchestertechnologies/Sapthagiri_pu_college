@@ -33,6 +33,25 @@ const list = (name) => new Set([...(rendererSource.match(new RegExp(name + ':\\s
     const QP = await import(pathToFileURL(path.join(clientSrc, 'utils/questionProblems.js')).href);
     let printBroken = 0; let falsePositives = 0;
     const PA = await import(pathToFileURL(path.join(clientSrc, 'components/question/parsing.js')).href);
+    const PM = await import(pathToFileURL(path.join(clientSrc, 'components/question/previewModel.js')).href);
+    // Card check: every question that can reach a paper is read the way the selection cards and the paper read it
+    // (buildQuestionPreview) and must show all of its parts. Any miss here is a code problem, not a data problem.
+    const cardIssues = {}; const cardSamples = {};
+    const cardBad = (k, s) => { cardIssues[k] = (cardIssues[k] || 0) + 1; (cardSamples[k] = cardSamples[k] || []).length < 3 && cardSamples[k].push(s); };
+    const checkCard = (id, q) => {
+        let m;
+        try { m = PM.buildQuestionPreview(q); } catch (e) { cardBad('card: preview throws', `${id}: ${e.message}`); return; }
+        if (!m) { cardBad('card: no preview', id); return; }
+        const parts = PM.previewParts(m);
+        if (!m.stem.trim() && !m.statements.length && !m.assertion && !m.columns && !m.diagramUrl) cardBad('card: shows no question at all', id);
+        if (m.kind === 'statement' && !m.statements.length && !m.stem.trim()) cardBad('card: statement question shows no statements', id);
+        if (m.kind === 'assertion' && (!m.assertion.trim() || !m.reason.trim())) cardBad('card: assertion or reason missing', id);
+        if (m.kind === 'match' && (!m.columns || m.columns.left.length < 2 || m.columns.right.length < 2)) cardBad('card: match table missing a column', id);
+        if (m.kind !== 'numerical' && m.options.length < 2) cardBad('card: fewer than 2 options', id);
+        // ("undefined" alone is a real maths answer - "f(k) is undefined" - so only a leaked object counts)
+        if (parts.some(pt => /\[object Object\]/.test(pt.text))) cardBad('card: prints [object Object]', id);
+        if (m.kind === 'match' && m.options.some(o => /\b(?:i|ii|iii|iv)\s*(?:→|->)\s*[a-d]\b/.test(o.text))) cardBad('card: match code not in table labels', id);
+    };
     // Full render test: the text of every field, through the paper's real text -> HTML steps. A field "falls back" when KaTeX
     // rejects its maths (the paper then shows plain text) and "leaks" when raw LaTeX / a stray $ is left in the visible text.
     const stripKatex = (html) => {
@@ -101,6 +120,7 @@ const list = (name) => new Set([...(rendererSource.match(new RegExp(name + ':\\s
                 printBroken++;
                 if (QP.findQuestionProblems({ ...q, keyProblem: null, solutionText: '' }).length === 0) { bad('server excluded a question the client prints fine (false positive)', id); falsePositives++; }
             }
+            if (!q.keyProblem) checkCard(id, q);
             // full render test of every part the paper shows for this type
             renderField(id, 'question', PA.cleanQuestionText(q.questionText));
             opts.forEach((o, i) => renderField(id, 'option', L.cleanOptionText(o)));
@@ -149,6 +169,11 @@ const list = (name) => new Set([...(rendererSource.match(new RegExp(name + ':\\s
     console.log('\nStructure / data problems (flagged rows are kept out of generated papers):');
     for (const [k, v] of Object.entries(issues).sort((a, b) => b[1] - a[1])) console.log(`  ${String(v).padStart(6)}  ${k}   e.g. ${samples[k][0]}`);
 
+    const cardTotal = Object.values(cardIssues).reduce((a, b) => a + b, 0);
+    console.log(`
+Card check (questions that can reach a paper, read like the selection cards): ${cardTotal} problem(s) (must be 0)`);
+    for (const [k, v] of Object.entries(cardIssues).sort((a, b) => b[1] - a[1])) console.log(`  ${String(v).padStart(6)}  ${k}   e.g. ${cardSamples[k].join(' | ')}`);
+
     const MAX_RENDER_ROWS = Number(arg('--max-render-problems', Math.ceil(rows * 0.004)));
     console.log(`\nFull render test: ${renderProblemRows.size} of ${rows} questions have a part that does not print cleanly (limit ${MAX_RENDER_ROWS}, i.e. 0.4%).`);
     console.log('  Mostly damaged source text (cut-off or empty equations, an unpaired $); fix those rows in the bank.');
@@ -157,7 +182,7 @@ const list = (name) => new Set([...(rendererSource.match(new RegExp(name + ':\\s
     const renderRegression = falsePositives > 0 ? 1 : 0;
     const renderOverLimit = renderProblemRows.size > MAX_RENDER_ROWS ? 1 : 0;
 
-    const codeProblems = renderRegression + renderOverLimit + dropped + (issues.MAPPER_THROWS || 0) + (issues['MATCH typed with statement options (mapper bug)'] || 0) + (issues['internal marker visible'] || 0) + (issues['maths option mistaken for a match code'] || 0) + (issues['client option cleaning changed the maths'] || 0);
+    const codeProblems = cardTotal + renderRegression + renderOverLimit + dropped + (issues.MAPPER_THROWS || 0) + (issues['MATCH typed with statement options (mapper bug)'] || 0) + (issues['internal marker visible'] || 0) + (issues['maths option mistaken for a match code'] || 0) + (issues['client option cleaning changed the maths'] || 0);
     console.log(codeProblems ? `\nFAIL: ${codeProblems} rendering/code problem(s) above.` : '\nOK: nothing the code needs to fix.');
     process.exit(codeProblems ? 1 : 0);
 })().catch(e => { console.error(e); process.exit(2); });

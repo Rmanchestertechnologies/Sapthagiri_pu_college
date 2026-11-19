@@ -2,7 +2,7 @@
 // match columns, assertion/reason, diagram, options, key). The selection lists, the review basket and the question editor all
 // draw from this, so a question can never look complete on the paper and half-empty on a card (or the other way round).
 // No React in here: it runs in the Node tests that guard every question type.
-import { cleanOptionText, extractOptionsIfMissing, isOptionCorrect } from '../../utils/sanitize.js';
+import { cleanOptionText, extractOptionsIfMissing, isOptionCorrect, stripInlineOptions } from '../../utils/sanitize.js';
 import { AR_OPTIONS, harmonizeMatchCode } from './layout.js';
 import { cleanQuestionText, extractDiagramFromText, parseAssertionReason, parseMatchFromText, parseStatementsFromText } from './parsing.js';
 
@@ -39,7 +39,7 @@ export function buildQuestionPreview(q) {
         const { introText, statements, outroText } = parseStatementsFromText(q);
         stem = introText && !/(?:^|\r?\n|\b)\s*@?Statement\s*[-–—]?\s*(?:\(?I|\(?1|\(?A\)?)\s*[:.\-)–—]/i.test(introText) ? introText : String(introText || '').replace(STATEMENT_HEAD, '');
         model.statements = (statements || []).map((s, i) => ({ label: s.label || `(${String.fromCharCode(65 + i)})`, text: String(s.text || '') })).filter(s => s.text.trim());
-        model.outro = outroText || '';
+        model.outro = stripInlineOptions(outroText || '', q);
     } else if (kind === 'assertion') {
         const { assertion, reason } = parseAssertionReason(q);
         model.assertion = assertion; model.reason = reason;
@@ -63,7 +63,7 @@ export function buildQuestionPreview(q) {
         stem = q.questionText || q.question || '';
     }
 
-    const { cleanText, diagramUrl } = extractDiagramFromText(cleanQuestionText(stem, q), q.imageUrl || q.image_url);
+    const { cleanText, diagramUrl } = extractDiagramFromText(cleanQuestionText(stripInlineOptions(stem, q), q), q.imageUrl || q.image_url);
     model.stem = cleanText;
     model.diagramUrl = diagramUrl;
 

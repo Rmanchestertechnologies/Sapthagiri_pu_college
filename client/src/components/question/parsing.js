@@ -111,8 +111,10 @@ export function cleanQuestionText(text, q = null) {
         if (topicName && topicName.length > 2) {
             const firstLineBreak = str.indexOf('\n');
             const firstLine = firstLineBreak >= 0 ? str.slice(0, firstLineBreak).trim() : str.trim();
-            if (firstLine.toLowerCase() === topicName.toLowerCase() || firstLine.toLowerCase() === ('concept: ' + topicName.toLowerCase())) {
-                str = firstLineBreak >= 0 ? str.slice(firstLineBreak + 1).trim() : '';
+            // only a heading line ABOVE the question is cut: a question that is just the topic word ("Gymnosperms", with the
+            // options completing the sentence) must keep its text, or it prints with no question at all
+            if (firstLineBreak >= 0 && str.slice(firstLineBreak + 1).trim() && (firstLine.toLowerCase() === topicName.toLowerCase() || firstLine.toLowerCase() === ('concept: ' + topicName.toLowerCase()))) {
+                str = str.slice(firstLineBreak + 1).trim();
             }
         }
     }
@@ -438,7 +440,10 @@ export function parseStatementsFromText(q) {
             return /(?:^|\r?\n|\s{2,}|\b)\s*@?Statement\s*[-–—]?\s*(?:\(?[IVXLCDM0-9A-D]+\)?)\s*[:.\-)–—]/i.test(txt);
         });
 
-        if (!hasEmbeddedSubStatements) {
+        // The text is re-split only when it really holds statement labels: a statement that merely mentions "... explanation
+        // for Statement 1." while the question text is empty used to lose ALL its statements (the card showed only options).
+        const textHasStatements = /(?:^|\r?\n|\b)\s*@?Statement\s*[-–—]?\s*(?:\(?[IVXLCDM0-9A-D]+\)?)\s*[:.\-)–—]/i.test(bodyTxt);
+        if (!hasEmbeddedSubStatements || !textHasStatements) {
             // Intro text should ONLY be non-statement preamble before Statement I / Statement 1
             let introText = cleanQuestionText(q.questionText || q.question || '');
             if (/(?:^|\r?\n|\b)\s*@?Statement\s*[-–—]?\s*(?:\(?I|\(?1|\(?A\)?)\s*[:.\-)–—]?/i.test(introText)) {

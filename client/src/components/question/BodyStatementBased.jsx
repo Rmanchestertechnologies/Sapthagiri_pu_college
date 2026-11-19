@@ -1,7 +1,7 @@
 import React from 'react';
 import MathRenderer from '../MathRenderer';
 import ResizableDiagram from '../ResizableDiagram';
-import { getQuestionOptionLabels, extractOptionsIfMissing } from '../../utils/sanitize';
+import { getQuestionOptionLabels, extractOptionsIfMissing, stripInlineOptions } from '../../utils/sanitize';
 import { Q, cleanOptionText, getOptionLabelText, isOptionSelectedCorrect } from './layout';
 import { cleanQuestionText, extractDiagramFromText, parseStatementsFromText } from './parsing';
 
@@ -25,7 +25,9 @@ export function BodyStatementBased({
     imageBelowQuestion = false,
     optionsLayout = 'line',
 }) {
-    const { introText, statements, outroText } = parseStatementsFromText(q);
+    const parsedStatements = parseStatementsFromText(q);
+    const { introText, statements } = parsedStatements;
+    const outroText = stripInlineOptions(parsedStatements.outroText, q);
 
     const rawOptions = extractOptionsIfMissing(q);
     let opts = (rawOptions && rawOptions.length >= 2) ? rawOptions : (q.options || []);

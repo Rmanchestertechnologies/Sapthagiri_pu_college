@@ -137,3 +137,38 @@ test('the de Broglie question prints its options as powers of ten', () => {
     }
     assert.equal(m.options[1].correct, true);
 });
+
+// ---- real bank questions found by the card check in check:bank -------------------------------------------------------------
+
+test('a one-word question equal to its topic ("Gymnosperms") keeps its text', () => {
+    const m = buildQuestionPreview({ type: 'MCQ', questionText: 'Gymnosperms', concept: 'Gymnosperms', options: ['Are naked seeds plants', 'Have tap roots', 'Are heterosporous', 'All of these'], correct_option: 'D' });
+    assert.equal(m.stem, 'Gymnosperms');
+    // a real heading line above the question is still removed
+    assert.equal(buildQuestionPreview({ type: 'MCQ', questionText: 'Gymnosperms\nWhich of these has naked seeds?', concept: 'Gymnosperms', options: ['a', 'b', 'c', 'd'] }).stem, 'Which of these has naked seeds?');
+});
+
+test('a statement that only mentions "Statement 1." keeps every statement when the question text is empty', () => {
+    const m = buildQuestionPreview({
+        type: 'STATEMENT_BASED', questionText: '',
+        statements: [
+            { label: 'Statement I:', text: 'If f is even and g is odd then $\dfrac fg$ is an odd function' },
+            { label: 'Statement II:', text: 'Statement 2 is a correct explanation for Statement 1.' },
+        ],
+        options: ['Both correct', 'Both incorrect', 'I correct, II incorrect', 'I incorrect, II correct'], correct_option: 'C',
+    });
+    assert.equal(m.statements.length, 2);
+});
+
+test('a numerical question starting with (a) (b) (c) (d) items keeps its text', () => {
+    const text = '(a) $\mathrm{CoCl_3\cdot4NH_3}$, (b) $\mathrm{CoCl_3\cdot5NH_3}$, (c) $\mathrm{CoCl_3\cdot6NH_3}$ and (d) $\mathrm{CoCl(NO_3)_2\cdot5NH_3}$\nNumber of complexes which show geometrical isomerism is';
+    const m = buildQuestionPreview({ type: 'NUMERICAL', questionText: text, num_answer: '1' });
+    assert.equal(m.stem, text);
+    assert.equal(m.answerText, '1');
+});
+
+test('options typed inside an MCQ text are shown once, as options, not again in the question', () => {
+    const m = buildQuestionPreview({ type: 'MCQ', questionText: 'Which is a noble gas?\n(a) Neon\n(b) Nitrogen\n(c) Sodium\n(d) Iron', correct_option: 'A' });
+    assert.equal(m.stem, 'Which is a noble gas?');
+    assert.deepEqual(m.options.map(o => o.text), ['Neon', 'Nitrogen', 'Sodium', 'Iron']);
+    assert.equal(m.options[0].correct, true);
+});
