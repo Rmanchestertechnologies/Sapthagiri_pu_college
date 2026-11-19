@@ -95,7 +95,8 @@ router.post('/:id/generate-paper', [auth, checkRole(['admin', 'teacher'])], asyn
             // generated paper drew from the same small slice.
             const result = await supabaseQuestions.getQuestions({ subject: sub.subjectName, examType: blueprint.examType, randomOrder: true }, 1, 800);
             if (result.dbError) warnings.push(`Could not reach the question database for ${sub.subjectName}.`);
-            const pool = result.questions || [];
+            // questions that cannot print correctly (flagged by the mapper) are never put on a paper - the same rule as every other generator
+            const pool = (result.questions || []).filter(q => !q.keyProblem);
 
             for (const sec of (sub.sections || [])) {
                 const types = (sec.questionTypes || ['MCQ']).map(t => t.toLowerCase());

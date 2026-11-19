@@ -22,6 +22,7 @@ import { BodyTrueFalse } from './question/BodyTrueFalse';
 import { QuestionGearPopup } from './question/QuestionGearPopup';
 import { Q, formatOptionKey } from './question/layout';
 import { parseMatchFromText, parseStatementsFromText } from './question/parsing';
+import { KEY_PROBLEM_TEXT } from '../utils/questionProblems';
 
 export { cleanOptionText, getOptionLabelText, formatOptionKey, isOptionSelectedCorrect } from './question/layout';
 export { cleanQuestionText, repairBrokenLatexFraction, mergeContinuationItems } from './question/parsing';
@@ -410,6 +411,17 @@ function QuestionBlockInner({
                     </button>
                 )}
             </div>
+
+            {/* A question that cannot print whole (saved in a paper before it was flagged): warn on screen, never on paper */}
+            {q.keyProblem && (onEdit || onSwap) && (
+                <div
+                    className="no-print"
+                    data-testid="question-needs-fixing"
+                    style={{ margin: '2px 0 4px', padding: '4px 8px', borderRadius: '6px', background: '#fef2f2', border: '1px solid #fecaca', color: '#b91c1c', fontFamily: 'system-ui, sans-serif', fontSize: '11px', fontWeight: 700 }}
+                >
+                    ⚠ This question cannot print correctly: {KEY_PROBLEM_TEXT[q.keyProblem] || q.keyProblem} Swap it, or fix it in the Question Bank.
+                </div>
+            )}
 
             {showGearPopup && (
                 <QuestionGearPopup

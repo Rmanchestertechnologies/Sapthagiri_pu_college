@@ -45,6 +45,8 @@ const list = (name) => new Set([...(rendererSource.match(new RegExp(name + ':\\s
         const parts = PM.previewParts(m);
         if (!m.stem.trim() && !m.statements.length && !m.assertion && !m.columns && !m.diagramUrl) cardBad('card: shows no question at all', id);
         if (m.kind === 'statement' && !m.statements.length && !m.stem.trim()) cardBad('card: statement question shows no statements', id);
+        // the paper prints every parsed statement label, so one with no text prints as a bare "Statement I:"
+        if (m.kind === 'statement' && (PA.parseStatementsFromText(q).statements || []).some(s => !String(s.text || '').trim())) cardBad('paper: a statement label with no text', id);
         if (m.kind === 'assertion' && (!m.assertion.trim() || !m.reason.trim())) cardBad('card: assertion or reason missing', id);
         if (m.kind === 'match' && (!m.columns || m.columns.left.length < 2 || m.columns.right.length < 2)) cardBad('card: match table missing a column', id);
         if (m.kind !== 'numerical' && m.options.length < 2) cardBad('card: fewer than 2 options', id);

@@ -205,6 +205,13 @@ function isUuid(str) {
 /**
  * Maps a Supabase/Postgres `questions` table record to the frontend/system Question DTO.
  */
+const STATEMENT_LABEL = String.raw`@?Statement\s*[-–—]?\s*\(?[IVXLCDM0-9A-D]+\)?\s*[:.\-)–—]`;
+const EMPTY_STATEMENT_LABEL = new RegExp(`(?:^|\\n)[ \\t]*${STATEMENT_LABEL}[ \\t]*(?=\\r?\\n[ \\t]*${STATEMENT_LABEL}|\\s*$)`, 'i');
+/** A "Statement I:" label with nothing after it (the next line is the next label, or the text ends). */
+function hasEmptyStatementLabel(text) {
+    return EMPTY_STATEMENT_LABEL.test(String(text || '').replace(/\[QBP_[^\]]*\]/g, ''));
+}
+
 function mapSupabaseToQuestion(row, usageMap = null) {
     if (!row) return null;
 
@@ -656,6 +663,9 @@ function mapSupabaseToQuestion(row, usageMap = null) {
     const readable = s => String(s || '').replace(/@?Statement\s*[-–—]?\s*\(?[IVXLCDM0-9A-D]+\)?\s*[:.\-)–—]/gi, '').replace(/\[[^\]]*\]/g, '').trim();
     if (!keyProblem && !hasDiag && !readable(cleanQuestion) && !dynamicStatements.some(s => readable(s.text)) && !(statement1 && statement2)
         && colA.length === 0 && !readable(assertion)) keyProblem = hasStatementPatterns ? 'STATEMENTS_MISSING' : 'QUESTION_TEXT_MISSING';
+    // One statement lost its text ("Statement I: \nStatement II: Urea is ionic."): the paper would print "Statement I:" with nothing
+    // after it and the question cannot be answered.
+    if (!keyProblem && hasEmptyStatementLabel(rawQuestion)) keyProblem = 'STATEMENTS_MISSING';
     // A diagram placeholder that was never filled in would print as the words "[DIAGRAM REQUIRED]".
     if (!keyProblem && !hasDiag && [cleanQuestion, ...options].some(t => /\[DIAGRAM REQUIRED\]/i.test(String(t)))) keyProblem = 'DIAGRAM_MISSING';
     // Two options that read exactly the same make the question unanswerable (a student cannot tell A from C).
@@ -2010,6 +2020,7 @@ async function getDailyQuestionStats() {
 }
 
 module.exports = {
+    hasEmptyStatementLabel,
     getQuestions,
     getQuestionById,
     getQuestionsByIds,

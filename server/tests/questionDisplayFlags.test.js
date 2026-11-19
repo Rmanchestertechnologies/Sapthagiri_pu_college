@@ -61,3 +61,24 @@ describe('nothing to read', () => {
         expect(q.keyProblem).toBeNull();
     });
 });
+
+describe('a statement that lost its text is flagged (it printed as a bare "Statement I:")', () => {
+    const { hasEmptyStatementLabel } = require('../services/supabaseQuestions');
+    test('detects an empty label', () => {
+        expect(hasEmptyStatementLabel('Statement I: \nStatement II: Urea is an ionic compound.')).toBe(true);
+        expect(hasEmptyStatementLabel('Statement I: \nStatement II: ')).toBe(true);
+        expect(hasEmptyStatementLabel('Two statements:\nStatement I: X is true.\nStatement II:')).toBe(true);
+    });
+    test('leaves complete statements alone', () => {
+        expect(hasEmptyStatementLabel('Statement I: A is true.\nStatement II: B is true.')).toBe(false);
+        expect(hasEmptyStatementLabel('Statement I:\nOxygen is paramagnetic.\nStatement II: Nitrogen is diamagnetic.')).toBe(false);
+    });
+    test('the phy_11 question from the paper photo (options 2, 3, 4, 1) is kept out of papers', () => {
+        const q = mapSupabaseToQuestion({ id: 'x', subject: 'Physics', klass: '11', chapter: 'Units', q_type: 'mcq_single', question: 'Statement I: \nStatement II: ', opt_a: '2', opt_b: '3', opt_c: '4', opt_d: '1', correct_option: 'A' });
+        expect(q.keyProblem).toBe('STATEMENTS_MISSING');
+    });
+    test('only Statement I empty is kept out of papers too', () => {
+        const q = mapSupabaseToQuestion({ id: 'y', subject: 'Chemistry', klass: '11', chapter: 'Basic', q_type: 'mcq_single', question: 'Statement I: \nStatement II: Urea is an ionic compound.', opt_a: 'Both correct', opt_b: 'Both incorrect', opt_c: 'I correct', opt_d: 'II correct', correct_option: 'D' });
+        expect(q.keyProblem).toBe('STATEMENTS_MISSING');
+    });
+});
