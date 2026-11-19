@@ -22,12 +22,16 @@ const OUT = path.resolve(process.cwd(), arg('--out', path.resolve(__dirname, '..
 const clientSrc = path.resolve(__dirname, '../../client/src');
 
 const WHAT = {
+    PRINT_BROKEN: 'A printed part has maths that cannot be typeset (kept out of papers)',
     DUPLICATE_OPTIONS: 'Two or more options read exactly the same',
     AR_INCOMPLETE: 'Assertion-reason question: the Reason (or Assertion) is missing',
     KEY_NOT_AN_OPTION: 'The marked answer is a value that matches none of the options',
     KEY_EMPTY_OPTION: 'The marked answer points at an empty option',
     OPTION_GAP: 'An option is missing between two others',
     MATCH_KEY_UNKNOWN: 'Match question: only a letter key and no options, so the right match is unknown',
+    QUESTION_TEXT_MISSING: 'The question has no text (and no diagram)',
+    STATEMENTS_MISSING: 'Statement question whose statements are empty',
+    MATCH_COLUMNS_INCOMPLETE: 'Match question: a column is cut short (fewer items than the answer codes name)',
     NUMERICAL_NO_ANSWER: 'Numerical question has no answer',
     DIAGRAM_MISSING: 'Needs a diagram that was never added ("[DIAGRAM REQUIRED]")',
 };

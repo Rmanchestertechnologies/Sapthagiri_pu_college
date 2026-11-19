@@ -3,7 +3,7 @@ import { Check, Zap, Edit3, Target, Scale, X, Plus, Minus, Search, CheckCircle2,
 import { AuthContext } from '../../context/AuthContext';
 import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import api, { API_URL } from '../../api';
-import MathRenderer from '../../components/MathRenderer';
+import QuestionPreviewCard from '../../components/question/QuestionPreviewCard';
 import PaperRenderer, { DEFAULT_SETTINGS } from '../../components/PaperRenderer';
 import A4AnswerKey from '../../components/A4AnswerKey';
 import A4SolutionKey from '../../components/A4SolutionKey';
@@ -11,7 +11,7 @@ import Loader from '../../components/Loader';
 import { AnimatePresence } from 'framer-motion';
 import { StepSidebar } from '../../ui/motion/StepSidebar';
 import { MotionRoot, StepTransition, StatusIsland, useIsland, BalanceDock, PaperSeal, CommandPalette, useCommandShortcut } from '../../ui/motion';
-import { cleanOptionText, extractOptionsIfMissing } from '../../utils/sanitize';
+import { extractOptionsIfMissing } from '../../utils/sanitize';
 import { EXAM_PATTERNS, getQCategory, isCetQ, normalizeSubjectName } from './commissioned/examPatterns';
 
 export { getQCategory, isCetQ } from './commissioned/examPatterns';
@@ -471,28 +471,37 @@ export default function CommissionedExam() {
     };
 
     const availableFilterConcepts = useMemo(() => {
+        const basePool = (selectedConcepts && selectedConcepts.length > 0)
+            ? scopedConcepts.filter(c => selectedConcepts.some(sc => sc.toLowerCase().trim() === (c.name || '').toLowerCase().trim()))
+            : scopedConcepts;
+
         if (manualFilterChapter === 'all') {
-            const set = new Set(scopedConcepts.map(c => c.name));
+            const set = new Set(basePool.map(c => c.name));
             return Array.from(set);
         }
-        const filtered = scopedConcepts.filter(c => (c.chapter || '').toLowerCase() === manualFilterChapter.toLowerCase());
+        const filtered = basePool.filter(c => (c.chapter || '').toLowerCase().trim() === manualFilterChapter.toLowerCase().trim());
         const set = new Set(filtered.map(c => c.name));
         return Array.from(set);
-    }, [scopedConcepts, manualFilterChapter]);
+    }, [scopedConcepts, manualFilterChapter, selectedConcepts]);
 
     const filteredManualQuestions = useMemo(() => {
         const isJee = selectedExamPattern === 'JEE';
         return manualPool.filter(q => {
-            // 1. Chapter filter
+            const qCh = (q.chapter || '').toLowerCase().trim();
+            const qCpt = (q.concept || q.topic || '').toLowerCase().trim();
+
+            // 1. Chapter filter: if specific chapter chosen, match it; otherwise if teacher selected specific chapters in step 2, strictly restrict to those
             if (manualFilterChapter !== 'all') {
-                const qCh = (q.chapter || '').toLowerCase().trim();
                 if (qCh !== manualFilterChapter.toLowerCase().trim()) return false;
+            } else if (selectedChapters.length > 0) {
+                if (!selectedChapters.some(ch => ch.toLowerCase().trim() === qCh)) return false;
             }
 
-            // 2. Concept filter
+            // 2. Concept filter: if specific concept chosen, match it; otherwise if teacher selected specific concepts in step 3, strictly restrict to those
             if (manualFilterConcept !== 'all') {
-                const qCpt = (q.concept || '').toLowerCase().trim();
                 if (qCpt !== manualFilterConcept.toLowerCase().trim()) return false;
+            } else if (selectedConcepts.length > 0) {
+                if (!selectedConcepts.some(c => c.toLowerCase().trim() === qCpt)) return false;
             }
 
             // 3. Difficulty filter (easy / medium / hard)
@@ -536,7 +545,7 @@ export default function CommissionedExam() {
 
             return true;
         });
-    }, [manualPool, manualFilterChapter, manualFilterConcept, manualFilterDifficulty, manualFilterType, manualSearch, manualShowSelectedOnly, selectedQuestions, selectedExamPattern]);
+    }, [manualPool, manualFilterChapter, manualFilterConcept, manualFilterDifficulty, manualFilterType, manualSearch, manualShowSelectedOnly, selectedQuestions, selectedExamPattern, selectedChapters, selectedConcepts]);
 
     const handleDoneManualSelection = () => {
         if (selectedQuestions.length === 0) {
@@ -1305,8 +1314,12 @@ export default function CommissionedExam() {
                 )}
             </AnimatePresence>
 
-            <div className="w-full max-w-[1400px] mx-auto lg:grid lg:grid-cols-[272px_minmax(0,1fr)] lg:gap-8 lg:px-8 lg:items-start">
-            <StepSidebar steps={sidebarSteps} position={wizardPos} onSelect={setCurrentStep} summary={sidebarSummary} />
+            {/* Step 7 (preview & alignment) uses the full width: settings on the left, the A4 paper on the right. The step list
+                is hidden there - "Back" in the settings panel returns to the earlier steps. */}
+            <div className={currentStep === 7
+                ? 'w-full max-w-[1560px] mx-auto lg:px-6'
+                : 'w-full max-w-[1400px] mx-auto lg:grid lg:grid-cols-[272px_minmax(0,1fr)] lg:gap-8 lg:px-8 lg:items-start'}>
+            {currentStep !== 7 && <StepSidebar steps={sidebarSteps} position={wizardPos} onSelect={setCurrentStep} summary={sidebarSummary} />}
             <main className="min-w-0 w-full p-4 md:p-8 lg:px-0 space-y-6 pb-28">
                 <StepTransition stepKey={currentStep} direction={stepDirection} className="space-y-6">
 
@@ -2135,7 +2148,9 @@ export default function CommissionedExam() {
                                         onChange={(e) => setManualFilterConcept(e.target.value)}
                                         className="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-navy outline-none focus:ring-2 focus:ring-gold bg-white cursor-pointer"
                                     >
-                                        <option value="all">All Concepts ({availableFilterConcepts.length})</option>
+                                        <option value="all">
+                                            {selectedConcepts.length > 0 ? `All Selected Concepts (${availableFilterConcepts.length})` : `All Concepts (${availableFilterConcepts.length})`}
+                                        </option>
                                         {availableFilterConcepts.map((cpt, idx) => (
                                             <option key={idx} value={cpt}>{cpt}</option>
                                         ))}
@@ -2295,9 +2310,15 @@ export default function CommissionedExam() {
                                         hard: 'bg-rose-50 text-rose-700 border-rose-200'
                                     }[lvl] || 'bg-amber-50 text-amber-700 border-amber-200';
 
+                                    // The card reads the question with the paper's own parsing, so statements, both match columns,
+                                    // assertion/reason and diagrams show here exactly as they will print.
                                     return (
-                                        <div
+                                        <QuestionPreviewCard
                                             key={qId || idx}
+                                            q={q}
+                                            number={idx + 1}
+                                            selected={isSelected}
+                                            showAnswer
                                             onClick={() => {
                                                 setSelectedQuestions(prev => {
                                                     const exists = prev.some(sq => (sq._id || sq.id) === qId);
@@ -2305,17 +2326,8 @@ export default function CommissionedExam() {
                                                     return [...prev, q];
                                                 });
                                             }}
-                                            className={`p-4 rounded-2xl border-2 transition cursor-pointer flex items-start justify-between gap-4 select-none ${
-                                                isSelected
-                                                    ? 'bg-amber-50/60 border-gold shadow-md ring-2 ring-gold/30'
-                                                    : 'bg-white border-slate-200 hover:border-slate-300 hover:shadow-xs'
-                                            }`}
-                                        >
-                                            <div className="flex-1 min-w-0 space-y-2">
-                                                <div className="flex flex-wrap items-center gap-2">
-                                                    <span className="text-[11px] font-black text-slate-400">
-                                                        #{idx + 1}
-                                                    </span>
+                                            badges={(
+                                                <>
                                                     <span className={`text-[10px] font-black px-2 py-0.5 rounded-full uppercase border ${typeBadgeClass}`}>
                                                         {typeBadgeText}
                                                     </span>
@@ -2323,54 +2335,25 @@ export default function CommissionedExam() {
                                                         {lvl}
                                                     </span>
                                                     {q.chapter && (
-                                                        <span className="text-[10px] text-slate-500 font-bold bg-slate-100 px-2 py-0.5 rounded-md truncate max-w-[200px]">
+                                                        <span className="text-[10px] text-slate-500 font-bold bg-slate-100 px-2 py-0.5 rounded-md truncate max-w-[220px]">
                                                             {q.chapter}
                                                         </span>
                                                     )}
                                                     {q.concept && (
-                                                        <span className="text-[10px] text-slate-400 font-medium truncate max-w-[180px]">
+                                                        <span className="text-[10px] text-slate-400 font-medium truncate max-w-[200px]">
                                                             &bull; {q.concept}
                                                         </span>
                                                     )}
-                                                </div>
-
-                                                <div className="text-xs font-semibold text-slate-900 leading-relaxed">
-                                                    <MathRenderer inline text={q.questionText || q.question || ''} />
-                                                </div>
-
-                                                {q.imageUrl && (
-                                                    <div className="my-2">
-                                                        <img
-                                                            src={q.imageUrl}
-                                                            alt="Diagram"
-                                                            className="max-h-28 rounded-lg border border-slate-200 object-contain bg-white p-1"
-                                                        />
-                                                    </div>
-                                                )}
-
-                                                {/* Options preview if available */}
-                                                {Array.isArray(q.options) && q.options.length > 0 && (
-                                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 pt-1 text-[11px] text-slate-700">
-                                                        {q.options.map((opt, oIdx) => {
-                                                            const optStr = typeof opt === 'object' ? (opt.text || opt.option || '') : String(opt || '');
-                                                            return (
-                                                                <div key={oIdx} className="flex items-baseline gap-1.5 line-clamp-1">
-                                                                    <span className="font-bold text-slate-400">({oIdx + 1})</span>
-                                                                    <span className="truncate"><MathRenderer inline text={cleanOptionText(optStr)} /></span>
-                                                                </div>
-                                                            );
-                                                        })}
-                                                    </div>
-                                                )}
-                                            </div>
-
-                                            {/* Checkbox button */}
-                                            <span className={`w-7 h-7 rounded-xl flex items-center justify-center text-xs font-black shrink-0 transition ${
-                                                isSelected ? 'bg-gold text-navy shadow-sm ring-2 ring-gold/40' : 'border-2 border-slate-300 text-slate-400 hover:border-slate-400'
-                                            }`}>
-                                                {isSelected ? <Check className="w-4 h-4 stroke-[3]" /> : <Plus className="w-4 h-4" />}
-                                            </span>
-                                        </div>
+                                                </>
+                                            )}
+                                            actions={(
+                                                <span className={`w-7 h-7 rounded-xl flex items-center justify-center text-xs font-black shrink-0 transition ${
+                                                    isSelected ? 'bg-gold text-navy shadow-sm ring-2 ring-gold/40' : 'border-2 border-slate-300 text-slate-400 hover:border-slate-400'
+                                                }`}>
+                                                    {isSelected ? <Check className="w-4 h-4 stroke-[3]" /> : <Plus className="w-4 h-4" />}
+                                                </span>
+                                            )}
+                                        />
                                     );
                                 })}
                             </div>

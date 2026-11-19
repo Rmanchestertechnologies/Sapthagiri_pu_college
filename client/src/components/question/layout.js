@@ -437,6 +437,7 @@ export function isOptionSelectedCorrect(optIdx, q) {
 
 const ROMAN_TO_NUMBER = { i: 1, ii: 2, iii: 3, iv: 4, v: 5, vi: 6, vii: 7, viii: 8 };
 const PQRS_TO_NUMBER = { p: 1, q: 2, r: 3, s: 4, t: 5 };
+const ROMAN_LETTER_PART = /^\s*\(?\s*(viii|vii|vi|iv|iii|ii|i|v)\s*\)?\s*(?:[-–—:→]|\\to|\\rightarrow|->)\s*\(?\s*([a-hA-H])\s*\)?\s*\.?\s*$/i;
 const MAPPING_PART = /^\s*\(?\s*([a-hA-H])\s*\)?\s*(?:[-\u2013\u2014:\u2192]|\\to|\\rightarrow|->)\s*\(?\s*(viii|vii|vi|iv|iii|ii|i|v|[1-8]|[p-tP-T])\s*\)?\s*\.?\s*$/i;
 
 /**
@@ -466,6 +467,12 @@ export function harmonizeMatchCode(text) {
     const parts = cleaned.split(/\s*[,;]\s*/).filter(Boolean);
     if (parts.length < 2) {
         if (!MAPPING_PART.test(cleaned)) return text;
+    }
+    // Column I numbered i, ii, iii and Column II lettered a, b, c ("i→b, ii→d, iii→c, iv→a"): the table prints Column I as
+    // A, B, C and Column II as 1, 2, 3, so i→b becomes A-(2). Left as it was, the codes named labels the table did not show.
+    const romanLeft = parts.map(p => ROMAN_LETTER_PART.exec(p));
+    if (parts.length >= 2 && romanLeft.every(Boolean)) {
+        return romanLeft.map(m => `${String.fromCharCode(64 + ROMAN_TO_NUMBER[m[1].toLowerCase()])}-(${m[2].toLowerCase().charCodeAt(0) - 96})`).join(', ');
     }
     const out = [];
     for (const part of parts) {

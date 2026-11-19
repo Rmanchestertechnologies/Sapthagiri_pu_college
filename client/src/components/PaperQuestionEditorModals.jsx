@@ -1,6 +1,8 @@
 import { useState, useEffect, useMemo } from 'react';
 import MathRenderer from './MathRenderer';
 import { resolveImageUrl } from './QuestionImage';
+import { QuestionPreviewBody } from './question/QuestionPreviewCard';
+import { buildQuestionPreview, previewKind } from './question/previewModel';
 import api from '../api';
 
 
@@ -54,9 +56,84 @@ function LatexToolbar({ onInsert }) {
 
 /**
  * ─────────────────────────────────────────────────────────────────────────────
- * EDIT QUESTION MODAL (Full LaTeX Editing + Real-Time Live Preview)
+ * EDIT QUESTION MODAL - "Update question" form with a live preview of exactly what prints
  * ─────────────────────────────────────────────────────────────────────────────
+ * Every part of the question is a field of its own: the question text, the statements (statement questions), both columns
+ * (match the following), Assertion and Reason, the four options, the answer and the solution. The preview on the right is the
+ * same card the selection lists use, built with the paper's parsing, so what you see there is what the paper prints.
  */
+const ROMAN_LABELS = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII'];
+const FIELD = 'w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-[13px] text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100';
+const LABEL = 'mb-1 block text-[12px] font-semibold text-slate-600';
+
+function FormField({ label, required = false, children, className = '' }) {
+    return (
+        <div className={className}>
+            <label className={LABEL}>{label}{required && <span className="text-rose-500"> *</span>}</label>
+            {children}
+        </div>
+    );
+}
+
+function initialEditState(question) {
+    const kind = previewKind(question);
+    const model = buildQuestionPreview(question) || {};
+    const rawText = question.questionText || question.question || '';
+    const opts = (Array.isArray(question.options) && question.options.length > 0)
+        ? question.options.map(opt => (typeof opt === 'object' ? (opt.text || opt.value || '') : String(opt)))
+        : [question.opt_a, question.opt_b, question.opt_c, question.opt_d].filter(Boolean);
+    while (opts.length < 4) opts.push('');
+    return {
+        kind: model.kind || kind,
+        // an ordinary question keeps its text exactly as stored; the structured kinds edit only the sentence around their parts
+        stem: (model.kind || kind) === 'mcq' || (model.kind || kind) === 'numerical' || (model.kind || kind) === 'truefalse' ? rawText : (model.stem || ''),
+        statements: (model.statements || []).map(s => ({ label: s.label, text: s.text })),
+        outro: model.outro || '',
+        assertion: model.assertion || '',
+        reason: model.reason || '',
+        left: model.columns ? model.columns.left.map(c => c.text) : [],
+        right: model.columns ? model.columns.right.map(c => c.text) : [],
+        options: opts,
+        correctOption: String(question.correct_option || question.answer || '1'),
+        numAnswer: question.num_answer || '',
+        imageUrl: question.imageUrl || question.image_url || '',
+        solution: question.solutionText || question.solution_text || question.solution || '',
+        difficulty: question.difficulty || (question.level ? question.level[0].toUpperCase() + question.level.slice(1) : 'Medium'),
+        topic: question.topic || question.concept || question.chapter || '',
+    };
+}
+
+/** The edited question in the shape the paper reads (statements / matchPairs / assertion+reason as their own fields). */
+function buildEditedQuestion(question, s) {
+    const options = s.options.map(o => String(o || ''));
+    const image = resolveImageUrl(s.imageUrl) || null;
+    const q = {
+        ...question,
+        solutionText: s.solution, solution_text: s.solution, solution: s.solution,
+        options, opt_a: options[0] || '', opt_b: options[1] || '', opt_c: options[2] || '', opt_d: options[3] || '',
+        correct_option: s.correctOption, answer: s.correctOption, num_answer: s.numAnswer,
+        imageUrl: image, image_url: image,
+        difficulty: s.difficulty, level: String(s.difficulty || '').toLowerCase(),
+        topic: s.topic, concept: s.topic,
+    };
+    let text = s.stem;
+    if (s.kind === 'statement') {
+        q.statements = s.statements.filter(st => String(st.text).trim()).map((st, i) => ({ label: st.label || `Statement ${ROMAN_LABELS[i] || i + 1}:`, text: st.text }));
+        q.outroText = s.outro || null;
+    } else if (s.kind === 'assertion') {
+        q.assertion = s.assertion; q.reason = s.reason;
+        text = `${s.stem ? `${s.stem}\n` : ''}Assertion: ${s.assertion}\nReason: ${s.reason}`;
+    } else if (s.kind === 'match') {
+        const rows = Math.max(s.left.length, s.right.length);
+        const left = s.left.map(t => String(t || '').trim()).filter(Boolean);
+        const right = s.right.map(t => String(t || '').trim()).filter(Boolean);
+        q.matchPairs = Array.from({ length: rows }, (_, i) => ({ left: left[i] || '', right: right[i] || '' })).filter(p => p.left || p.right);
+        q.column_a = left; q.column_b = right; q.columnA = left; q.columnB = right;
+    }
+    q.questionText = text; q.question = text;
+    return q;
+}
+
 function EditQuestionModalInner({
     isOpen,
     question,
@@ -66,379 +143,172 @@ function EditQuestionModalInner({
     onSave,
     onDelete,
 }) {
-    const initialQText = question.questionText || question.question || '';
-    const initialSolText = question.solutionText || question.solution_text || question.solution || '';
-    const initialOptions = useMemo(() => {
-        if (Array.isArray(question.options) && question.options.length > 0) {
-            return question.options.map(opt => typeof opt === 'object' ? (opt.text || opt.value || '') : String(opt));
-        }
-        const fallback = [question.opt_a, question.opt_b, question.opt_c, question.opt_d].filter(Boolean);
-        return fallback.length > 0 ? fallback : ['', '', '', ''];
-    }, [question]);
-
-    const [qText, setQText] = useState(initialQText);
-    const [solText, setSolText] = useState(initialSolText);
-    const [options, setOptions] = useState(initialOptions);
-    const [correctOption, setCorrectOption] = useState(
-        question.correct_option || question.answer || '1'
-    );
-    const [numAnswer, setNumAnswer] = useState(question.num_answer || '');
-    const [qType, setQType] = useState(question.type || question.q_type || 'MCQ');
-    const [imageUrl, setImageUrl] = useState(question.imageUrl || question.image_url || '');
-    const [difficulty, setDifficulty] = useState(question.difficulty || 'Medium');
-    const [topic, setTopic] = useState(question.topic || question.chapter || 'Core Syllabus');
-
-    // Reset when question prop changes
-    useEffect(() => {
-        setQText(question.questionText || question.question || '');
-        setSolText(question.solutionText || question.solution_text || question.solution || '');
-        if (Array.isArray(question.options) && question.options.length > 0) {
-            setOptions(question.options.map(opt => typeof opt === 'object' ? (opt.text || opt.value || '') : String(opt)));
-        } else {
-            const fallback = [question.opt_a, question.opt_b, question.opt_c, question.opt_d].filter(Boolean);
-            setOptions(fallback.length > 0 ? fallback : ['', '', '', '']);
-        }
-        setCorrectOption(question.correct_option || question.answer || '1');
-        setNumAnswer(question.num_answer || '');
-        setQType(question.type || question.q_type || 'MCQ');
-        setImageUrl(question.imageUrl || question.image_url || '');
-        setDifficulty(question.difficulty || 'Medium');
-        setTopic(question.topic || question.chapter || 'Core Syllabus');
-    }, [question]);
-
-    const handleOptionChange = (idx, val) => {
-        const next = [...options];
-        next[idx] = val;
-        setOptions(next);
-    };
-
-    const handleInsertIntoQText = (snippet) => {
-        setQText(prev => prev + (snippet.startsWith(' ') ? '' : ' ') + snippet);
-    };
-
-    const handleInsertIntoSolText = (snippet) => {
-        setSolText(prev => prev + (snippet.startsWith(' ') ? '' : ' ') + snippet);
-    };
+    const [s, setS] = useState(() => initialEditState(question));
+    useEffect(() => { setS(initialEditState(question)); }, [question]);
+    const set = (patch) => setS(prev => ({ ...prev, ...patch }));
+    const setListItem = (key, idx, val) => setS(prev => ({ ...prev, [key]: prev[key].map((v, i) => (i === idx ? val : v)) }));
+    const draft = useMemo(() => buildEditedQuestion(question, s), [question, s]);
 
     const handleSave = () => {
-        const updated = {
-            ...question,
-            questionText: qText,
-            question: qText,
-            solutionText: solText,
-            solution_text: solText,
-            solution: solText,
-            options: options,
-            opt_a: options[0] || '',
-            opt_b: options[1] || '',
-            opt_c: options[2] || '',
-            opt_d: options[3] || '',
-            correct_option: correctOption,
-            answer: correctOption,
-            num_answer: numAnswer,
-            type: qType,
-            q_type: qType,
-            imageUrl: resolveImageUrl(imageUrl) || null,
-            image_url: resolveImageUrl(imageUrl) || null,
-            difficulty: difficulty,
-            topic: topic,
-            chapter: topic,
-            // Preserve Match the Following column structure and table headers
-            matchPairs: question.matchPairs || (question.column_a && question.column_b ? question.column_a.map((left, i) => ({ left, right: question.column_b[i] || '' })) : null),
-            column_a: question.column_a || null,
-            column_b: question.column_b || null,
-            columnA: question.columnA || question.column_a || null,
-            columnB: question.columnB || question.column_b || null,
-            match_options: question.match_options || null,
-        };
-        onSave(updated, questionIndex);
+        onSave(draft, questionIndex);
         onClose();
     };
+    if (!isOpen) return null;
+    const typeName = { mcq: 'MCQ Question', statement: 'Statement Based', match: 'Match the Following', assertion: 'Assertion & Reason', numerical: 'Numerical', truefalse: 'True / False' }[s.kind] || 'MCQ Question';
+    const optionCount = s.options.length;
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-navy/60 backdrop-blur-sm animate-fade-in no-print">
-            <div className="bg-white rounded-3xl shadow-2xl border-2 border-navy/20 w-full max-w-4xl max-h-[92vh] flex flex-col overflow-hidden">
-                {/* Header matching Image 2 */}
-                <div className="px-6 py-4 bg-navy text-white flex items-center justify-between border-b-2 border-gold flex-shrink-0">
-                    <div className="flex items-center gap-3">
-                        <span className="text-xl">✏️</span>
-                        <div>
-                            <h3 className="text-base font-black uppercase tracking-wider text-white">
-                                Edit Question #{displayNum}
-                            </h3>
-                            <p className="text-[11px] font-bold text-gold/80">
-                                Full LaTeX Math / KaTeX Support • Real-Time Interactive Preview
-                            </p>
-                        </div>
-                    </div>
-                    <button
-                        type="button"
-                        onClick={onClose}
-                        className="w-8 h-8 rounded-xl bg-white/10 hover:bg-white/20 text-white font-black flex items-center justify-center transition cursor-pointer"
-                    >
-                        ✕
-                    </button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-3 backdrop-blur-sm animate-fade-in no-print">
+            <div className="flex max-h-[94vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+                {/* header */}
+                <div className="flex flex-shrink-0 items-center justify-between border-b border-slate-200 px-5 py-3.5">
+                    <h3 className="flex items-center gap-2 text-[15px] font-bold text-slate-800">
+                        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-800 text-[11px] text-white">Q</span>
+                        Update Question #{displayNum}
+                    </h3>
+                    <button type="button" onClick={onClose} aria-label="Close" className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100">✕</button>
                 </div>
 
-                {/* Body (Scrollable) */}
-                <div className="flex-1 overflow-y-auto p-6 space-y-5">
-                    {/* Top Bar of Question Card matching Image 2 */}
-                    <div className="flex items-center justify-between pb-3 border-b border-slate-200">
-                        {/* Left: Level Badge (Image 2 style) */}
-                        <div className="flex items-center gap-2">
-                            <span className="text-xs font-black uppercase text-amber-900 bg-amber-100 border border-indigo-300 px-3.5 py-1 rounded-full flex items-center gap-1.5 shadow-2xs">
-                                <span className="text-indigo-500">●</span> Level: {difficulty}
-                            </span>
-                            <div className="flex items-center bg-slate-100 p-0.5 rounded-xl border border-slate-200">
-                                {['Easy', 'Medium', 'Hard'].map((lvl) => (
-                                    <button
-                                        key={lvl}
-                                        type="button"
-                                        onClick={() => setDifficulty(lvl)}
-                                        className={'px-2 py-0.5 rounded-lg text-[10px] font-bold transition cursor-pointer ' + (difficulty === lvl ? 'bg-navy text-gold shadow-xs' : 'text-slate-600 hover:text-navy')}
-                                    >
-                                        {lvl}
-                                    </button>
+                <div className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden lg:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)]">
+                    {/* form */}
+                    <div className="min-h-0 space-y-4 overflow-y-auto px-5 py-4">
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                            <FormField label="Question Type">
+                                <div className={`${FIELD} bg-slate-100 text-slate-600`}>{typeName}</div>
+                            </FormField>
+                            <FormField label="Level">
+                                <select value={s.difficulty} onChange={e => set({ difficulty: e.target.value })} className={`${FIELD} cursor-pointer`}>
+                                    <option value="Easy">L1 - Easy</option>
+                                    <option value="Medium">L2 - Medium</option>
+                                    <option value="Hard">L3 - Hard</option>
+                                </select>
+                            </FormField>
+                            <FormField label="Topic" className="sm:col-span-2">
+                                <input value={s.topic} onChange={e => set({ topic: e.target.value })} className={FIELD} placeholder="Topic / concept" />
+                            </FormField>
+                        </div>
+
+                        <LatexToolbar onInsert={(snippet) => set({ stem: `${s.stem}${snippet.startsWith(' ') ? '' : ' '}${snippet}` })} />
+
+                        <FormField label={s.kind === 'mcq' || s.kind === 'numerical' ? 'Question' : 'Question (the sentence before the parts below)'} required={s.kind === 'mcq'}>
+                            <textarea value={s.stem} onChange={e => set({ stem: e.target.value })} rows={3} className={`${FIELD} leading-relaxed`} placeholder="Type the question. Put maths in $...$" />
+                        </FormField>
+
+                        {/* statements */}
+                        {s.kind === 'statement' && (
+                            <div className="space-y-2">
+                                <label className={LABEL}>Statements</label>
+                                {s.statements.map((st, i) => (
+                                    <div key={i} className="flex items-start gap-2">
+                                        <span className="mt-2 w-24 shrink-0 text-[12px] font-bold text-slate-700">{st.label || `Statement ${ROMAN_LABELS[i] || i + 1}:`}</span>
+                                        <textarea value={st.text} rows={2} onChange={e => setS(prev => ({ ...prev, statements: prev.statements.map((x, j) => (j === i ? { ...x, text: e.target.value } : x)) }))} className={`${FIELD} leading-relaxed`} />
+                                        <button type="button" onClick={() => setS(prev => ({ ...prev, statements: prev.statements.filter((_, j) => j !== i) }))} className="mt-2 cursor-pointer text-[12px] font-bold text-rose-500 hover:text-rose-700" aria-label="Remove statement">✕</button>
+                                    </div>
                                 ))}
-                            </div>
-                        </div>
-
-                        {/* Right: Red Delete & Blue Edit Buttons matching Image 2 */}
-                        <div className="flex items-center gap-2">
-                            {onDelete && (
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        if (window.confirm('Are you sure you want to delete Question #' + displayNum + ' from this paper?')) {
-                                            onDelete(questionIndex);
-                                            onClose();
-                                        }
-                                    }}
-                                    className="px-4 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition shadow cursor-pointer flex items-center gap-1.5"
-                                    title="Delete this question from paper"
-                                >
-                                    <span>🗑️</span> Delete
-                                </button>
-                            )}
-                            <button
-                                type="button"
-                                onClick={handleSave}
-                                className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition shadow cursor-pointer flex items-center gap-1.5"
-                                title="Apply and save edits"
-                            >
-                                <span>✏️</span> Edit
-                            </button>
-                        </div>
-                    </div>
-
-                    {/* Quick LaTeX Toolbar */}
-                    <LatexToolbar onInsert={handleInsertIntoQText} />
-
-                    {/* Question Stem with Pencil Icon matching Image 2 */}
-                    <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                            <label className="text-xs font-black text-navy uppercase tracking-wider flex items-center gap-1.5">
-                                <span>✏️</span> Question Text (LaTeX Supported)
-                            </label>
-                            <span className="text-[10px] font-bold text-slate-500">
-                                Tip: Enclose formulas in <code className="bg-slate-100 px-1 py-0.5 rounded text-navy">$...$</code>
-                            </span>
-                        </div>
-                        <textarea
-                            value={qText}
-                            onChange={e => setQText(e.target.value)}
-                            rows={4}
-                            className="w-full p-3 text-xs font-mono bg-slate-900 text-emerald-300 rounded-xl border border-slate-700 focus:border-gold focus:ring-1 focus:ring-gold outline-none leading-relaxed"
-                            placeholder="Type question stem in raw text or LaTeX..."
-                        />
-                        {/* Live LaTeX Preview */}
-                        <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
-                            <span className="text-[10px] font-black uppercase text-slate-500 tracking-wider block">
-                                👁️ Live Rendered Question Preview:
-                            </span>
-                            <div className="text-xs text-slate-900 leading-relaxed min-h-[28px] font-medium">
-                                <MathRenderer text={qText || '(Live LaTeX preview will appear here)'} />
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Diagram Image URL (Optional) */}
-                    <div>
-                        <label className="text-xs font-black text-navy uppercase tracking-wider block mb-1">
-                            Diagram Image URL (Optional)
-                        </label>
-                        <input
-                            type="text"
-                            value={imageUrl}
-                            onChange={e => setImageUrl(e.target.value)}
-                            placeholder="https://... or data:image/..."
-                            className="w-full p-2.5 text-xs font-mono bg-white border border-slate-300 rounded-xl outline-none focus:border-navy"
-                        />
-                        {imageUrl && (
-                            <div className="mt-2 p-2 bg-slate-50 border border-slate-200 rounded-xl flex items-center gap-4">
-                                <span className="text-[10px] font-black uppercase text-slate-500">Diagram:</span>
-                                <img
-                                    src={imageUrl}
-                                    alt="Diagram preview"
-                                    className="max-h-20 object-contain border border-slate-200 bg-white p-1 rounded-lg"
-                                    onError={e => { e.currentTarget.style.display = 'none'; }}
-                                />
+                                <button type="button" onClick={() => setS(prev => ({ ...prev, statements: [...prev.statements, { label: `Statement ${ROMAN_LABELS[prev.statements.length] || prev.statements.length + 1}:`, text: '' }] }))} className="cursor-pointer text-[12px] font-bold text-blue-600 hover:underline">+ Add statement</button>
+                                <FormField label="Line after the statements (optional)">
+                                    <input value={s.outro} onChange={e => set({ outro: e.target.value })} className={FIELD} placeholder="e.g. Choose the correct answer from the options given below." />
+                                </FormField>
                             </div>
                         )}
-                    </div>
 
-                    {/* Options Area matching Image 2 */}
-                    {qType !== 'NUMERICAL' ? (
-                        <div className="space-y-3">
-                            <label className="text-xs font-black text-navy uppercase tracking-wider block">
-                                Options & Correct Answer Key (Click letter circle to set correct answer)
-                            </label>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                {options.map((opt, idx) => {
-                                    const optChar = String.fromCharCode(65 + idx); // A, B, C, D
-                                    const optNum = String(idx + 1); // 1, 2, 3, 4
-                                    const isCorrect = String(correctOption) === optChar || String(correctOption) === optNum || String(correctOption).toUpperCase() === optChar;
+                        {/* assertion & reason */}
+                        {s.kind === 'assertion' && (
+                            <div className="grid grid-cols-1 gap-3">
+                                <FormField label="Assertion (A)" required><textarea value={s.assertion} rows={2} onChange={e => set({ assertion: e.target.value })} className={FIELD} /></FormField>
+                                <FormField label="Reason (R)" required><textarea value={s.reason} rows={2} onChange={e => set({ reason: e.target.value })} className={FIELD} /></FormField>
+                            </div>
+                        )}
 
-                                    return (
-                                        <div
-                                            key={idx}
-                                            className={'p-3 rounded-2xl border-2 transition ' + (isCorrect ? 'border-emerald-500 bg-emerald-50/40' : 'border-slate-200 bg-white hover:border-slate-300')}
-                                        >
-                                            <div className="flex items-center gap-2 mb-2">
-                                                {/* Circular Badge matching Image 2 */}
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setCorrectOption(optNum)}
-                                                    className={'w-7 h-7 rounded-full flex items-center justify-center text-xs font-black transition cursor-pointer ' + (isCorrect ? 'bg-emerald-600 text-white shadow-xs' : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-300')}
-                                                    title={'Click to set Option ' + optChar + ' as correct key'}
-                                                >
-                                                    {optChar}
-                                                </button>
-                                                <span className="text-xs font-black text-slate-700">
-                                                    Option ({optNum}) {isCorrect && <span className="text-emerald-700 font-bold ml-1 text-[11px]">(Correct Answer)</span>}
-                                                </span>
+                        {/* match the following */}
+                        {s.kind === 'match' && (
+                            <div>
+                                <label className={LABEL}>Columns</label>
+                                <div className="overflow-hidden rounded-lg border border-slate-300">
+                                    <div className="grid grid-cols-2 bg-slate-100 text-[12px] font-bold text-slate-700">
+                                        <div className="border-r border-slate-300 px-3 py-1.5">Column I</div>
+                                        <div className="px-3 py-1.5">Column II</div>
+                                    </div>
+                                    {Array.from({ length: Math.max(s.left.length, s.right.length, 2) }).map((_, i) => (
+                                        <div key={i} className="grid grid-cols-2 border-t border-slate-200">
+                                            <div className="flex items-center gap-2 border-r border-slate-300 px-2 py-1.5">
+                                                <span className="w-5 shrink-0 text-center text-[12px] font-bold">{String.fromCharCode(65 + i)}</span>
+                                                <input value={s.left[i] || ''} onChange={e => setS(prev => { const left = [...prev.left]; left[i] = e.target.value; return { ...prev, left }; })} className={`${FIELD} py-1.5`} />
                                             </div>
-
-                                            <div className="relative">
-                                                <input
-                                                    type="text"
-                                                    value={opt}
-                                                    onChange={e => handleOptionChange(idx, e.target.value)}
-                                                    placeholder={'Option ' + optChar + ' text / LaTeX...'}
-                                                    className="w-full p-2 text-xs font-mono bg-white border border-slate-200 rounded-lg outline-none focus:border-navy mb-1 pr-7"
-                                                />
-                                                <span className="absolute right-2 top-2 text-xs text-slate-400">✏️</span>
-                                            </div>
-
-                                            {/* Live option LaTeX preview */}
-                                            <div className="text-[11px] text-slate-800 bg-white/90 p-1.5 rounded-md border border-slate-100 min-h-[22px]">
-                                                <MathRenderer inline text={opt || '—'} />
+                                            <div className="flex items-center gap-2 px-2 py-1.5">
+                                                <span className="w-6 shrink-0 text-center text-[12px] font-bold">({i + 1})</span>
+                                                <input value={s.right[i] || ''} onChange={e => setS(prev => { const right = [...prev.right]; right[i] = e.target.value; return { ...prev, right }; })} className={`${FIELD} py-1.5`} />
                                             </div>
                                         </div>
-                                    );
-                                })}
+                                    ))}
+                                </div>
+                                <button type="button" onClick={() => setS(prev => ({ ...prev, left: [...prev.left, ''], right: [...prev.right, ''] }))} className="mt-1.5 cursor-pointer text-[12px] font-bold text-blue-600 hover:underline">+ Add row</button>
+                                <p className="mt-1 text-[11px] text-slate-500">Options are codes in these labels, e.g. A-(2), B-(4), C-(1), D-(3).</p>
                             </div>
-                        </div>
-                    ) : (
-                        <div className="p-4 bg-amber-50/60 border-2 border-indigo-300 rounded-2xl space-y-2">
-                            <label className="text-xs font-black text-amber-950 uppercase tracking-wider block">
-                                Correct Numerical Answer Value
-                            </label>
-                            <input
-                                type="text"
-                                value={numAnswer}
-                                onChange={e => setNumAnswer(e.target.value)}
-                                placeholder="Enter numerical answer, e.g. 25, 4.5, -10"
-                                className="w-full sm:w-64 p-2.5 text-xs font-mono font-bold bg-white border border-indigo-300 rounded-xl outline-none focus:border-amber-600"
-                            />
-                        </div>
-                    )}
+                        )}
 
-                    {/* Green-tinted Solution Box matching Image 2 */}
-                    <div className="p-4 bg-[#f0fdf4] border-2 border-[#86efac] rounded-2xl space-y-2">
-                        <div className="flex items-center justify-between">
-                            <label className="text-xs font-black text-emerald-900 uppercase tracking-wider flex items-center gap-1.5">
-                                <span>✏️</span> Solution:
-                            </label>
-                            <button
-                                type="button"
-                                onClick={() => handleInsertIntoSolText('\\therefore ')}
-                                className="text-[10px] font-bold text-emerald-800 hover:underline cursor-pointer"
-                            >
-                                + Insert $\therefore$
-                            </button>
-                        </div>
-                        <textarea
-                            value={solText}
-                            onChange={e => setSolText(e.target.value)}
-                            rows={3}
-                            className="w-full p-2.5 text-xs font-mono bg-white text-slate-900 rounded-xl border border-emerald-300 focus:border-emerald-600 outline-none leading-relaxed"
-                            placeholder="Type step-by-step solution / hints in raw text or LaTeX..."
-                        />
-                        {/* Live Solution Preview */}
-                        <div className="p-2.5 bg-white border border-emerald-200 rounded-xl space-y-1">
-                            <span className="text-[10px] font-black uppercase text-emerald-800 tracking-wider block">
-                                👁️ Rendered Solution:
-                            </span>
-                            <div className="text-xs text-slate-800 leading-relaxed min-h-[24px]">
-                                <MathRenderer text={solText || '(Solution preview will appear here)'} />
-                            </div>
-                        </div>
+                        <FormField label="Question Image (URL)">
+                            <input value={s.imageUrl} onChange={e => set({ imageUrl: e.target.value })} className={`${FIELD} font-mono text-[12px]`} placeholder="https://..." />
+                        </FormField>
+
+                        {/* options */}
+                        {s.kind !== 'numerical' ? (
+                            <>
+                                {s.options.map((opt, i) => (
+                                    <FormField key={i} label={`Option ${i + 1}`} required>
+                                        <textarea value={opt} rows={opt.length > 60 ? 2 : 1} onChange={e => setListItem('options', i, e.target.value)} className={`${FIELD} leading-relaxed`} />
+                                    </FormField>
+                                ))}
+                                <FormField label="Answer" required>
+                                    <select value={(() => { const c = s.correctOption.trim().toUpperCase(); return /^[A-H]$/.test(c) ? String(c.charCodeAt(0) - 64) : c; })()} onChange={e => set({ correctOption: e.target.value })} className={`${FIELD} cursor-pointer`}>
+                                        {Array.from({ length: optionCount }).map((_, i) => <option key={i} value={String(i + 1)}>Option {i + 1}</option>)}
+                                    </select>
+                                </FormField>
+                            </>
+                        ) : (
+                            <FormField label="Answer (numerical value)" required>
+                                <input value={s.numAnswer} onChange={e => set({ numAnswer: e.target.value })} className={`${FIELD} sm:w-64`} placeholder="e.g. 25, 4.5, -10" />
+                            </FormField>
+                        )}
+
+                        <FormField label="Solution">
+                            <textarea value={s.solution} rows={3} onChange={e => set({ solution: e.target.value })} className={`${FIELD} leading-relaxed`} placeholder="Step-by-step solution (maths in $...$)" />
+                        </FormField>
                     </div>
 
-                    {/* Select Topic Pills matching Image 2 */}
-                    <div className="space-y-2 pt-2 border-t border-slate-200">
-                        <div className="flex items-center justify-between">
-                            <span className="text-xs font-black text-navy uppercase tracking-wider">
-                                Select Topic:
-                            </span>
-                            <span className="text-[11px] font-bold text-blue-700 bg-blue-50 px-2.5 py-0.5 rounded-full border border-blue-200">
-                                Current: {topic}
-                            </span>
+                    {/* live preview */}
+                    <div className="min-h-0 overflow-y-auto border-t border-slate-200 bg-slate-50 px-5 py-4 lg:border-l lg:border-t-0">
+                        <div className="mb-2 flex items-center justify-between">
+                            <span className="rounded-md bg-blue-600 px-2 py-0.5 text-[11px] font-bold text-white">Level: {s.difficulty}</span>
+                            <span className="text-[11px] font-semibold text-slate-500">Preview - exactly as it prints</span>
                         </div>
-                        <div className="flex flex-wrap gap-1.5">
-                            {[
-                                question.topic || question.chapter || 'Topic 1',
-                                'Mechanics',
-                                'Thermodynamics',
-                                'Electrodynamics',
-                                'Optics & Modern Physics',
-                                'Organic Chemistry',
-                                'Inorganic Chemistry',
-                                'Physical Chemistry',
-                                'Calculus & Vectors',
-                                'Algebra & Coordinate Geometry',
-                                'Genetics & Evolution',
-                                'Human Physiology',
-                            ].filter((v, i, a) => v && a.indexOf(v) === i).map((tItem, tIdx) => (
-                                <button
-                                    key={tIdx}
-                                    type="button"
-                                    onClick={() => setTopic(tItem)}
-                                    className={'px-3 py-1 rounded-full text-xs font-bold transition cursor-pointer ' + (topic === tItem ? 'bg-navy text-gold shadow-xs' : 'bg-slate-100 hover:bg-slate-200 text-slate-700')}
-                                >
-                                    {tItem}
-                                </button>
-                            ))}
+                        <div className="rounded-xl border border-slate-200 bg-white p-4">
+                            <QuestionPreviewBody q={draft} number={displayNum} showAnswer showSolution />
                         </div>
                     </div>
                 </div>
 
-                {/* Footer Controls */}
-                <div className="px-6 py-4 bg-slate-100 border-t border-slate-200 flex items-center justify-between gap-3 flex-shrink-0">
-                    <button
-                        type="button"
-                        onClick={onClose}
-                        className="px-5 py-2.5 bg-white hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-xs border border-slate-300 transition cursor-pointer"
-                    >
-                        Cancel
-                    </button>
-                    <button
-                        type="button"
-                        onClick={handleSave}
-                        className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black text-xs uppercase tracking-wider shadow-md hover:scale-102 transition cursor-pointer flex items-center gap-1.5"
-                    >
-                        <span>💾</span> Apply Changes to Paper
+                {/* footer */}
+                <div className="flex flex-shrink-0 items-center justify-between gap-3 border-t border-slate-200 px-5 py-3">
+                    <div className="flex items-center gap-2">
+                        <button type="button" onClick={onClose} className="cursor-pointer rounded-lg bg-slate-400 px-4 py-2 text-[13px] font-semibold text-white hover:bg-slate-500">Close</button>
+                        {onDelete && (
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    if (window.confirm('Are you sure you want to delete Question #' + displayNum + ' from this paper?')) {
+                                        onDelete(questionIndex);
+                                        onClose();
+                                    }
+                                }}
+                                className="cursor-pointer rounded-lg bg-rose-500 px-4 py-2 text-[13px] font-semibold text-white hover:bg-rose-600"
+                            >
+                                Delete
+                            </button>
+                        )}
+                    </div>
+                    <button type="button" onClick={handleSave} className="cursor-pointer rounded-lg bg-blue-600 px-5 py-2 text-[13px] font-semibold text-white shadow hover:bg-blue-700">
+                        Update Question
                     </button>
                 </div>
             </div>

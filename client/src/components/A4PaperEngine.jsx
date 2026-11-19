@@ -416,6 +416,9 @@ export default function A4PaperEngine({
                                                 <div
                                                     className="question-print-item"
                                                     style={{
+                                                        display: isTwoCol ? 'inline-block' : 'block',
+                                                        width: '100%',
+                                                        boxSizing: 'border-box',
                                                         breakInside: settings.paper2ColumnQuestionBreak !== false ? 'avoid' : 'auto',
                                                         WebkitColumnBreakInside: settings.paper2ColumnQuestionBreak !== false ? 'avoid' : 'auto',
                                                         pageBreakInside: settings.paper2ColumnQuestionBreak !== false ? 'avoid' : 'auto',
@@ -639,13 +642,13 @@ export default function A4PaperEngine({
                     page-break-inside: avoid;
                 }
                 .question-print-item {
-                    display: block !important;
+                    display: inline-block !important;
                     width: 100% !important;
                     box-sizing: border-box;
-                    position: relative;
-                    z-index: 1;
-                    orphans: 2;
-                    widows: 2;
+                    position: static;
+                    z-index: auto;
+                    orphans: 1;
+                    widows: 1;
                 }
                 .math-renderer.inline-math {
                     display: inline !important;
@@ -914,6 +917,10 @@ export default function A4PaperEngine({
                     .a4-primary-header-wrap {
                         margin-top: 0 !important;
                         padding-top: 0 !important;
+                        break-inside: avoid !important;
+                        page-break-inside: avoid !important;
+                        break-after: avoid !important;
+                        page-break-after: avoid !important;
                     }
 
                     .a4-primary-header-wrap > div {
@@ -944,15 +951,16 @@ export default function A4PaperEngine({
                         z-index: 2 !important;
                     }
                     .question-print-item {
-                        display: block !important;
+                        display: inline-block !important;
                         width: 100% !important;
+                        box-sizing: border-box !important;
                         break-inside: avoid !important;
                         page-break-inside: avoid !important;
                         -webkit-column-break-inside: avoid !important;
-                        orphans: 3 !important;
-                        widows: 3 !important;
-                        position: relative !important;
-                        z-index: 1 !important;
+                        position: static !important;
+                        z-index: auto !important;
+                        orphans: 1 !important;
+                        widows: 1 !important;
                     }
                     .part-header-directive-block {
                         break-inside: avoid !important;
@@ -966,8 +974,10 @@ export default function A4PaperEngine({
                         border: none !important;
                     }
                     .a4-questions-flow {
-                        orphans: 2 !important;
-                        widows: 2 !important;
+                        column-fill: auto !important;
+                        -webkit-column-fill: auto !important;
+                        orphans: 1 !important;
+                        widows: 1 !important;
                     }
                 }
             `}</style>

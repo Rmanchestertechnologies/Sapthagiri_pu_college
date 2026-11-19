@@ -215,11 +215,13 @@ export default function PaperRenderer({
     };
 
     return (
-        <div className="paper-renderer-wrapper w-full flex flex-col items-center">
-            {/* Alignment / Settings Panel (Shown only in Alignment step) */}
+        <div className={`paper-renderer-wrapper w-full flex flex-col items-center ${showSettingsPanel ? 'xl:flex-row xl:items-start xl:gap-6 print:block' : ''}`}>
+            {/* Alignment / Settings Panel (Shown only in Alignment step). On a wide screen it sits on the LEFT and stays in view
+                while the paper scrolls on the right, so every change is seen next to the control that made it. */}
             {showSettingsPanel && (
-                <div className="w-full max-w-5xl no-print">
+                <aside className="w-full max-w-5xl no-print mb-6 xl:mb-0 xl:w-[390px] xl:max-w-none xl:shrink-0 xl:sticky xl:top-4 xl:max-h-[calc(100vh-2rem)] xl:overflow-y-auto xl:pr-1">
                     <SettingsPanel
+                        sidebar
                         settings={settings}
                         setSettings={setSettings}
                         totalQuestions={questions.length}
@@ -240,10 +242,11 @@ export default function PaperRenderer({
                         onFinalizeSave={onFinalizeSave}
                         savingPaper={savingPaper}
                     />
-                </div>
+                </aside>
             )}
 
             {/* ── TRUE A4 ENGINE RENDERING ── */}
+            <div className={showSettingsPanel ? 'min-w-0 w-full xl:flex-1 flex justify-center overflow-x-auto print:block print:overflow-visible' : 'contents'}>
             <A4PaperEngine
                 paper={activePaper}
                 activeTemplate={activeTemplate}
@@ -255,6 +258,7 @@ export default function PaperRenderer({
                 onSwapQuestion={(q, idx, displayNum) => { if (!editingBlockedInSet()) setSwappingQuestion({ question: q, index: idx, displayNum }); }}
                 onQuestionLayoutChange={handleUpdateQuestionLayout}
             />
+            </div>
 
             {/* ── INTERACTIVE EDIT & SWAP MODALS ── */}
             <EditQuestionModal

@@ -20,6 +20,7 @@ const {
     getAllPools
 } = require('../config/subjectDatabases');
 const { sanitizeHtml } = require('../utils/sanitize');
+const { questionPrintIsBroken } = require('./printCheck');
 
 const isTest = process.env.NODE_ENV === 'test';
 const memoryTestQuestions = new Map();
@@ -94,6 +95,60 @@ function matchTokenToNumber(token) {
  * The right matching of a match-the-following question as an array of numbers (index = left item), or null when it
  * cannot be read. Sources: the stored key text "A → 4; B → 2; C → 3; D → 1" or QBP_DATA.matchOptions {A:["4"], ...}.
  */
+/**
+ * The last item of an imported column sometimes carries the next item too: "Vexillary (e) United sepals", "Chalaza E. Nucellus".
+ * When an item contains the label that the NEXT row would have (letter or roman numeral, in brackets or followed by a dot), it is
+ * split there, so the column gets its missing row back instead of printing two items in one cell.
+ */
+const ROMANS = ['i', 'ii', 'iii', 'iv', 'v', 'vi', 'vii', 'viii'];
+function splitGluedColumnItems(list) {
+    const out = [];
+    const items = list || [];
+    items.forEach((raw, idx) => {
+        let item = String(raw == null ? '' : raw);
+        // only the last item: that is where an import glues the rows it could not separate
+        for (;;) {
+            if (idx !== items.length - 1) break;
+            const n = out.length + 1; // label of the row after this one, 0-based index n
+            const letter = String.fromCharCode(97 + n); const roman = ROMANS[n];
+            const re = new RegExp(String.raw`\s(?:\((?:${letter}|${roman})\)|(?:${letter}|${roman})\.)\s+(?=\S)`, 'i');
+            const m = n < 8 ? re.exec(item) : null;
+            if (!m || m.index < 2) break;
+            out.push(item.slice(0, m.index).trim());
+            item = item.slice(m.index + m[0].length);
+        }
+        out.push(item.trim());
+    });
+    return out;
+}
+
+/**
+ * True when a match question's stored columns cannot be printed whole: one column has items and the other has fewer than two,
+ * or the answer codes ("i→b, ii→d", "A-(Q)", "A-(4)") name more Column I / Column II items than the columns hold.
+ * Questions with no stored columns at all are left to the paper's own text parsing and are not judged here.
+ */
+function matchColumnsIncomplete(colA, colB, options) {
+    const a = (colA || []).length; const b = (colB || []).length;
+    if (a === 0 && b === 0) return false;
+    if (a < 2 || b < 2) return true;
+    const ROMAN = { i: 1, ii: 2, iii: 3, iv: 4, v: 5, vi: 6, vii: 7, viii: 8 };
+    const PQRS = { p: 1, q: 2, r: 3, s: 4, t: 5 };
+    const PART = /\(?\s*(viii|vii|vi|iv|iii|ii|i|v|[a-hA-H1-8])\s*\)?\s*(?:[-–—:→]|->|\\to|\\rightarrow)\s*\(?\s*(viii|vii|vi|iv|iii|ii|i|v|[1-8]|[a-hA-Hp-tP-T])\s*\)?/gi;
+    // Count the DIFFERENT labels the codes use on each side (Column II may be lettered e-h after a-d, so the highest label
+    // says nothing about how many items there are).
+    const lefts = new Set(); const rights = new Set();
+    for (const opt of options || []) {
+        const parts = [...String(opt == null ? '' : opt).matchAll(PART)];
+        if (parts.length < 2) continue;
+        for (const m of parts) {
+            const l = m[1].toLowerCase(); const r = m[2].toLowerCase();
+            lefts.add(ROMAN[l] ? `r${ROMAN[l]}` : l);
+            rights.add(/^[1-8]$/.test(r) ? `n${r}` : (ROMAN[r] ? `n${ROMAN[r]}` : (PQRS[r] ? `n${PQRS[r]}` : r)));
+        }
+    }
+    return lefts.size > a || rights.size > b;
+}
+
 function parseMatchMapping(keyText, matchOptions, pairCount) {
     const out = [];
     const fromText = String(keyText || '');
@@ -233,8 +288,8 @@ function mapSupabaseToQuestion(row, usageMap = null) {
     // removed here (a bracketed label always; a bare "A." / "1)" only when whitespace follows, so "1.5 eV" and "p-nitrophenol" stay).
     const LABEL = /^(?:[\(\[](?:[A-Ea-e1-8]|i{1,3}|iv|v|vi{0,3}|[p-tP-T])[\)\]]|(?:[A-Ea-e1-8]|i{1,3}|iv|v|vi{0,3}|[p-tP-T])[\)\.:\-](?=\s))\s*/;
     const stripItemLabel = s => { let t = String(s == null ? '' : s).trim(); for (let i = 0; i < 2; i++) t = t.replace(LABEL, ''); return t.trim(); };
-    colA = cleanColumnList(colA).map(stripItemLabel).filter(Boolean);
-    colB = cleanColumnList(colB).map(stripItemLabel).filter(Boolean);
+    colA = splitGluedColumnItems(cleanColumnList(colA)).map(stripItemLabel).filter(Boolean);
+    colB = splitGluedColumnItems(cleanColumnList(colB)).map(stripItemLabel).filter(Boolean);
 
     // 2. Options Extraction
     let rawOptions = [];
@@ -593,6 +648,14 @@ function mapSupabaseToQuestion(row, usageMap = null) {
     }
     if (!keyProblem && type === 'NUMERICAL' && !String(answer == null ? '' : answer).trim()) keyProblem = 'NUMERICAL_NO_ANSWER';
     if (matchKeyUnknown && !keyProblem) keyProblem = 'MATCH_KEY_UNKNOWN';
+    // A printed part (question, option, statement, assertion/reason, match column) whose maths cannot be typeset: the paper would
+    // show plain text or raw LaTeX, so the question is kept out of papers until it is corrected.
+    if (!keyProblem && questionPrintIsBroken({ type, questionText: cleanQuestion, options, statements: dynamicStatements, assertion, reason, columnA: colA, columnB: colB })) keyProblem = 'PRINT_BROKEN';
+    // Nothing for the student to read: the question text is empty (or only "Statement I: / Statement II:" labels with nothing after
+    // them) and there is no diagram, statement, column or assertion to show instead. It would print as a number and four options.
+    const readable = s => String(s || '').replace(/@?Statement\s*[-–—]?\s*\(?[IVXLCDM0-9A-D]+\)?\s*[:.\-)–—]/gi, '').replace(/\[[^\]]*\]/g, '').trim();
+    if (!keyProblem && !hasDiag && !readable(cleanQuestion) && !dynamicStatements.some(s => readable(s.text)) && !(statement1 && statement2)
+        && colA.length === 0 && !readable(assertion)) keyProblem = hasStatementPatterns ? 'STATEMENTS_MISSING' : 'QUESTION_TEXT_MISSING';
     // A diagram placeholder that was never filled in would print as the words "[DIAGRAM REQUIRED]".
     if (!keyProblem && !hasDiag && [cleanQuestion, ...options].some(t => /\[DIAGRAM REQUIRED\]/i.test(String(t)))) keyProblem = 'DIAGRAM_MISSING';
     // Two options that read exactly the same make the question unanswerable (a student cannot tell A from C).
@@ -600,6 +663,10 @@ function mapSupabaseToQuestion(row, usageMap = null) {
         const norm = o => String(o).replace(/\s+/g, '').toLowerCase();
         if (new Set(options.map(norm)).size < options.length) keyProblem = 'DUPLICATE_OPTIONS';
     }
+
+    // A match question whose columns are cut short in the bank (e.g. Column II holds one item while the codes name a, b, c, d)
+    // would print with an empty column, so it is kept out of papers until the missing items are added.
+    if (!keyProblem && type === 'MATCH_FOLLOWING' && matchColumnsIncomplete(colA, colB, options)) keyProblem = 'MATCH_COLUMNS_INCOMPLETE';
 
     // An assertion-reason question whose Reason is missing (the bank text stops after "Reason:") cannot be answered.
     if (!keyProblem && type === 'ASSERTION_REASON') {
@@ -1958,5 +2025,6 @@ module.exports = {
     deleteQuestion,
     mapSupabaseToQuestion,
     mapQuestionToSupabase,
-    cleanDifficultyTags
+    cleanDifficultyTags,
+    matchColumnsIncomplete
 };

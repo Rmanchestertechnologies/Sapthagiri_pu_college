@@ -2,7 +2,7 @@
 // A sectioned control centre for the paper: one action dock on top, four calm tabs below. Every setting key, value and
 // callback is exactly the one the paper engine already reads - only the controls changed (segmented buttons, switches,
 // sliders and steppers instead of a wall of dropdowns).
-import { useState } from 'react';
+import { createContext, useContext, useState } from 'react';
 import { AnimatePresence, LayoutGroup, motion } from 'framer-motion';
 import {
     ArrowLeft, KeyRound, Lightbulb, Shuffle, Link2, FileText, Printer, CheckCheck, Dices, X, Minus, Plus,
@@ -10,6 +10,8 @@ import {
 } from 'lucide-react';
 
 const SPRING = { type: 'spring', stiffness: 420, damping: 34 };
+// In the side panel (settings on the left, paper on the right) every card is one column wide.
+const SidebarCtx = createContext(false);
 
 // Kept for any older import; the new controls below do not use them.
 export const labelStyle = { fontSize: '11px', fontWeight: 800, color: '#001f6d', display: 'block', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.05em' };
@@ -94,15 +96,16 @@ function Slider({ value, min, max, step = 1, onChange, suffix = '%' }) {
 }
 
 function Card({ title, hint, children, cols = 'sm:grid-cols-2' }) {
+    const sidebar = useContext(SidebarCtx);
     return (
-        <section className="rounded-2xl border border-slate-200/80 bg-white p-4 sm:p-5">
+        <section className={`rounded-2xl border border-slate-200/80 bg-white ${sidebar ? 'p-3.5' : 'p-4 sm:p-5'}`}>
             {(title || hint) && (
                 <div className="mb-4">
                     {title && <h4 className="text-[14px] font-bold text-[#1e1b4b]">{title}</h4>}
                     {hint && <p className="mt-0.5 text-[12px] font-medium text-slate-500">{hint}</p>}
                 </div>
             )}
-            <div className={`grid grid-cols-1 gap-4 ${cols}`}>{children}</div>
+            <div className={`grid grid-cols-1 ${sidebar ? 'gap-3' : `gap-4 ${cols}`}`}>{children}</div>
         </section>
     );
 }
@@ -136,6 +139,7 @@ export function SettingsPanel({
     onPrint,
     onFinalizeSave,
     savingPaper,
+    sidebar = false,
 }) {
     const update = (key, val) => setSettings(s => ({ ...s, [key]: val }));
     const [tab, setTab] = useState('content');
@@ -145,28 +149,29 @@ export function SettingsPanel({
     const setDuration = (raw) => setSettings(s => ({ ...s, durationMinutes: raw === '' ? '' : (parseInt(raw, 10) || 0), duration: raw === '' ? '' : `${raw} Minutes` }));
 
     return (
-        <div className="no-print mb-6 overflow-hidden rounded-3xl border border-slate-200/80 bg-slate-50/70 shadow-[0_24px_48px_-32px_rgba(30,27,75,0.45)] animate-fade-in">
+        <SidebarCtx.Provider value={sidebar}>
+        <div className={`no-print overflow-hidden border border-slate-200/80 bg-slate-50/70 animate-fade-in ${sidebar ? 'rounded-2xl' : 'mb-6 rounded-3xl shadow-[0_24px_48px_-32px_rgba(30,27,75,0.45)]'}`}>
             {/* ── header ── */}
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200/80 bg-white px-5 py-4">
                 <div className="flex items-center gap-3">
                     <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-100 text-indigo-600"><SlidersHorizontal size={19} /></span>
                     <div>
                         <h3 className="font-display text-[19px] leading-tight tracking-tight text-[#1e1b4b]">Layout &amp; alignment</h3>
-                        <p className="text-[12px] font-medium text-slate-500">Every change shows on the paper below straight away.</p>
+                        <p className="text-[12px] font-medium text-slate-500">{sidebar ? 'Every change shows on the paper on the right.' : 'Every change shows on the paper below straight away.'}</p>
                     </div>
                 </div>
                 <span className="rounded-full bg-indigo-50 px-3 py-1 text-[12px] font-bold text-indigo-700">{totalQuestions} questions</span>
             </div>
 
             {/* ── action dock ── */}
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200/80 bg-white/70 px-5 py-3">
-                <div className="flex flex-wrap items-center gap-2">
+            <div className={sidebar ? 'space-y-2 border-b border-slate-200/80 bg-white/70 px-3.5 py-3' : 'flex flex-wrap items-center justify-between gap-3 border-b border-slate-200/80 bg-white/70 px-5 py-3'}>
+                <div className={sidebar ? 'grid grid-cols-2 gap-2 [&>*]:justify-center [&>*:only-child]:col-span-2' : 'flex flex-wrap items-center gap-2'}>
                     {onBack && (
                         <button type="button" onClick={onBack} className={`${btn} border border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50`}><ArrowLeft size={15} /> Back</button>
                     )}
 
                     {setsActive ? (
-                        <div className="flex items-center gap-1 rounded-xl border border-slate-200 bg-white p-1">
+                        <div className={`flex items-center gap-1 rounded-xl border border-slate-200 bg-white p-1 ${sidebar ? 'col-span-2' : ''}`}>
                             <span className="px-2 text-[10px] font-bold uppercase tracking-wider text-slate-400">Set</span>
                             <LayoutGroup id="panel-sets">
                                 {['P', 'Q', 'R', 'S'].map(s => (
@@ -182,7 +187,7 @@ export function SettingsPanel({
                         </div>
                     ) : (
                         <button type="button" onClick={() => { setSetsActive && setSetsActive(true); setActiveSet && setActiveSet('P'); }}
-                            className={`${btn} border border-dashed border-indigo-300 bg-indigo-50/60 text-indigo-700 hover:bg-indigo-50`}><Dices size={16} /> Generate 4 sets (P, Q, R, S)</button>
+                            className={`${btn} border border-dashed border-indigo-300 bg-indigo-50/60 text-indigo-700 hover:bg-indigo-50 ${sidebar ? 'col-span-2' : ''}`}><Dices size={16} /> Generate 4 sets (P, Q, R, S)</button>
                     )}
 
                     {onOpenAnswerKey && <button type="button" onClick={onOpenAnswerKey} className={`${btn} bg-[#1e1b4b] text-white hover:bg-[#312e81]`}><KeyRound size={15} className="text-[#d6b878]" /> Answer key</button>}
@@ -191,7 +196,7 @@ export function SettingsPanel({
                     {onOpenMerge && <button type="button" onClick={onOpenMerge} className={`${btn} border border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100`}><Link2 size={15} /> Merge exam</button>}
 
                     {setZoom && (
-                        <div className="flex h-10 items-center gap-0.5 rounded-xl border border-slate-200 bg-white px-1">
+                        <div className={`flex h-10 items-center gap-0.5 rounded-xl border border-slate-200 bg-white px-1 ${sidebar ? 'col-span-2 justify-between' : ''}`}>
                             <button type="button" aria-label="Zoom out" onClick={() => setZoom(v => Math.max(60, (v || 100) - 15))} className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100"><Minus size={14} /></button>
                             <button type="button" title="Reset zoom" onClick={() => setZoom(100)} className="min-w-[3.4rem] cursor-pointer rounded-lg px-1 text-center text-[12.5px] font-bold tabular-nums text-[#1e1b4b] hover:bg-slate-100">{z}%</button>
                             <button type="button" aria-label="Zoom in" onClick={() => setZoom(v => Math.min(150, (v || 100) + 15))} className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100"><Plus size={14} /></button>
@@ -199,7 +204,7 @@ export function SettingsPanel({
                     )}
                 </div>
 
-                <div className="flex flex-wrap items-center gap-2">
+                <div className={sidebar ? 'grid grid-cols-2 gap-2 [&>*]:justify-center' : 'flex flex-wrap items-center gap-2'}>
                     {onDownloadWord && (
                         <button type="button" onClick={onDownloadWord} disabled={downloadingWord} className={`${btn} border border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50`}><FileText size={15} className="text-sky-600" /> {downloadingWord ? 'Exporting…' : 'Word (.docx)'}</button>
                     )}
@@ -208,13 +213,13 @@ export function SettingsPanel({
                     )}
                     {onFinalizeSave && (
                         <button type="button" onClick={onFinalizeSave} disabled={savingPaper}
-                            className={`${btn} bg-emerald-600 px-5 text-white shadow-[0_10px_20px_-10px_rgba(5,150,105,0.8)] hover:bg-emerald-700`}><CheckCheck size={16} /> {savingPaper ? 'Saving…' : 'Finalize & Save'}</button>
+                            className={`${btn} bg-emerald-600 px-5 text-white shadow-[0_10px_20px_-10px_rgba(5,150,105,0.8)] hover:bg-emerald-700 ${sidebar ? 'col-span-2' : ''}`}><CheckCheck size={16} /> {savingPaper ? 'Saving…' : 'Finalize & Save'}</button>
                     )}
                 </div>
             </div>
 
-            {/* ── tabs ── */}
-            <div className="px-5 pt-4">
+            {/* ── tabs (the side panel shows every section, one under the other) ── */}
+            {!sidebar && <div className="px-5 pt-4">
                 <LayoutGroup id="panel-tabs">
                     <div role="tablist" className="inline-flex max-w-full flex-wrap items-center gap-1 rounded-2xl bg-slate-200/70 p-1">
                         {TABS.map(({ id, label, Icon }) => (
@@ -226,13 +231,13 @@ export function SettingsPanel({
                         ))}
                     </div>
                 </LayoutGroup>
-            </div>
+            </div>}
 
-            <div className="p-5">
+            <div className={sidebar ? 'space-y-4 p-3.5' : 'p-5'}>
                 <AnimatePresence mode="wait" initial={false}>
-                    <motion.div key={tab} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.16 }} className="space-y-4">
+                    <motion.div key={sidebar ? 'all' : tab} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.16 }} className="space-y-4">
 
-                        {tab === 'content' && (
+                        {(sidebar || tab === 'content') && (
                             <>
                                 <Card title="What to print" hint="Choose what appears with each question." cols="grid-cols-1">
                                     <SettingField label="Display questions, solutions">
@@ -256,7 +261,7 @@ export function SettingsPanel({
                             </>
                         )}
 
-                        {tab === 'options' && (
+                        {(sidebar || tab === 'options') && (
                             <>
                                 <Card title="Options" hint="How the four choices are labelled and arranged." cols="grid-cols-1">
                                     <SettingField label="Option numbering">
@@ -281,7 +286,7 @@ export function SettingsPanel({
                             </>
                         )}
 
-                        {tab === 'type' && (
+                        {(sidebar || tab === 'type') && (
                             <Card title="Typography" hint="Font, size and spacing of the text." cols="sm:grid-cols-2">
                                 <SettingField label="Font style">
                                     <select className={SELECT_CLS} value={settings.fontFamily} onChange={e => update('fontFamily', e.target.value)}>
@@ -316,7 +321,7 @@ export function SettingsPanel({
                             </Card>
                         )}
 
-                        {tab === 'header' && (
+                        {(sidebar || tab === 'header') && (
                             <>
                                 <Card title="Numbers and marks" cols="sm:grid-cols-3">
                                     <SettingField label="Start numbering at Q.#">
@@ -359,5 +364,6 @@ export function SettingsPanel({
                 </AnimatePresence>
             </div>
         </div>
+        </SidebarCtx.Provider>
     );
 }

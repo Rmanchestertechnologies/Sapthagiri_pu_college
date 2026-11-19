@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "sandbox-api",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["server/tests/e2e/run.js", "--serve"],
+      "port": 5000
+    },
+    {
+      "name": "client",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "client", "run", "dev"],
+      "port": 5173
+    }
+  ]
+}

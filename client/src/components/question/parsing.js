@@ -55,8 +55,11 @@ export function cleanQuestionText(text, q = null) {
     let str = String(text);
     // Auto-repair corrupted OCR unit tokens e.g. 1 fracA} -> 1 A, fracHz,} -> Hz,
     str = str.replace(/([0-9\.\s]+)frac([A-Za-z]+)\}/g, '$1 $2');
-    str = str.replace(/\\?frac\s*([A-Za-z]+)\}/g, ' $1');
-    str = str.replace(/\\?frac\s*([A-Za-z]+),?\}/g, ' $1,');
+    // Only the damaged forms: "fracA}" / "frac A}" with no backslash in front, or "\fracA}" glued together. A real
+    // brace-less fraction such as "\frac pq}" or "\dfrac ab}" (backslash, then a space) is valid LaTeX and must be left alone
+    // - these rules used to cut the "\frac" out of it and leave broken maths ("\d ab").
+    str = str.replace(/(?:(?<![\\A-Za-z])frac\s*|\\frac)([A-Za-z]+)\}/g, ' $1');
+    str = str.replace(/(?:(?<![\\A-Za-z])frac\s*|\\frac)([A-Za-z]+),\}/g, ' $1,');
 
 
     // Auto-fix broken OCR expressions like "sin fracx/cos x" -> "\sin \frac{x}{\cos x}"

@@ -50,13 +50,35 @@ export function smartConvertRaw(text) {
     const fracMap = { '½': '\\frac{1}{2}', '¼': '\\frac{1}{4}', '¾': '\\frac{3}{4}', '⅓': '\\frac{1}{3}', '⅔': '\\frac{2}{3}' };
     res = res.replace(/[½¼¾⅓⅔]/g, (m) => fracMap[m]);
 
-    // Unicode superscripts & subscripts
-    const superMap = { '⁰': '^0', '¹': '^1', '²': '^2', '³': '^3', '⁴': '^4', '⁵': '^5', '⁶': '^6', '⁷': '^7', '⁸': '^8', '⁹': '^9', '⁺': '^+', '⁻': '^-' };
-    const subMap = { '₀': '_0', '₁': '_1', '₂': '_2', '₃': '_3', '₄': '_4', '₅': '_5', '₆': '_6', '₇': '_7', '₈': '_8', '₉': '_9' };
-    res = res.replace(/[⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻]/g, (m) => superMap[m]);
-    res = res.replace(/[₀₁₂₃₄₅₆₇₈₉]/g, (m) => subMap[m]);
+    // Unicode superscripts & subscripts ("10⁻³⁴", "Fe²⁺", "H₂SO₄"). A whole RUN of them is one power / index: inside maths it
+    // becomes ^{-34} / _{2}; in plain text it is printed as <sup>/<sub> by processMathOnly. Converting each character on its
+    // own ("^-^3^4") outside maths used to print that code on the paper, and inside maths was a "double superscript" error.
+    res = convertUnicodeScripts(res, 'math');
 
     return res;
+}
+
+const SUPER_CHARS = { '⁰': '0', '¹': '1', '²': '2', '³': '3', '⁴': '4', '⁵': '5', '⁶': '6', '⁷': '7', '⁸': '8', '⁹': '9', '⁺': '+', '⁻': '-', '⁼': '=', '⁽': '(', '⁾': ')', 'ⁿ': 'n', 'ⁱ': 'i', 'ˣ': 'x' };
+const SUB_CHARS = { '₀': '0', '₁': '1', '₂': '2', '₃': '3', '₄': '4', '₅': '5', '₆': '6', '₇': '7', '₈': '8', '₉': '9', '₊': '+', '₋': '-', '₌': '=', '₍': '(', '₎': ')', 'ₐ': 'a', 'ₑ': 'e', 'ₒ': 'o', 'ₓ': 'x', 'ₙ': 'n', 'ₘ': 'm' };
+const SUPER_RUN = new RegExp(`[${Object.keys(SUPER_CHARS).join('')}]+`, 'g');
+const SUB_RUN = new RegExp(`[${Object.keys(SUB_CHARS).join('')}]+`, 'g');
+const MATH_SPAN = /(\$\$[\s\S]*?\$\$|\$[^$\n]+?\$)/g;
+
+/**
+ * Turns runs of Unicode super/subscript characters into a form that prints. Inside $...$ / $$...$$ they become ^{..} / _{..}.
+ * Outside maths, mode 'math' leaves them alone (the plain-text pass happens later) and mode 'html' gives <sup>..</sup> / <sub>..</sub>.
+ */
+export function convertUnicodeScripts(text, mode = 'html') {
+    if (!text || typeof text !== 'string' || !/[⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁼⁽⁾ⁿⁱˣ₀₁₂₃₄₅₆₇₈₉₊₋₌₍₎ₐₑₒₓₙₘ]/.test(text)) return text;
+    const plain = (run, map) => [...run].map(c => map[c]).join('');
+    return text.split(MATH_SPAN).map((part, i) => {
+        if (i % 2 === 1) {
+            return part.replace(SUPER_RUN, run => `^{${plain(run, SUPER_CHARS)}}`).replace(SUB_RUN, run => `_{${plain(run, SUB_CHARS)}}`);
+        }
+        if (mode !== 'html') return part;
+        // a printed minus sign (U+2212), as KaTeX draws it, rather than a short hyphen
+        return part.replace(SUPER_RUN, run => `<sup>${plain(run, SUPER_CHARS).replace(/-/g, '−')}</sup>`).replace(SUB_RUN, run => `<sub>${plain(run, SUB_CHARS).replace(/-/g, '−')}</sub>`);
+    }).join('');
 }
 
 /**
@@ -166,15 +188,19 @@ export function processMathOnly(text) {
     // Render inline math: $...$ (never across a block that was already rendered)
     result = result.replace(/\$((?:(?!___MATH_BLOCK_)[\s\S])+?)\$/g, (_match, math) => saveMath(math, false));
 
-    // Maths typed without any $ ("3^{x-1} + 3^{-x-1}", "(-b)^{1/(n+1)}", "H_{2}O"): wrap each power / subscript term
+    // Maths typed without any $ ("3^{x-1} + 3^{-x-1}", "(-b)^{1/(n+1)}", "H_{2}O", and plain "x^2+k", "27c^3", "e^x", "I_n"):
+    // wrap each power / subscript term. A bare ^ / _ takes a number or ONE letter, as LaTeX does ("x^ny" is x to the n, then y).
     result = result.split(BLOCK).map((chunk, i) => (i % 2 === 1 ? chunk : chunk.replace(
-        /(?:\((?:[^()]|\([^()]*\)){1,40}\)|[A-Za-z0-9.Ͱ-Ͽ√]+)(?:[\^_]\{(?:[^{}]|\{[^{}]*\})+\})+/g,
+        /(?:\((?:[^()]|\([^()]*\)){1,40}\)|[A-Za-z0-9.Ͱ-Ͽ√°]+)(?:[\^_](?:\{(?:[^{}]|\{[^{}]*\})+\}|-?[0-9]+(?:\.[0-9]+)?(?![A-Za-z_])|[A-Za-z](?![A-Za-z0-9_])|[+-](?![A-Za-z0-9({\\])))+/g,
         (term) => saveMath(term, false),
     ))).join('');
 
     // Render naked LaTeX math commands only in remaining plain text
     const nakedLatexRegex = /\\(?:dfrac|cfrac|frac|sqrt|pm|times|div|leq|geq|neq|approx|rightarrow|infty|sum|int|partial|theta|alpha|beta|gamma|lambda|omega|Delta|mu|sigma|epsilon|varepsilon|rho|phi|pi|tau|psi|eta|nu|xi|cdot|circ|text|mathrm|mathbf|textit|textsf|textrm|emph|mathit|underline|overline|ldots|cdots)\b(?:(?!___MATH_BLOCK_)[^{$\n])*(?:\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\})*/g;
     result = result.replace(nakedLatexRegex, (match) => saveMath(match, false));
+
+    // Unicode powers / indices left in plain text ("10⁻³⁴ m", "Fe²⁺", "H₂O") print as real superscripts / subscripts
+    result = convertUnicodeScripts(result, 'html');
 
     // Restore protected math blocks
     mathBlocks.forEach((rendered, idx) => {
