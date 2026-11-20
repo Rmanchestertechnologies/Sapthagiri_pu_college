@@ -24,10 +24,13 @@ describe('print check: maths that cannot be typeset', () => {
         expect(textIsBroken('Reason: $$')).toBe(true);
     });
 
-    test('a question is broken when any PRINTED part is; the solution does not count', () => {
+    // Rule since 19 Nov 2026 (requested by the college): a fault in ANY part hides the question, the solution included, because
+    // the solution prints in the answer key.
+    test('a question is broken when any part is, the solution included', () => {
         const q = { type: 'MCQ', questionText: 'Q', options: ['1', R`$\frac{1}{2$`, '3', '4'] };
         expect(questionPrintIsBroken(q)).toBe(true);
-        expect(questionPrintIsBroken({ type: 'MCQ', questionText: 'Q', options: ['1', '2', '3', '4'], solutionText: R`$\frac{1}{2$` })).toBe(false);
+        expect(questionPrintIsBroken({ type: 'MCQ', questionText: 'Q', options: ['1', '2', '3', '4'], solutionText: R`$\frac{1}{2$` })).toBe(true);
+        expect(questionPrintIsBroken({ type: 'MCQ', questionText: 'Q', options: ['1', '2', '3', '4'], solutionText: R`$\frac{1}{2}$` })).toBe(false);
     });
 });
 

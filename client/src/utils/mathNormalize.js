@@ -51,18 +51,19 @@ export function normalizeEquation(rawMath) {
 export function ensureMathDelimiters(text) {
     if (!text || typeof text !== 'string') return '';
     let res = text;
+    // \[...\] and \(...\) become $$...$$ / $...$ FIRST, so a matrix inside them counts as maths already (it used to be wrapped
+    // in $ a second time: "\[ f(x)= \begin{vmatrix}..\end{vmatrix} \]" printed as "$beginvmatrix ...").
+    res = res.replace(/\\\[([\s\S]*?)\\\]/g, '$$$$$1$$$$');
+    res = res.replace(/\\\(([\s\S]*?)\\\)/g, '$$$1$$');
     // Wrap naked \begin{...}...\end{...} blocks in $$...$$ - but only blocks that are NOT already inside $...$ / $$...$$ maths
-    // (a matrix written as "$$ f(x) = \begin{vmatrix} ... \end{vmatrix} $$" used to get wrapped a second time and broke)
-    res = res.split(/(\$\$[\s\S]*?\$\$|\$[^$\n]+?\$)/g).map((part, i) => (
+    // (a matrix written as "$$ f(x) = \begin{vmatrix} ... \end{vmatrix} $$" used to get wrapped a second time and broke).
+    // Inline maths that holds a \begin..\end block may run over several lines ("$f(x)=\n\begin{cases}..\end{cases}$").
+    res = res.split(/(\$\$[\s\S]*?\$\$|\$[^$]*?\\begin\{[A-Za-z*]+\}[\s\S]*?\\end\{[A-Za-z*]+\}[^$]*?\$|\$[^$\n]+?\$)/g).map((part, i) => (
         i % 2 === 1 ? part : part.replace(/\\begin\{(matrix|pmatrix|bmatrix|Bmatrix|vmatrix|Vmatrix|smallmatrix|aligned|align\*?|gather\*?|split|array|cases)\}([\s\S]*?)\\end\{\1\}/g, (_whole, env, body) => {
             // align / gather / split only work in display maths; the matrix kinds stay inline as before
             const wrap = /^(?:align|gather|split)/.test(env) ? '$$' : '$';
             return `${wrap}\\begin{${env}}${body}\\end{${env}}${wrap}`;
         })
     )).join('');
-    // Convert \[...\] to $$...$$
-    res = res.replace(/\\\[([\s\S]*?)\\\]/g, '$$$$$1$$$$');
-    // Convert \(...\) to $...$
-    res = res.replace(/\\\(([\s\S]*?)\\\)/g, '$$$1$$');
     return res;
 }

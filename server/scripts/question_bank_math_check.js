@@ -120,9 +120,17 @@ const list = (name) => new Set([...(rendererSource.match(new RegExp(name + ':\\s
             // the server's own print check (which keeps a question out of papers) must never flag a question the client prints fine
             if (q.keyProblem === 'PRINT_BROKEN') {
                 printBroken++;
-                if (QP.findQuestionProblems({ ...q, keyProblem: null, solutionText: '' }).length === 0) { bad('server excluded a question the client prints fine (false positive)', id); falsePositives++; }
+                // Equations run together with "$$$" ("+ D$$$A = \frac12$$B = -1$$") are faulty text even when the client's pairing happens
+                // to produce no visible error, so hiding them is right. Any other disagreement is a false positive.
+                const gluedEquations = [q.questionText, q.solutionText, ...(q.options || [])].some(t => /(?<!\\)\$\$\$/.test(String(t || '')));
+                if (!gluedEquations && QP.findQuestionProblems({ ...q, keyProblem: null }).length === 0) { bad('server excluded a question the client prints fine (false positive)', id); falsePositives++; }
             }
-            if (!q.keyProblem) checkCard(id, q);
+            if (!q.keyProblem) {
+                checkCard(id, q);
+                // every question the paper would print broken must be kept out of papers by the server (no faulty question shown)
+                const missed = QP.findQuestionProblems({ ...q, keyProblem: null });
+                if (missed.length) cardBad('printed broken but not hidden by the server', `${id} (${missed[0].part}: ${missed[0].problem.slice(0, 40)})`);
+            }
             // full render test of every part the paper shows for this type
             renderField(id, 'question', PA.cleanQuestionText(q.questionText));
             opts.forEach((o, i) => renderField(id, 'option', L.cleanOptionText(o)));

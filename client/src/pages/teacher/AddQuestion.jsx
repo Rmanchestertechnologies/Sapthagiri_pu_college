@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../api';
 import { optionLabel, stripQBPTags } from '../../utils/sanitize';
+import { findQuestionProblems } from '../../utils/questionProblems';
 import MathRenderer from '../../components/MathRenderer';
 import { readSheetAsObjects } from '../../utils/xlsxImport';
 import PageShell from '../../ui/PageShell';
@@ -182,16 +183,16 @@ const AddQuestion = () => {
                 submitData.append('solutionImage', solutionImageFile);
             }
 
-            if (editId) {
-                await api.post(`/api/questions/update/${editId}`, submitData, {
-                    headers: { 'Content-Type': 'multipart/form-data' }
-                });
-                alert('Question updated successfully!');
+            const saved = editId
+                ? await api.post(`/api/questions/update/${editId}`, submitData, { headers: { 'Content-Type': 'multipart/form-data' } })
+                : await api.post('/api/questions', submitData, { headers: { 'Content-Type': 'multipart/form-data' } });
+            // A question with a fault is saved but never shown in lists or put on a paper: tell the teacher now, with the reason.
+            const problems = findQuestionProblems(saved && saved.data);
+            if (problems.length > 0) {
+                alert(`Question ${editId ? 'updated' : 'saved'}, but it has a problem, so it will NOT appear in question lists or on papers until it is corrected:\n\n`
+                    + problems.slice(0, 4).map(p => `• ${p.part}: ${p.problem}`).join('\n'));
             } else {
-                await api.post('/api/questions', submitData, {
-                    headers: { 'Content-Type': 'multipart/form-data' }
-                });
-                alert('Question added successfully!');
+                alert(editId ? 'Question updated successfully!' : 'Question added successfully!');
             }
             
             setFormData({

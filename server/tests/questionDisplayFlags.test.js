@@ -82,3 +82,16 @@ describe('a statement that lost its text is flagged (it printed as a bare "State
         expect(q.keyProblem).toBe('STATEMENTS_MISSING');
     });
 });
+
+describe('every faulty question is kept out of papers, including faults in the solution', () => {
+    const base = { id: 'z', subject: 'Mathematics', klass: '12', chapter: 'Integrals', q_type: 'mcq_single', opt_a: '1', opt_b: '2', opt_c: '3', opt_d: '4', correct_option: 'A' };
+    test('a solution whose maths cannot be typeset', () => {
+        expect(mapSupabaseToQuestion({ ...base, question: 'Find $x$.', solution_text: 'Since $\\frac{1}{2$ we get' }).keyProblem).toBe('PRINT_BROKEN');
+    });
+    test('a literal \\n typed in the question', () => {
+        expect(mapSupabaseToQuestion({ ...base, question: 'Consider the statements –\\n(i) A\\n(ii) B' }).keyProblem).toBe('PRINT_BROKEN');
+    });
+    test('a clean question with \\neq and a good solution is shown', () => {
+        expect(mapSupabaseToQuestion({ ...base, question: 'If $x \\neq 0$ and $x^2=4$, x is', solution_text: 'So $x=\\pm 2$.' }).keyProblem).toBeFalsy();
+    });
+});

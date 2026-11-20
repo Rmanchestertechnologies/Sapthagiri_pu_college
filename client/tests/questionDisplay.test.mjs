@@ -172,3 +172,17 @@ test('options typed inside an MCQ text are shown once, as options, not again in 
     assert.deepEqual(m.options.map(o => o.text), ['Neon', 'Nitrogen', 'Sodium', 'Iron']);
     assert.equal(m.options[0].correct, true);
 });
+
+test('cases / matrices written over several lines inside $...$ or \\[...\\] are typeset (were printed as code)', () => {
+    const cases = [
+        '$f(x)=\n\\begin{cases}\n6, & x\\leq1\\\\\n7-x, & x>1\n\\end{cases}$\nthen for $f(x)$, $x=1$ is',
+        'Given\n\\[\nf(x)=\n\\begin{vmatrix}\n0 & x^2 & 1\\\\\n2 & 0 & 1\n\\end{vmatrix}\n\\]\nthen',
+        '$\\displaystyle\\Delta_1=\n\\begin{vmatrix}\nx&b&b\\\\\na&x&b\\\\\na&a&x\n\\end{vmatrix}$\nand',
+        'If $g(x)=\n\\begin{cases}\n2e, & x\\leq 1,\\\\\n\\log(x-1), & x>1,\n\\end{cases}$\nthen the normal at $(3,\\log2)$ is',
+    ];
+    for (const text of cases) {
+        const html = processMathOnly(text);
+        assert.ok(!html.includes('katex-error') && !html.includes('inline-math font-medium'), `fell back: ${text}`);
+        assert.doesNotMatch(visible(html), RAW_CODE, text);
+    }
+});

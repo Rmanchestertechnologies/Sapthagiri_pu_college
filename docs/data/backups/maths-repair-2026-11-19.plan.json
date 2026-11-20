@@ -1,0 +1,1547 @@
+{
+ "plan": [
+  {
+   "db": "math_11",
+   "id": "81b6c8bb-07c5-4d0e-9cec-0b3590f943d5",
+   "changes": [
+    {
+     "field": "solution_text",
+     "rules": [
+      "empty $$ left before the end / an image"
+     ],
+     "before": "Using\n$$\na^3+b^3=(a+b)^3-3ab(a+b),\n$$\nwe get\n$$\nq=p^3-3\\sin\\theta\\cos\\theta\\,p.\n$$\nAlso,\n$$\np^2\n=\n(\\sin\\theta+\\cos\\theta)^2\n=\n1+2\\sin\\theta\\cos\\theta.\n$$\nTherefore,\n$$\n\\sin\\theta\\cos\\theta\n=\n\\frac{p^2-1}{2}.\n$$\nSubstituting,\n$$\n[QBP_DIFFICULTY:Medium]",
+     "after": "Using\n$$\na^3+b^3=(a+b)^3-3ab(a+b),\n$$\nwe get\n$$\nq=p^3-3\\sin\\theta\\cos\\theta\\,p.\n$$\nAlso,\n$$\np^2\n=\n(\\sin\\theta+\\cos\\theta)^2\n=\n1+2\\sin\\theta\\cos\\theta.\n$$\nTherefore,\n$$\n\\sin\\theta\\cos\\theta\n=\n\\frac{p^2-1}{2}.\n$$\nSubstituting,\n[QBP_DIFFICULTY:Medium]"
+    }
+   ],
+   "problemsBefore": [
+    "solution: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ],
+   "problemsAfter": [],
+   "keyBefore": null,
+   "keyAfter": null,
+   "updated_at": "2026-08-21T04:06:35.014Z"
+  },
+  {
+   "db": "math_11",
+   "id": "82018948-9279-4c30-91c1-be6dc707e8bc",
+   "changes": [
+    {
+     "field": "question",
+     "rules": [
+      "bracket typed outside the maths"
+     ],
+     "before": "For $f(x)=7x^3-4x+1$, the value of $f'(2$)$ is:",
+     "after": "For $f(x)=7x^3-4x+1$, the value of $f'(2)$ is:"
+    }
+   ],
+   "problemsBefore": [
+    "question: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ],
+   "problemsAfter": [],
+   "keyBefore": "PRINT_BROKEN",
+   "keyAfter": null,
+   "updated_at": "2026-09-07T09:00:35.921Z"
+  },
+  {
+   "db": "math_11",
+   "id": "6b08e88b-1100-4196-966c-b7c99724a479",
+   "changes": [
+    {
+     "field": "question",
+     "rules": [
+      "bracket typed outside the maths"
+     ],
+     "before": "For $f(x)=3x^4-5x^2+7x-2$, the value of $f'(1$)$ is:",
+     "after": "For $f(x)=3x^4-5x^2+7x-2$, the value of $f'(1)$ is:"
+    }
+   ],
+   "problemsBefore": [
+    "question: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ],
+   "problemsAfter": [],
+   "keyBefore": "PRINT_BROKEN",
+   "keyAfter": null,
+   "updated_at": "2026-09-07T09:00:35.921Z"
+  },
+  {
+   "db": "math_11",
+   "id": "301209e1-2ee3-4342-8644-ff19fd6a890e",
+   "changes": [
+    {
+     "field": "question",
+     "rules": [
+      "bracket typed outside the maths"
+     ],
+     "before": "For $f(x)=2x^5-3x^3+4x$, the value of $f'(-1$)$ is:",
+     "after": "For $f(x)=2x^5-3x^3+4x$, the value of $f'(-1)$ is:"
+    }
+   ],
+   "problemsBefore": [
+    "question: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ],
+   "problemsAfter": [],
+   "keyBefore": "PRINT_BROKEN",
+   "keyAfter": null,
+   "updated_at": "2026-09-07T09:00:35.921Z"
+  },
+  {
+   "db": "math_11",
+   "id": "2bbcbf6f-533d-44d5-91c8-06f307389450",
+   "changes": [
+    {
+     "field": "question",
+     "rules": [
+      "bracket typed outside the maths"
+     ],
+     "before": "For $f(x)=4x^3-7x^2+2x-5$, the value of $f'(2$)$ is:",
+     "after": "For $f(x)=4x^3-7x^2+2x-5$, the value of $f'(2)$ is:"
+    }
+   ],
+   "problemsBefore": [
+    "question: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ],
+   "problemsAfter": [],
+   "keyBefore": "PRINT_BROKEN",
+   "keyAfter": null,
+   "updated_at": "2026-09-07T09:00:35.921Z"
+  },
+  {
+   "db": "math_11",
+   "id": "aea9e230-aef6-49c7-b27c-501dc309d060",
+   "changes": [
+    {
+     "field": "question",
+     "rules": [
+      "bracket typed outside the maths"
+     ],
+     "before": "For $f(x)=5x^3-2x^2+3x+1$, the value of $f'(-1$)$ is:",
+     "after": "For $f(x)=5x^3-2x^2+3x+1$, the value of $f'(-1)$ is:"
+    }
+   ],
+   "problemsBefore": [
+    "question: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ],
+   "problemsAfter": [],
+   "keyBefore": "PRINT_BROKEN",
+   "keyAfter": null,
+   "updated_at": "2026-09-07T09:00:35.921Z"
+  },
+  {
+   "db": "math_11",
+   "id": "e45c9d37-f32f-4ad6-b75e-6ad8924fa35a",
+   "changes": [
+    {
+     "field": "question",
+     "rules": [
+      "bracket typed outside the maths"
+     ],
+     "before": "For $f(x)=6x^4+x^2-3x$, the value of $f'(2$)$ is:",
+     "after": "For $f(x)=6x^4+x^2-3x$, the value of $f'(2)$ is:"
+    }
+   ],
+   "problemsBefore": [
+    "question: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ],
+   "problemsAfter": [],
+   "keyBefore": "PRINT_BROKEN",
+   "keyAfter": null,
+   "updated_at": "2026-09-07T09:00:35.921Z"
+  },
+  {
+   "db": "math_11",
+   "id": "cc5cd0d0-bcf6-4aae-b4dd-f39569a35d11",
+   "changes": [
+    {
+     "field": "question",
+     "rules": [
+      "bracket typed outside the maths"
+     ],
+     "before": "For $f(x)=x^5+2x^3-x$, the value of $f'(1$)$ is:",
+     "after": "For $f(x)=x^5+2x^3-x$, the value of $f'(1)$ is:"
+    }
+   ],
+   "problemsBefore": [
+    "question: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ],
+   "problemsAfter": [],
+   "keyBefore": "PRINT_BROKEN",
+   "keyAfter": null,
+   "updated_at": "2026-09-07T09:00:35.921Z"
+  },
+  {
+   "db": "math_11",
+   "id": "aa67419d-f9d1-4d06-8e7b-2fbdfd484b2a",
+   "changes": [
+    {
+     "field": "question",
+     "rules": [
+      "bracket typed outside the maths"
+     ],
+     "before": "For $f(x)=3x^4+2x^2-5$, the value of $f'(1$)$ is:",
+     "after": "For $f(x)=3x^4+2x^2-5$, the value of $f'(1)$ is:"
+    }
+   ],
+   "problemsBefore": [
+    "question: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ],
+   "problemsAfter": [],
+   "keyBefore": "PRINT_BROKEN",
+   "keyAfter": null,
+   "updated_at": "2026-09-07T09:00:35.921Z"
+  },
+  {
+   "db": "math_11",
+   "id": "57144a42-318a-4b20-a1f7-e86ad7cccede",
+   "changes": [
+    {
+     "field": "question",
+     "rules": [
+      "bracket typed outside the maths"
+     ],
+     "before": "For $f(x)=\\sin3x$, determine $f'(\\frac{\\pi}{6}$)$.",
+     "after": "For $f(x)=\\sin3x$, determine $f'(\\frac{\\pi}{6})$."
+    }
+   ],
+   "problemsBefore": [
+    "question: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ],
+   "problemsAfter": [],
+   "keyBefore": "PRINT_BROKEN",
+   "keyAfter": null,
+   "updated_at": "2026-09-07T09:00:35.921Z"
+  },
+  {
+   "db": "math_11",
+   "id": "a4525d4d-3b5e-40cc-b4bd-831205791d93",
+   "changes": [
+    {
+     "field": "question",
+     "rules": [
+      "bracket typed outside the maths"
+     ],
+     "before": "For $f(x)=\\cos4x$, determine $f'(\\frac{\\pi}{8}$)$.",
+     "after": "For $f(x)=\\cos4x$, determine $f'(\\frac{\\pi}{8})$."
+    }
+   ],
+   "problemsBefore": [
+    "question: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ],
+   "problemsAfter": [],
+   "keyBefore": "PRINT_BROKEN",
+   "keyAfter": null,
+   "updated_at": "2026-09-07T09:00:35.921Z"
+  },
+  {
+   "db": "math_11",
+   "id": "bc2fec83-ab7e-475e-ae69-1f352c04f74b",
+   "changes": [
+    {
+     "field": "question",
+     "rules": [
+      "bracket typed outside the maths"
+     ],
+     "before": "For $f(x)=\\sin5x+\\cos2x$, determine $f'(0$)$.",
+     "after": "For $f(x)=\\sin5x+\\cos2x$, determine $f'(0)$."
+    }
+   ],
+   "problemsBefore": [
+    "question: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ],
+   "problemsAfter": [],
+   "keyBefore": "PRINT_BROKEN",
+   "keyAfter": null,
+   "updated_at": "2026-09-07T09:00:35.921Z"
+  },
+  {
+   "db": "math_11",
+   "id": "25e2aca5-0c15-4833-acd0-fa3b87ed9808",
+   "changes": [
+    {
+     "field": "question",
+     "rules": [
+      "bracket typed outside the maths"
+     ],
+     "before": "For $f(x)=2\\sin x-3\\cos x$, determine $f'(0$)$.",
+     "after": "For $f(x)=2\\sin x-3\\cos x$, determine $f'(0)$."
+    }
+   ],
+   "problemsBefore": [
+    "question: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ],
+   "problemsAfter": [],
+   "keyBefore": "PRINT_BROKEN",
+   "keyAfter": null,
+   "updated_at": "2026-09-07T09:00:35.921Z"
+  },
+  {
+   "db": "math_11",
+   "id": "c82b0680-a959-4942-bc35-fa3c862936d1",
+   "changes": [
+    {
+     "field": "question",
+     "rules": [
+      "bracket typed outside the maths"
+     ],
+     "before": "For $f(x)=\\sin x+\\cos x$, determine $f'(\\frac{\\pi}{4}$)$.",
+     "after": "For $f(x)=\\sin x+\\cos x$, determine $f'(\\frac{\\pi}{4})$."
+    }
+   ],
+   "problemsBefore": [
+    "question: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ],
+   "problemsAfter": [],
+   "keyBefore": "PRINT_BROKEN",
+   "keyAfter": null,
+   "updated_at": "2026-09-07T09:00:35.921Z"
+  },
+  {
+   "db": "math_11",
+   "id": "c6016386-1450-461b-9092-041aea5faf5c",
+   "changes": [
+    {
+     "field": "question",
+     "rules": [
+      "bracket typed outside the maths"
+     ],
+     "before": "For $f(x)=2\\cos x+\\sin2x$, determine $f'(\\frac{\\pi}{2}$)$.",
+     "after": "For $f(x)=2\\cos x+\\sin2x$, determine $f'(\\frac{\\pi}{2})$."
+    }
+   ],
+   "problemsBefore": [
+    "question: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ],
+   "problemsAfter": [],
+   "keyBefore": "PRINT_BROKEN",
+   "keyAfter": null,
+   "updated_at": "2026-09-07T09:00:35.921Z"
+  },
+  {
+   "db": "math_12",
+   "id": "266afa10-df4a-40ef-b82a-11bc94373caf",
+   "changes": [
+    {
+     "field": "solution_text",
+     "rules": [
+      "empty $$ left before the end / an image"
+     ],
+     "before": "For a red ball,\n$$\np\n=\n\\frac{3}{3+4+5}\n=\n\\frac14.\n$$\nFor a green ball,\n$$\n[QBP_DIFFICULTY:Medium]",
+     "after": "For a red ball,\n$$\np\n=\n\\frac{3}{3+4+5}\n=\n\\frac14.\n$$\nFor a green ball,\n[QBP_DIFFICULTY:Medium]"
+    }
+   ],
+   "problemsBefore": [
+    "solution: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ],
+   "problemsAfter": [],
+   "keyBefore": null,
+   "keyAfter": null,
+   "updated_at": "2026-08-23T12:31:32.079Z"
+  },
+  {
+   "db": "math_12",
+   "id": "3387fdce-e287-4b23-8395-365e5e9ddc0c",
+   "changes": [
+    {
+     "field": "solution_text",
+     "rules": [
+      "empty $$ left before the end / an image"
+     ],
+     "before": "Factorization of the DenominatorBy testing rational roots for $x^3 - 2x - 4$:$x = 2 \\implies 2^3 - 2(2) - 4 = 8 - 4 - 4 = 0$Dividing by $(x - 2)$:$$x^3 - 2x - 4 = (x - 2)(x^2 + 2x + 2)$$2. Partial Fraction Decomposition$$\\frac{3x + 4}{(x - 2)(x^2 + 2x + 2)} = \\frac{A}{x - 2} + \\frac{Bx + C}{x^2 + 2x + 2}$$Multiplying through by the denominator:$$3x + 4 = A(x^2 + 2x + 2) + (Bx + C)(x - 2)$$For $x = 2$:$$3(2) + 4 = A(4 + 4 + 2) \\implies 10 = 10A \\implies A = 1$$Comparing coefficients of $x^2$:$$0 = A + B \\implies B = -1$$For $x = 0$:$$4 = 2A - 2C \\implies 4 = 2(1) - 2C \\implies C = -1$$Thus:$$\\frac{3x + 4}{x^3 - 2x - 4} = \\frac{1}{x - 2} - \\frac{x + 1}{x^2 + 2x + 2}$$3. Integrating Each Term$$\\int \\frac{3x + 4}{x^3 - 2x - 4}\\, dx = \\int \\frac{1}{x - 2}\\, dx - \\frac{1}{2}\\int \\frac{2x + 2}{x^2 + 2x + 2}\\, dx$$$$= \\ln\\vert{}x - 2\\vert{} - \\frac{1}{2}\\ln\\vert{}x^2 + 2x + 2\\vert{} + C$$$$= \\ln\\left\\vert{}\\frac{x - 2}{\\sqrt{x^2 + 2x + 2}}\\right\\vert{} + C$$4. Finding $k^2 + \\ell^2$Matching the parameters:$k = 2$$\\ell = 2$$$k^2 + \\ell^2 = 2^2 + 2^2 = 4 + 4 = \\mathbf{8}$$\n[QBP_DIFFICULTY:Hard]",
+     "after": "Factorization of the DenominatorBy testing rational roots for $x^3 - 2x - 4$:$x = 2 \\implies 2^3 - 2(2) - 4 = 8 - 4 - 4 = 0$Dividing by $(x - 2)$:$$x^3 - 2x - 4 = (x - 2)(x^2 + 2x + 2)$$2. Partial Fraction Decomposition$$\\frac{3x + 4}{(x - 2)(x^2 + 2x + 2)} = \\frac{A}{x - 2} + \\frac{Bx + C}{x^2 + 2x + 2}$$Multiplying through by the denominator:$$3x + 4 = A(x^2 + 2x + 2) + (Bx + C)(x - 2)$$For $x = 2$:$$3(2) + 4 = A(4 + 4 + 2) \\implies 10 = 10A \\implies A = 1$$Comparing coefficients of $x^2$:$$0 = A + B \\implies B = -1$$For $x = 0$:$$4 = 2A - 2C \\implies 4 = 2(1) - 2C \\implies C = -1$$Thus:$$\\frac{3x + 4}{x^3 - 2x - 4} = \\frac{1}{x - 2} - \\frac{x + 1}{x^2 + 2x + 2}$$3. Integrating Each Term$$\\int \\frac{3x + 4}{x^3 - 2x - 4}\\, dx = \\int \\frac{1}{x - 2}\\, dx - \\frac{1}{2}\\int \\frac{2x + 2}{x^2 + 2x + 2}\\, dx$$$$= \\ln\\vert{}x - 2\\vert{} - \\frac{1}{2}\\ln\\vert{}x^2 + 2x + 2\\vert{} + C$$$$= \\ln\\left\\vert{}\\frac{x - 2}{\\sqrt{x^2 + 2x + 2}}\\right\\vert{} + C$$4. Finding $k^2 + \\ell^2$Matching the parameters:$k = 2$$\\ell = 2$$$k^2 + \\ell^2 = 2^2 + 2^2 = 4 + 4 = \\mathbf{8}\n[QBP_DIFFICULTY:Hard]"
+    }
+   ],
+   "problemsBefore": [
+    "solution: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ],
+   "problemsAfter": [],
+   "keyBefore": null,
+   "keyAfter": null,
+   "updated_at": "2026-08-19T12:00:07.675Z"
+  },
+  {
+   "db": "math_12",
+   "id": "ed853bb8-24de-455e-83ee-382b4ae4e201",
+   "changes": [
+    {
+     "field": "solution_text",
+     "rules": [
+      "empty $$ left before the end / an image"
+     ],
+     "before": "For a pair of fair dice,\n$$\nP(\\text{sum }5)=\\frac4{36}=\\frac19.\n$$\nAlso,\n$$\nP(\\text{sum }8)=\\frac5{36}.\n$$\nFor one complete unsuccessful round, $A$ must fail and then $B$ must fail.\nThus,\n$$\n[QBP_DIFFICULTY:Hard]",
+     "after": "For a pair of fair dice,\n$$\nP(\\text{sum }5)=\\frac4{36}=\\frac19.\n$$\nAlso,\n$$\nP(\\text{sum }8)=\\frac5{36}.\n$$\nFor one complete unsuccessful round, $A$ must fail and then $B$ must fail.\nThus,\n[QBP_DIFFICULTY:Hard]"
+    }
+   ],
+   "problemsBefore": [
+    "solution: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ],
+   "problemsAfter": [],
+   "keyBefore": null,
+   "keyAfter": null,
+   "updated_at": "2026-08-23T12:31:32.079Z"
+  },
+  {
+   "db": "math_12",
+   "id": "9e6d6738-732e-4ec0-87e3-e80e7a7604d2",
+   "changes": [
+    {
+     "field": "solution_text",
+     "rules": [
+      "empty $$ left before the end / an image"
+     ],
+     "before": "Because of $\\sin^{-1}x$,\n$$\n-1\\leq x\\leq1.\n$$\nDifferentiate:\n$$\nf'(x)\n=\n\\frac1{\\sqrt{1-x^2}}\n+\n\\frac2{1+x^2}\n+\n2x+4.\n$$\nThis is positive for\n$$\n-1<x<1.\n$$\nHence $f$ is strictly increasing.\nTherefore,\n$$\np=f(-1)\n$$\nand\n$$\nq=f(1).\n$$\nNow,\n$$\np\n=\n-\\frac{\\pi}{2}\n-\\frac{\\pi}{2}\n+1-4+1\n=\n-\\pi-2.\n$$\nAlso,\n$$\n[QBP_DIFFICULTY:Hard]",
+     "after": "Because of $\\sin^{-1}x$,\n$$\n-1\\leq x\\leq1.\n$$\nDifferentiate:\n$$\nf'(x)\n=\n\\frac1{\\sqrt{1-x^2}}\n+\n\\frac2{1+x^2}\n+\n2x+4.\n$$\nThis is positive for\n$$\n-1<x<1.\n$$\nHence $f$ is strictly increasing.\nTherefore,\n$$\np=f(-1)\n$$\nand\n$$\nq=f(1).\n$$\nNow,\n$$\np\n=\n-\\frac{\\pi}{2}\n-\\frac{\\pi}{2}\n+1-4+1\n=\n-\\pi-2.\n$$\nAlso,\n[QBP_DIFFICULTY:Hard]"
+    }
+   ],
+   "problemsBefore": [
+    "solution: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ],
+   "problemsAfter": [],
+   "keyBefore": null,
+   "keyAfter": null,
+   "updated_at": "2026-08-07T19:14:13.631Z"
+  },
+  {
+   "db": "math_12",
+   "id": "bea7e480-b092-4f0a-8e8c-d061076f082a",
+   "changes": [
+    {
+     "field": "solution_text",
+     "rules": [
+      "empty $$ left before the end / an image"
+     ],
+     "before": "Because of $\\sin^{-1}x$, the domain is\n$$\n-1\\leq x\\leq1.\n$$\nDifferentiate:\n$$\nf'(x)\n=\n\\frac1{\\sqrt{1-x^2}}\n+\n\\frac{2}{1+x^2}\n+\n2x+4.\n$$\nFor $-1<x<1$, every term contributes such that\n$$\nf'(x)>0.\n$$\nTherefore, $f$ is strictly increasing on $[-1,1]$.\nHence the minimum occurs at $x=-1$:\n$$\np=f(-1).\n$$\nThus,\n$$\np\n=\n-\\frac{\\pi}{2}\n+\n2\\left(-\\frac{\\pi}{4}\\right)\n+\n1-4+1.\n$$\nTherefore,\n$$\np=-\\pi-2.\n$$\nThe maximum occurs at $x=1$:\n$$\nq=f(1).\n$$\nThus,\n$$\n[QBP_DIFFICULTY:Hard]",
+     "after": "Because of $\\sin^{-1}x$, the domain is\n$$\n-1\\leq x\\leq1.\n$$\nDifferentiate:\n$$\nf'(x)\n=\n\\frac1{\\sqrt{1-x^2}}\n+\n\\frac{2}{1+x^2}\n+\n2x+4.\n$$\nFor $-1<x<1$, every term contributes such that\n$$\nf'(x)>0.\n$$\nTherefore, $f$ is strictly increasing on $[-1,1]$.\nHence the minimum occurs at $x=-1$:\n$$\np=f(-1).\n$$\nThus,\n$$\np\n=\n-\\frac{\\pi}{2}\n+\n2\\left(-\\frac{\\pi}{4}\\right)\n+\n1-4+1.\n$$\nTherefore,\n$$\np=-\\pi-2.\n$$\nThe maximum occurs at $x=1$:\n$$\nq=f(1).\n$$\nThus,\n[QBP_DIFFICULTY:Hard]"
+    }
+   ],
+   "problemsBefore": [
+    "solution: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ],
+   "problemsAfter": [],
+   "keyBefore": null,
+   "keyAfter": null,
+   "updated_at": "2026-08-07T17:26:28.830Z"
+  },
+  {
+   "db": "chem_11",
+   "id": "730d245c-e983-4de2-97ee-6fe75e950050",
+   "changes": [
+    {
+     "field": "solution_text",
+     "rules": [
+      "brace left open"
+     ],
+     "before": "Half of the original solution contains approximately:\n$$\n\\frac{0.02}{2}=0.01\\,\\mathrm{mol}\n$$\nDilution does not change the number of moles. A further $0.01\\,\\mathrm{{mol}$ is added:\n$$\nn_{\\text{total}}=0.01+0.01=0.02\\,\\mathrm{mol}\n$$\n$$\n0.02\\,\\mathrm{mol}=20\\times10^{-3}\\,\\mathrm{mol}\n$$\nHence, the answer is $\\boxed{20}$.\n[QBP_DIFFICULTY:Medium]",
+     "after": "Half of the original solution contains approximately:\n$$\n\\frac{0.02}{2}=0.01\\,\\mathrm{mol}\n$$\nDilution does not change the number of moles. A further $0.01\\,\\mathrm{{mol}}$ is added:\n$$\nn_{\\text{total}}=0.01+0.01=0.02\\,\\mathrm{mol}\n$$\n$$\n0.02\\,\\mathrm{mol}=20\\times10^{-3}\\,\\mathrm{mol}\n$$\nHence, the answer is $\\boxed{20}$.\n[QBP_DIFFICULTY:Medium]"
+    }
+   ],
+   "problemsBefore": [
+    "solution: The equation cannot be typeset (cut off, unbalanced braces or an unknown command), so it prints as plain text."
+   ],
+   "problemsAfter": [],
+   "keyBefore": null,
+   "keyAfter": null,
+   "updated_at": "2026-09-02T15:05:59.019Z"
+  },
+  {
+   "db": "chem_11",
+   "id": "82967c31-e69a-4c49-bc00-6b8766bc9116",
+   "changes": [
+    {
+     "field": "solution_text",
+     "rules": [
+      "empty $$ left before the end / an image"
+     ],
+     "before": "Let x react. At equilibrium: $[A] = a - x$, $[B] = 1.5a - 2x$ and $[D] = x$.\n$[A] = [D]$ gives $a - x = x$, so $x = \\dfrac{a}{2}$.\n$$\n[QBP_DIFFICULTY:Medium]",
+     "after": "Let x react. At equilibrium: $[A] = a - x$, $[B] = 1.5a - 2x$ and $[D] = x$.\n$[A] = [D]$ gives $a - x = x$, so $x = \\dfrac{a}{2}$.\n[QBP_DIFFICULTY:Medium]"
+    }
+   ],
+   "problemsBefore": [
+    "option 4: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation).",
+    "solution: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ],
+   "problemsAfter": [
+    "option 4: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ],
+   "keyBefore": "PRINT_BROKEN",
+   "keyAfter": "PRINT_BROKEN",
+   "updated_at": "2026-09-28T04:13:52.950Z"
+  },
+  {
+   "db": "chem_11",
+   "id": "51bff08b-568e-478f-93bc-4ac149017d27",
+   "changes": [
+    {
+     "field": "question",
+     "rules": [
+      "backslash typed for a slash"
+     ],
+     "before": "Which of the following molecule\\ion does not contain unpaired electrons?",
+     "after": "Which of the following molecule/ion does not contain unpaired electrons?"
+    }
+   ],
+   "problemsBefore": [
+    "question: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ],
+   "problemsAfter": [],
+   "keyBefore": null,
+   "keyAfter": null,
+   "updated_at": "2026-09-30T11:31:12.424Z"
+  },
+  {
+   "db": "chem_11",
+   "id": "39a923a2-d5de-469a-ac94-29a950de9d52",
+   "changes": [
+    {
+     "field": "solution_text",
+     "rules": [
+      "empty $$ left before the end / an image"
+     ],
+     "before": "The compounds are an alkane (B), an ether (A, $\\mathrm{CH_3CH_2-O-CH_2CH_2CH_3}$), a ketone (C, $\\mathrm{CH_3CH_2COCH_2CH_3}$) and an alcohol (D, $\\mathrm{CH_3CH(OH)CH_2CH_2CH_3}$) of comparable molar mass.\nThe alkane has only weak van der Waals forces, so it boils lowest.\nThe ether has a weak dipole, and the ketone has a stronger C=O dipole, so the ketone boils higher than the ether.\nThe alcohol forms intermolecular hydrogen bonds and boils highest.\n$$\n[QBP_DIFFICULTY:Medium]",
+     "after": "The compounds are an alkane (B), an ether (A, $\\mathrm{CH_3CH_2-O-CH_2CH_2CH_3}$), a ketone (C, $\\mathrm{CH_3CH_2COCH_2CH_3}$) and an alcohol (D, $\\mathrm{CH_3CH(OH)CH_2CH_2CH_3}$) of comparable molar mass.\nThe alkane has only weak van der Waals forces, so it boils lowest.\nThe ether has a weak dipole, and the ketone has a stronger C=O dipole, so the ketone boils higher than the ether.\nThe alcohol forms intermolecular hydrogen bonds and boils highest.\n[QBP_DIFFICULTY:Medium]"
+    }
+   ],
+   "problemsBefore": [
+    "solution: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ],
+   "problemsAfter": [],
+   "keyBefore": null,
+   "keyAfter": null,
+   "updated_at": "2026-10-02T10:17:59.695Z"
+  },
+  {
+   "db": "chem_11",
+   "id": "9c7351be-c330-4af3-b781-0417bbda6954",
+   "changes": [
+    {
+     "field": "solution_text",
+     "rules": [
+      "empty $$ left before the end / an image"
+     ],
+     "before": "R : Fluoro is a stronger electron withdrawing group than Chloro group.\n[DIAGRAM REQUIRED]\n(A) A is false but R is true\n(B) Both A and R are correct and R is the correct explanation of A\n(C) A is true but R is false\n(D) Both A and R are correct but R is NOT the correct explanation of A\nFirst verify the Assertion independently.\nAcid strength of the given compounds depends on how well the conjugate base is stabilised by electron-withdrawing substituents and their position. On comparing the given structures, the order A > B > C is correct, so the Assertion is true.\nNow verify the Reason independently.\nFluorine is more electronegative than chlorine, so it has a stronger $-I$ effect. The Reason is true.\nThen determine whether the Reason correctly explains the Assertion.\nThe order A > B > C is decided by factors other than just the F vs Cl comparison (such as the position or number of substituents), so the Reason does not explain the Assertion.\nTherefore, option D is correct.$$\n[QBP_DIFFICULTY:Medium]",
+     "after": "R : Fluoro is a stronger electron withdrawing group than Chloro group.\n[DIAGRAM REQUIRED]\n(A) A is false but R is true\n(B) Both A and R are correct and R is the correct explanation of A\n(C) A is true but R is false\n(D) Both A and R are correct but R is NOT the correct explanation of A\nFirst verify the Assertion independently.\nAcid strength of the given compounds depends on how well the conjugate base is stabilised by electron-withdrawing substituents and their position. On comparing the given structures, the order A > B > C is correct, so the Assertion is true.\nNow verify the Reason independently.\nFluorine is more electronegative than chlorine, so it has a stronger $-I$ effect. The Reason is true.\nThen determine whether the Reason correctly explains the Assertion.\nThe order A > B > C is decided by factors other than just the F vs Cl comparison (such as the position or number of substituents), so the Reason does not explain the Assertion.\nTherefore, option D is correct.\n[QBP_DIFFICULTY:Medium]"
+    }
+   ],
+   "problemsBefore": [
+    "solution: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ],
+   "problemsAfter": [],
+   "keyBefore": null,
+   "keyAfter": null,
+   "updated_at": "2026-10-02T10:17:59.695Z"
+  },
+  {
+   "db": "chem_11",
+   "id": "cf25b9d9-60cd-4fdc-8b2b-0c21302ab14c",
+   "changes": [
+    {
+     "field": "solution_text",
+     "rules": [
+      "empty $$ left before the end / an image"
+     ],
+     "before": "Arenediazonium ions are stabilised by resonance of the $-\\mathrm{N_2^+}$ group with the ring. Electron-donating groups at the para position (such as $-\\mathrm{OCH_3}$) increase this resonance and stabilise the ion, while electron-withdrawing groups (such as $-\\mathrm{NO_2}$) destabilise it. Aliphatic diazonium salts are the least stable because they have no such resonance.\nApplying this to the given salts:\n$$\n[QBP_DIFFICULTY:Medium]",
+     "after": "Arenediazonium ions are stabilised by resonance of the $-\\mathrm{N_2^+}$ group with the ring. Electron-donating groups at the para position (such as $-\\mathrm{OCH_3}$) increase this resonance and stabilise the ion, while electron-withdrawing groups (such as $-\\mathrm{NO_2}$) destabilise it. Aliphatic diazonium salts are the least stable because they have no such resonance.\nApplying this to the given salts:\n[QBP_DIFFICULTY:Medium]"
+    }
+   ],
+   "problemsBefore": [
+    "option 4: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation).",
+    "solution: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ],
+   "problemsAfter": [
+    "option 4: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ],
+   "keyBefore": "PRINT_BROKEN",
+   "keyAfter": "PRINT_BROKEN",
+   "updated_at": "2026-10-02T10:17:59.695Z"
+  },
+  {
+   "db": "chem_11",
+   "id": "6dbfa58a-aa78-4b03-88a0-7507b157f5e1",
+   "changes": [
+    {
+     "field": "solution_text",
+     "rules": [
+      "empty $$ left before the end / an image"
+     ],
+     "before": "For haloalkanes and haloarenes, density increases with the number of halogen atoms and with the atomic mass of the halogen, because heavier atoms add mass with little increase in volume.\nSo compounds with more (or heavier) halogen atoms are denser, and the hydrocarbon is the least dense.\nRanking the given compounds:\n$$\n[QBP_DIFFICULTY:Medium]",
+     "after": "For haloalkanes and haloarenes, density increases with the number of halogen atoms and with the atomic mass of the halogen, because heavier atoms add mass with little increase in volume.\nSo compounds with more (or heavier) halogen atoms are denser, and the hydrocarbon is the least dense.\nRanking the given compounds:\n[QBP_DIFFICULTY:Medium]"
+    }
+   ],
+   "problemsBefore": [
+    "option 4: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation).",
+    "solution: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ],
+   "problemsAfter": [
+    "option 4: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ],
+   "keyBefore": "PRINT_BROKEN",
+   "keyAfter": "PRINT_BROKEN",
+   "updated_at": "2026-10-02T10:17:59.695Z"
+  },
+  {
+   "db": "chem_11",
+   "id": "73d4f684-c827-446d-9299-bd6204764580",
+   "changes": [
+    {
+     "field": "solution_text",
+     "rules": [
+      "empty $$ left before the end / an image"
+     ],
+     "before": "An $\\alpha$-hydrogen is acidic because the enolate formed after its removal is resonance stabilised by the carbonyl group.\nAcidity increases when the $\\alpha$-carbon is attached to more than one electron-withdrawing group (for example two C=O groups), or when the carbonyl group is a stronger electron acceptor (aldehyde > ketone > ester > amide). Electron-donating groups decrease acidity.\nArranging the given compounds in increasing order of $\\alpha$-H acidity:\n$$\n[QBP_DIFFICULTY:Hard]",
+     "after": "An $\\alpha$-hydrogen is acidic because the enolate formed after its removal is resonance stabilised by the carbonyl group.\nAcidity increases when the $\\alpha$-carbon is attached to more than one electron-withdrawing group (for example two C=O groups), or when the carbonyl group is a stronger electron acceptor (aldehyde > ketone > ester > amide). Electron-donating groups decrease acidity.\nArranging the given compounds in increasing order of $\\alpha$-H acidity:\n[QBP_DIFFICULTY:Hard]"
+    }
+   ],
+   "problemsBefore": [
+    "option 4: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation).",
+    "solution: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ],
+   "problemsAfter": [
+    "option 4: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ],
+   "keyBefore": "PRINT_BROKEN",
+   "keyAfter": "PRINT_BROKEN",
+   "updated_at": "2026-10-02T10:17:59.695Z"
+  },
+  {
+   "db": "chem_11",
+   "id": "bba3889e-3a9c-4b5c-942e-a6dd73caba66",
+   "changes": [
+    {
+     "field": "solution_text",
+     "rules": [
+      "empty $$ left before the end / an image"
+     ],
+     "before": "An alkoxide ion is stabilised when its negative charge on oxygen can be delocalised by resonance into an attached electron-withdrawing $\\pi$ system (such as $-\\mathrm{NO_2}$ or C=O in conjugation), or dispersed by $-I$ groups. Alkyl groups (+I) destabilise it.\nAlkoxide C has the greatest delocalisation of the negative charge, B has some stabilisation, and A has the least.\n$$\n[QBP_DIFFICULTY:Medium]",
+     "after": "An alkoxide ion is stabilised when its negative charge on oxygen can be delocalised by resonance into an attached electron-withdrawing $\\pi$ system (such as $-\\mathrm{NO_2}$ or C=O in conjugation), or dispersed by $-I$ groups. Alkyl groups (+I) destabilise it.\nAlkoxide C has the greatest delocalisation of the negative charge, B has some stabilisation, and A has the least.\n[QBP_DIFFICULTY:Medium]"
+    }
+   ],
+   "problemsBefore": [
+    "option 4: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation).",
+    "solution: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ],
+   "problemsAfter": [
+    "option 4: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ],
+   "keyBefore": "PRINT_BROKEN",
+   "keyAfter": "PRINT_BROKEN",
+   "updated_at": "2026-10-02T10:17:59.695Z"
+  },
+  {
+   "db": "chem_11",
+   "id": "0add7969-5cb9-49fa-bd5f-077afd54a221",
+   "changes": [
+    {
+     "field": "solution_text",
+     "rules": [
+      "empty $$ left before the end / an image"
+     ],
+     "before": "Nucleophilicity depends on how available and how polarisable the electron pair is.\nA species whose negative charge is delocalised by resonance or stabilised by electron-withdrawing groups (such as a carboxylate or sulfonate) is a weak nucleophile. A localised negative charge (such as an alkoxide or hydroxide) makes a strong nucleophile.\nArranging the given nucleophiles from weakest to strongest:\n$$\n[QBP_DIFFICULTY:Medium]",
+     "after": "Nucleophilicity depends on how available and how polarisable the electron pair is.\nA species whose negative charge is delocalised by resonance or stabilised by electron-withdrawing groups (such as a carboxylate or sulfonate) is a weak nucleophile. A localised negative charge (such as an alkoxide or hydroxide) makes a strong nucleophile.\nArranging the given nucleophiles from weakest to strongest:\n[QBP_DIFFICULTY:Medium]"
+    }
+   ],
+   "problemsBefore": [
+    "option 4: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation).",
+    "solution: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ],
+   "problemsAfter": [
+    "option 4: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ],
+   "keyBefore": "PRINT_BROKEN",
+   "keyAfter": "PRINT_BROKEN",
+   "updated_at": "2026-10-02T10:17:59.695Z"
+  },
+  {
+   "db": "chem_12",
+   "id": "740a6da6-45f2-426e-a5a9-d335202fbbcf",
+   "changes": [
+    {
+     "field": "question",
+     "rules": [
+      "brace left open"
+     ],
+     "before": "Statement I: Among $\\mathrm{[Cu(NH_{3})]^{2+}}$, $\\mathrm{[Ni(en)_{3}]^{2+}}$, $\\mathrm{[Ni(NH_{3})_{6}]^{2+}}$ and $\\mathrm{[Mn(H_{2}O)_{6}]^{2+}}$, $\\mathrm{[Mn(H_{2}O)_{6}]^{2+}}$, has the maximum number of unpaired electrons.\nStatement II: The number of pairs among $\\mathrm{{[NiCl_{4}]^{2-}}$, $\\mathrm{[Ni(CO)_{4}]}}$, $\\mathrm{{[NiCl_{4}]^{2-}}$, $\\mathrm{[Ni(CN)_{4}]^{2-}}}$ and $\\mathrm{{[Ni(CO)_{4}]}$, $\\mathrm{[Ni(CN)_{4}]^{2-}}}$ that contain only diamagnetic species is two.\nIn the light of the above statements, choose the correct answer from the options given below:",
+     "after": "Statement I: Among $\\mathrm{[Cu(NH_{3})]^{2+}}$, $\\mathrm{[Ni(en)_{3}]^{2+}}$, $\\mathrm{[Ni(NH_{3})_{6}]^{2+}}$ and $\\mathrm{[Mn(H_{2}O)_{6}]^{2+}}$, $\\mathrm{[Mn(H_{2}O)_{6}]^{2+}}$, has the maximum number of unpaired electrons.\nStatement II: The number of pairs among $\\mathrm{{[NiCl_{4}]^{2-}}}$, $\\mathrm{[Ni(CO)_{4}]}}$, $\\mathrm{{[NiCl_{4}]^{2-}}}$, $\\mathrm{[Ni(CN)_{4}]^{2-}}}$ and $\\mathrm{{[Ni(CO)_{4}]}}$, $\\mathrm{[Ni(CN)_{4}]^{2-}}}$ that contain only diamagnetic species is two.\nIn the light of the above statements, choose the correct answer from the options given below:"
+    },
+    {
+     "field": "solution_text",
+     "rules": [
+      "brace left open"
+     ],
+     "before": "First verify Statement-I independently.\nUnpaired electrons: $\\mathrm{Cu^{2+}}$ complex $\\mathrm{(d^{9})}$ – 1; $\\mathrm{[Ni(en)_{3}]^{2+}}$ and $\\mathrm{[Ni(NH_{3})_{6}]^{2+}}$ $\\mathrm{(d^{8})}$ – 2 each; $\\mathrm{[Mn(H_{2}O)_{6}]^{2+}}$ (high spin $\\mathrm{d^{5})}$ – 5. Mn has the maximum: Statement-I is true.\nNow verify Statement-II independently.\n$\\mathrm{[NiCl_{4}]^{2-}}$ is paramagnetic (2 unpaired), while $\\mathrm{[Ni(CO)_{4}]}$ and $\\mathrm{[Ni(CN)_{4}]^{2-}}$ are diamagnetic. Only the pair $\\mathrm{{[Ni(CO)_{4}]}$, $\\mathrm{[Ni(CN)_{4}]^{2-}}}$ contains only diamagnetic species – one pair, not two. Statement-II is false.\nTherefore, option D is correct.\n[QBP_TYPE:statement_based]\n[QBP_DATA:eyJzdGF0ZW1lbnQxIjoiQW1vbmcgJFxcbWF0aHJte1tDdShOSF97M30pXV57Mit9fSQsICRcXG1hdGhybXtbTmkoZW4pX3szfV1eezIrfX0kLCAkXFxtYXRocm17W05pKE5IX3szfSlfezZ9XV57Mit9fSQgYW5kICRcXG1hdGhybXtbTW4oSF97Mn1PKV97Nn1dXnsyK319JCwgJFxcbWF0aHJte1tNbihIX3syfU8pX3s2fV1eezIrfX0kLCBoYXMgdGhlIG1heGltdW0gbnVtYmVyIG9mIHVucGFpcmVkIGVsZWN0cm9ucy4iLCJzdGF0ZW1lbnQyIjoiVGhlIG51bWJlciBvZiBwYWlycyBhbW9uZyAkXFxtYXRocm17e1tOaUNsX3s0fV1eezItfX0kLCAkXFxtYXRocm17W05pKENPKV97NH1dfX0kLCAkXFxtYXRocm17e1tOaUNsX3s0fV1eezItfX0kLCAkXFxtYXRocm17W05pKENOKV97NH1dXnsyLX19fSQgYW5kICRcXG1hdGhybXt7W05pKENPKV97NH1dfSQsICRcXG1hdGhybXtbTmkoQ04pX3s0fV1eezItfX19JCB0aGF0IGNvbnRhaW4gb25seSBkaWFtYWduZXRpYyBzcGVjaWVzIGlzIHR3by5cbkluIHRoZSBsaWdodCBvZiB0aGUgYWJvdmUgc3RhdGVtZW50cywgY2hvb3NlIHRoZSBjb3JyZWN0IGFuc3dlciBmcm9tIHRoZSBvcHRpb25zIGdpdmVuIGJlbG93OiIsImNvbHVtbkEiOltdLCJjb2x1bW5CIjpbXSwibWF0Y2hPcHRpb25zIjp7fSwiZ3JhbmRUZXN0IjpudWxsLCJwcmV2aW91c1llYXIiOm51bGx9]\n[QBP_DIFFICULTY:Hard]",
+     "after": "First verify Statement-I independently.\nUnpaired electrons: $\\mathrm{Cu^{2+}}$ complex $\\mathrm{(d^{9})}$ – 1; $\\mathrm{[Ni(en)_{3}]^{2+}}$ and $\\mathrm{[Ni(NH_{3})_{6}]^{2+}}$ $\\mathrm{(d^{8})}$ – 2 each; $\\mathrm{[Mn(H_{2}O)_{6}]^{2+}}$ (high spin $\\mathrm{d^{5})}$ – 5. Mn has the maximum: Statement-I is true.\nNow verify Statement-II independently.\n$\\mathrm{[NiCl_{4}]^{2-}}$ is paramagnetic (2 unpaired), while $\\mathrm{[Ni(CO)_{4}]}$ and $\\mathrm{[Ni(CN)_{4}]^{2-}}$ are diamagnetic. Only the pair $\\mathrm{{[Ni(CO)_{4}]}}$, $\\mathrm{[Ni(CN)_{4}]^{2-}}}$ contains only diamagnetic species – one pair, not two. Statement-II is false.\nTherefore, option D is correct.\n[QBP_TYPE:statement_based]\n[QBP_DATA:eyJzdGF0ZW1lbnQxIjoiQW1vbmcgJFxcbWF0aHJte1tDdShOSF97M30pXV57Mit9fSQsICRcXG1hdGhybXtbTmkoZW4pX3szfV1eezIrfX0kLCAkXFxtYXRocm17W05pKE5IX3szfSlfezZ9XV57Mit9fSQgYW5kICRcXG1hdGhybXtbTW4oSF97Mn1PKV97Nn1dXnsyK319JCwgJFxcbWF0aHJte1tNbihIX3syfU8pX3s2fV1eezIrfX0kLCBoYXMgdGhlIG1heGltdW0gbnVtYmVyIG9mIHVucGFpcmVkIGVsZWN0cm9ucy4iLCJzdGF0ZW1lbnQyIjoiVGhlIG51bWJlciBvZiBwYWlycyBhbW9uZyAkXFxtYXRocm17e1tOaUNsX3s0fV1eezItfX0kLCAkXFxtYXRocm17W05pKENPKV97NH1dfX0kLCAkXFxtYXRocm17e1tOaUNsX3s0fV1eezItfX0kLCAkXFxtYXRocm17W05pKENOKV97NH1dXnsyLX19fSQgYW5kICRcXG1hdGhybXt7W05pKENPKV97NH1dfSQsICRcXG1hdGhybXtbTmkoQ04pX3s0fV1eezItfX19JCB0aGF0IGNvbnRhaW4gb25seSBkaWFtYWduZXRpYyBzcGVjaWVzIGlzIHR3by5cbkluIHRoZSBsaWdodCBvZiB0aGUgYWJvdmUgc3RhdGVtZW50cywgY2hvb3NlIHRoZSBjb3JyZWN0IGFuc3dlciBmcm9tIHRoZSBvcHRpb25zIGdpdmVuIGJlbG93OiIsImNvbHVtbkEiOltdLCJjb2x1bW5CIjpbXSwibWF0Y2hPcHRpb25zIjp7fSwiZ3JhbmRUZXN0IjpudWxsLCJwcmV2aW91c1llYXIiOm51bGx9]\n[QBP_DIFFICULTY:Hard]"
+    }
+   ],
+   "problemsBefore": [
+    "statement 2: The equation cannot be typeset (cut off, unbalanced braces or an unknown command), so it prints as plain text.",
+    "solution: The equation cannot be typeset (cut off, unbalanced braces or an unknown command), so it prints as plain text."
+   ],
+   "problemsAfter": [],
+   "keyBefore": "PRINT_BROKEN",
+   "keyAfter": null,
+   "updated_at": "2026-10-26T16:07:56.694Z"
+  },
+  {
+   "db": "chem_12",
+   "id": "e6d583e5-6cda-41e1-9add-8339ebd7967f",
+   "changes": [
+    {
+     "field": "question",
+     "rules": [
+      "empty $$ left before the end / an image"
+     ],
+     "before": "Identify A in the given chemical reaction.\n$$\n{{IMG::https://res.cloudinary.com/j7fza1qp/image/upload/v1793852449/question-bank/chemistry/12/1793852449821-6830ca1a-95ec-4164-90ba-fd30e1fd9ead.jpg}}",
+     "after": "Identify A in the given chemical reaction.\n\n{{IMG::https://res.cloudinary.com/j7fza1qp/image/upload/v1793852449/question-bank/chemistry/12/1793852449821-6830ca1a-95ec-4164-90ba-fd30e1fd9ead.jpg}}"
+    }
+   ],
+   "problemsBefore": [
+    "question: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ],
+   "problemsAfter": [],
+   "keyBefore": "PRINT_BROKEN",
+   "keyAfter": null,
+   "updated_at": "2026-11-05T04:21:43.742Z"
+  },
+  {
+   "db": "chem_12",
+   "id": "9f6852fe-6429-4806-850b-e84b24ef39f8",
+   "changes": [
+    {
+     "field": "question",
+     "rules": [
+      "empty $$ left before the end / an image"
+     ],
+     "before": "Following is a confirmatory test for aromatic primary amines. Identify reagent (A) and (B)\n$$\n{{IMG::https://res.cloudinary.com/j7fza1qp/image/upload/v1793872851/question-bank/chemistry/12/1793872851499-986be721-10f7-4e73-b492-39fc06f2c5ba.jpg}}",
+     "after": "Following is a confirmatory test for aromatic primary amines. Identify reagent (A) and (B)\n\n{{IMG::https://res.cloudinary.com/j7fza1qp/image/upload/v1793872851/question-bank/chemistry/12/1793872851499-986be721-10f7-4e73-b492-39fc06f2c5ba.jpg}}"
+    }
+   ],
+   "problemsBefore": [
+    "question: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ],
+   "problemsAfter": [],
+   "keyBefore": "PRINT_BROKEN",
+   "keyAfter": null,
+   "updated_at": "2026-11-05T10:01:45.799Z"
+  },
+  {
+   "db": "bio_12",
+   "id": "fa7972d4-c56b-43c2-8a72-5a93806f15b7",
+   "changes": [
+    {
+     "field": "solution_text",
+     "rules": [
+      "empty $$ left before the end / an image"
+     ],
+     "before": "$\\textit{Eco}$RI breaks 2 phosphodiester bonds, one on each strand. The 4 A–T pairs of the AATT overhang separate, breaking 8 hydrogen bonds:\n$$\n[QBP_DIFFICULTY:Hard]",
+     "after": "$\\textit{Eco}$RI breaks 2 phosphodiester bonds, one on each strand. The 4 A–T pairs of the AATT overhang separate, breaking 8 hydrogen bonds:\n[QBP_DIFFICULTY:Hard]"
+    }
+   ],
+   "problemsBefore": [
+    "solution: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ],
+   "problemsAfter": [],
+   "keyBefore": null,
+   "keyAfter": null,
+   "updated_at": "2026-10-12T09:39:59.089Z"
+  },
+  {
+   "db": "bio_12",
+   "id": "53ec8f33-7ca4-4d46-9ffd-5e4c66cfaf2f",
+   "changes": [
+    {
+     "field": "solution_text",
+     "rules": [
+      "empty $$ left before the end / an image"
+     ],
+     "before": "Each GAATTC site has 14 hydrogen bonds, of which 8 (in the AATT pairs) are broken. For four sites:\n$$\n14 \\times 4 = 56 \\text{ present}, \\quad 8 \\times 4 = 32 \\text{ cleaved}\n$$\n$$\n[QBP_DIFFICULTY:Hard]",
+     "after": "Each GAATTC site has 14 hydrogen bonds, of which 8 (in the AATT pairs) are broken. For four sites:\n$$\n14 \\times 4 = 56 \\text{ present}, \\quad 8 \\times 4 = 32 \\text{ cleaved}\n$$\n[QBP_DIFFICULTY:Hard]"
+    }
+   ],
+   "problemsBefore": [
+    "solution: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ],
+   "problemsAfter": [],
+   "keyBefore": null,
+   "keyAfter": null,
+   "updated_at": "2026-10-12T09:58:23.122Z"
+  },
+  {
+   "db": "bio_12",
+   "id": "ce52629b-c9b7-4987-ae31-f1749603542a",
+   "changes": [
+    {
+     "field": "solution_text",
+     "rules": [
+      "empty $$ left before the end / an image"
+     ],
+     "before": "With 3 gene pairs there are 6 alleles, so an individual can carry 0 to 6 dominant alleles, giving 7 phenotypic classes. Their frequencies follow the binomial coefficients of $(a+b)^6$:\n$$\n[QBP_DIFFICULTY:Medium]",
+     "after": "With 3 gene pairs there are 6 alleles, so an individual can carry 0 to 6 dominant alleles, giving 7 phenotypic classes. Their frequencies follow the binomial coefficients of $(a+b)^6$:\n[QBP_DIFFICULTY:Medium]"
+    }
+   ],
+   "problemsBefore": [
+    "solution: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ],
+   "problemsAfter": [],
+   "keyBefore": null,
+   "keyAfter": null,
+   "updated_at": "2026-10-13T12:28:00.603Z"
+  },
+  {
+   "db": "bio_12",
+   "id": "d8acaf45-cf71-45a8-aac4-d0ba52849532",
+   "changes": [
+    {
+     "field": "solution_text",
+     "rules": [
+      "empty $$ left before the end / an image"
+     ],
+     "before": "For 3 additive genes the F$_2$ ratio follows $(a+b)^6$:\n$$\n[QBP_DIFFICULTY:Medium]",
+     "after": "For 3 additive genes the F$_2$ ratio follows $(a+b)^6$:\n[QBP_DIFFICULTY:Medium]"
+    }
+   ],
+   "problemsBefore": [
+    "solution: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ],
+   "problemsAfter": [],
+   "keyBefore": null,
+   "keyAfter": null,
+   "updated_at": "2026-10-13T12:28:00.603Z"
+  },
+  {
+   "db": "bio_12",
+   "id": "e0ff9b41-8d43-49a9-8619-02246a162bc2",
+   "changes": [
+    {
+     "field": "solution_text",
+     "rules": [
+      "empty $$ left before the end / an image"
+     ],
+     "before": "With 3 additive gene pairs, the F$_2$ ratio is\n$$\n[QBP_DIFFICULTY:Medium]",
+     "after": "With 3 additive gene pairs, the F$_2$ ratio is\n[QBP_DIFFICULTY:Medium]"
+    }
+   ],
+   "problemsBefore": [
+    "solution: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ],
+   "problemsAfter": [],
+   "keyBefore": null,
+   "keyAfter": null,
+   "updated_at": "2026-10-14T09:36:57.200Z"
+  },
+  {
+   "db": "phy_11",
+   "id": "e0cfc4e7-2405-42df-b8bb-05cd8036fc36",
+   "changes": [
+    {
+     "field": "solution_text",
+     "rules": [
+      "brace left open"
+     ],
+     "before": "After leaving the track at $B$, the ball rises from $3\\ \\text{m}$ to $4\\ \\text{m$. Hence, its vertical rise is\n$$\nH=4-3=1\\ \\text{m}.\n$$\nFor projectile motion,\n$$\n\\frac{v_y^2}{2g}=1.\n$$\nUsing $g=10\\ \\text{m/s}^2$,\n$$\nv_y^2=20.\n$$\nSince the velocity at $B$ makes an angle of $30^\\circ$,\n$$\nv_y=v\\sin30^\\circ=\\frac{v}{2}.\n$$\nTherefore,\n$$\n\\frac{v^2}{4}=20\n\\quad\\Rightarrow\\quad\nv^2=80.\n$$\nApplying conservation of mechanical energy from $A$ to $B$,\n$$\nmgh=mg(3)+\\frac12mv^2.\n$$\nThus,\n$$\n10h=30+40,\n$$\ngiving\n$$\nh=7\\ \\text{m}.\n$$\n[QBP_DIFFICULTY:Hard]",
+     "after": "After leaving the track at $B$, the ball rises from $3\\ \\text{m}$ to $4\\ \\text{m}$. Hence, its vertical rise is\n$$\nH=4-3=1\\ \\text{m}.\n$$\nFor projectile motion,\n$$\n\\frac{v_y^2}{2g}=1.\n$$\nUsing $g=10\\ \\text{m/s}^2$,\n$$\nv_y^2=20.\n$$\nSince the velocity at $B$ makes an angle of $30^\\circ$,\n$$\nv_y=v\\sin30^\\circ=\\frac{v}{2}.\n$$\nTherefore,\n$$\n\\frac{v^2}{4}=20\n\\quad\\Rightarrow\\quad\nv^2=80.\n$$\nApplying conservation of mechanical energy from $A$ to $B$,\n$$\nmgh=mg(3)+\\frac12mv^2.\n$$\nThus,\n$$\n10h=30+40,\n$$\ngiving\n$$\nh=7\\ \\text{m}.\n$$\n[QBP_DIFFICULTY:Hard]"
+    }
+   ],
+   "problemsBefore": [
+    "solution: The equation cannot be typeset (cut off, unbalanced braces or an unknown command), so it prints as plain text."
+   ],
+   "problemsAfter": [],
+   "keyBefore": null,
+   "keyAfter": null,
+   "updated_at": "2026-08-28T17:30:38.985Z"
+  },
+  {
+   "db": "phy_12",
+   "id": "7d9d5df4-0904-4e77-9b5e-0164c8d0bd89",
+   "changes": [
+    {
+     "field": "solution_text",
+     "rules": [
+      "empty $$ left before the end / an image"
+     ],
+     "before": "The induced emf is\n$$\ne=NA\\left|\\frac{dB}{dt}\\right|.\n$$\nThe area of the coil is\n$$\nA=\\pi r^2\n=\\pi(0.1)^2.\n$$\nTherefore,\n$$\ne\n=\n200\\pi(0.1)^2(0.01)\n\\approx0.0628\\ V.\n$$\nThe charge on the capacitor is\n$$\nQ=Ce.\n$$\nHence,\n$$\n[QBP_DIFFICULTY:Medium]",
+     "after": "The induced emf is\n$$\ne=NA\\left|\\frac{dB}{dt}\\right|.\n$$\nThe area of the coil is\n$$\nA=\\pi r^2\n=\\pi(0.1)^2.\n$$\nTherefore,\n$$\ne\n=\n200\\pi(0.1)^2(0.01)\n\\approx0.0628\\ V.\n$$\nThe charge on the capacitor is\n$$\nQ=Ce.\n$$\nHence,\n[QBP_DIFFICULTY:Medium]"
+    }
+   ],
+   "problemsBefore": [
+    "solution: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ],
+   "problemsAfter": [],
+   "keyBefore": null,
+   "keyAfter": null,
+   "updated_at": "2026-08-26T13:46:10.083Z"
+  }
+ ],
+ "notFixed": [
+  {
+   "db": "math_11",
+   "id": "10f27106-8b61-43e0-b4ee-ebb449dadaab",
+   "problems": [
+    "reason: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ]
+  },
+  {
+   "db": "math_11",
+   "id": "11d3a578-be04-4677-af3d-a6fc13061b40",
+   "problems": [
+    "assertion: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ]
+  },
+  {
+   "db": "math_11",
+   "id": "2d4ea43b-180e-4142-a0ee-9652c6e1a657",
+   "problems": [
+    "assertion: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation).",
+    "reason: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ]
+  },
+  {
+   "db": "math_11",
+   "id": "3d914e33-95e8-47ce-83b3-e061c88cc9e0",
+   "problems": [
+    "reason: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ]
+  },
+  {
+   "db": "math_11",
+   "id": "43915795-4585-4255-b34b-f8efaba1e733",
+   "problems": [
+    "solution: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ]
+  },
+  {
+   "db": "math_11",
+   "id": "44a08514-7b3d-463c-915b-e2f8b786641b",
+   "problems": [
+    "reason: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ]
+  },
+  {
+   "db": "math_11",
+   "id": "80eb94cb-6e84-457b-8a9d-9d28f16586be",
+   "problems": [
+    "question: The equation cannot be typeset (cut off, unbalanced braces or an unknown command), so it prints as plain text.",
+    "column I item 1: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation).",
+    "column I item 2: The equation cannot be typeset (cut off, unbalanced braces or an unknown command), so it prints as plain text."
+   ]
+  },
+  {
+   "db": "math_11",
+   "id": "b3908de6-bd13-44de-838a-c8b845253122",
+   "problems": [
+    "reason: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ]
+  },
+  {
+   "db": "math_11",
+   "id": "ebefd33c-c851-462c-91ee-b8ddf8698c45",
+   "problems": [
+    "question: The equation cannot be typeset (cut off, unbalanced braces or an unknown command), so it prints as plain text."
+   ]
+  },
+  {
+   "db": "math_11",
+   "id": "5bb87572-8e3e-4bd2-8f1d-10333f9e4073",
+   "problems": [
+    "question: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation).",
+    "column I item 2: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ]
+  },
+  {
+   "db": "math_11",
+   "id": "61aa6b9b-760f-4f40-af3c-5934be9c11e7",
+   "problems": [
+    "assertion: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ]
+  },
+  {
+   "db": "math_11",
+   "id": "75ecfa2e-a0b7-4cdb-9fa0-7386561f2b7b",
+   "problems": [
+    "reason: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ]
+  },
+  {
+   "db": "math_11",
+   "id": "0b1ae6fd-76f5-4c48-86f3-cde25bdeb601",
+   "problems": [
+    "reason: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ]
+  },
+  {
+   "db": "math_11",
+   "id": "37a1e5bc-319c-440d-8e5c-22cf75efb044",
+   "problems": [
+    "reason: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ]
+  },
+  {
+   "db": "math_11",
+   "id": "fe0d9cd1-bb20-464e-b2a9-f6203000d4e2",
+   "problems": [
+    "reason: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ]
+  },
+  {
+   "db": "math_11",
+   "id": "3d59c7e1-7477-4bd6-873b-5a7e02f78e81",
+   "problems": [
+    "question: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ]
+  },
+  {
+   "db": "math_11",
+   "id": "6f470dac-b417-4d8f-bd23-df96456dce14",
+   "problems": [
+    "assertion: The equation cannot be typeset (cut off, unbalanced braces or an unknown command), so it prints as plain text."
+   ]
+  },
+  {
+   "db": "math_12",
+   "id": "0412f560-2fc5-40ab-98ab-ff99eb53f4a6",
+   "problems": [
+    "question: The equation cannot be typeset (cut off, unbalanced braces or an unknown command), so it prints as plain text."
+   ]
+  },
+  {
+   "db": "math_12",
+   "id": "086e5482-9b41-48d3-8969-b440a123c617",
+   "problems": [
+    "solution: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ]
+  },
+  {
+   "db": "math_12",
+   "id": "0bd36104-7785-40ab-af38-59589c3091e1",
+   "problems": [
+    "question: The equation cannot be typeset (cut off, unbalanced braces or an unknown command), so it prints as plain text."
+   ]
+  },
+  {
+   "db": "math_12",
+   "id": "0cc3ad7e-600a-48b2-a2a8-6edf3d506adb",
+   "problems": [
+    "solution: The equation cannot be typeset (cut off, unbalanced braces or an unknown command), so it prints as plain text."
+   ]
+  },
+  {
+   "db": "math_12",
+   "id": "0f1c2ed9-ab17-47aa-bef9-c52dc3eeac8d",
+   "problems": [
+    "solution: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ]
+  },
+  {
+   "db": "math_12",
+   "id": "1ce1e72d-a936-4e6b-b3e5-209aa7ccb564",
+   "problems": [
+    "assertion: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ]
+  },
+  {
+   "db": "math_12",
+   "id": "1fd0b2bc-1204-494e-ae95-286704ab5af3",
+   "problems": [
+    "assertion: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation).",
+    "reason: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ]
+  },
+  {
+   "db": "math_12",
+   "id": "23b8ba81-c859-4c9e-873e-eb42376c4beb",
+   "problems": [
+    "question: The equation cannot be typeset (cut off, unbalanced braces or an unknown command), so it prints as plain text.",
+    "column I item 4: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ]
+  },
+  {
+   "db": "math_12",
+   "id": "29749e6b-ab4f-4191-897e-ce9d2a59a578",
+   "problems": [
+    "solution: The equation cannot be typeset (cut off, unbalanced braces or an unknown command), so it prints as plain text."
+   ]
+  },
+  {
+   "db": "math_12",
+   "id": "2b44bc62-c5c7-4a1e-a7ba-3dfe91e81cae",
+   "problems": [
+    "solution: The equation cannot be typeset (cut off, unbalanced braces or an unknown command), so it prints as plain text."
+   ]
+  },
+  {
+   "db": "math_12",
+   "id": "2f2624df-c6cf-46a5-8280-82e07edae393",
+   "problems": [
+    "solution: The equation cannot be typeset (cut off, unbalanced braces or an unknown command), so it prints as plain text."
+   ]
+  },
+  {
+   "db": "math_12",
+   "id": "3dff6e0c-eff3-49f7-b8c0-f181cd67638c",
+   "problems": [
+    "question: The equation cannot be typeset (cut off, unbalanced braces or an unknown command), so it prints as plain text."
+   ]
+  },
+  {
+   "db": "math_12",
+   "id": "40335600-a52f-4f5e-b98d-a1d816fd8271",
+   "problems": [
+    "assertion: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ]
+  },
+  {
+   "db": "math_12",
+   "id": "41776e6b-ce12-410f-bda4-282047507004",
+   "problems": [
+    "column I item 1: The equation cannot be typeset (cut off, unbalanced braces or an unknown command), so it prints as plain text.",
+    "column I item 2: The equation cannot be typeset (cut off, unbalanced braces or an unknown command), so it prints as plain text.",
+    "column I item 3: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ]
+  },
+  {
+   "db": "math_12",
+   "id": "4c6b42b1-ebe9-464e-ab13-416006c6c105",
+   "problems": [
+    "assertion: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation).",
+    "reason: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ]
+  },
+  {
+   "db": "math_12",
+   "id": "4edab354-cf88-4736-99d3-562b6ff0d1aa",
+   "problems": [
+    "question: The equation cannot be typeset (cut off, unbalanced braces or an unknown command), so it prints as plain text."
+   ]
+  },
+  {
+   "db": "math_12",
+   "id": "50acf01a-959a-465e-9093-49915b5f3aab",
+   "problems": [
+    "solution: The equation cannot be typeset (cut off, unbalanced braces or an unknown command), so it prints as plain text."
+   ]
+  },
+  {
+   "db": "math_12",
+   "id": "5458b4c4-be76-4cf4-b8f9-3d62ecc0dc41",
+   "problems": [
+    "question: The equation cannot be typeset (cut off, unbalanced braces or an unknown command), so it prints as plain text."
+   ]
+  },
+  {
+   "db": "math_12",
+   "id": "5559ce71-d05b-43f4-8e56-92b92791253d",
+   "problems": [
+    "assertion: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ]
+  },
+  {
+   "db": "math_12",
+   "id": "560137ee-8242-448d-9d82-bc3e4d307936",
+   "problems": [
+    "assertion: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation).",
+    "reason: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ]
+  },
+  {
+   "db": "math_12",
+   "id": "580800e5-9280-4493-b98a-b3c2e22a06c3",
+   "problems": [
+    "solution: The equation cannot be typeset (cut off, unbalanced braces or an unknown command), so it prints as plain text."
+   ]
+  },
+  {
+   "db": "math_12",
+   "id": "6633aea1-b0a0-4f67-9b2e-34198146d1a2",
+   "problems": [
+    "question: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation).",
+    "assertion: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation).",
+    "reason: The equation cannot be typeset (cut off, unbalanced braces or an unknown command), so it prints as plain text."
+   ]
+  },
+  {
+   "db": "math_12",
+   "id": "6bcba552-f2fc-4a40-a0e0-9abff6074d36",
+   "problems": [
+    "solution: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ]
+  },
+  {
+   "db": "math_12",
+   "id": "6de330cf-d852-434c-9ba5-cf18aaf275ce",
+   "problems": [
+    "solution: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ]
+  },
+  {
+   "db": "math_12",
+   "id": "70a9a00b-5c6a-4992-8a51-a9c118283a5d",
+   "problems": [
+    "question: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ]
+  },
+  {
+   "db": "math_12",
+   "id": "74378aaa-8731-4b36-ada4-7437bf38e39a",
+   "problems": [
+    "solution: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ]
+  },
+  {
+   "db": "math_12",
+   "id": "759c91cf-c2b0-443c-9c6e-11fca4059b23",
+   "problems": [
+    "solution: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ]
+  },
+  {
+   "db": "math_12",
+   "id": "7f954a53-38c8-4649-93b8-0ac2bc552b4e",
+   "problems": [
+    "assertion: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ]
+  },
+  {
+   "db": "math_12",
+   "id": "8361e821-0989-48cb-929a-86ca0103522a",
+   "problems": [
+    "question: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ]
+  },
+  {
+   "db": "math_12",
+   "id": "838454bd-0f2c-487d-8a2b-7c1ec5983d36",
+   "problems": [
+    "solution: The equation cannot be typeset (cut off, unbalanced braces or an unknown command), so it prints as plain text."
+   ]
+  },
+  {
+   "db": "math_12",
+   "id": "9119ecc4-3116-49ae-87cb-88d35a6bf938",
+   "problems": [
+    "column I item 4: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ]
+  },
+  {
+   "db": "math_12",
+   "id": "92c37834-c395-4cdb-81db-af1a69aba3c9",
+   "problems": [
+    "question: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ]
+  },
+  {
+   "db": "math_12",
+   "id": "97de2e8d-e694-410e-b980-55792a4e00bd",
+   "problems": [
+    "solution: The equation cannot be typeset (cut off, unbalanced braces or an unknown command), so it prints as plain text."
+   ]
+  },
+  {
+   "db": "math_12",
+   "id": "a4056c47-36c1-488a-8aed-c572e62d52fe",
+   "problems": [
+    "option 2: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ]
+  },
+  {
+   "db": "math_12",
+   "id": "aca58718-117f-46f0-a44f-f9b8c2292725",
+   "problems": [
+    "question: The equation cannot be typeset (cut off, unbalanced braces or an unknown command), so it prints as plain text."
+   ]
+  },
+  {
+   "db": "math_12",
+   "id": "b24a547e-e099-4d2e-8c3f-ee317f4560aa",
+   "problems": [
+    "solution: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ]
+  },
+  {
+   "db": "math_12",
+   "id": "b6c89c1d-43e6-4f3c-a7c9-f1bcdb670cf5",
+   "problems": [
+    "assertion: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation).",
+    "reason: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ]
+  },
+  {
+   "db": "math_12",
+   "id": "bbff0af2-eec0-4bd8-bbe0-34c9ebeea731",
+   "problems": [
+    "solution: The equation cannot be typeset (cut off, unbalanced braces or an unknown command), so it prints as plain text."
+   ]
+  },
+  {
+   "db": "math_12",
+   "id": "bd793b7b-3c06-4b96-a25d-53b7165cd257",
+   "problems": [
+    "question: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ]
+  },
+  {
+   "db": "math_12",
+   "id": "c0821fe4-88bc-41e3-b79e-10e5787e35eb",
+   "problems": [
+    "question: The equation cannot be typeset (cut off, unbalanced braces or an unknown command), so it prints as plain text."
+   ]
+  },
+  {
+   "db": "math_12",
+   "id": "c638ad3f-1f37-40a3-a293-a1189a6bfb2b",
+   "problems": [
+    "question: The equation cannot be typeset (cut off, unbalanced braces or an unknown command), so it prints as plain text."
+   ]
+  },
+  {
+   "db": "math_12",
+   "id": "c9c6bd28-ca3c-4583-b2ce-3366463dd97d",
+   "problems": [
+    "solution: The equation cannot be typeset (cut off, unbalanced braces or an unknown command), so it prints as plain text."
+   ]
+  },
+  {
+   "db": "math_12",
+   "id": "cc1a3429-b216-4f27-8409-8fabaf326d6d",
+   "problems": [
+    "solution: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ]
+  },
+  {
+   "db": "math_12",
+   "id": "d434e272-7915-4c25-8a8b-ed99ed53ade5",
+   "problems": [
+    "assertion: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ]
+  },
+  {
+   "db": "math_12",
+   "id": "ea2b4d3e-9e45-4616-b03e-bed1cbd09a47",
+   "problems": [
+    "solution: The equation cannot be typeset (cut off, unbalanced braces or an unknown command), so it prints as plain text."
+   ]
+  },
+  {
+   "db": "math_12",
+   "id": "ea3dbd3e-f3ba-4db1-a635-2abdbebd9d55",
+   "problems": [
+    "assertion: The equation cannot be typeset (cut off, unbalanced braces or an unknown command), so it prints as plain text.",
+    "reason: The equation cannot be typeset (cut off, unbalanced braces or an unknown command), so it prints as plain text."
+   ]
+  },
+  {
+   "db": "math_12",
+   "id": "efa6bcbf-3845-41e4-a7d9-e657c0c64ddb",
+   "problems": [
+    "column I item 3: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation).",
+    "column I item 4: The equation cannot be typeset (cut off, unbalanced braces or an unknown command), so it prints as plain text.",
+    "column I item 5: The equation cannot be typeset (cut off, unbalanced braces or an unknown command), so it prints as plain text.",
+    "column I item 7: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ]
+  },
+  {
+   "db": "math_12",
+   "id": "fd474dd4-ba1e-4b30-afb4-07a2312e9268",
+   "problems": [
+    "assertion: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ]
+  },
+  {
+   "db": "math_12",
+   "id": "543330ca-a82e-4302-ba86-4a82f27e4498",
+   "problems": [
+    "reason: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ]
+  },
+  {
+   "db": "math_12",
+   "id": "3a832b60-9b64-46b7-a73e-27881d489958",
+   "problems": [
+    "solution: The equation cannot be typeset (cut off, unbalanced braces or an unknown command), so it prints as plain text."
+   ]
+  },
+  {
+   "db": "chem_11",
+   "id": "d143190d-3780-46d0-bfe4-55cf8eeaa26f",
+   "problems": [
+    "column II item 2: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation).",
+    "column II item 4: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ]
+  },
+  {
+   "db": "chem_11",
+   "id": "5aca6aa1-5b6f-4697-8972-9eca74b9eafd",
+   "problems": [
+    "column I item 4: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ]
+  },
+  {
+   "db": "chem_11",
+   "id": "6d8d0a7a-8034-4e89-9a7a-685e5641b848",
+   "problems": [
+    "column II item 2: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ]
+  },
+  {
+   "db": "chem_11",
+   "id": "9d4440b3-6a71-4aae-9d34-5848a3a14c48",
+   "problems": [
+    "column I item 4: The equation cannot be typeset (cut off, unbalanced braces or an unknown command), so it prints as plain text.",
+    "column I item 5: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ]
+  },
+  {
+   "db": "chem_11",
+   "id": "9eb0abee-84b3-4fc7-8d31-0e2c0a55856a",
+   "problems": [
+    "solution: The equation cannot be typeset (cut off, unbalanced braces or an unknown command), so it prints as plain text."
+   ]
+  },
+  {
+   "db": "chem_11",
+   "id": "e45aa3e8-4dea-412d-8e42-4d01f9279253",
+   "problems": [
+    "solution: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ]
+  },
+  {
+   "db": "chem_12",
+   "id": "cfd77d79-926b-4c7b-9b52-e0045b197f0a",
+   "problems": [
+    "assertion: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ]
+  },
+  {
+   "db": "chem_12",
+   "id": "27bcfaef-26cc-4bdc-81d3-23fff6723c80",
+   "problems": [
+    "column I item 3: The equation cannot be typeset (cut off, unbalanced braces or an unknown command), so it prints as plain text.",
+    "column I item 4: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ]
+  },
+  {
+   "db": "bio_11",
+   "id": "13889afd-416c-4620-bcd9-9fce1c09f487",
+   "problems": [
+    "solution: The equation cannot be typeset (cut off, unbalanced braces or an unknown command), so it prints as plain text."
+   ]
+  },
+  {
+   "db": "bio_12",
+   "id": "e64cf115-875f-430a-bf36-00af5d4c69ee",
+   "problems": [
+    "question: The equation cannot be typeset (cut off, unbalanced braces or an unknown command), so it prints as plain text."
+   ]
+  },
+  {
+   "db": "bio_12",
+   "id": "184702b0-3a9e-4d6f-99b5-337fefdc5dd5",
+   "problems": [
+    "option 1: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation).",
+    "option 2: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation).",
+    "option 3: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation).",
+    "option 4: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ]
+  },
+  {
+   "db": "bio_12",
+   "id": "a1d743ae-96da-42d9-a18e-714238fcf1b9",
+   "problems": [
+    "option 1: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation).",
+    "option 2: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation).",
+    "option 3: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation).",
+    "option 4: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ]
+  },
+  {
+   "db": "bio_12",
+   "id": "c9e18d74-cf8d-4df6-84f9-140782856262",
+   "problems": [
+    "solution: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ]
+  },
+  {
+   "db": "bio_12",
+   "id": "74fc1f9e-914c-4b2f-8739-76a7930b4b09",
+   "problems": [
+    "question: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation).",
+    "solution: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ]
+  },
+  {
+   "db": "phy_11",
+   "id": "83efa9fb-f3d7-46f0-ac56-a22e21e7472e",
+   "problems": [
+    "solution: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ]
+  },
+  {
+   "db": "phy_11",
+   "id": "b845e9c7-a42b-4d5f-9f88-f6b7912c9770",
+   "problems": [
+    "solution: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ]
+  },
+  {
+   "db": "phy_11",
+   "id": "d7185c9e-5118-4c52-934f-a438a80b00af",
+   "problems": [
+    "solution: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ]
+  },
+  {
+   "db": "phy_11",
+   "id": "2d974b49-0204-4262-a455-0200279fb5a7",
+   "problems": [
+    "solution: The equation cannot be typeset (cut off, unbalanced braces or an unknown command), so it prints as plain text."
+   ]
+  },
+  {
+   "db": "phy_11",
+   "id": "41b43d4b-5b88-4056-b2a0-f0051d41ba75",
+   "problems": [
+    "solution: The equation cannot be typeset (cut off, unbalanced braces or an unknown command), so it prints as plain text."
+   ]
+  },
+  {
+   "db": "phy_11",
+   "id": "4fe19b9c-0135-47ee-8854-d3baee687930",
+   "problems": [
+    "reason: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ]
+  },
+  {
+   "db": "phy_11",
+   "id": "f1dfafcc-9d0e-4f40-b51f-00a3b0cdef9f",
+   "problems": [
+    "solution: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ]
+  },
+  {
+   "db": "phy_12",
+   "id": "34c9ea06-7188-4bd6-a2aa-87ece4ed4dab",
+   "problems": [
+    "option 1: The equation cannot be typeset (cut off, unbalanced braces or an unknown command), so it prints as plain text.",
+    "option 2: The equation cannot be typeset (cut off, unbalanced braces or an unknown command), so it prints as plain text.",
+    "option 3: The equation cannot be typeset (cut off, unbalanced braces or an unknown command), so it prints as plain text.",
+    "option 4: The equation cannot be typeset (cut off, unbalanced braces or an unknown command), so it prints as plain text."
+   ]
+  },
+  {
+   "db": "phy_12",
+   "id": "ac8f913a-da25-4465-94ee-d301110cfa9f",
+   "problems": [
+    "assertion: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ]
+  },
+  {
+   "db": "phy_12",
+   "id": "e417d9c4-e253-4f1b-839b-ddee87434051",
+   "problems": [
+    "solution: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ]
+  },
+  {
+   "db": "phy_12",
+   "id": "ebd6fe6b-8c67-4deb-8bd2-d4f426911f5e",
+   "problems": [
+    "solution: Raw LaTeX or a stray $ is left on the paper (an unpaired $ or a cut-off equation)."
+   ]
+  }
+ ]
+}

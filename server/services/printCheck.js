@@ -44,28 +44,50 @@ function snippetParses(math, display) {
 function textIsBroken(raw) {
     if (raw == null) return false;
     let text = String(raw);
-    if (!text.includes('$') && !text.includes('\\(') && !text.includes('\\[')) return false;
+    if (!text.includes('$') && !text.includes('\\(') && !text.includes('\\[') && !text.includes('\\begin{')) return false;
+    // the paper's ensureMathDelimiters: \[ \( first, then a \begin..\end block typed without $ is wrapped (display for align/gather)
     text = text.replace(/\\\[([\s\S]*?)\\\]/g, '$$$$$1$$$$').replace(/\\\(([\s\S]*?)\\\)/g, '$$$1$$');
+    text = text.split(/(\$\$[\s\S]*?\$\$|\$[^$]*?\\begin\{[A-Za-z*]+\}[\s\S]*?\\end\{[A-Za-z*]+\}[^$]*?\$|\$[^$\n]+?\$)/g).map((part, i) => (
+        i % 2 === 1 ? part : part.replace(/\\begin\{(matrix|pmatrix|bmatrix|Bmatrix|vmatrix|Vmatrix|smallmatrix|aligned|align\*?|gather\*?|split|array|cases)\}([\s\S]*?)\\end\{\1\}/g, (_w, env, body) => {
+            const wrap = /^(?:align|gather|split)/.test(env) ? '$$' : '$';
+            return `${wrap}\\begin{${env}}${body}\\end{${env}}${wrap}`;
+        })
+    )).join('');
     let broken = false;
-    // display maths first, as the paper does
-    text = text.replace(/\$\$([\s\S]*?)\$\$/g, (_m, math) => { if (!snippetParses(math, true)) broken = true; return ' '; });
+    // display maths first, as the paper does; each rendered block separates the text into stretches
+    const BLOCK = '\u0000';
+    text = text.replace(/\$\$([\s\S]*?)\$\$/g, (_m, math) => { if (!snippetParses(math, true)) broken = true; return BLOCK; });
     if (broken) return true;
-    if (text.includes('$$')) return true;        // a lone "$$" with no partner
-    // a single unpaired $ is repaired by the paper only when what follows looks like maths
-    const chunks = text.split(/\n{2,}/);
-    for (const chunk of chunks) {
+    // the paper looks at each stretch between rendered blocks on its own: an unpaired $ is closed at the end of the stretch when
+    // what follows looks like maths; then the $...$ pairs are typeset (same pattern as the paper) and any $ still left shows
+    for (let chunk of text.split(BLOCK)) {
         if (((chunk.match(/\$/g) || []).length % 2) === 1) {
             const tail = chunk.slice(chunk.lastIndexOf('$') + 1);
-            if (!/[\\^_=]/.test(tail)) return true;
+            if (/[\\^_=]/.test(tail)) chunk = `${chunk.replace(/\s*$/, '')}$`;
         }
+        const rest = chunk.replace(/\$([\s\S]+?)\$/g, (_m, math) => { if (!snippetParses(math, false)) broken = true; return ' '; });
+        if (broken || rest.includes('$')) return true;
+        // last safety net: with every equation taken out, an environment or integral / limit / sum command left in the plain
+        // text prints as code
+        if (/\\(?:begin|end)\{|\\(?:int|iint|oint|sum|prod|lim|frac|dfrac|sqrt|sin|cos|tan|log)(?![A-Za-z])/.test(rest)) return true;
     }
-    text.replace(/\$((?:[^$])+?)\$/g, (_m, math) => { if (!snippetParses(math, false)) broken = true; return ' '; });
-    return broken;
+    return false;
 }
 
-/** true when any printed part of a mapped question cannot be typeset (the solution is not part of the printed paper) */
+/** Text with no $ at all whose sentence carries an integral / sum / limit command: the paper cannot typeset it as a whole. */
+function bareLatexInSentence(raw) {
+    const text = String(raw || '');
+    if (text.includes('$') || text.includes('\\(') || text.includes('\\[')) return false;
+    return /\\(?:int|iint|oint|sum|prod|lim)(?![A-Za-z])/.test(text) && /[A-Za-z]{3,}\s+[A-Za-z]{2,}/.test(text.replace(/\\[a-zA-Z]+/g, ''));
+}
+
+/** A literal "\n" typed instead of a line break ("statements –\n(i) ..."): it prints as code. Not \neq, \nu, \nabla ... */
+const LITERAL_NEWLINE = /\\n(?![A-Za-z])/;
+
+/** true when any printed part of a mapped question cannot be typeset - the solution too, as it prints in the answer key */
 function questionPrintIsBroken(q) {
-    if (textIsBroken(q.questionText)) return true;
+    if (textIsBroken(q.questionText) || LITERAL_NEWLINE.test(String(q.questionText || '')) || bareLatexInSentence(q.questionText)) return true;
+    if (textIsBroken(q.solutionText)) return true;
     if ((q.options || []).some(o => textIsBroken(typeof o === 'object' ? (o.text || o.option || '') : o))) return true;
     if (q.type === 'STATEMENT_BASED' && (q.statements || []).some(s => textIsBroken(typeof s === 'object' ? s.text : s))) return true;
     if (q.type === 'ASSERTION_REASON' && (textIsBroken(q.assertion) || textIsBroken(q.reason))) return true;

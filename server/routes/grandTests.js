@@ -301,6 +301,8 @@ router.post('/:id/questions/:oldQuestionId/replace', [auth, checkRole(['admin', 
         // Fetch the new question
         const newQuestionData = await supabaseQuestions.getQuestionById(dbQuestionId);
         if (!newQuestionData) return res.status(404).json({ msg: 'Question not found in the question bank.' });
+        // a question that cannot print correctly is never put on a paper (the same rule as every generator)
+        if (newQuestionData.keyProblem) return res.status(400).json({ msg: 'This question has a problem and cannot be used on a paper until it is corrected in the Question Bank.' });
 
         // Generate a unique question ID
         const count = await Question.countDocuments();

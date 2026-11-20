@@ -657,7 +657,7 @@ function mapSupabaseToQuestion(row, usageMap = null) {
     if (matchKeyUnknown && !keyProblem) keyProblem = 'MATCH_KEY_UNKNOWN';
     // A printed part (question, option, statement, assertion/reason, match column) whose maths cannot be typeset: the paper would
     // show plain text or raw LaTeX, so the question is kept out of papers until it is corrected.
-    if (!keyProblem && questionPrintIsBroken({ type, questionText: cleanQuestion, options, statements: dynamicStatements, assertion, reason, columnA: colA, columnB: colB })) keyProblem = 'PRINT_BROKEN';
+    if (!keyProblem && questionPrintIsBroken({ type, questionText: cleanQuestion, options, statements: dynamicStatements, assertion, reason, columnA: colA, columnB: colB, solutionText: cleanSolution })) keyProblem = 'PRINT_BROKEN';
     // Nothing for the student to read: the question text is empty (or only "Statement I: / Statement II:" labels with nothing after
     // them) and there is no diagram, statement, column or assertion to show instead. It would print as a number and four options.
     const readable = s => String(s || '').replace(/@?Statement\s*[-–—]?\s*\(?[IVXLCDM0-9A-D]+\)?\s*[:.\-)–—]/gi, '').replace(/\[[^\]]*\]/g, '').trim();
